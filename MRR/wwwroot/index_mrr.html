@@ -1,0 +1,300 @@
+<html>
+<head>
+
+<meta name='viewport' content='width=device-width, initial-scale=1'>
+<link rel="stylesheet" type="text/css" href="checkbox.css">
+<link rel="stylesheet" type="text/css" href="button.css">
+<link rel="stylesheet" type="text/css" href="w3.css">
+
+<meta name="theme-color" content="#aaffff">
+
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+<script src="jquery.min.js" type="text/javascript" charset="utf-8"></script>
+<script src="loadrobots.js" type="text/javascript" charset="utf-8"></script>
+
+<title>MEGA Robo Rally</title>
+
+<style>
+a:link {
+    text-decoration: none;
+	color: #000000;
+}
+
+a:visited {
+    text-decoration: none;
+	color: #000000;
+}
+
+td {
+	#//background-color: #e0e0e0;
+}
+</style>
+
+</head>
+<body id='body' style='padding:5px; padding-top:0px'>
+
+<table bgcolor="ffffff" border=0 width=100%>
+<tr bgcolor="#d0d0d0"><td>Robot</td>
+<td align=center>Flags</td>
+<td align=center>Status</td>
+<td align=center width = 40% id="turnphase">Turn 1 - Phase 1</td>
+</tr>
+<tr>
+    <td align=center><button class='button' id="button1" style='background-color:e0e0e0; color:000000' onclick='showplayerprogram(1);'>--</button></td>
+    <td align=center id="flags1" bgcolor='#e0e0e0'>
+        <table width="100%" >
+            <tr height="10">
+                <td id='flag10' colspan="2" height="10" bgcolor="ffffff"> </td>
+                <td id='flag11' colspan="2" height="10" bgcolor='ffffff'> </td>
+                <td id='flag12' colspan="2" height="10" bgcolor='ffffff'> </td>
+                <td id='flag13' colspan="2" height="10" bgcolor='ffffff'> </td>
+                <td id='flag14' colspan="2" height="10" bgcolor='ffffff'> </td>
+            </tr>
+            <tr height="10">
+                <td id='energy10' bgcolor='#ffffff'> </td>
+                <td id='energy11' bgcolor='#ffffff'> </td>
+                <td id='energy12' bgcolor='#ffffff'> </td>
+                <td id='energy13' bgcolor='#ffffff'> </td>
+                <td id='energy14' bgcolor='#ffffff'> </td>
+                <td id='energy15' bgcolor='#ffffff'> </td>
+                <td id='energy16' bgcolor='#ffffff'> </td>
+                <td id='energy17' bgcolor='#ffffff'> </td>
+                <td id='energy18' bgcolor='#ffffff'> </td>
+                <td id='energy19' bgcolor='#ffffff'> </td>
+            </tr>
+        </table>
+    </td>
+    <td align=center id='playerstatus1'>--</td>
+    <td align=center rowspan="8" bgcolor="#e0e0e0" id="showprogram">
+		<table  bgcolor="e0e0e0" width="100%">
+            <tr id="messagetable" style="display: none;">
+                <td colspan="5" >
+                    <button class='button' id="btnMessagebox" style='background-color:ff0000; color:ffffff' onclick='confirmMessage();'>
+                        msg
+                    </button>
+                </td>
+            </tr>
+			<tr id="messagetablespace" style="display: none;"><td colspan="5"  ><br></td></tr>
+			<tr bgcolor="#d0d0d0">
+                <td align=center bgcolor=ffffff id='CardCell0' ><img id='Played0' src='images/type0.png' onclick='PlayCard(this);' width='50' tag=1/></td>
+                <td align=center bgcolor=ffffff id='CardCell1' ><img id='Played1' src='images/type0.png' onclick='PlayCard(this);' width='50'/></td>
+                <td align=center bgcolor=ffffff id='CardCell2' ><img id='Played2' src='images/type0.png' onclick='PlayCard(this);' width='50' tag=3/></td>
+                <td align=center bgcolor=ffffff id='CardCell3' ><img id='Played3' src='images/type0.png' onclick='PlayCard(this);' width='50' tag=4/></td>
+                <td align=center bgcolor=ffffff id='CardCell4' ><img id='Played4' src='images/type0.png' onclick='PlayCard(this);' width='50' tag=5/></td>
+			</tr>
+			<tr><td colspan="5"><br></td></tr>
+			<tr>
+                <td align=center bgcolor=ffffff id='CardCell0' ><img id='Dealt0' src='images/type0.png' onclick='PlayCard(this);' width='50'/></td>
+                <td align=center bgcolor=ffffff id='CardCell0' ><img id='Dealt1' src='images/type0.png' onclick='PlayCard(this);' width='50'/></td>
+                <td align=center bgcolor=ffffff id='CardCell0' ><img id='Dealt2' src='images/type0.png' onclick='PlayCard(this);' width='50'/></td>
+                <td align=center bgcolor=ffffff id='CardCell0' ><img id='Dealt3' src='images/type0.png' onclick='PlayCard(this);' width='50'/></td>
+                <td align=center bgcolor=ffffff id='CardCell0' ><img id='Dealt4' src='images/type0.png' onclick='PlayCard(this);' width='50'/></td>
+			</tr>
+			<tr>
+                <td align=center bgcolor=ffffff id='CardCell0' ><img id='Dealt5' src='images/type0.png' onclick='PlayCard(this);' width='50'/></td>
+                <td align=center bgcolor=ffffff id='CardCell0' ><img id='Dealt6' src='images/type0.png' onclick='PlayCard(this);' width='50'/></td>
+                <td align=center bgcolor=ffffff id='CardCell0' ><img id='Dealt7' src='images/type0.png' onclick='PlayCard(this);' width='50'/></td>
+                <td align=center bgcolor=ffffff id='CardCell0' ><img id='Dealt8' src='images/type0.png' onclick='PlayCard(this);' width='50'/></td>
+                <td align=center bgcolor=ffffff id='CardCell0' ><img id='Dealt9' src='images/type0.png' onclick='PlayCard(this);' width='50'/></td>
+			</tr>
+		</table>
+	</td>
+</tr>
+<tr>
+    <td align=center><button class='button' id="button2" style='background-color:e0e0e0; color:000000' onclick='showplayerprogram(2);'>--</button></td>
+    <td align=center id="flags2" bgcolor='#e0e0e0'>
+        <table width="100%" >
+            <tr height="10">
+                <td id='flag20' colspan="2" height="10" bgcolor="ffffff"> </td>
+                <td id='flag21' colspan="2" height="10" bgcolor='ffffff'> </td>
+                <td id='flag22' colspan="2" height="10" bgcolor='ffffff'> </td>
+                <td id='flag23' colspan="2" height="10" bgcolor='ffffff'> </td>
+                <td id='flag24' colspan="2" height="10" bgcolor='ffffff'> </td>
+            </tr>
+            <tr height="10">
+                <td id='energy20' bgcolor='#ffffff'> </td>
+                <td id='energy21' bgcolor='#ffffff'> </td>
+                <td id='energy22' bgcolor='#ffffff'> </td>
+                <td id='energy23' bgcolor='#ffffff'> </td>
+                <td id='energy24' bgcolor='#ffffff'> </td>
+                <td id='energy25' bgcolor='#ffffff'> </td>
+                <td id='energy26' bgcolor='#ffffff'> </td>
+                <td id='energy27' bgcolor='#ffffff'> </td>
+                <td id='energy28' bgcolor='#ffffff'> </td>
+                <td id='energy29' bgcolor='#ffffff'> </td>
+            </tr>
+        </table>
+    </td>
+    <td align=center id='playerstatus2'>--</td>
+</tr>
+<tr>
+    <td align=center><button class='button' id="button3" style='background-color:e0e0e0; color:000000' onclick='showplayerprogram(3);'>--</button></td>
+    <td align=center id="flags3" bgcolor='#e0e0e0'>
+        <table width="100%" >
+            <tr height="10">
+                <td id='flag30' colspan="2" height="10" bgcolor="ffffff"> </td>
+                <td id='flag31' colspan="2" height="10" bgcolor='ffffff'> </td>
+                <td id='flag32' colspan="2" height="10" bgcolor='ffffff'> </td>
+                <td id='flag33' colspan="2" height="10" bgcolor='ffffff'> </td>
+                <td id='flag34' colspan="2" height="10" bgcolor='ffffff'> </td>
+            </tr>
+            <tr height="10">
+                <td id='energy30' bgcolor='#ffffff'> </td>
+                <td id='energy31' bgcolor='#ffffff'> </td>
+                <td id='energy32' bgcolor='#ffffff'> </td>
+                <td id='energy33' bgcolor='#ffffff'> </td>
+                <td id='energy34' bgcolor='#ffffff'> </td>
+                <td id='energy35' bgcolor='#ffffff'> </td>
+                <td id='energy36' bgcolor='#ffffff'> </td>
+                <td id='energy37' bgcolor='#ffffff'> </td>
+                <td id='energy38' bgcolor='#ffffff'> </td>
+                <td id='energy39' bgcolor='#ffffff'> </td>
+            </tr>
+        </table>
+    </td>
+    <td align=center id='playerstatus3'>--</td>
+</tr>
+<tr>
+    <td align=center><button class='button' id="button4" style='background-color:e0e0e0; color:000000' onclick='showplayerprogram(4);'>--</button></td>
+    <td align=center id="flags4" bgcolor='#e0e0e0'>
+        <table width="100%" >
+            <tr height="10">
+                <td id='flag40' colspan="2" height="10" bgcolor="ffffff"> </td>
+                <td id='flag41' colspan="2" height="10" bgcolor='ffffff'> </td>
+                <td id='flag42' colspan="2" height="10" bgcolor='ffffff'> </td>
+                <td id='flag43' colspan="2" height="10" bgcolor='ffffff'> </td>
+                <td id='flag44' colspan="2" height="10" bgcolor='ffffff'> </td>
+            </tr>
+            <tr height="10">
+                <td id='energy40' bgcolor='#ffffff'> </td>
+                <td id='energy41' bgcolor='#ffffff'> </td>
+                <td id='energy42' bgcolor='#ffffff'> </td>
+                <td id='energy43' bgcolor='#ffffff'> </td>
+                <td id='energy44' bgcolor='#ffffff'> </td>
+                <td id='energy45' bgcolor='#ffffff'> </td>
+                <td id='energy46' bgcolor='#ffffff'> </td>
+                <td id='energy47' bgcolor='#ffffff'> </td>
+                <td id='energy48' bgcolor='#ffffff'> </td>
+                <td id='energy49' bgcolor='#ffffff'> </td>
+            </tr>
+        </table>
+    </td>
+    <td align=center id='playerstatus4'>--</td>
+</tr>
+<tr>
+    <td align=center><button class='button' id="button5" style='background-color:e0e0e0; color:000000' onclick='showplayerprogram(5);'>--</button></td>
+    <td align=center id="flags5" bgcolor='#e0e0e0'>
+        <table width="100%" >
+            <tr height="10">
+                <td id='flag50' colspan="2" height="10" bgcolor="ffffff"> </td>
+                <td id='flag51' colspan="2" height="10" bgcolor='ffffff'> </td>
+                <td id='flag52' colspan="2" height="10" bgcolor='ffffff'> </td>
+                <td id='flag53' colspan="2" height="10" bgcolor='ffffff'> </td>
+                <td id='flag54' colspan="2" height="10" bgcolor='ffffff'> </td>
+            </tr>
+            <tr height="10">
+                <td id='energy50' bgcolor='#ffffff'> </td>
+                <td id='energy51' bgcolor='#ffffff'> </td>
+                <td id='energy52' bgcolor='#ffffff'> </td>
+                <td id='energy53' bgcolor='#ffffff'> </td>
+                <td id='energy54' bgcolor='#ffffff'> </td>
+                <td id='energy55' bgcolor='#ffffff'> </td>
+                <td id='energy56' bgcolor='#ffffff'> </td>
+                <td id='energy57' bgcolor='#ffffff'> </td>
+                <td id='energy58' bgcolor='#ffffff'> </td>
+                <td id='energy59' bgcolor='#ffffff'> </td>
+            </tr>
+        </table>
+    </td>
+    <td align=center id='playerstatus5'>--</td>
+</tr>
+<tr>
+    <td align=center><button class='button' id="button6" style='background-color:e0e0e0; color:000000' onclick='showplayerprogram(6);'>--</button></td>
+    <td align=center id="flags6" bgcolor='#e0e0e0'>
+        <table width="100%" >
+            <tr height="10">
+                <td id='flag60' colspan="2" height="10" bgcolor="ffffff"> </td>
+                <td id='flag61' colspan="2" height="10" bgcolor='ffffff'> </td>
+                <td id='flag62' colspan="2" height="10" bgcolor='ffffff'> </td>
+                <td id='flag63' colspan="2" height="10" bgcolor='ffffff'> </td>
+                <td id='flag64' colspan="2" height="10" bgcolor='ffffff'> </td>
+            </tr>
+            <tr height="10">
+                <td id='energy60' bgcolor='#ffffff'> </td>
+                <td id='energy61' bgcolor='#ffffff'> </td>
+                <td id='energy62' bgcolor='#ffffff'> </td>
+                <td id='energy63' bgcolor='#ffffff'> </td>
+                <td id='energy64' bgcolor='#ffffff'> </td>
+                <td id='energy65' bgcolor='#ffffff'> </td>
+                <td id='energy66' bgcolor='#ffffff'> </td>
+                <td id='energy67' bgcolor='#ffffff'> </td>
+                <td id='energy68' bgcolor='#ffffff'> </td>
+                <td id='energy69' bgcolor='#ffffff'> </td>
+            </tr>
+        </table>
+    </td>
+    <td align=center id='playerstatus6'>--</td>
+</tr>
+<tr>
+    <td align=center><button class='button' id="button7" style='background-color:e0e0e0; color:000000' onclick='showplayerprogram(7);'>--</button></td>
+    <td align=center id="flags7" bgcolor='#e0e0e0'>
+        <table width="100%" >
+            <tr height="10">
+                <td id='flag70' colspan="2" height="10" bgcolor="ffffff"> </td>
+                <td id='flag71' colspan="2" height="10" bgcolor='ffffff'> </td>
+                <td id='flag72' colspan="2" height="10" bgcolor='ffffff'> </td>
+                <td id='flag73' colspan="2" height="10" bgcolor='ffffff'> </td>
+                <td id='flag74' colspan="2" height="10" bgcolor='ffffff'> </td>
+            </tr>
+            <tr height="10">
+                <td id='energy70' bgcolor='#ffffff'> </td>
+                <td id='energy71' bgcolor='#ffffff'> </td>
+                <td id='energy72' bgcolor='#ffffff'> </td>
+                <td id='energy73' bgcolor='#ffffff'> </td>
+                <td id='energy74' bgcolor='#ffffff'> </td>
+                <td id='energy75' bgcolor='#ffffff'> </td>
+                <td id='energy76' bgcolor='#ffffff'> </td>
+                <td id='energy77' bgcolor='#ffffff'> </td>
+                <td id='energy78' bgcolor='#ffffff'> </td>
+                <td id='energy79' bgcolor='#ffffff'> </td>
+            </tr>
+        </table>
+    </td>
+    <td align=center id='playerstatus7'>--</td>
+</tr>
+<tr>
+    <td align=center><button class='button' id="button8" style='background-color:e0e0e0; color:000000' onclick='showplayerprogram(8);'>--</button></td>
+    <td align=center id="flags8" bgcolor='#e0e0e0'>
+        <table width="100%" >
+            <tr height="10">
+                <td id='flag80' colspan="2" height="10" bgcolor="ffffff"> </td>
+                <td id='flag81' colspan="2" height="10" bgcolor='ffffff'> </td>
+                <td id='flag82' colspan="2" height="10" bgcolor='ffffff'> </td>
+                <td id='flag83' colspan="2" height="10" bgcolor='ffffff'> </td>
+                <td id='flag84' colspan="2" height="10" bgcolor='ffffff'> </td>
+            </tr>
+            <tr height="10">
+                <td id='energy80' bgcolor='#ffffff'> </td>
+                <td id='energy81' bgcolor='#ffffff'> </td>
+                <td id='energy82' bgcolor='#ffffff'> </td>
+                <td id='energy83' bgcolor='#ffffff'> </td>
+                <td id='energy84' bgcolor='#ffffff'> </td>
+                <td id='energy85' bgcolor='#ffffff'> </td>
+                <td id='energy86' bgcolor='#ffffff'> </td>
+                <td id='energy87' bgcolor='#ffffff'> </td>
+                <td id='energy88' bgcolor='#ffffff'> </td>
+                <td id='energy89' bgcolor='#ffffff'> </td>
+            </tr>
+        </table>
+    </td>
+    <td align=center id='playerstatus8'>--</td>
+</tr>
+</table>
+
+
+
+<script >
+    showplayerprogram(0);
+</script>
+</body>
+</html>
