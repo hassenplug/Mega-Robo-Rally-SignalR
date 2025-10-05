@@ -53,6 +53,22 @@ app.MapGet("/api/dbtest", (DataService dataService, IHubContext<DataHub> hubCont
     return Results.Ok(new { Status = "Broadcast sent", Data = data });
 });
 
+app.MapGet("/api/robots", (DataService dataService, IHubContext<DataHub> hubContext) =>
+{
+    string strSQL = "select * from viewRobots;";
+    //var data = new { Robots = dataService.GetJsonData(strSQL) };
+    object data = dataService.GetQueryResults(strSQL);
+
+    // Broadcast the database status to all connected clients in real-time
+    //    hubContext.Clients.All.SendAsync("ReceiveDataUpdate", new { DatabaseStatus = data, ServerTime = DateTime.Now.ToLongTimeString() });
+    hubContext.Clients.All.SendAsync("ReceiveDataUpdate", data);
+
+    //    return Results.Ok(new { Status = "Broadcast sent", Data = data });
+    //return Results.Ok(data);
+    return Results.Ok(new { Robots = data });
+});
+
+
 // 7. Force the server to listen on all interfaces (0.0.0.0)
 // This is critical for the Raspberry Pi to be accessible from the network
 // The default port is usually 5000/5001 or 80/443

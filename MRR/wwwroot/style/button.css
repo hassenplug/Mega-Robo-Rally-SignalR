@@ -1,0 +1,9 @@
+.button {
+	width:100%;
+	height:30px;
+	border: none;
+	text-decoration: none;
+	display: inline-block;
+   font-weight: bold;
+   cursor: pointer;
+}
