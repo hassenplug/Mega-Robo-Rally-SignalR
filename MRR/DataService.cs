@@ -15,30 +15,13 @@ namespace MRR.Services
         private readonly string _connectionString =
             $"server={DbServerIp};database={DatabaseName};uid={UserId};pwd={Password}";
 
-        public string GetUserCount()
+        public object GetAllData()
         {
-            string query = "SELECT COUNT(*) FROM Robots;";
-            int userCount = 0;
-
-            using (var connection = new MySqlConnection(_connectionString))
-            {
-                try
-                {
-                    connection.Open();
-
-                    using (var command = new MySqlCommand(query, connection))
-                    {
-                        object result = command.ExecuteScalar();
-                        userCount = Convert.ToInt32(result);
-                    }
-                    return $"Database Connected: Found {userCount} robots.";
-                }
-                catch (MySqlException ex)
-                {
-                    // Log or handle the exception appropriately
-                    return $"DB Error ({ex.Number}): {ex.Message}";
-                }
-            }
+            string strSQL = "select * from viewRobots;";
+            object robotdata = GetQueryResults(strSQL);
+            var dataout = new { Robots = robotdata, ServerTime = DateTime.Now.ToLongTimeString() };
+            //hubContext.Clients.All.SendAsync("AllDataUpdate", dataout);
+            return dataout;
         }
 
         public object GetQueryResults(string query)

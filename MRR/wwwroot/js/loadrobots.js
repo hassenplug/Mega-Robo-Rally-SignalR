@@ -1,24 +1,11 @@
 
 var CurrentPlayer = 0;
 var CurrentLine = 0;
+var datapacket = null;
 
 function showplayerprogram(pl) // show program for this line
 {
-//    fetch('makerobotsjson')
-    fetch('/api/robots')
-        .then((response) => response.json())
-        .then((returnvalue) => {
-            robots = returnvalue.robots
-            //console.log(returnvalue);
-            //console.log(robots);
-            showall(robots);
-            //showcards(pl,robots);
-            showcards(pl,robots);
-        });
-}
-
-function showcards(pl,robots)  // show cards for this player
-{
+    robots = datapacket.robots;
     CurrentLine = pl;
     if (pl<1 || pl>robots.length) return;
     var rbt = robots[pl-1];
@@ -68,7 +55,7 @@ function showcards(pl,robots)  // show cards for this player
         card.src = cardimg;
         card.tag = cardtag;
         card.loc = -1;
-        card.cid = cardtag;
+        card.cid = Number(cardtag);
     }
 
     var showmessage = "display: none;";
@@ -90,14 +77,16 @@ function confirmMessage()
     fetch('updatePlayer/3/' + CurrentPlayer + '/1')
         .then((response) => response.json())
         .then((robots) => {
-            showcards(CurrentLine,robots);
+            //showcards(CurrentLine,robots);
         });
 
 }
 
 
-function showall(robots)
+function showall()
 {
+    robots = datapacket.robots
+
     //robotjson = robots;
     for(var i = 0;i<robots.length;i++)
     {
@@ -131,16 +120,39 @@ function showall(robots)
 
 function PlayCard(cardObj)
 {
-    //console.log(cardObj);
-    //var CurrentPlayer = robotjson[CurrentLine-1].RobotID;
+    console.log("PlayCard", CurrentPlayer,cardObj.cid, cardObj.loc);
+    connection.invoke("UpdatePlayer", 1, CurrentPlayer, cardObj.cid, cardObj.loc)
+        .catch(err => console.error(err.toString()));
+//    connection.invoke("SendMessage", user, message)
+            //     .catch(err => console.error(err.toString()));
 
-    // command =1 update card
+/*            
     fetch('updatePlayer/1/' + CurrentPlayer + '/' + cardObj.cid + '/' + cardObj.loc)
         .then((response) => response.json())
         .then((robots) => {
-            showall(robots);
-            showcards(CurrentLine,robots);
+            //showall(robots);
+            //showcards(CurrentLine,robots);
         });
     // request player/card
+    */
 }
+
+// signalR part
+const connection = new signalR.HubConnectionBuilder()
+    .withUrl("/datahub") 
+    .build();
+
+connection.on("AllDataUpdate", function (data) {
+    console.log("Data received from server:", data);
+
+    datapacket = data;
+    robots = data.robots
+    showall();    
+});
+
+connection.start().then(() => {
+    console.log("SignalR Connected!");
+}).catch(function (err) {
+    console.error(err.toString());
+});
 
