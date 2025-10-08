@@ -17,15 +17,8 @@ app.MapHub<DataHub>("/datahub");
 
 app.MapGet("/api/alldata", (DataService dataService, IHubContext<DataHub> hubContext) =>
 {
-//    string strSQL = "select * from viewRobots;";
-//    object robotdata = dataService.GetQueryResults(strSQL);
-//    var dataout = new { Robots = robotdata, ServerTime = DateTime.Now.ToLongTimeString() };
-//    hubContext.Clients.All.SendAsync("AllDataUpdate", dataout);
-
     var dataout = dataService.GetAllData();
     hubContext.Clients.All.SendAsync("AllDataUpdate", dataout);
-
-
     return Results.Ok(dataout);
 });
 

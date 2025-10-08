@@ -70,19 +70,6 @@ function showplayerprogram(pl) // show program for this line
 
 }
 
-function confirmMessage()
-{
-    //CurrentPlayer
-//    fetch('updatePlayer/' + messagetype + '/' + CurrentPlayer + '/1')
-    fetch('updatePlayer/3/' + CurrentPlayer + '/1')
-        .then((response) => response.json())
-        .then((robots) => {
-            //showcards(CurrentLine,robots);
-        });
-
-}
-
-
 function showall()
 {
     robots = datapacket.robots
@@ -120,21 +107,18 @@ function showall()
 
 function PlayCard(cardObj)
 {
-    console.log("PlayCard", CurrentPlayer,cardObj.cid, cardObj.loc);
-    connection.invoke("UpdatePlayer", 1, CurrentPlayer, cardObj.cid, cardObj.loc)
-        .catch(err => console.error(err.toString()));
-//    connection.invoke("SendMessage", user, message)
-            //     .catch(err => console.error(err.toString()));
+    SendUpdate( 1, CurrentPlayer, cardObj.cid, cardObj.loc);
+}
 
-/*            
-    fetch('updatePlayer/1/' + CurrentPlayer + '/' + cardObj.cid + '/' + cardObj.loc)
-        .then((response) => response.json())
-        .then((robots) => {
-            //showall(robots);
-            //showcards(CurrentLine,robots);
-        });
-    // request player/card
-    */
+function confirmMessage()
+{
+    SendUpdate( 3, CurrentPlayer);
+}
+
+function SendUpdate( command,  playerid=0,  data1=0,  data2=0)
+{
+    connection.invoke("UpdatePlayer", command, playerid, data1, data2)
+        .catch(err => console.error(err.toString()));
 }
 
 // signalR part
@@ -148,6 +132,7 @@ connection.on("AllDataUpdate", function (data) {
     datapacket = data;
     robots = data.robots
     showall();    
+    showplayerprogram(CurrentLine);
 });
 
 connection.start().then(() => {
