@@ -42,7 +42,7 @@ namespace MRR.Services
                     //string position = requestSplit[5];
                     //DBConn.Command("call procUpdateCardPlayed(" + playerid + "," + cardid + "," + position + ");");
                     //Console.WriteLine($"UpdatePlayer called with playerId={playerId}, command={command}, data1={data1}, data2={data2}");
-                    ExecuteQuery("call procUpdateCardPlayed(" + playerId + "," + data1 + "," + data2 + ");");
+                    Exec("call procUpdateCardPlayed(" + playerId + "," + data1 + "," + data2 + ");");
                     //Console.WriteLine($"UpdatePlayer called with playerId={playerId}, command={command}, data1={data1}, data2={data2}");
                     // check to see if we an go to next state
                     break;
@@ -72,7 +72,7 @@ namespace MRR.Services
 //            return MakeRobotsJson(request);
         }
 
-        public bool ExecuteQuery(string query)
+        public bool Exec(string query)
         {
             using (var connection = new MySqlConnection(_connectionString))
             {

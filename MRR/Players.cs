@@ -65,7 +65,7 @@ namespace MRR_CLG
     #endregion
 
     #region Player Collection
-    public class Players : ObservableCollection<Player>
+    public class Players : List<Player>
     {
         public Players()
             : base()
@@ -288,11 +288,6 @@ namespace MRR_CLG
                 return Active && !(ShutDown == tShutDown.Currently);
                 //return l_running;
             }
-            //set
-            //{
-            //    l_running = value;
-            //    OnPropertyChanged("IsRunning");
-            //}
         }
 
 

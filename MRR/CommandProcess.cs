@@ -3,27 +3,9 @@ using System.Text;
 using System.Net.Sockets;
 using System.Net;
 using System.Net.Cache;
-using System.Collections.ObjectModel; //ObservableCollection
 
 namespace MRR_CLG
 {
-
-/*
-
-Reset status = 1 where status = 4
-newstatus = -1
-Get all commands where status >= 3 and status <= 4
-    If status = 3 
-        if robot command
-            Send command to robot
-            NewStatus = 4 (wait) or 5 (do not wait)
-    else //status = 4
-        // Check for reply from robots
-        if received, newstatus = 5
-
-    if newstatus >-1, update status in database
-
-*/
 
 // command id
 // command type
@@ -35,7 +17,7 @@ Get all commands where status >= 3 and status <= 4
 // check for connection to each active robot
 // get list of active commands
 
-    public class PendingCommands : ObservableCollection<PendingCommand>
+    public class PendingCommands : List<PendingCommand>
     {
         private Database DBConn;
         private Players RobotList;
@@ -174,34 +156,6 @@ Get all commands where status >= 3 and status <= 4
         }
 
 
-        // function to wait for reply from robots
-        // wait for reply from robots
-
-        // wait for input from users
-
-        // process all commands
-        //public string ProcessCommands()
-        //{
-            // get database state
-            // switch & process it
-
-            // start thread to call function
-            //Thread CommandThread = new Thread(new ThreadStart(WebSocket.RunWebSocket));
-            //CommandThread.Name = "RunningWebSocket"; // +Name;
-            //CommandThread.Start();
-            //Thread.Sleep(1);
-
-            //worker = new QueueWorker(queue,Game);
-            //Thread t = new Thread(new ThreadStart(worker.Work));
-            //t.Start();
-
-            //worker = new WebSocketClass(queue,Game);
-            //Thread t = new Thread(new ThreadStart(worker.Start));
-            //t.Start();
-
-        //    return null;
-        //}
-
     }
 
     public class PendingCommand  //: IComparable
@@ -232,18 +186,3 @@ Get all commands where status >= 3 and status <= 4
     }
 
 }
-
-/*
-
-		if (cRobotID = 0) then
-			update CurrentGameData set iValue = 7, sValue = cDescription where iKey = 10;  # go to wait for input state and set button text
-		else
-			if (cStatus<4) then
-	#			update Robots set MessageCommandID = cParameter, MessageString = cDescription where RobotID = cRobotID;  # go to wait for input state and set button text
-				update Robots set MessageCommandID = p_CommandID where RobotID = cRobotID;  
-				set p_NewStatus = 4; # In progress; waiting for input
-			#else 
-				#update Robots set MessageCommandID = null where RobotID = cRobotID;  
-			end if;
-        end if;
-*/

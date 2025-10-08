@@ -3,7 +3,7 @@ using System.ComponentModel;
 
 namespace MRR_CLG
 {
-    public class CardList : ObservableCollection<MoveCard>
+    public class CardList : List<MoveCard>
     {
 
         public CardList()

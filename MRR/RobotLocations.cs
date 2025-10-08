@@ -50,12 +50,6 @@ namespace MRR_CLG
             X = p_NewLocation.X;
             Y = p_NewLocation.Y;
 
-            //OnPropertyChanged("FullLocation");
-
-            //OnPropertyChanged("Direction");
-            //OnPropertyChanged("X");
-            //OnPropertyChanged("Y");
-
         }
 
         public RobotLocation CalcNewLocation(int p_distance = 1, Direction p_direction = Direction.None) //RobotLocation p_CurrentLocation)

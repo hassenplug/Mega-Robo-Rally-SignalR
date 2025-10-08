@@ -14,7 +14,6 @@ namespace MRR_CLG
         {
             DBConn = ldb;
             createCommands = new(DBConn);
-            rLEDs = new LEDs();
         }
 
         private Database DBConn { get; set; }
@@ -32,7 +31,6 @@ namespace MRR_CLG
 
         private CreateCommands createCommands;
 
-        private LEDs rLEDs;
 
 
         public void StartServer()
@@ -65,16 +63,6 @@ namespace MRR_CLG
             var newQuery = "Select * from " + sout[sout.Length-1] + ";";
             //var newQuery = "" + sout[sout.Length-1] + ";";
             return DBConn.GetHTMLfromQuery(newQuery);
-        }
-
-        private string GetLED(string query)
-        {
-            var sout = query.Split("/");
-            int iout;
-            int.TryParse(sout[sout.Length-1], out iout);
-            //Console.WriteLine("query:" + sout[sout.Length-1]);
-            //return ""; // rRGame.rLED.Animation(iout);
-            return  rLEDs.Animation(iout);
         }
 
         // commands
@@ -257,10 +245,6 @@ namespace MRR_CLG
             {
                 //rPendingCommands.ProcessCommands();
                 return  Encoding.ASCII.GetBytes(MakeRobotsJson(filePath));
-            }
-            else if (requestedPath.Contains("led"))
-            {
-                return  Encoding.ASCII.GetBytes(GetLED(requestedPath));
             }
             else if (requestedPath.Contains("dbeditor"))
             {

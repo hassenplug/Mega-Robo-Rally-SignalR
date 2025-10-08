@@ -16,7 +16,7 @@ using System.Xml.Serialization; // serializer
 
 namespace MRR_CLG
 {
-    public class OptionCardList : ObservableCollection<OptionCard>
+    public class OptionCardList : List<OptionCard>
     {
 
         public OptionCardList()
@@ -103,7 +103,7 @@ namespace MRR_CLG
             if (thisOption != null)
             {
                 int currentIndex = this.IndexOf(thisOption);
-                this.MoveItem(currentIndex, currentIndex + MoveDirection);
+                //this.MoveItem(currentIndex, currentIndex + MoveDirection);
             }
         }
 

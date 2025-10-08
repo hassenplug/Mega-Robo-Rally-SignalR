@@ -25,7 +25,7 @@ namespace MRR_CLG
 
     #endregion Enums
 
-    public class CreateCommands // : INotifyPropertyChanged
+    public class CreateCommands 
     {
 
         #region Game Parameters & Configuration
@@ -1925,7 +1925,7 @@ namespace MRR_CLG
 
         public void DamageAtSquare(RobotLocation DamageSquare, Player CausedDamage) // new RobotLocation(0, X, Y, Damage)
         {
-            ObservableCollection<RobotLocation> DamageSquareList = new ObservableCollection<RobotLocation>();
+            List<RobotLocation> DamageSquareList = new List<RobotLocation>();
             //RobotLocation DamageThisSquare = new RobotLocation(0, 1, 2, 3);
 
             // calc squares to damage
@@ -1948,7 +1948,7 @@ namespace MRR_CLG
             }
         }
 
-        public void DamageSpread(ObservableCollection<RobotLocation> DamageSquareList, RobotLocation DamageSquare)
+        public void DamageSpread(List<RobotLocation> DamageSquareList, RobotLocation DamageSquare)
         {
             if (DamageSquare.Index == 0) return;
             // set damage in this square

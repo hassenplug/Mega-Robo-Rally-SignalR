@@ -1,5 +1,5 @@
 ﻿using System.Collections.ObjectModel;
-using System.ComponentModel; // INotifyPropertyChanged
+//using System.ComponentModel; // INotifyPropertyChanged
 using System.Xml.Serialization; // serializer
 
 
@@ -7,19 +7,8 @@ namespace MRR_CLG
 {
 
     #region Board Element Collection
-    public class BoardElementCollection  : INotifyPropertyChanged  // : ObservableCollection<BoardElement>
+    public class BoardElementCollection  
     {
-        public event PropertyChangedEventHandler PropertyChanged;
-        // Create the OnPropertyChanged method to raise the event
-        protected void OnPropertyChanged(string name)
-        {
-            PropertyChangedEventHandler handler = PropertyChanged;
-            if (handler != null)
-            {
-                handler(this, new PropertyChangedEventArgs(name));
-            }
-        }
-    
 
         public BoardElementCollection(int Columns, int Rows) : this()
         {
@@ -32,7 +21,7 @@ namespace MRR_CLG
         public BoardElementCollection()
             : base()
         {
-            BoardElements = new ObservableCollection<BoardElement>();
+            BoardElements = new List<BoardElement>();
         }
 
         // properties for the collection, here
@@ -48,7 +37,6 @@ namespace MRR_CLG
 
         private int _laserDamage = 1;
         public int LaserDamage { get { return _laserDamage; } set { _laserDamage = value; } }
-        //public int LaserDamage { get { return _laserDamage; } set { _laserDamage = value; OnPropertyChanged("LaserDamage"); } }
 
         public int Lives { get; set; } = 3; // { get { return _lives; } set { _lives = value; } }
 
@@ -56,7 +44,7 @@ namespace MRR_CLG
 
         public int GameType {get;set;}
 
-        public ObservableCollection<BoardElement> BoardElements { get; set; }
+        public List<BoardElement> BoardElements { get; set; }
 
         [XmlIgnore]
         public string FileData
@@ -87,12 +75,8 @@ namespace MRR_CLG
             l_square.Type = p_squaretype;
             l_square.Rotation = p_squaredirection;
 
-        //if (l_square.ActionList != null)
-        //{
-            l_square.ActionList = p_squareactions;
-        //}
 
-            l_square.Update();
+            l_square.ActionList = p_squareactions;
 
             return l_square;
         }
@@ -156,7 +140,6 @@ namespace MRR_CLG
                 onelement.BoardRow = newrow;
                 onelement.BoardCol = newcol;
                 onelement.Rotate(1);
-                onelement.Update();
 
             }
         }
@@ -164,21 +147,8 @@ namespace MRR_CLG
     #endregion
 
     #region Board Elements
-    public class BoardElement : INotifyPropertyChanged
+    public class BoardElement
     {
-        public event PropertyChangedEventHandler PropertyChanged;
-
-
-        // Create the OnPropertyChanged method to raise the event
-        protected void OnPropertyChanged(string name)
-        {
-            PropertyChangedEventHandler handler = PropertyChanged;
-            if (handler != null)
-            {
-                handler(this, new PropertyChangedEventArgs(name));
-            }
-        }
-        // properties for the class here
 
         public BoardElement(string[] newline)
         {
@@ -197,11 +167,6 @@ namespace MRR_CLG
             SetBoardElement(Col, Row, img, dir, -1);
         }
 
-        public BoardElement(int img, int total)
-        {
-            //SetBoardElement(0, 0, img, Direction.None,false);
-        }
-
         public BoardElement()
         {
             SetBoardElement(0, 0, SquareType.Blank, Direction.None, -1);
@@ -216,9 +181,7 @@ namespace MRR_CLG
             Rotation = dir;
             TotalCount = MaxCount;
             TotalUsed = 0;
-            //BuildImage();
-            //BuildPanel();
-            //OnPropertyChanged("Panel");
+
         }
 
         public BoardElement SetSquare(BoardElement newElement)
@@ -236,27 +199,15 @@ namespace MRR_CLG
             return this;
         }
 
-        //private DockPanel c_panel = new DockPanel();
-        //private Grid c_panel = new Grid();
         private BoardActionsCollection c_actionlist = new BoardActionsCollection();
         private Direction c_rotation = Direction.None;
-        //public string BoardImage { get; set; }
-        //public Direction Rotation { get; set; }
-        //[XmlAttribute("Col")]
         public int BoardCol { get; set; }
-        //[XmlAttribute("Row")]
         public int BoardRow { get; set; }
 
-        //public RobotLocation BoardSquareLocation { get; set; }
-
-        //public int BoardImg { get; set; }
         public SquareType Type { get; set; }
 
         [XmlIgnore]
         public int TotalCount { get; set; }
-        //public int TotalUsed { get; set; }
-        //public int TotalRemaining { get; set; }
-        //private Image c_image = new Image();
 
         private int l_totalused = 0;
         [XmlIgnore]
@@ -266,15 +217,8 @@ namespace MRR_CLG
             set
             {
                 l_totalused = value;
-                //OnPropertyChanged("TotalUsed");
-                //OnPropertyChanged("TotalRemaining");
-                //OnPropertyChanged("BGColor");
-                //OnPropertyChanged("Panel");
             }
         }
-
-
-        //public BoardActionsCollection ActionList { get; set; }
 
         public Direction Rotation
         {
@@ -284,7 +228,6 @@ namespace MRR_CLG
                 c_rotation = value;
                 // look at action list...
                 UpdateActionRotation();
-                Update();
             }
         }
 
@@ -299,18 +242,6 @@ namespace MRR_CLG
             Rotation = RotationFunctions.Rotate(RotateDir, Rotation);
             return Rotation;
         }
-
-        //static public Direction Rotate(int RotateDir, Direction StartingDirection)
-        //{
-        //    int currentdir = (int)(StartingDirection);
-        //    Direction[,] dirArray = {{Direction.None,Direction.None,Direction.None,Direction.None}, // none
-        //    {Direction.Left,Direction.Up,Direction.Right,Direction.Down}, // up
-        //    {Direction.Up,Direction.Right,Direction.Down,Direction.Left}, // right
-        //    {Direction.Right,Direction.Down,Direction.Left,Direction.Up}, // down
-        //    {Direction.Down,Direction.Left,Direction.Up,Direction.Right}}; // left
-
-        //    return dirArray[currentdir, RotateDir + 1];;
-        //}
 
 
         public BoardActionsCollection ActionList
@@ -330,7 +261,7 @@ namespace MRR_CLG
             }
         }
 
-        [XmlIgnore]
+
         public int ActionCount
         {
             get { return c_actionlist.Count(); }
@@ -342,8 +273,7 @@ namespace MRR_CLG
         public void AddAction(BoardAction p_action)
         {
             this.ActionList.Add(p_action);
-            //OnPropertyChanged("Panel");
-            Update();
+
         }
 
         public void AddWall(Direction Rotation)
@@ -359,7 +289,6 @@ namespace MRR_CLG
         public void RotateWalls(int direction = 1)
         {
             ActionList.Where(al => al.SquareAction == SquareAction.BlockDirection).Select(al => al.Parameter =(int)RotationFunctions.Rotate(direction, (Direction)al.Parameter)).ToList();
-            Update();
         }
 
         public void UpdateActionRotation()
@@ -373,293 +302,11 @@ namespace MRR_CLG
             }
         }
 
-        // panel includes rotation, walls, and Flag/Start points
-        // build image only includes image
-        /*
-        private Grid BuildPanel()
-        {
-            c_panel.Children.Clear();
 
-            if (BuildImage() == null)
-            {
-                TextBlock l_textblock = new TextBlock();
-                l_textblock.Text = this.Type.ToString() + "," + this.Rotation.ToString();
-                c_panel.Children.Add(l_textblock);
-
-                foreach (BoardAction l_boardaction in this.ActionList)
-                {
-                    TextBlock l_block = new TextBlock();
-                    l_block.Text = l_boardaction.SquareAction.ToString() + "," + l_boardaction.Parameter.ToString() + "," + l_boardaction.ActionSequence.ToString() + "," + l_boardaction.Phase.ToString();
-                    c_panel.Children.Add(l_block);
-
-                }
-            }
-            else
-            {
-                c_panel.Children.Add(c_image);
-                string UseText = ""; // ActionString();
-                Brush bgcolor = Brushes.Black;
-
-                if (TotalCount > 0)
-                {
-                    //UseText += "T" + TotalCount.ToString() + "R" + TotalRemaining.ToString();
-                    UseText += "R" + TotalRemaining.ToString();
-                    if (TotalRemaining < 0)
-                    {
-                        bgcolor = Brushes.Red;
-                    }
-                }
-                else
-                {
-
-
-                    foreach (BoardAction l_boardaction in this.ActionList)
-                    {
-                        switch (l_boardaction.SquareAction)
-                        {
-                            case SquareAction.Flag: UseText += "F" + l_boardaction.Parameter.ToString(); break;
-                            case SquareAction.PlayerStart:
-                                if (l_boardaction.Parameter != 11)
-                                {
-                                    UseText += "S" + l_boardaction.Parameter.ToString();
-                                }
-                                break;
-                            case SquareAction.BlockDirection:
-                                // use this to create wall //
-
-                                string wallImageName = Properties.Settings.Default.BoardImagesPath + "Over200.png";
-                                Image l_wallimage = new Image();
-                                Uri walliconUri = new Uri(wallImageName, UriKind.Relative);
-
-                                try
-                                {
-                                    l_wallimage.Source = new BitmapImage(walliconUri);
-                                }
-                                catch
-                                {
-                                }
-
-                                l_wallimage.LayoutTransform = RotationFunctions.ImageRotation((Direction)l_boardaction.Parameter);
-
-                                c_panel.Children.Add(l_wallimage);
-
-                                // or this ///
-                                //if (this.Type != SquareType.Walls)
-                                //{
-                                //    string[] lwalls = { "?", "V", "<", "^", ">" };
-                                //    UseText += "wall:" + lwalls[l_boardaction.Parameter];
-                                //}
-                                break;
-                            case SquareAction.Damage:
-                                if ((l_boardaction.Parameter != 100) && (l_boardaction.Parameter != -1))
-                                {
-                                    UseText += "D";
-                                    if (l_boardaction.Parameter > 0)
-                                    {
-                                        UseText += "+";
-                                    }
-                                    UseText += l_boardaction.Parameter;
-                                }
-                                break;
-                            default: break; // UseText = "P" + l_boardaction.Parameter.ToString(); break;
-                        }
-                    }
-                }
-
-                if (UseText.Length > 0)
-                {
-                    TextBlock l_textblock = new TextBlock();
-                    l_textblock.Text = UseText;
-                    l_textblock.HorizontalAlignment = HorizontalAlignment.Right;
-                    l_textblock.VerticalAlignment = VerticalAlignment.Bottom;
-                    l_textblock.Foreground = Brushes.White;
-                    l_textblock.Background = bgcolor;
-                    //l_textblock.Foreground = Brushes.Black;
-                    c_panel.Children.Add(l_textblock);
-                }
-            }
-
-
-            Grid.SetColumn(c_panel, BoardCol);
-            Grid.SetRow(c_panel, BoardRow);
-
-            return c_panel;
-        }*/
-
-        ///// <summary>
-        ///// this function is currently not working
-        ///// </summary>
-        //private void BuildPanelWallOverlay()
-        //{
-        //    //Grid c_panel = new Grid();
-        //    c_panel.Children.Clear();
-
-        //    // overlay walls
-        //    //if (ActionList.Count(al => al.SquareAction == SquareAction.BlockDirection) > 0)
-        //    if (ActionList.Count(al => al.ActionIncludesImage()) > 0)
-        //    {
-        //        //BoardAction thisaction = ActionList.First(al => al.SquareAction == SquareAction.BlockDirection);
-        //        BoardAction thisaction = ActionList.First(al => al.ActionIncludesImage());
-
-        //        string wallImageName = Properties.Settings.Default.BoardImagesPath + "Over" + ((int)Type).ToString() + ".png";
-        //        Image l_wallimage = new Image();
-        //        Uri walliconUri = new Uri(wallImageName, UriKind.Relative);
-
-        //        try
-        //        {
-        //            l_wallimage.Source = new BitmapImage(walliconUri);
-        //        }
-        //        catch
-        //        {
-        //        }
-
-        //        l_wallimage.LayoutTransform = RotationFunctions.ImageRotation((Direction)thisaction.Parameter);
-
-        //        c_panel.Children.Add(l_wallimage);
-        //        //Grid.SetColumn(c_panel, BoardCol);
-        //        //Grid.SetRow(c_panel, BoardRow);
-        //        //return;
-        //    }
-
-
-        //    string ImageName = Properties.Settings.Default.BoardImagesPath + "board" + ((int)Type).ToString() + ".jpg";
-        //    Image l_image = new Image();
-        //    Uri iconUri = new Uri(ImageName, UriKind.Relative);
-
-        //    try
-        //    {
-        //        l_image.Source = new BitmapImage(iconUri);
-
-        //        l_image.LayoutTransform = RotationFunctions.ImageRotation(Rotation);
-
-        //        c_panel.Children.Add(l_image);
-        //    }
-
-        //    catch // (ApplicationException ex) // there some other kind of error, causing the system to crash.
-        //    {
-
-        //        //MessageBox.Show("The program will now crash.");
-        //        //return null;
-        //    }
-
-
-
-        //    // overlay flags & Starts
-
-        //    Grid.SetColumn(c_panel, BoardCol);
-        //    Grid.SetRow(c_panel, BoardRow);
-        //    //return c_panel;
-
-
-        //}
-
-
-        //private Grid BuildPanelImageOLD()
-        //{
-        //    Grid g_GridPanel = new Grid();
-        //    g_GridPanel.Children.Clear();
-
-        //    // overlay walls
-        //    //if (ActionList.Count(al => al.SquareAction == SquareAction.BlockDirection) > 0)
-        //    if (ActionList.Count(al => al.ActionIncludesImage()) > 0)
-        //    {
-        //        //BoardAction thisaction = ActionList.First(al => al.SquareAction == SquareAction.BlockDirection);
-        //        BoardAction thisaction = ActionList.First(al => al.ActionIncludesImage());
-
-        //        string wallImageName = Properties.Settings.Default.BoardImagesPath + "Over" + ((int)Type).ToString() + ".png";
-        //        Image l_wallimage = new Image();
-        //        Uri walliconUri = new Uri(wallImageName, UriKind.Relative);
-
-        //        try
-        //        {
-        //            l_wallimage.Source = new BitmapImage(walliconUri);
-        //        }
-        //        catch
-        //        {
-        //        }
-
-        //        l_wallimage.LayoutTransform = RotationFunctions.ImageRotation((Direction)thisaction.Parameter);
-
-        //        g_GridPanel.Children.Add(l_wallimage);
-        //    }
-
-
-        //    string ImageName = Properties.Settings.Default.BoardImagesPath + "board" + ((int)Type).ToString() + ".jpg";
-        //    Image l_image = new Image();
-        //    Uri iconUri = new Uri(ImageName, UriKind.Relative);
-
-        //    try
-        //    {
-        //        l_image.Source = new BitmapImage(iconUri);
-
-        //        l_image.LayoutTransform = RotationFunctions.ImageRotation(Rotation);
-
-        //        g_GridPanel.Children.Add(l_image);
-        //    }
-
-        //    catch // (ApplicationException ex) // there some other kind of error, causing the system to crash.
-        //    {
-
-        //        //MessageBox.Show("The program will now crash.");
-        //        //return null;
-        //    }
-
-
-
-        //    // overlay flags & Starts
-
-        //    Grid.SetColumn(g_GridPanel, BoardCol);
-        //    Grid.SetRow(g_GridPanel, BoardRow);
-        //    return g_GridPanel;
-
-
-        //}
-
-            /*
-        private Image BuildImage()
-        {
-            string ImageName = Properties.Settings.Default.BoardImagesPath + "board" + ((int)Type).ToString() + ".jpg";
-
-            c_image = new Image();
-
-            Uri iconUri = new Uri(ImageName, UriKind.Relative);
-            
-            try
-            {
-                c_image.Source = new BitmapImage(iconUri);
-
-            }
-            catch // (ApplicationException ex) // there some other kind of error, causing the system to crash.
-            {
-
-                //MessageBox.Show("The program will now crash.");
-                return null ;
-            }
-
-
-            c_image.LayoutTransform = RotationFunctions.ImageRotation(Rotation);
-
-            return c_image;
-
-        }*/
-
-        [XmlIgnore]
         public int TotalRemaining
         {
             get {return TotalCount-TotalUsed;}
             set {}
-        }
-
-
-        public void Update()
-        {
-            //BuildImage();
-            //OnPropertyChanged("Panel");
-            //OnPropertyChanged("Rotation");
-            //OnPropertyChanged("SquareImage");
-            //OnPropertyChanged("ActionCount");
-            //OnPropertyChanged("TotalRemaining");
-            //OnPropertyChanged("BGColor");
         }
 
         [XmlIgnore]
@@ -670,7 +317,7 @@ namespace MRR_CLG
     #endregion
 
     #region Board Actions Collection
-    public class BoardActionsCollection : ObservableCollection<BoardAction>
+    public class BoardActionsCollection : List<BoardAction>
     {
 
         public BoardActionsCollection()
@@ -697,25 +344,8 @@ namespace MRR_CLG
     #endregion
 
     #region Board Actions
-    public class BoardAction: INotifyPropertyChanged
+    public class BoardAction
     {
-        public event PropertyChangedEventHandler PropertyChanged;
-
-
-        // Create the OnPropertyChanged method to raise the event
-        protected void OnPropertyChanged(string name)
-        {
-            PropertyChangedEventHandler handler = PropertyChanged;
-            if (handler != null)
-            {
-                handler(this, new PropertyChangedEventArgs(name));
-            }
-        }
-        // properties for the class here
-
-        //SquareAction l_squareaction = SquareAction.None;
-        //int l_Parameter = 0;
-        //int l_ActionSequence = 0;
 
         public SquareAction SquareAction { get; set; }
         public int ActionSequence { get; set; }
@@ -729,8 +359,6 @@ namespace MRR_CLG
             set
             {
                 l_Phase = value;
-                //OnPropertyChanged("Phase");
-                //OnPropertyChanged("ShowPhase");
             }
         }
         private int l_parameter;
@@ -749,7 +377,7 @@ namespace MRR_CLG
             set
             {
                 l_parameter = value;
-                //OnPropertyChanged("Parameter");
+
             }
         }
 
