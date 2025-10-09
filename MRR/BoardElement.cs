@@ -3,11 +3,11 @@
 using System.Xml.Serialization; // serializer
 
 
-namespace MRR_CLG
+namespace MRR.Boards
 {
 
     #region Board Element Collection
-    public class BoardElementCollection  
+    public class BoardElementCollection
     {
 
         public BoardElementCollection(int Columns, int Rows) : this()
@@ -40,9 +40,9 @@ namespace MRR_CLG
 
         public int Lives { get; set; } = 3; // { get { return _lives; } set { _lives = value; } }
 
-        public int TotalFlags {get;set;}
+        public int TotalFlags { get; set; }
 
-        public int GameType {get;set;}
+        public int GameType { get; set; }
 
         public List<BoardElement> BoardElements { get; set; }
 
@@ -103,7 +103,7 @@ namespace MRR_CLG
             return GetSquare(be => ((be.BoardCol == location.X) && (be.BoardRow == location.Y)));
         }
 
-        public BoardElement GetSquare(Func<BoardElement,bool> GetFunction)
+        public BoardElement GetSquare(Func<BoardElement, bool> GetFunction)
         {
             IEnumerable<BoardElement> thisList = this.BoardElements.Where(GetFunction);
             //if (thisList == null)
@@ -121,7 +121,7 @@ namespace MRR_CLG
                 (al.SquareAction == SquareAction.Flag)
                     || (al.SquareAction == SquareAction.TouchFlag)
                     || (al.SquareAction == SquareAction.TouchKotHFlag)
-                    || (al.SquareAction == SquareAction.TouchLastManFlag)) 
+                    || (al.SquareAction == SquareAction.TouchLastManFlag))
                 && (al.Parameter == p_FlagNumber)) > 0);
         }
 
@@ -159,7 +159,7 @@ namespace MRR_CLG
                 maxcount = Convert.ToInt16(newline[5]);
             }
 
-            SetBoardElement(Convert.ToInt16(newline[1]),Convert.ToInt16(newline[2]),(SquareType)Convert.ToInt16(newline[3]),(Direction)Convert.ToInt16(newline[4]), maxcount);
+            SetBoardElement(Convert.ToInt16(newline[1]), Convert.ToInt16(newline[2]), (SquareType)Convert.ToInt16(newline[3]), (Direction)Convert.ToInt16(newline[4]), maxcount);
         }
 
         public BoardElement(int Col, int Row, SquareType img, Direction dir)
@@ -288,7 +288,7 @@ namespace MRR_CLG
 
         public void RotateWalls(int direction = 1)
         {
-            ActionList.Where(al => al.SquareAction == SquareAction.BlockDirection).Select(al => al.Parameter =(int)RotationFunctions.Rotate(direction, (Direction)al.Parameter)).ToList();
+            ActionList.Where(al => al.SquareAction == SquareAction.BlockDirection).Select(al => al.Parameter = (int)RotationFunctions.Rotate(direction, (Direction)al.Parameter)).ToList();
         }
 
         public void UpdateActionRotation()
@@ -305,8 +305,8 @@ namespace MRR_CLG
 
         public int TotalRemaining
         {
-            get {return TotalCount-TotalUsed;}
-            set {}
+            get { return TotalCount - TotalUsed; }
+            set { }
         }
 
         [XmlIgnore]
@@ -326,7 +326,7 @@ namespace MRR_CLG
         }
 
         public BoardActionsCollection(BoardActionsCollection p_copyActions)
-            :base()
+            : base()
         {
             if (p_copyActions != null)
             {
@@ -369,7 +369,7 @@ namespace MRR_CLG
         public int SquareX { get; set; }
         [XmlIgnore]
         public int SquareY { get; set; }
-        
+
 
         public int Parameter
         {
@@ -440,14 +440,14 @@ namespace MRR_CLG
         }
 
         public BoardAction(BoardAction p_CurrentAction, int p_RobotID, int p_SquareX, int p_SquareY)
-            :this(p_CurrentAction)
+            : this(p_CurrentAction)
         {
             RobotID = p_RobotID;
             SquareX = p_SquareX;
             SquareY = p_SquareY;
         }
 
-        public BoardAction(OptionCard p_OptionCard): this()
+        public BoardAction(OptionCard p_OptionCard) : this()
         {
             SquareAction = SquareAction.PlayOptionCard;
             Parameter = p_OptionCard.ID;
@@ -478,8 +478,8 @@ namespace MRR_CLG
             {
                 case SquareAction.Move:
                 case SquareAction.BlockDirection:
-                //case SquareAction.PlayerStart:
-                //case SquareAction.Flag:
+                    //case SquareAction.PlayerStart:
+                    //case SquareAction.Flag:
                     return true;
                 default:
                     return false;
@@ -578,7 +578,7 @@ namespace MRR_CLG
         EndOfGame = 95,
         DeleteRobot = 96,
         SetGameState = 97,
-		ShutDownGame = 98,
+        ShutDownGame = 98,
     }
 
     public enum SquareType
