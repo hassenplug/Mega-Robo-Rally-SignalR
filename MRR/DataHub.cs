@@ -25,7 +25,49 @@ namespace MRR.Hubs
         public async Task UpdatePlayer(int command, int playerId = 0, int data1 = 0, int data2 = 0)
         {
             //Console.WriteLine($"UpdatePlayer called with playerId={playerId}, command={command}, data1={data1}, data2={data2}");
-            _dataService.UpdatePlayer(command, playerId, data1, data2);
+
+            //string strSQL = $"call updatePlayer({playerId},{command},{data1},{data2});";
+            //Console.WriteLine("Update: " + request);
+            // update/player/card/removefrom/
+
+            //string[] requestSplit = request.Split('/');
+            //string commandID = requestSplit[2];
+            //string playerid = requestSplit[3];
+            switch (command)
+            {
+                case 1:
+                    //string cardid = requestSplit[4];
+                    //string position = requestSplit[5];
+                    //DBConn.Command("call procUpdateCardPlayed(" + playerid + "," + cardid + "," + position + ");");
+                    //Console.WriteLine($"UpdatePlayer called with playerId={playerId}, command={command}, data1={data1}, data2={data2}");
+                    _dataService.ExecuteSQL("call procUpdateCardPlayed(" + playerId + "," + data1 + "," + data2 + ");");
+                    //Console.WriteLine($"UpdatePlayer called with playerId={playerId}, command={command}, data1={data1}, data2={data2}");
+                    // check to see if we an go to next state
+                    break;
+                case 2:
+                    //string positionValid = requestSplit[4];
+                    // clear message
+                    //DBConn.Command("update Robots set PositionValid=" + positionValid + " where RobotID=" + playerid + ";");
+                    break;
+                case 3:
+                    //int markcommand = DBConn.GetIntFromDB("Select MessageCommandID from Robots where RobotID=" + playerid);
+                    //DBConn.Command("update Robots set MessageCommandID=null where RobotID=" + playerid + ";");
+                    //DBConn.Command("update CommandList set StatusID=6 where CommandID=" + markcommand + ";");
+                    break;
+
+            }
+            // check to see if we an go to next state
+            //select funcGetNextGameState();
+            
+            //var gamestate = rDBConn.Exec("select funcGetNextGameState();"); //going to next state?
+//            var gamestate = DBConn.Command("select funcGetNextGameState();"); //going to next state?
+            
+            //if (createCommands.UpdateGameState() == 6)
+//            if (gamestate == 6)
+//            {
+//                createCommands.ExecuteTurn();
+//            }
+//            return MakeRobotsJson(request);
 
            await SendUpdate();
         }
@@ -34,15 +76,20 @@ namespace MRR.Hubs
         public async Task GetCurrentDatabaseData()
         {
             // Use the injected DataService to read from the database
-            var data = _dataService.GetAllData();
+            var data = _dataService.GetAllDataJson();
+            Console.WriteLine("DataHub: GetCurrentDatabaseData called.");
 
             // Send the retrieved data back to the caller
             await Clients.Caller.SendAsync("ReceiveDataUpdate", data);
         }
 
+        ///////////////////////////////////////////////////////////////////////////
+        // Method to send updated data to all connected clients
+        ///////////////////////////////////////////////////////////////////////////
+
         public async Task SendUpdate()
         {
-            var dataout = _dataService.GetAllData();
+            var dataout = _dataService.GetAllDataJson();
             await Clients.All.SendAsync("AllDataUpdate", dataout);
 
         }

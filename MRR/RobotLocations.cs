@@ -99,10 +99,8 @@ namespace MRR
         private int l_index = 0;
         public int Index { get { return l_index; } set { l_index = value;   } }
 
-        [XmlIgnore]
         public string Location { get { return "[" + X.ToString() + "][" + Y.ToString() + "]"; } set { } }
 
-        [XmlIgnore]
         public string FullLocation { get { return ToString(); } set { } }
 
         override public string ToString()

@@ -325,21 +325,8 @@ Kind:Device, Launcher
 
         public int ID { get; set; }
 
-        [XmlIgnore]
         public tOptionCardCommandType CommandType { get { return (tOptionCardCommandType)ID; } }
-        //public tOptionCardCommandType CommandType { get; set; }
 
-        //[XmlIgnore]
-        //public int Priority { get { return ID * 10; } }
-
-        //[XmlIgnore]
-        //public bool CardSelected { get { return (PhasePlayed > -1); } }
-
-        //[XmlIgnore]
-        //public tCardType Type { get; set; }
-        //public string ShortText { get; set; }
-        //[XmlIgnore]
-        //public string Text { get { return DescriptionFunctions.GetDescription(Type); } }
         public string Name { get; set; }
 
         public string Text { get; set; }
@@ -389,7 +376,6 @@ Kind:Device, Launcher
 
         public int PhasePlayed { get; set; }
 
-        [XmlIgnore]
         public Direction OptionDirection  // some options require a direction
         {
             get

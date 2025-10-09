@@ -9,6 +9,8 @@ using System.Xml.Serialization;  // serializer
 using System.Reflection;
 using System.IO;
 using System.Collections.ObjectModel; // needed for enum?
+using MRR.Services;
+using System.Data;
 
 
 namespace MRR
@@ -28,22 +30,31 @@ namespace MRR
     public class CreateCommands 
     {
 
+        private readonly DataService _dataService;
+
+        public CreateCommands(DataService dataService)
+        {
+            _dataService = dataService;
+        }
+
         #region Game Parameters & Configuration
 
         const int DamageSequence = 7; // number to use for damage & cannons within sequence
 
-        public CreateCommands(Database lDBConn)
+        public CreateCommands() //Database lDBConn)
         {
-
-            DBConn = lDBConn;
-
             GameCards = new CardList();
 
             OptionCards = new OptionCardList();
 
             ListOfCommands = new CommandList();
 
-            AllPlayers = new Players(DBConn);
+            // ensure we have a DataService instance for legacy callers
+            if (_dataService == null) {
+                try { _dataService = new DataService(); } catch { /* swallow for test builds */ }
+            }
+
+            AllPlayers = new Players(_dataService);
 
             g_BoardElements = new BoardElementCollection(0, 0);
         }
@@ -64,11 +75,12 @@ namespace MRR
 
         public CardList GameCards { get; set; }
 
-        public Database DBConn { get; set; }
-
         public OptionCardList OptionCards { get; set; }
 
         public Dictionary<int,string> OptionCardNames = new Dictionary<int, string>();
+
+        // migrated from legacy code: map of move card type id -> name
+        //public Dictionary<int, string> MoveCardNames = new Dictionary<int, string>();
 
         //public OptionCardList MasterOptionCardList { get; set; }
 
@@ -485,9 +497,9 @@ namespace MRR
             // check all robots, and set their new state to "done moving"
             //if (!CheckPlayersReady()) return "Execute Failed: Players not ready";
 
-            LoadBoard();
+            _dataService.BoardLoadFromDB(BoardID);
 
-            LoadRobots();
+            AllPlayers = new Players();
 
             //GameCards.LoadCardList();
             LoadGameCardsFromDatabase();
@@ -526,9 +538,9 @@ namespace MRR
             /// 3) return all robots to correct direction
             ///
 
-            Players PlayerDirections = new Players(AllPlayers);
+            //Players PlayerDirections = new Players(AllPlayers);
 
-            foreach (Player thisplayer in PlayerDirections) // AllPlayers)
+            foreach (Player thisplayer in AllPlayers) // AllPlayers)
             {
                 CommandItem lastcommand = null;
                 int lastphase = 0;
@@ -672,7 +684,7 @@ namespace MRR
             string cTurn = CurrentTurn.ToString();
 
             string strSQL = "Delete from CommandList where Turn=" + cTurn + " and Phase>0;";
-            DBConn.Command(strSQL);
+            _dataService.ExecuteSQL(strSQL);
 
 
             // process sequence for list of commands
@@ -794,7 +806,7 @@ namespace MRR
                 thisCommand.Description + "'," + thisCommand.EndPos.Y + "," + thisCommand.EndPos.X + "," + (int)thisCommand.EndPos.Direction + "," + (int)thisCommand.Category
                 + ")";
 
-            DBConn.Command(strSQL);
+            _dataService.ExecuteSQL(strSQL);
 
         }
 
@@ -803,10 +815,10 @@ namespace MRR
 
             foreach (Player thisplayer in AllPlayers)
             {
-                DBConn.Command("call procRobotConnectionStatus(" + thisplayer.ID + ",71);");
+                _dataService.ExecuteSQL("call procRobotConnectionStatus(" + thisplayer.ID + ",71);");
             }
 
-            DBConn.Command("Update CurrentGameData set GameState=0, Message='Exit Game'; ");
+            _dataService.ExecuteSQL("Update CurrentGameData set GameState=0, Message='Exit Game'; ");
         }
 
         public void LoadGameCardsFromDatabase()
@@ -814,39 +826,47 @@ namespace MRR
             GameCards.Clear();
 
             string strSQL = "Select CardID, CardTypeID, Owner, PhasePlayed from MoveCards;";
-            MySqlConnector.MySqlDataReader reader = DBConn.Exec(strSQL);
-            while (reader.Read())
+            var reader = _dataService.GetQueryResults(strSQL);
+            // foreach (DataRow row in reader.Rows)
+            // {
+            //     if (!MoveCardNames.ContainsKey((int)row["CardTypeID"]))
+            //     {
+            //         MoveCardNames.Add((int)row["CardTypeID"], "Unknown");
+            //     }
+            // }
+
+
+            foreach (DataRow row in reader.Rows)
             {
-                MoveCard newCard = new MoveCard((int)reader[0],(int)reader[1]);
-                newCard.Owner = (int)reader[2];
-                newCard.PhasePlayed = (int)reader[3];
+                MoveCard newCard = new MoveCard((int)row["CardID"], (int)row["CardTypeID"])
+                {
+                    Owner = (int)row["Owner"],
+                    PhasePlayed = (int)row["PhasePlayed"]
+                };
 
                 GameCards.Add(newCard);
             }
 
-            reader.Close();
         }
 
         public void LoadOptionCardsFromDatabase()
         {
             OptionCards.Clear();
             string strSQL = "Select RobotID, OptionID, DestroyWhenDamaged, Quantity, IsActive,PhasePlayed, DataValue, Damage, Name,EditorType from viewRobotOptions;";
-            //string strSQL = "Select CardID, CardTypeID, Owner, PhasePlayed from MoveCards;";
-            MySqlConnector.MySqlDataReader reader = DBConn.Exec(strSQL);
-            while (reader.Read())
+            var reader = _dataService.GetQueryResults(strSQL);
+            foreach (DataRow row in reader.Rows)
             {
-                //OptionCard newCard = new OptionCard((int)reader[0], (tOptionCardCommandType)reader[1], (int)reader[2], (int)reader[3], (int)reader[4], (int)reader[5], (int)reader[6], (int)reader[7], (string)reader[8]);
                 OptionCard newCard = new OptionCard()
                 {
-                    Owner = (int)reader[0],
-                    ID = (int)reader[1],
-                    DestroyWhenDamaged = ((int)reader[2] == 1),
-                    Quantity = (int)reader[3],
-                    PhasePlayed = (int)reader[5],
-                    DataValue = (int)reader[6],
-                    Damage = (int)reader[7],
-                    Name = (string)reader[8],
-                    EditorType = (tOptionEditorType)reader[9]
+                    Owner = (int)row["RobotID"],
+                    ID = (int)row["OptionID"],
+                    DestroyWhenDamaged = ((int)row["DestroyWhenDamaged"] == 1),
+                    Quantity = (int)row["Quantity"],
+                    PhasePlayed = (int)row["PhasePlayed"],
+                    DataValue = (int)row["DataValue"],
+                    Damage = (int)row["Damage"],
+                    Name = (string)row["Name"],
+                    EditorType = (tOptionEditorType)row["EditorType"]
                 };
 
                 OptionCards.Add(newCard);
@@ -857,7 +877,6 @@ namespace MRR
                 }
             }
 
-            reader.Close();
         }
 
 
@@ -917,22 +936,6 @@ namespace MRR
             return 0;
         }
 
-        // not used
-        // public bool CheckPlayersReady()
-        // {
-        //     string strSQL = "Select count(RobotID) rid from Robots where Status != 4 ;";
-        //     MySqlConnector.MySqlDataReader reader = DBConn.Exec(strSQL);
-        //     while (reader.Read())
-        //     {
-        //         //Console.WriteLine("not ready status: " + reader[0]);
-        //         if ((long)reader[0] > 0) return false;
-        //     }
-        //     reader.Close();
-
-        //     strSQL = "Update Robots set Status = 12 ;";
-        //     return DBConn.Command(strSQL);
-
-        // }
 
         #endregion Execute Turn (calculate turn)
 
@@ -940,14 +943,11 @@ namespace MRR
         /// <summary>
         /// This function replaces the LoadPlayersFromFile function
         /// </summary>
-        public void LoadRobots()
-        {
-            AllPlayers = new Players(DBConn);
-        }
+
 
         public Player LoadOneRobot(int RobotID)
         {
-            return new Players(DBConn,RobotID).FirstOrDefault();
+            return new Players(RobotID).FirstOrDefault();
         }
 
 
@@ -1174,8 +1174,7 @@ namespace MRR
                         while(newcard.Type==MoveCard.tCardType.Spam)
                         {
                             ListOfCommands.AddCommand(thisplayer, SquareAction.Card, newcard.ID);
-                            //newcard = new MoveCard(thiscard,(MoveCard.tCardType)DBConn.GetIntFromDB("select funcGetNextCard(" + thiscard.Owner + "," + newcard.ID + ")"));
-                            int newcardID = (int)DBConn.GetIntFromDB("select funcGetNextCard(" + thiscard.Owner + "," + newcard.ID + ")");
+                            int newcardID = (int)_dataService.GetIntFromDB("select funcGetNextCard(" + thiscard.Owner + "," + newcard.ID + ")");
                             //newcard = new MoveCard(thiscard,(MoveCard.tCardType)newcardtype);
                             newcard = GameCards.FirstOrDefault(gc=>gc.ID == newcardID && gc.Owner == thiscard.Owner);
                             //Console.WriteLine("Got new card for " + thisplayer.Name + "="+newcard.ID + ":"+newcardID.ToString());
@@ -1274,12 +1273,15 @@ namespace MRR
                     // 5 inflict damage (fire & damage bot)
                     // 6 repeat
                     //IEnumerable<Player> liveplayers = AllPlayers.Where(wp => wp.IsRunning);
-                    Players liveplayers = new Players();
+
+                    // need to create a list of players to iderate through, but add to while iderating
+                    List<Player> liveplayers = new List<Player>();
+                    
                     foreach (Player thisplayer in AllPlayers.Where(wp => wp.IsRunning))
                     {
                         liveplayers.Add(thisplayer);
                         OptionCard RearLaser = OptionCards.GetOption(tOptionCardCommandType.RearLaser, thisplayer);
-                        if (RearLaser != null)
+                        if (RearLaser != null) // add another player for rear laser
                         {
                             Player rearPlayer = new Player(thisplayer);
                             rearPlayer.CurrentPos.Direction = RotationFunctions.Rotate(2, rearPlayer.CurrentPos.Direction);
@@ -1990,28 +1992,6 @@ namespace MRR
 
         #region Board Commands
 
-        public string LoadBoard()
-        {
-            try {
-                //UpdateGameState();
-                Console.WriteLine("Loading:" + BoardFileName);
-
-                //if (BoardID > 0)
-                //{
-                    DBConn.BoardLoadFromDB(BoardID);
-                //}
-                //else
-                //{
-                //    BoardFileRead(BoardFileName);
-                //}
-            }
-            catch
-            {
-                Console.WriteLine("Board Load Failed:" + BoardID);
-            }
-
-            return BoardFileName;
-        }
 
         public void BoardFileRead(string p_Filename)
         {
@@ -2040,16 +2020,16 @@ namespace MRR
         {
             string startingDirectory = "../Boards/";
             // 0 find boards not in list (get max ID)
-            var rmax = DBConn.GetIntFromDB( "Select Max(BoardID)+1 from Boards;");
+            var rmax = _dataService.GetIntFromDB( "Select Max(BoardID)+1 from Boards;");
 
             var files = Directory.EnumerateFiles(startingDirectory, "*.srx", SearchOption.TopDirectoryOnly);
             foreach(var file in files)
             {
-                var count = DBConn.GetIntFromDB("Select count(*) from Boards where BoardName like '%" + file + "'" );
+                var count = _dataService.GetIntFromDB("Select count(*) from Boards where BoardName like '%" + file + "'" );
                 if (count==0)
                 {
                     string strSQL1 = "insert into Boards (BoardID, BoardName) values (" + rmax.ToString() + ",'" + file + "');";
-                    DBConn.Command(strSQL1);
+                    _dataService.ExecuteSQL(strSQL1);
                     Console.WriteLine(file);
                     rmax++;
                 }
@@ -2058,13 +2038,13 @@ namespace MRR
             var boardlist = new Dictionary<int, string>();
             // 1 find boards that are not loaded
             string strSQL = "Select * from Boards;";
-            MySqlConnector.MySqlDataReader reader = DBConn.Exec(strSQL);
-            while (reader.Read())
+
+            var reader = _dataService.GetQueryResults(strSQL);
+            foreach (DataRow row in reader.Rows)
             {
-                boardlist.Add((int)reader[0], (string)reader[1]);
+                boardlist.Add((int)row[0], (string)row[1]);
             }
 
-            reader.Close();
 
             foreach(var board in boardlist)
             {
@@ -2074,12 +2054,10 @@ namespace MRR
 
                 // 3 save current board to db
                 if (g_BoardElements != null)
-                    DBConn.BoardSaveToDB(board.Key, g_BoardElements);
+                {
+                    _dataService.BoardSaveToDB(board.Key, g_BoardElements);
+                }
             }
-
-
-            // set state to new game
-            //SendGameMessage(0,"loaded " + boardlist.Count + "boards");
 
         }
 

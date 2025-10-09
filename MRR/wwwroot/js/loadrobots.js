@@ -129,9 +129,18 @@ const connection = new signalR.HubConnectionBuilder()
 connection.on("AllDataUpdate", function (data) {
     console.log("Data received from server:", data);
 
+    // The server may now send a JSON string (or an object). Normalize to an object.
+    if (typeof data === 'string') {
+        try {
+            data = JSON.parse(data);
+        } catch (err) {
+            console.error('Failed to parse AllDataUpdate payload as JSON', err, data);
+            return;
+        }
+    }
+
     datapacket = data;
-    robots = data.robots
-    showall();    
+    showall();
     showplayerprogram(CurrentLine);
 });
 

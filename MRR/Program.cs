@@ -17,7 +17,7 @@ app.MapHub<DataHub>("/datahub");
 
 app.MapGet("/api/alldata", (DataService dataService, IHubContext<DataHub> hubContext) =>
 {
-    var dataout = dataService.GetAllData();
+    var dataout = dataService.GetAllDataJson();
     hubContext.Clients.All.SendAsync("AllDataUpdate", dataout);
     return Results.Ok(dataout);
 });

@@ -199,7 +199,6 @@ namespace MRR
             //Status = CommandStatus.Complete;
         }
 
-        [XmlIgnore]
         public Player Robot { get; set; }
         public int RobotID { get { return Robot.ID; } set { } } // load robot from list of robots
         //public int RobotID { get { return Robot.ID; } set; }

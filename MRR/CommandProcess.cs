@@ -3,6 +3,8 @@ using System.Text;
 using System.Net.Sockets;
 using System.Net;
 using System.Net.Cache;
+using MRR.Services;
+using System.Data;
 
 namespace MRR
 {
@@ -19,16 +21,19 @@ namespace MRR
 
     public class PendingCommands : List<PendingCommand>
     {
-        private Database DBConn;
+        private readonly DataService _dataService;
+
+        public PendingCommands(DataService dataService)
+        {
+            _dataService = dataService;
+
+            RobotList = new Players(); // load robot list from db
+        }
+
+
         private Players RobotList;
 
-        public PendingCommands(Database ldb)
-        {
-            DBConn = ldb;
 
-            RobotList = new Players(DBConn); // load robot list from db
-
-        }
 
         /// <summary>
         /// get current commands that need processed
@@ -43,29 +48,27 @@ namespace MRR
             this.Clear();
 
             // if funcMarkCommandsReady == 0, return 0
-            int activeCommands = MarkCommandsReady(); // DBConn.GetIntFromDB("Select funcMarkCommandsReady();");  //procGetReadyCommands`;
+            int activeCommands = MarkCommandsReady(); //
             //Console.WriteLine("functionMarkCommandsReady - any commands");
             if (activeCommands == 0) return 0;
             Console.WriteLine("functionMarkCommandsReady:" + activeCommands);
 
             string strSQL = "select CommandID,CommandTypeID,RobotID,BTCommand,StatusID,CommandCatID from viewCommandListActive;";
-            
-            MySqlConnector.MySqlDataReader reader = DBConn.Exec(strSQL);
 
-            while (reader.Read())
+            var commanddata = _dataService.GetQueryResults(strSQL);
+            foreach (DataRow command in commanddata.Rows)
             {
-                this.Add(new PendingCommand( (int)reader.GetValue(0), // command id
-                                            (int)reader.GetValue(1),  // command type
-                                            RobotList.GetPlayer((int)reader.GetValue(2)),  // robot id
-                                            (string)reader.GetValue(3),  // bt command
-                                            (int)reader.GetValue(4),  // status id
-                                            (int)reader.GetValue(5)  // command cat id
+                this.Add(new PendingCommand(
+                    (int)command["CommandID"],
+                    (int)command["CommandTypeID"],
+                    RobotList.GetPlayer((int)command["RobotID"]),
+                    (string)command["BTCommand"],
+                    (int)command["StatusID"],
+                    (int)command["CommandCatID"]
                 ));
-                Console.WriteLine("UpdateCommandList:" + (int)reader.GetValue(0));
+                Console.WriteLine("UpdateCommandList:" + (int)command["CommandID"]);
             }
-
-            reader.Close();
-
+            
             return this.Count;
         }
 
@@ -76,7 +79,7 @@ namespace MRR
             bool stillRunning = true;
 
             // are there commands that need processing?
-            //while(DBConn.GetIntFromDB("select count(*) from viewCommandList where StatusID <6")>0)
+          
             //{
                 while (UpdateCommandList() > 0 && stillRunning)
                 {
@@ -110,27 +113,27 @@ namespace MRR
                 case 1:
                     if (onecommand.StatusID == 2)
                     {
-                        DBConn.Command("select funcProcessCommand(" + onecommand.CommandID + ",4)");
+                        _dataService.ExecuteSQL("select funcProcessCommand(" + onecommand.CommandID + ",4)");
                         // send command to robot here..
                         return true;
                     }
                     return false;
                 case 2:
                 case 3:
-                    DBConn.Command("select funcProcessCommand(" + onecommand.CommandID + ",5)");
+                    _dataService.ExecuteSQL("select funcProcessCommand(" + onecommand.CommandID + ",5)");
                     return true;
                 case 6:
                     if (onecommand.StatusID < 4)
                     {
-                        DBConn.Command("update Robots set MessageCommandID = " + onecommand.CommandID + " where RobotID = " + onecommand.RobotConnection.ID + "; ");
-                        DBConn.Command("update CommandList set StatusID=4 where CommandID = " + onecommand.CommandID + "; ");
+                        _dataService.ExecuteSQL("update Robots set MessageCommandID = " + onecommand.CommandID + " where RobotID = " + onecommand.RobotConnection.ID + "; ");
+                        _dataService.ExecuteSQL("update CommandList set StatusID=4 where CommandID = " + onecommand.CommandID + "; ");
                         return true;
                     }
                     return false;
 
                 default:
         
-                    DBConn.Command("select funcProcessCommand(" + onecommand.CommandID + ",5)");
+                    _dataService.ExecuteSQL("select funcProcessCommand(" + onecommand.CommandID + ",5)");
                     break;
             }
             // process command here
@@ -144,14 +147,14 @@ namespace MRR
             int result;
 
             // check to see if any others are still incomplete.  If so, exit
-            result = DBConn.GetIntFromDB("Select count(*) from CommandList where  StatusID>=2 and StatusID <=4;");
+            result = _dataService.GetIntFromDB("Select count(*) from CommandList where  StatusID>=2 and StatusID <=4;");
             if (result > 0) return result; 
             
-            var resultset = DBConn.GetIntList("select count(CommandID), min(CommandSequence) from CommandList where StatusID=1;");
+            var resultset = _dataService.GetIntList("select count(CommandID), min(CommandSequence) from CommandList where StatusID=1;");
             
             if (resultset[0] == 0) return 0; //# no commands waiting
 
-            return DBConn.Command("Update CommandList set StatusID=2 where CommandSequence=" + resultset[1] + ";");
+            return _dataService.ExecuteSQL("Update CommandList set StatusID=2 where CommandSequence=" + resultset[1] + ";");
             
         }
 

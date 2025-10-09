@@ -16,6 +16,8 @@ using System.Xml.Serialization;
 //using System.Windows.Data;
 using System.Globalization;
 using MySqlConnector;
+using MRR.Services;
+using System.Data;
 
 // serializer
 
@@ -67,39 +69,44 @@ namespace MRR
     #region Player Collection
     public class Players : List<Player>
     {
-        public Players()
-            : base()
+        private DataService _dataService;
+
+        public Players(DataService dataservice)
         {
+            _dataService = dataservice;
         }
 
-        public Players(Players p_PlayerList)
-            :base()
+
+
+        public Players(int RobotID = 0) // 0 = all
         {
-            foreach (Player l_thisplayer in p_PlayerList)
-            {
-                this.Add(new Player(l_thisplayer));
-            }
-
-            //Player p1 = this.First();
-            //p1.MainGame.OptionCards.SetWorking();
-
-        }
-
-        public Players(Database DBConn, int RobotID = 0) // 0 = all
-        {
+            // ensure a DataService exists for callers that use the parameterless/new Players()
+            if (_dataService == null) _dataService = new DataService();
             string strSQL = "Select RobotID,CurrentFlag,Lives,Damage,ShutDown,Status,CurrentPosRow,CurrentPosCol,CurrentPosDir,Priority,Energy,PlayerSeat from Robots where Status <> 10 ";
             if (RobotID > 0) strSQL += " and RobotID=" + RobotID ;
             strSQL += ";";
 
-            MySqlConnector.MySqlDataReader reader = DBConn.Exec(strSQL);
-            while (reader.Read())
+            var loadplayers = _dataService.GetQueryResults(strSQL);
+            foreach (DataRow row in loadplayers.Rows)
             {
-                Player newPlayer = new Player(DBConn,reader);
-                this.Add(newPlayer);
-//                Console.WriteLine(newPlayer.Name + " " + newPlayer.DamagePoints);
+                this.Add(new Player()
+                {
+                    ID = (int)row["RobotID"],
+                    LastFlag = (int)row["CurrentFlag"],
+                    Lives = (int)row["Lives"],
+                    Damage = (int)row["Damage"],
+                    ShutDown = (tShutDown)((int)row["ShutDown"]),
+                    PlayerStatus = (tPlayerStatus)((int)row["Status"]),
+                    CurrentPos = new RobotLocation((Direction)(int)row["CurrentPosDir"], (int)row["CurrentPosCol"], (int)row["CurrentPosRow"]),
+                    Priority = (int)row["Priority"],
+                    Energy = (int)row["Energy"],
+                    PlayerSeat = (int)row["PlayerSeat"],
+                    Name = "Robo-" + row["RobotID"].ToString(),
+                    Active = ((int)row["Status"] != 10),
+                    DamagePoints = 0
+                });
             }
 
-            reader.Close();
         }
 
         public Player GetPlayer(int p_PlayerID)
@@ -138,7 +145,7 @@ namespace MRR
 
         // main constructor
 
-        public Player SetPlayer(Database ldb,
+        public Player SetPlayer(
             int p_ID, 
             string p_Name, 
             RobotLocation p_CurrentPos, 
@@ -153,7 +160,6 @@ namespace MRR
             int p_DamagePoints)
         {
             //MainGame = mainGame;
-            DBConn = ldb;
             ID = p_ID;
             ShutDown = p_ShutDown;
 
@@ -161,15 +167,8 @@ namespace MRR
             NextPos = new RobotLocation(p_NextPos);
             ArchivePos = new RobotLocation(p_Archive);
             //NextFlag = new RobotLocation(p_CurrentPos);
-            if (DBConn is null)
-            {
-                NextFlag = new RobotLocation(p_CurrentPos);
-            }
-            else
-            {
-                ///mainGame.SetNextFlagForPlayer(this);
-            }
-
+            NextFlag = new RobotLocation(p_CurrentPos);
+    
             Damage = p_StartingDamage;
             Lives = p_Lives;
             LastFlag = p_LastFlag;
@@ -190,22 +189,18 @@ namespace MRR
             return this;
         }
 
-        /// <summary>
-        /// Initialize player
-        /// </summary>
-        /// <param name="p_ID"></param>
-        public Player(Database DBConn, int p_ID)
-            //: this(p_ID, new RobotLocation(), new RobotLocation(), new RobotLocation(), conTotalDamage, conTotalLives, 0, conTotalFlags)
+    /// <summary>
+    /// Initialize player
+    /// </summary>
+    /// <param name="p_ID"></param>
+        public Player(int p_ID)
         {
-            //SetPlayer(mainGame, p_ID, ToString(), new RobotLocation(), new RobotLocation(), new RobotLocation(), conTotalDamage, conTotalLives, 0, tShutDown.None, true, new string((char)(48 + p_ID), 4), p_ID, false);
             int currentlives = conTotalLives;
-            //if ((mainGame != null) && (mainGame.g_BoardElements != null)) currentlives = mainGame.g_BoardElements.Lives;
-            SetPlayer(DBConn, p_ID, ToString(), new RobotLocation(), new RobotLocation(), new RobotLocation(), conTotalDamage, currentlives, 0, tShutDown.None, true, false,0);
-            //PlayerColor = Brushes.Gray;
+            SetPlayer(p_ID, ToString(), new RobotLocation(), new RobotLocation(), new RobotLocation(), conTotalDamage, currentlives, 0, tShutDown.None, true, false,0);
         }
 
         public Player()
-            :this(null, -1)
+            :this(-1)
         {
         }
 
@@ -217,7 +212,7 @@ namespace MRR
 
         public Player CopyPlayer(Player p_Player)
         {
-            SetPlayer(p_Player.DBConn, p_Player.ID, p_Player.Name, p_Player.CurrentPos, p_Player.NextPos, p_Player.ArchivePos, p_Player.Damage, p_Player.Lives, p_Player.LastFlag, p_Player.ShutDown, p_Player.Active, p_Player.ComputerPlayer,p_Player.DamagePoints);
+            SetPlayer( p_Player.ID, p_Player.Name, p_Player.CurrentPos, p_Player.NextPos, p_Player.ArchivePos, p_Player.Damage, p_Player.Lives, p_Player.LastFlag, p_Player.ShutDown, p_Player.Active, p_Player.ComputerPlayer,p_Player.DamagePoints);
             //GameType = p_Player.GameType;
             NextFlag = p_Player.NextFlag;
             Operator = p_Player.Operator;
@@ -228,28 +223,9 @@ namespace MRR
             return this;
         }
 
-        public Player(Database ldb, MySqlDataReader reader):this(ldb, (int)reader[0])
-        {
-            ID = (int)reader[0];
-            Name = reader[0].ToString();
-            LastFlag = (int)reader[1];
-            Lives = (int)reader[2];
-            Damage = (int)reader[3];
-            ShutDown = (tShutDown)((int)reader[4]);
-            PlayerStatus = (tPlayerStatus)((int)reader[5]);
-            SetLocation((Direction)reader[8], (int)reader[7], (int)reader[6]);
-            Priority = (int)reader[9];
-            Energy = (int)reader[10];
-            PlayerSeat = (int)reader[11];
-            //DamagePoints = (int)reader[9];
-        }
-
         #endregion
 
-
-        [XmlIgnore]
 //        public RRGame MainGame { get; set; }
-        public Database DBConn { get; set; }
 
         public int ID { get; set; }
         public string Name { get; set; }
