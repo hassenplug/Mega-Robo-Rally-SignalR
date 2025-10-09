@@ -1,7 +1,7 @@
 ﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
 
-namespace MRR_CLG
+namespace MRR
 {
     public class CardList : List<MoveCard>
     {

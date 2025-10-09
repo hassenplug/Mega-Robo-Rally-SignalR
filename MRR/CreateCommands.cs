@@ -11,7 +11,7 @@ using System.IO;
 using System.Collections.ObjectModel; // needed for enum?
 
 
-namespace MRR_CLG
+namespace MRR
 {
 
     #region Enums
@@ -1693,7 +1693,7 @@ namespace MRR_CLG
                 //var TurnOne = TurnMoves.First();
                 //CommandItem FirstCommand = TurnOne.First;
                 //CommandItem SecondCommand = TurnOne.Second;
-                CommandList MovedCommands = new CommandList(DBConn);
+                CommandList MovedCommands = new CommandList();
                 CommandItem thisCommand = TurnMoves.First().First;
                 CommandItem SecondCommand = TurnMoves.First().Second;
                 int CommandSequence = thisCommand.CommandSequence;

@@ -1,7 +1,7 @@
 ﻿using System.Data;
 using MySqlConnector;
 
-namespace MRR_CLG
+namespace MRR
 {
     public class Database
     {
@@ -44,16 +44,16 @@ namespace MRR_CLG
             {
                 try
                 {
-                
+
                     MySqlCommand cmd = new MySqlCommand();
                     cmd.CommandText = strSQL;
                     cmd.Connection = Conn;
                     cmd.CommandType = System.Data.CommandType.Text;
                     return cmd.ExecuteReader();
                 }
-                catch(Exception e)
+                catch (Exception e)
                 {
-                    Console.WriteLine("DBError:{0}" , e);
+                    Console.WriteLine("DBError:{0}", e);
 
                 }
             }
@@ -71,7 +71,7 @@ namespace MRR_CLG
                 update.CommandText = strSQL;
                 Console.WriteLine(strSQL);
                 return update.ExecuteNonQuery();
-                
+
             }
             return 0;
         }
@@ -89,7 +89,7 @@ namespace MRR_CLG
                 }
                 else
                 {
-                    returnval = (int)(long)Convert.ToInt64(returnset[0]) ;
+                    returnval = (int)(long)Convert.ToInt64(returnset[0]);
                 }
                 //var returnval1 = returnset[0];
                 //int.TryParse(returnset[0],returnval);
@@ -108,13 +108,13 @@ namespace MRR_CLG
 
             if (returnset.Read())
             {
-                for(int f=0;f<returnset.FieldCount;f++)
+                for (int f = 0; f < returnset.FieldCount; f++)
                 {
                     //Console.WriteLine(returnset[0]);
                     var returnval = 0;
                     if (returnset[f] != System.DBNull.Value)
                     {
-                        returnval = (int)(long)Convert.ToInt64(returnset[f]) ;
+                        returnval = (int)(long)Convert.ToInt64(returnset[f]);
                     }
                     returnvalset.Add(returnval);
                 }
@@ -134,7 +134,7 @@ namespace MRR_CLG
             {
                 string commain = "";
                 string localoutput = "";
-                for(int c=0;c<reader.FieldCount;c++)
+                for (int c = 0; c < reader.FieldCount; c++)
                 {
                     localoutput += commain + "\"" + reader.GetName(c) + "\":\"" + reader.GetValue(c) + "\"";
                     commain = ",";
@@ -164,11 +164,11 @@ namespace MRR_CLG
 
                 //GetFieldType(Int32)
 
-                for(int c=0;c<reader.FieldCount;c++)
+                for (int c = 0; c < reader.FieldCount; c++)
                 {
-                    fields += "<td style='background-color:#cccccc;'>" + reader.GetName(c) + "</td>" ;
+                    fields += "<td style='background-color:#cccccc;'>" + reader.GetName(c) + "</td>";
                     //fields += "<td bgcolor=#080808>" + reader.GetName(c) + "</td>" ;
-                    output += "<td style='background-color:#eeeeee;'>" + reader.GetValue(c) + "</td>" ;
+                    output += "<td style='background-color:#eeeeee;'>" + reader.GetValue(c) + "</td>";
                 }
 
                 output += "</tr>";
@@ -190,9 +190,9 @@ namespace MRR_CLG
             MySqlDataReader reader = Exec(strSQL);
             while (reader.Read())
             {
-                output += "<option value='" +  reader[0] + "'";
+                output += "<option value='" + reader[0] + "'";
                 if ((string)reader[0] == usetable) output += " selected ";
-                output += ">" +  reader[0] + "</option>";
+                output += ">" + reader[0] + "</option>";
             }
 
             output = "<select id='tables' onchange='changeToTable();'>" + output + "</select>";
@@ -204,14 +204,14 @@ namespace MRR_CLG
         {
 
             var sout = readdata.Split("/");
-            var newQuery =  sout[sout.Length-1] ;
-//            return rDBConn.GetHTMLfromQuery(newQuery);
+            var newQuery = sout[sout.Length - 1];
+            //            return rDBConn.GetHTMLfromQuery(newQuery);
 
             string output = "<html><head>";
             output += "<script src='/jscode.js' type='text/javascript' charset='utf-8'></script>";
             output += "</head><body>";
-//            output += "<h1>Database Editor</h1>";
-            output +=  GetTableNames(newQuery);
+            //            output += "<h1>Database Editor</h1>";
+            output += GetTableNames(newQuery);
             newQuery = "Select * from " + newQuery;
             output += GetHTMLfromQuery(newQuery);
             output += "</body></html>";
@@ -254,12 +254,12 @@ namespace MRR_CLG
 
                 BoardActionsCollection boardSquareActions = new BoardActionsCollection();
 
-                foreach(BoardAction thisaction in squareActions.Where(sa => sa.SquareX == boardX && sa.SquareY == boardY))
+                foreach (BoardAction thisaction in squareActions.Where(sa => sa.SquareX == boardX && sa.SquareY == boardY))
                 {
                     boardSquareActions.Add(thisaction);
                 }
 
-                l_BoardElements.SetSquare(boardX, boardY,(SquareType)reader["SquareType"],(Direction)reader["Rotation"],boardSquareActions);
+                l_BoardElements.SetSquare(boardX, boardY, (SquareType)reader["SquareType"], (Direction)reader["Rotation"], boardSquareActions);
             }
 
             reader.Close();
@@ -272,14 +272,14 @@ namespace MRR_CLG
             Command("Delete from BoardItemActions where BoardID=" + destinationID + ";");
             //  loop through cells
             //  loop through actions
-            foreach(BoardElement thisSquare in l_BoardElements.BoardElements)
+            foreach (BoardElement thisSquare in l_BoardElements.BoardElements)
             {
                 string strSQL = "insert into BoardItems " +
                     "(BoardID, X, Y, SquareType, Rotation) " +
                     " values (" + destinationID + "," + thisSquare.BoardCol + "," + thisSquare.BoardRow + "," + (int)thisSquare.Type + "," + (int)thisSquare.Rotation + ")";
 
                 Command(strSQL);
-                
+
                 foreach (BoardAction thisAction in thisSquare.ActionList)
                 {
                     //ActionList.Add(thisaction);
@@ -301,7 +301,7 @@ namespace MRR_CLG
                 }
             }
         }
-        
+
         public bool SendGameMessage(int NewState, string NewMessage)
         {
             if (Conn.State == System.Data.ConnectionState.Open)

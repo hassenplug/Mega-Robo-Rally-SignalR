@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace MRR_CLG
+namespace MRR
 {
     public class PhaseFunctions
     {

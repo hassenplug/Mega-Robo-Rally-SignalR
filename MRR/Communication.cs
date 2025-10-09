@@ -4,17 +4,21 @@ using System.Net;
 using System.Collections.ObjectModel;
 using System.ComponentModel; // INotifyPropertyChanged
 using System.Xml.Serialization; // serializer
+using MRR.Services;
 
-
-namespace MRR_CLG
+namespace MRR
 {
     public class Communication
     {
-        public Communication(Database ldb)
+
+        private readonly DataService _dataService;
+
+        public Communication(DataService dataService)
         {
-            DBConn = ldb;
+            _dataService = dataService;
+            //DBConn = ldb;
             createCommands = new(DBConn);
-        }
+        }        
 
         private Database DBConn { get; set; }
 

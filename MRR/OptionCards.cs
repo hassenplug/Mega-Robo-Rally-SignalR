@@ -14,7 +14,7 @@ using System.Xml.Serialization; // serializer
 //using System.Windows.Data; // border
 //using System.Windows.Media.Imaging;
 
-namespace MRR_CLG
+namespace MRR
 {
     public class OptionCardList : List<OptionCard>
     {

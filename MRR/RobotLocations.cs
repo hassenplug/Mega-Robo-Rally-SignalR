@@ -5,7 +5,7 @@ using System.Text;
 using System.ComponentModel; //INotifyPropertyChanged
 using System.Xml.Serialization; // serializer
 
-namespace MRR_CLG
+namespace MRR
 {
     /*
      * locations for robots

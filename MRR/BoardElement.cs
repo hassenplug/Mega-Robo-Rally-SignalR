@@ -3,7 +3,7 @@
 using System.Xml.Serialization; // serializer
 
 
-namespace MRR.Boards
+namespace MRR
 {
 
     #region Board Element Collection

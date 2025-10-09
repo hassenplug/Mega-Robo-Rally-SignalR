@@ -6,7 +6,6 @@ using System.ComponentModel;//INotifyPropertyChanged
 //using System.Windows.Media; // brushes
 using System.Xml.Serialization; // serializer
 //using System.Windows.Data; // iconverter
-using MySqlConnector;
 
 
 ///command item sub steps
@@ -18,7 +17,7 @@ using MySqlConnector;
 /// 8 Stop Move
 /// 9 disconnect
 
-namespace MRR_CLG
+namespace MRR
 {
 
     #region Command List
@@ -29,14 +28,6 @@ namespace MRR_CLG
         {
             Phase = 0;
         }
-
-
-        public CommandList(Database mydb):this()
-        {
-            // load command list from db
-
-        }
-
 
         public CommandItem AddCommand(CommandItem p_InsertBefore, Player p_Player, SquareAction p_Action, tCommandSequence p_Sequence)
         {

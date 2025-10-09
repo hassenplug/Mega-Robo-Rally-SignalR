@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 //using System.Windows.Media;
 
-namespace MRR_CLG
+namespace MRR
 {
     public enum Direction
     {

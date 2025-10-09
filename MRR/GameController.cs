@@ -7,14 +7,14 @@
 // edit/load/save boards
 // edit database
 
-namespace MRR_CLG
+namespace MRR
 {
     public partial class GameController 
     {
         public GameController()
         {
             DBConn = new Database();
-            Comm = new Communication(DBConn);
+            //Comm = new Communication(DBConn);
         }
 
         public Database DBConn {get;set;}

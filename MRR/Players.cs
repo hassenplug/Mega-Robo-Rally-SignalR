@@ -19,7 +19,7 @@ using MySqlConnector;
 
 // serializer
 
-namespace MRR_CLG
+namespace MRR
 {
 
     #region Player Enums

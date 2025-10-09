@@ -4,7 +4,7 @@ using System.Net.Sockets;
 using System.Net;
 using System.Net.Cache;
 
-namespace MRR_CLG
+namespace MRR
 {
 
 // command id
