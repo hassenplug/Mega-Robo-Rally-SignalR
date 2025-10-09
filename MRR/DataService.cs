@@ -24,18 +24,21 @@ namespace MRR.Services
 
 
         // Return the results of any query as a JSON string (uses DataTable -> JSON)
-        public string GetQueryResultsJson(string query)
+        public string GetQueryResultsJson(string query, string name = "data")
         {
             var dt = GetQueryResults(query);
-            // Serialize the DataTable rows as an array of objects
-            return JsonConvert.SerializeObject(dt);
+            // Serialize the DataTable rows as an array of objects under a dynamic property name
+            var payload = new Dictionary<string, object> {{ name, dt }};
+            return JsonConvert.SerializeObject(payload);
         }
 
         // Convenience: return the same payload as GetAllData but as a JSON string
         public string GetAllDataJson()
         {
             string strSQL = "select * from viewRobots;";
-            var payload = new { robots = GetQueryResults(strSQL), ServerTime = DateTime.Now.ToLongTimeString() };
+//            string strSQLcgd = "Select iKey, sKey, iValue, sValue from CurrentGameData;";
+//            var payload = new { robots = GetQueryResults(strSQL), currentgamedata = GetQueryResults(strSQLcgd), ServerTime = DateTime.Now.ToLongTimeString() };
+            var payload = new { robots = GetQueryResults(strSQL) };
             return JsonConvert.SerializeObject(payload);
             //return payload.toString();
         }
