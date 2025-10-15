@@ -75,6 +75,7 @@ function showall()
     robots = datapacket.robots
 
     //robotjson = robots;
+    document.getElementById("title").innerText = datapacket.titlemsg;
     for(var i = 0;i<robots.length;i++)
     {
         //console.log(robots[i]);

@@ -86,3 +86,5 @@ dotnet add package Microsoft.AspNetCore.SignalR
 
 #sudo reboot
 
+# move this line into the sh file
+# git clone https://github.com/VEX-Robotics/AIM_Websocket_Library.git

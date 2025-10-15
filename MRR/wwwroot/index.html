@@ -9,7 +9,7 @@
 <meta name="theme-color" content="#aaffff">
 
 <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/6.0.1/signalr.min.js"></script>
+<script src="js/signalr.min.js"></script>
 <script src="js/jquery.min.js" type="text/javascript" charset="utf-8"></script>
 <script src="js/loadrobots.js" type="text/javascript" charset="utf-8"></script>
 
@@ -38,7 +38,7 @@ td {
 <tr bgcolor="#d0d0d0"><td>Robot</td>
 <td align=center>Flags</td>
 <td align=center>Status</td>
-<td align=center width = 40% id="turnphase">Turn 1 - Phase 1</td>
+<td align=center width = 40% id="title">---</td>
 </tr>
 <tr>
     <td align=center><button class='button' id="button1" style='background-color:e0e0e0; color:000000' onclick='showplayerprogram(1);'>--</button></td>
@@ -292,22 +292,6 @@ td {
 </tr>
 </table>
 
-<button id="updateButton">Trigger Server Update (/api/alldata)</button>
-    <script>
-        // 4. Add an event listener to the button to trigger the server function
-        updateButton.addEventListener("click", function() {
-            // Call the HTTP GET endpoint on the server
-            fetch('/api/alldata')
-                .then(response => {
-                    if (response.ok) {
-                        console.log("Server update triggered.");
-                    } else {
-                        console.error("Failed to trigger server endpoint.");
-                    }
-                })
-                .catch(err => console.error('Fetch error:', err));
-        });
 
-    </script>
 </body>
 </html>

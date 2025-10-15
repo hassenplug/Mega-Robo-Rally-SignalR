@@ -36,9 +36,10 @@ namespace MRR.Services
         public string GetAllDataJson()
         {
             string strSQL = "select * from viewRobots;";
-//            string strSQLcgd = "Select iKey, sKey, iValue, sValue from CurrentGameData;";
-//            var payload = new { robots = GetQueryResults(strSQL), currentgamedata = GetQueryResults(strSQLcgd), ServerTime = DateTime.Now.ToLongTimeString() };
-            var payload = new { robots = GetQueryResults(strSQL) };
+            //            string strSQLcgd = "Select iKey, sKey, iValue, sValue from CurrentGameData;";
+            string titlemessage = "Turn 0";  //GetIntFromDB("Select sValue from CurrentGameData where sKey='TitleMessage';").ToString();
+            //            var payload = new { robots = GetQueryResults(strSQL), currentgamedata = GetQueryResults(strSQLcgd), ServerTime = DateTime.Now.ToLongTimeString() };
+            var payload = new { titlemsg = titlemessage , robots = GetQueryResults(strSQL) };
             return JsonConvert.SerializeObject(payload);
             //return payload.toString();
         }

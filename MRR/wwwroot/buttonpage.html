@@ -1,0 +1,18 @@
+
+<button id="updateButton">Trigger Server Update (/api/alldata)</button>
+    <script>
+        // 4. Add an event listener to the button to trigger the server function
+        updateButton.addEventListener("click", function() {
+            // Call the HTTP GET endpoint on the server
+            fetch('/api/alldata')
+                .then(response => {
+                    if (response.ok) {
+                        console.log("Server update triggered.");
+                    } else {
+                        console.error("Failed to trigger server endpoint.");
+                    }
+                })
+                .catch(err => console.error('Fetch error:', err));
+        });
+
+    </script>
