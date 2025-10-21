@@ -9,7 +9,6 @@ namespace MRR.Services
 {
     public class DataService
     {
-        // ⚠️ IMPORTANT: Replace with your actual database credentials
         private const string DbServerIp = "mrobopi3"; // e.g., "
         private const string DatabaseName = "rally";
         private const string UserId = "mrr";
@@ -35,21 +34,14 @@ namespace MRR.Services
         // Convenience: return the same payload as GetAllData but as a JSON string
         public string GetAllDataJson()
         {
+            string strSQLcgd = "Select iKey, sKey, iValue, sValue from CurrentGameData;";
+
             string strSQL = "select * from viewRobots;";
-            //            string strSQLcgd = "Select iKey, sKey, iValue, sValue from CurrentGameData;";
-            string titlemessage = "Turn 0";  //GetIntFromDB("Select sValue from CurrentGameData where sKey='TitleMessage';").ToString();
+            string titlemessage = "Turn " + GetIntFromDB("Select iValue from CurrentGameData where iKey=2;");
             //            var payload = new { robots = GetQueryResults(strSQL), currentgamedata = GetQueryResults(strSQLcgd), ServerTime = DateTime.Now.ToLongTimeString() };
-            var payload = new { titlemsg = titlemessage , robots = GetQueryResults(strSQL) };
+            var payload = new { titlemsg = titlemessage, robots = GetQueryResults(strSQL) };
             return JsonConvert.SerializeObject(payload);
-            //return payload.toString();
         }
-
-        // Return the JSON payload as UTF8 bytes
-        public byte[] GetAllDataJsonBytes()
-        {
-            return Encoding.UTF8.GetBytes(GetAllDataJson());
-        }
-
 
         public int GetIntFromDB(string strSQL)
         {

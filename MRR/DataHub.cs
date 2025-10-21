@@ -69,6 +69,14 @@ namespace MRR.Hubs
 //            }
 //            return MakeRobotsJson(request);
 
+            var gamestate = _dataService.GetIntFromDB("select funcGetNextGameState();"); //going to next state?
+            
+            //if (createCommands.UpdateGameState() == 6)
+            if (gamestate == 6)
+            {
+                createCommands.ExecuteTurn();
+            }
+
            await SendUpdate();
         }
 
@@ -93,5 +101,13 @@ namespace MRR.Hubs
             await Clients.All.SendAsync("AllDataUpdate", dataout);
 
         }
+
+        public async Task NextState()
+        {
+            var newstate = _dataService.GetIntFromDB("select funcGetNextGameState(); ");
+            Console.WriteLine("next:" + newstate.ToString());
+            return "State:" + newstate.ToString();
+        }
+        
     }
 }

@@ -2,6 +2,7 @@ using MRR.Hubs;
 using MRR.Services;
 using Microsoft.AspNetCore.SignalR;
 
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddSingleton<DataService>();
@@ -19,11 +20,8 @@ app.MapGet("/api/alldata", (DataService dataService, IHubContext<DataHub> hubCon
 {
     var dataout = dataService.GetAllDataJson();
     hubContext.Clients.All.SendAsync("AllDataUpdate", dataout);
-//    hubContext.Clients.All.SendAsync("AllDataUpdate", JsonConvert.SerializeObject(dataout));
      
-     return Results.Ok(dataout );
-//     return Results.Ok(new { data = "testing", payload = dataout });
-    //return Results.Ok(dataout);
+    return Results.Ok(dataout );
 });
 
 
@@ -43,6 +41,20 @@ app.MapGet("/api/table/{tablename}/{filter?}/{setvalue?}", (string tablename, st
 
     var dataout = dataService.GetQueryResultsJson($"Select * from {tablename}{whereClause};", tablename);
     hubContext.Clients.All.SendAsync(tablename, dataout);
+    return Results.Ok(dataout);
+});
+
+app.MapGet("/api/state/{newstate?}", (string newstate, DataService dataService, IHubContext<DataHub> hubContext) =>
+{
+
+    if(newstate != "" && newstate != null)
+    {
+//        var setStatement = "Update " + tablename + " set " + setvalue + whereClause + ";";
+//        dataService.ExecuteSQL(setStatement);
+    }
+
+    var dataout = dataService.GetQueryResultsJson($"Select * from CurrentGameData;", "State");
+    hubContext.Clients.All.SendAsync("State", dataout);
     return Results.Ok(dataout);
 });
 

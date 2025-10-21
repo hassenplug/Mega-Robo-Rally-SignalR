@@ -34,7 +34,7 @@ namespace MRR
 
     private CreateCommands createCommands;
 
-
+/*
 
         public void StartServer()
         {
@@ -67,6 +67,7 @@ namespace MRR
             //var newQuery = "" + sout[sout.Length-1] + ";";
             return _dataService.GetHTMLfromQuery(newQuery);
         }
+        */
 
         // commands
         // 2 = validate position
@@ -115,6 +116,7 @@ namespace MRR
 
         }
 
+/*
         void HandleConnection(TcpClient client)
         {
 
@@ -168,8 +170,8 @@ namespace MRR
 
             client.Close();
 
-        }
-
+        }*/
+/*
         private async void Send_UDP_Message(IPEndPoint destination, byte message)
         {
             // receivedResult.RemoteEndPoint
@@ -199,7 +201,8 @@ namespace MRR
                 Send_UDP_Message(receivedResult.RemoteEndPoint,(byte)counter);
             }
         }
-
+        */
+/*
         private void Start_TCP_Listen()
         {
             while (true)
@@ -210,7 +213,7 @@ namespace MRR
 
             }
         }
-
+*/
         private byte[] GetContent(string requestedPath)
         {
             if (requestedPath == "/") requestedPath = "index.html";
@@ -228,10 +231,10 @@ namespace MRR
             {
                 return  Encoding.ASCII.GetBytes(MakeRobotsJson(filePath));
             }
-            else if (requestedPath.Contains("/query"))
-            {
-                return  Encoding.ASCII.GetBytes(GetQuery(requestedPath));
-            }
+//            else if (requestedPath.Contains("/query"))
+//            {
+//                return  Encoding.ASCII.GetBytes(GetQuery(requestedPath));
+//            }
             else if (requestedPath.Contains("/nextstate"))
             {
                 return  Encoding.ASCII.GetBytes(NextState());
@@ -308,6 +311,7 @@ namespace MRR
             return (headerValues, firstLine);
         }
 
+/*
         public  string MakeCardJson(int playerID)
         {
             string strSQL = "Select * from MoveCards where Owner=" + playerID.ToString() + " order by CardID";
@@ -316,7 +320,7 @@ namespace MRR
             return result;
 
         }
-
+*/
 
         public  string MakeRobotsJson(string filename)
         {

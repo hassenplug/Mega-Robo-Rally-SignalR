@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Data Manager</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load SignalR Client -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/6.0.7/signalr.min.js"></script>
+    <style>
+        /* Custom styles for a modern look */
+        .container {
+            max-width: 1000px;
+        }
+        .data-grid-container {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #e5e7eb;
+        }
+        /* Ensure the input fields are legible and modern */
+        input[type="text"], button {
+            transition: all 0.2s;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-gray-50 font-sans p-4 md:p-8">
+
+    <div id="app" class="container mx-auto">
+        <h1 class="text-4xl font-extrabold text-indigo-700 mb-2">Dynamic API Manager</h1>
+        <p class="text-gray-600 mb-6">Interact with the <code>/api/table/{tablename}/{filter?}/{setvalue?}</code> endpoint.</p>
+
+        <!-- Connection Status -->
+        <div id="connectionStatus" class="flex items-center space-x-2 text-sm font-medium mb-6 p-3 bg-red-100 text-red-700 rounded-lg">
+            <svg class="animate-spin h-5 w-5 text-red-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+            <span>SignalR: Connecting...</span>
+        </div>
+        
+        <!-- Table Configuration Section -->
+        <div class="bg-white p-6 rounded-xl shadow-lg mb-8 border border-gray-100">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4">Data View</h2>
+            <div class="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4">
+                <div class="flex-grow">
+                    <label for="tableNameInput" class="block text-sm font-medium text-gray-700">Table Name (e.g., Items)</label>
+                    <input type="text" id="tableNameInput" value="Items" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border" placeholder="Enter table name">
+                </div>
+                <button onclick="fetchData()" class="mt-6 md:mt-0 px-6 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 active:bg-indigo-800 focus:outline-none focus:ring-4 focus:ring-indigo-300 transform hover:scale-[1.02]">
+                    Fetch Data
+                </button>
+            </div>
+        </div>
+
+        <!-- Update Section -->
+        <div class="bg-white p-6 rounded-xl shadow-lg mb-8 border border-gray-100">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4">Update Data (SQL Syntax)</h2>
+            <p class="text-sm text-gray-500 mb-4">Note: Ensure your C# backend safely handles SQL injection, as inputs are used directly in the query. Use correct SQL syntax (e.g., `sValue='NewName'`).</p>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label for="setClauseInput" class="block text-sm font-medium text-gray-700">SET Clause (e.g., iValue=50, sValue='Updated')</label>
+                    <input type="text" id="setClauseInput" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 p-2 border" placeholder="sValue='New Value'">
+                </div>
+                <div>
+                    <label for="whereClauseInput" class="block text-sm font-medium text-gray-700">WHERE Clause (e.g., iKey=10)</label>
+                    <input type="text" id="whereClauseInput" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 p-2 border" placeholder="iKey=1">
+                </div>
+                <button onclick="handleUpdate()" class="mt-6 md:mt-0 px-6 py-2 bg-orange-500 text-white font-bold rounded-lg hover:bg-orange-600 active:bg-orange-700 focus:outline-none focus:ring-4 focus:ring-orange-300 transform hover:scale-[1.02]">
+                    Execute Update & Refresh
+                </button>
+            </div>
+            <div id="messageBox" class="mt-4 p-3 rounded-lg text-sm hidden"></div>
+        </div>
+
+        <!-- Data Grid Display -->
+        <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4">Table Data</h2>
+            <div class="data-grid-container rounded-lg shadow-inner">
+                <table id="dataTable" class="min-w-full divide-y divide-gray-200">
+                    <thead class="sticky top-0 bg-gray-50">
+                        <!-- Table headers will be injected here -->
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        <tr><td colspan="4" class="py-4 text-center text-gray-500">Press "Fetch Data" to load content or wait for a SignalR update.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- SignalR Setup ---
+        const connection = new signalR.HubConnectionBuilder()
+            // FIX: Use window.location.origin to create an absolute URL for the SignalR connection
+            .withUrl(window.location.origin + "/datahub") 
+            .withAutomaticReconnect()
+            .build();
+
+        const statusElement = document.getElementById('connectionStatus');
+        
+        // SignalR Connection Logic
+        async function startSignalR() {
+            try {
+                await connection.start();
+                console.log("SignalR Connected.");
+                statusElement.classList.remove('bg-red-100', 'text-red-700', 'bg-yellow-100');
+                statusElement.classList.add('bg-green-100', 'text-green-700');
+                statusElement.innerHTML = '<svg class="h-5 w-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg><span>SignalR: Connected.</span>';
+                
+                // Immediately attempt to fetch data after connection is established
+                fetchData();
+
+            } catch (err) {
+                console.error("SignalR Connection Error: ", err);
+                statusElement.classList.remove('bg-red-100', 'text-red-700', 'bg-green-100');
+                statusElement.classList.add('bg-yellow-100', 'text-yellow-700');
+                statusElement.innerHTML = '<svg class="h-5 w-5 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg><span>SignalR: Failed to connect. Retrying...</span>';
+                setTimeout(startSignalR, 5000); // Retry connection
+            }
+        }
+
+        // SignalR Listener: Handle updates for the current table
+        // NOTE: The listener is hardcoded to "Items". If you change the table name input, 
+        // you'll need to reconnect the SignalR listener dynamically on the C# side.
+        connection.on("Items", (data) => {
+            console.log("SignalR received update for 'Items':", data);
+            renderTable(data);
+            showUserMessage("Real-time update received and displayed.", 'bg-blue-100 text-blue-700');
+        });
+
+        // Initialize connection on load
+        window.onload = startSignalR;
+
+
+        // --- UI and Data Logic ---
+        const tableBody = document.querySelector('#dataTable tbody');
+        const tableHead = document.querySelector('#dataTable thead');
+        const tableNameInput = document.getElementById('tableNameInput');
+        const setClauseInput = document.getElementById('setClauseInput');
+        const whereClauseInput = document.getElementById('whereClauseInput');
+        const messageBox = document.getElementById('messageBox');
+        
+        let currentTableName = tableNameInput.value;
+
+        // Function to display messages to the user
+        function showUserMessage(text, className) {
+            messageBox.textContent = text;
+            messageBox.className = `mt-4 p-3 rounded-lg text-sm ${className}`;
+            messageBox.classList.remove('hidden');
+            setTimeout(() => { messageBox.classList.add('hidden'); }, 5000);
+        }
+
+        // 1. FETCH DATA (SELECT)
+        async function fetchData() {
+            currentTableName = tableNameInput.value || 'Items';
+            const apiUrl = `/api/table/${currentTableName}`;
+            
+            try {
+                const response = await fetch(apiUrl);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                
+                //const data = await response.json();
+                const data = JSON.parse(response);
+                renderTable(data);
+                showUserMessage(`Data for '${currentTableName}' loaded successfully.`, 'bg-green-100 text-green-700');
+
+            } catch (error) {
+                console.error("Fetch Data Error:", error);
+                renderTable([]);
+                showUserMessage(`Error fetching data for ${currentTableName}: ${error.message}`, 'bg-red-100 text-red-700');
+            }
+        }
+
+        // 2. UPDATE DATA (SET + WHERE)
+        async function handleUpdate() {
+            currentTableName = tableNameInput.value || 'Items';
+            const setClause = setClauseInput.value.trim();
+            const whereClause = whereClauseInput.value.trim();
+            
+            if (!setClause) {
+                showUserMessage("Please provide a value for the SET clause.", 'bg-yellow-100 text-yellow-700');
+                return;
+            }
+            
+            // Encode the SQL fragments for safe transmission as route parameters
+            // This is crucial since route parameters are used for setvalue and filter.
+            const encodedSet = encodeURIComponent(setClause);
+            
+            // The filter is optional; if not present, the update will affect all rows (if the backend allows it)
+            const encodedFilter = whereClause ? encodeURIComponent(whereClause) : '';
+            
+            // Build the URL: /api/table/{tablename}/{filter}/{setvalue}
+            const apiUrl = `/api/table/${currentTableName}/${encodedFilter}/${encodedSet}`;
+
+            try {
+                // The API endpoint is GET, so we use GET here.
+                const response = await fetch(apiUrl);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                
+                const data = await response.json();
+                renderTable(data); // Render the new data returned by the API call
+                
+                // Clear inputs after successful update
+                setClauseInput.value = '';
+                whereClauseInput.value = '';
+                
+                showUserMessage(`Update executed successfully. Display refreshed.`, 'bg-indigo-100 text-indigo-700');
+
+            } catch (error) {
+                console.error("Update Data Error:", error);
+                showUserMessage(`Error executing update: ${error.message}. Check console for details.`, 'bg-red-100 text-red-700');
+            }
+        }
+        
+        // 3. RENDER TABLE
+        function renderTable(data) {
+            tableHead.innerHTML = '';
+            tableBody.innerHTML = '';
+
+            if (data.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="4" class="py-4 text-center text-gray-500">No data found or table is empty.</td></tr>';
+                return;
+            }
+
+            // Get headers from the first object keys
+            const headers = Object.keys(data[0]);
+
+            // Render Header
+            const headerRow = document.createElement('tr');
+            headers.forEach(header => {
+                const th = document.createElement('th');
+                th.className = 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider';
+                th.textContent = header;
+                headerRow.appendChild(th);
+            });
+            tableHead.appendChild(headerRow);
+
+            // Render Body
+            data.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-50';
+
+                headers.forEach(header => {
+                    const td = document.createElement('td');
+                    td.className = 'px-6 py-4 whitespace-nowrap text-sm text-gray-900';
+                    // Use standard JSON access, which will respect the casing returned by the C# side
+                    td.textContent = row[header]; 
+                    tr.appendChild(td);
+                });
+                tableBody.appendChild(tr);
+            });
+        }
+    </script>
+</body>
+</html>
