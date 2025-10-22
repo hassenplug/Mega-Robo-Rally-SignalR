@@ -58,6 +58,12 @@ app.MapGet("/api/state/{newstate?}", (string newstate, DataService dataService, 
     return Results.Ok(dataout);
 });
 
+app.MapGet("/api/nextstate/}", (DataService dataService, IHubContext<DataHub> hubContext) =>
+{
+    datahub.NextState()
+    return Results.Ok();
+});
+
 app.Urls.Add("http://mrobopi3:5000"); 
 
 app.Run();

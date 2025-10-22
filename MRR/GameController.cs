@@ -17,24 +17,9 @@ namespace MRR
         public GameController(DataService dataService)
         {
             _dataService = dataService;
-            // Communication expects a DataService now; create and assign
-            Comm = new Communication(_dataService);
+            UpdateGameState();
         }
 
-        public Communication Comm { get; set; }
-
-
-        public void SystemStartup()
-        {
-            GameState = UpdateGameState();
-
-            // reset game state
-            _dataService.ResetGameState();
-
-            // start web server
-            Comm.StartServer();
-
-        }
 
         public int UpdateGameState()
         {
@@ -65,7 +50,6 @@ namespace MRR
             return GameState;
         }
         public int GameState { get; set; }
-
         public int CurrentTurn { get; set; }
         public int PhaseCount { get; set; }
         public int RulesVersion { get; set; }
@@ -73,9 +57,9 @@ namespace MRR
         public GameTypes GameType { get; set; }
         public int BoardID { get; set; }
         public int OptionsOnStartup { get; set; }
-        public string BoardFileName { get; set; }
+        public string? BoardFileName { get; set; }
 
-        public void SetupGame() // pass board elements and players
+        public void SetupGame() // pass board elements and players // find start positions for each player
         {
 
             BoardElementCollection g_BoardElements = _dataService.BoardLoadFromDB(BoardID);
@@ -89,7 +73,8 @@ namespace MRR
             foreach (Player thisplayer in lAllPlayers)
             {
                 // set current location to next starting point...
-                BoardElement thisSquare = StartList.FirstOrDefault(be => be.ActionList.First(al => al.SquareAction == SquareAction.PlayerStart).Parameter == thisplayer.ID);
+                // Use Any(...) to avoid calling First(...) inside the predicate which can throw if no matching action exists.
+                BoardElement? thisSquare = StartList.FirstOrDefault(be => be.ActionList.Any(al => al.SquareAction == SquareAction.PlayerStart && al.Parameter == thisplayer.ID));
                 if (thisSquare != null)
                 {
                     int pRow = thisSquare.BoardRow;
@@ -124,7 +109,25 @@ namespace MRR
             //SendGameMessage(2,"Start for " + robotCount.ToString() + " robots");
         }
 
+        public string StartGame()
+        {
+            int startGameID = 1;
 
+            _dataService.ExecuteSQL("Update CurrentGameData set iValue = " + startGameID + " where iKey = 26;");  // set game state
+
+            _dataService.ExecuteSQL("Update CurrentGameData set iValue = 0 where iKey = 10;");  // set state to 0
+
+            var startstate = _dataService.GetIntFromDB("select funcGetNextGameState(); ");
+            //Console.WriteLine("next:" + newstate.ToString());
+            return "New Game:" + startstate.ToString();
+        }
+
+        public string NextState()
+        {
+            var newstate = _dataService.GetIntFromDB("select funcGetNextGameState(); ");
+            Console.WriteLine("next:" + newstate.ToString());
+            return "State:" + newstate.ToString();
+        }
 
 
     }

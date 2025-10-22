@@ -74,7 +74,7 @@ namespace MRR.Hubs
             //if (createCommands.UpdateGameState() == 6)
             if (gamestate == 6)
             {
-                createCommands.ExecuteTurn();
+                //createCommands.ExecuteTurn();
             }
 
            await SendUpdate();
@@ -106,7 +106,7 @@ namespace MRR.Hubs
         {
             var newstate = _dataService.GetIntFromDB("select funcGetNextGameState(); ");
             Console.WriteLine("next:" + newstate.ToString());
-            return "State:" + newstate.ToString();
+            //return "State:" + newstate.ToString();
         }
         
     }
