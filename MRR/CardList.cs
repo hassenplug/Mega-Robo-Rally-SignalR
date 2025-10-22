@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+﻿﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
 
 namespace MRR
@@ -21,7 +21,7 @@ namespace MRR
             }
         }
 
-        private Dictionary<MoveCard.tCardType, Tuple<int, string, string, int>> cardDictionary;
+    private Dictionary<MoveCard.tCardType, Tuple<int, string, string, int>> cardDictionary = new Dictionary<MoveCard.tCardType, Tuple<int, string, string, int>>();
 
         /// <summary>
         /// build the dictionary for looking up values
@@ -33,7 +33,7 @@ namespace MRR
             // item2 = description, 
             // item3 = short text, 
             // item4 = distance value
-            cardDictionary = new Dictionary<MoveCard.tCardType, Tuple<int, string, string, int>>();
+            //cardDictionary = new Dictionary<MoveCard.tCardType, Tuple<int, string, string, int>>();
             cardDictionary.Add(MoveCard.tCardType.Unknown,  Tuple.Create(0, "Card Type unknown", "-", 0));
             cardDictionary.Add(MoveCard.tCardType.UTurn,    Tuple.Create(0, "U-Turn",      "U", 2));
             cardDictionary.Add(MoveCard.tCardType.RTurn,    Tuple.Create(0, "Right Turn",  "R", 1));

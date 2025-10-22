@@ -1,0 +1,18 @@
+Things left to do to make MRR work
+
+
+Connect to AIM robots
+
+Make code run (Play game)
+
+Move SQL functions into c#
+
+Remove old communications
+
+Add Controls for player to set robot direction
+
+Set-up ability to use 3x3 boards 
+
+Ability to use merge conveyor belts
+
+Options

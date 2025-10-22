@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+﻿﻿using System.Collections.ObjectModel;
 //using System.ComponentModel; // INotifyPropertyChanged
 using System.Xml.Serialization; // serializer
 
@@ -31,7 +31,7 @@ namespace MRR
         //[XmlAttribute("Rows")]
         public int BoardRows { get; set; }
 
-        public string BoardName { get; set; }
+        public string? BoardName { get; set; }
 
         public int OptionsOnStartup { get; set; } = -1;
 
@@ -63,12 +63,10 @@ namespace MRR
         public BoardElement SetSquare(int p_col, int p_row, SquareType p_squaretype, Direction p_squaredirection, BoardActionsCollection p_squareactions)
         {
             //BoardElement l_square = c_wholeboard[p_col, p_row];
-            BoardElement l_square = GetSquare(p_col, p_row);
+            BoardElement? l_square = GetSquare(p_col, p_row);
             if (l_square == null)
             {
                 l_square = new BoardElement(p_col, p_row, p_squaretype, p_squaredirection);
-                //l_square = new BoardElement();
-                //c_wholeboard[p_col, p_row] = l_square;
                 this.BoardElements.Add(l_square);
             }
 
@@ -88,26 +86,25 @@ namespace MRR
             newsquare.TotalCount = p_square.TotalCount;
         }
 
-        public BoardElement GetSquare(int Col, int Row)
+        public BoardElement? GetSquare(int Col, int Row)
         {
             return GetSquare(be => ((be.BoardCol == Col) && (be.BoardRow == Row)));
         }
 
-        public BoardElement GetSquare(SquareType squaretype)
+        public BoardElement? GetSquare(SquareType squaretype)
         {
             return GetSquare(be => be.Type == squaretype);
         }
 
-        public BoardElement GetSquare(RobotLocation location)
+        public BoardElement? GetSquare(RobotLocation location)
         {
             return GetSquare(be => ((be.BoardCol == location.X) && (be.BoardRow == location.Y)));
         }
 
-        public BoardElement GetSquare(Func<BoardElement, bool> GetFunction)
+        public BoardElement? GetSquare(Func<BoardElement, bool> GetFunction)
         {
             IEnumerable<BoardElement> thisList = this.BoardElements.Where(GetFunction);
-            //if (thisList == null)
-            if (thisList.Count() == 0)
+            if (!thisList.Any())
             {
                 return null;
             }
@@ -115,7 +112,7 @@ namespace MRR
             return thisList.First();
         }
 
-        public BoardElement GetFlagSquare(int p_FlagNumber)
+        public BoardElement? GetFlagSquare(int p_FlagNumber)
         {
             return GetSquare(be => be.ActionList.Count(al => (
                 (al.SquareAction == SquareAction.Flag)
