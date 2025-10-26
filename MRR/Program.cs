@@ -1,7 +1,7 @@
 using MRR.Hubs;
 using MRR.Services;
 using Microsoft.AspNetCore.SignalR;
-
+using MRR.RobotCommunication;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -71,6 +71,18 @@ app.MapGet("/api/startgame/{gameid}", (string gameID, DataService dataService, I
     var newstate = dataService.GetIntFromDB("select funcGetNextGameState(); ");
     return Results.Ok(newstate);
 });
+
+
+app.MapGet("/api/testrobot", (DataService dataService, IHubContext<DataHub> hubContext) =>
+{
+//    var newstate = dataService.GetIntFromDB("select funcGetNextGameState(); ");
+//    return Results.Ok(newstate);
+
+    var robotcom = new RobotCommunication(dataService).SendCommandToVexAim();
+
+    return Results.Ok(robotcom);
+});
+
 
 app.Urls.Add("http://mrobopi3:5000"); 
 
