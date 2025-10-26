@@ -58,10 +58,18 @@ app.MapGet("/api/state/{newstate?}", (string newstate, DataService dataService, 
     return Results.Ok(dataout);
 });
 
-app.MapGet("/api/nextstate/}", (DataService dataService, IHubContext<DataHub> hubContext) =>
+app.MapGet("/api/nextstate", (DataService dataService, IHubContext<DataHub> hubContext) =>
 {
-    datahub.NextState()
-    return Results.Ok();
+    //datahub.NextState();
+    var newstate = dataService.GetIntFromDB("select funcGetNextGameState(); ");
+    return Results.Ok(newstate);
+});
+
+app.MapGet("/api/startgame/{gameid}", (string gameID, DataService dataService, IHubContext<DataHub> hubContext) =>
+{
+    //datahub.NextState();
+    var newstate = dataService.GetIntFromDB("select funcGetNextGameState(); ");
+    return Results.Ok(newstate);
 });
 
 app.Urls.Add("http://mrobopi3:5000"); 
