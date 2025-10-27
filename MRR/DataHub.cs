@@ -108,6 +108,18 @@ namespace MRR.Hubs
             Console.WriteLine("next:" + newstate.ToString());
             //return "State:" + newstate.ToString();
         }
-        
+
+        // Handle robot responses and events
+        public async Task OnRobotResponse(string robotId, string response)
+        {
+            // Broadcast the robot's response to all clients
+            await Clients.All.SendAsync("RobotResponse", robotId, response);
+        }
+
+        // Handle robot status updates
+        public async Task UpdateRobotStatus(string robotId, string status)
+        {
+            await Clients.All.SendAsync("RobotStatusUpdate", robotId, status);
+        }
     }
 }
