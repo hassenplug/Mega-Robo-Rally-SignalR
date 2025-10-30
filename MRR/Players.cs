@@ -433,6 +433,10 @@ namespace MRR
 
         public tPlayerStatus PlayerStatus { get; set; }
 
+        public string IPAddress { get; set; }
+
+        public Robots.AIMRobot RobotConnection { get; set; }
+
         public override string ToString()
         {
             if (ID == -1)

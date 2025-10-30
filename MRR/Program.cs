@@ -1,18 +1,21 @@
 using MRR.Hubs;
 using MRR.Services;
 using Microsoft.AspNetCore.SignalR;
-using MRR.RobotCommunication;
+using System.Net.WebSockets;
+using MRR.Controller;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddSingleton<DataService>();
+builder.Services.AddSingleton<GameController>();
 
 builder.Services.AddSignalR();
 
 var app = builder.Build();
 
 app.UseStaticFiles();
-app.UseDefaultFiles(); 
+app.UseDefaultFiles();
+app.UseWebSockets();
 
 app.MapHub<DataHub>("/datahub");
 
@@ -44,44 +47,35 @@ app.MapGet("/api/table/{tablename}/{filter?}/{setvalue?}", (string tablename, st
     return Results.Ok(dataout);
 });
 
-app.MapGet("/api/state/{newstate?}", (string newstate, DataService dataService, IHubContext<DataHub> hubContext) =>
+app.MapGet("/api/state/{newstate?}/{parameter1?}", (string? newstate, string? parameter1, DataService dataService, IHubContext<DataHub> hubContext, GameController gameController) =>
 {
 
-    if(newstate != "" && newstate != null)
+    if (newstate == null) newstate = "";
+
+    switch (newstate)
     {
-//        var setStatement = "Update " + tablename + " set " + setvalue + whereClause + ";";
-//        dataService.ExecuteSQL(setStatement);
-    }
+        case "nextstate":
+            gameController.NextState();
+            //return Results.Ok(nextstate);
+            break;
+        case "startgame":
+            gameController.StartGame(Convert.ToInt32(parameter1));
+            //return Results.Ok(result);
+            break;
+        case "resetgame":
+            dataService.ExecuteSQL("call procResetGameState();");
+            break;
+        default:
+        //        var setStatement = "Update " + tablename + " set " + setvalue + whereClause + ";";
+        //        dataService.ExecuteSQL(setStatement);
+            break;
+    }   
 
     var dataout = dataService.GetQueryResultsJson($"Select * from CurrentGameData;", "State");
     hubContext.Clients.All.SendAsync("State", dataout);
     return Results.Ok(dataout);
 });
 
-app.MapGet("/api/nextstate", (DataService dataService, IHubContext<DataHub> hubContext) =>
-{
-    //datahub.NextState();
-    var newstate = dataService.GetIntFromDB("select funcGetNextGameState(); ");
-    return Results.Ok(newstate);
-});
-
-app.MapGet("/api/startgame/{gameid}", (string gameID, DataService dataService, IHubContext<DataHub> hubContext) =>
-{
-    //datahub.NextState();
-    var newstate = dataService.GetIntFromDB("select funcGetNextGameState(); ");
-    return Results.Ok(newstate);
-});
-
-
-app.MapGet("/api/testrobot", (DataService dataService, IHubContext<DataHub> hubContext) =>
-{
-//    var newstate = dataService.GetIntFromDB("select funcGetNextGameState(); ");
-//    return Results.Ok(newstate);
-
-    var robotcom = new RobotCommunication(dataService).SendCommandToVexAim();
-
-    return Results.Ok(robotcom);
-});
 
 
 app.Urls.Add("http://mrobopi3:5000"); 

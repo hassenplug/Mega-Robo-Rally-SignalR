@@ -8,7 +8,7 @@
 // edit database
 using MRR.Services;
 
-namespace MRR
+namespace MRR.Controller
 {
     public partial class GameController
     {
@@ -17,9 +17,21 @@ namespace MRR
         public GameController(DataService dataService)
         {
             _dataService = dataService;
-            UpdateGameState();
+            LoadCurrentGame();
         }
 
+
+        public int GameState { get; set; }
+        public int CurrentTurn { get; set; }
+        public int CurrentPhase { get; set; }
+        public int PhaseCount { get; set; }
+        public int RulesVersion { get; set; }
+        public int LaserDamage { get; set; }
+        public GameTypes GameType { get; set; }
+        public int BoardID { get; set; }
+        public int OptionsOnStartup { get; set; }
+        public string? BoardFileName { get; set; }
+        public int RobotsActive { get; set; }
 
         public int UpdateGameState()
         {
@@ -31,36 +43,35 @@ namespace MRR
                 foreach (System.Data.DataRow row in dt.Rows)
                 {
                     var key = Convert.ToInt32(row[0]);
+                    var value = Convert.ToInt32(row[2]);
                     switch (key)
                     {
-                        case 10: GameState = Convert.ToInt32(row[2]); break;
-                        case 2: CurrentTurn = Convert.ToInt32(row[2]); break;
-                        case 16: PhaseCount = Convert.ToInt32(row[2]); break;
-                        case 27: RulesVersion = Convert.ToInt32(row[2]); break;
+                        case 1: GameType = (GameTypes)value; break;
+                        case 2: CurrentTurn = value; break;
+                        case 3: CurrentPhase = value; break;
+                        case 6: LaserDamage = value; break;
+                        case 8: RobotsActive = value; break;
+                        case 10: GameState = value; break;
+                        case 16: PhaseCount = value; break;
                         case 20:
-                            BoardID = Convert.ToInt32(row[2]);
+                            BoardID = value;
                             if (row[3] != System.DBNull.Value) BoardFileName = row[3].ToString();
                             break;
-                        case 6: LaserDamage = Convert.ToInt32(row[2]); break;
-                        case 1: GameType = (GameTypes)Convert.ToInt32(row[2]); break;
-                        case 22: OptionsOnStartup = Convert.ToInt32(row[2]); break;
+                        case 22: OptionsOnStartup = value; break;
+                        case 27: RulesVersion = value; break;
                     }
                 }
             }
             return GameState;
         }
-        public int GameState { get; set; }
-        public int CurrentTurn { get; set; }
-        public int PhaseCount { get; set; }
-        public int RulesVersion { get; set; }
-        public int LaserDamage { get; set; }
-        public GameTypes GameType { get; set; }
-        public int BoardID { get; set; }
-        public int OptionsOnStartup { get; set; }
-        public string? BoardFileName { get; set; }
 
-        public void SetupGame() // pass board elements and players // find start positions for each player
+        public void StartGame(int startGameID = 1) // pass board elements and players // find start positions for each player
         {
+
+            _dataService.ExecuteSQL("Update CurrentGameData set iValue = " + startGameID + " where iKey = 26;");  // set game state
+            _dataService.ExecuteSQL("Update CurrentGameData set iValue = 0 where iKey = 10;");  // set state to 0
+
+            NextState();
 
             BoardElementCollection g_BoardElements = _dataService.BoardLoadFromDB(BoardID);
 
@@ -83,6 +94,8 @@ namespace MRR
 
                     _dataService.ExecuteSQL("Update Robots set CurrentPosRow=" + pRow + ", CurrentPosCol=" + pCol + ",CurrentPosDir=" + pDir + ",ArchivePosRow=" + pRow + ",ArchivePosCol=" + pCol + ",ArchivePosDir=" + pDir + "  where RobotID=" + thisplayer.ID + ";");
                     // add "connect" command, here
+                    // connect to robot
+                    thisplayer.RobotConnection = new Robots.AIMRobot(thisplayer.IPAddress);
 
                     //DBConn.Command("call procRobotConnectionStatus(" + thisplayer.ID + ",70);");
 
@@ -105,28 +118,26 @@ namespace MRR
 
             }
 
+            LoadCurrentGame();
 
             //SendGameMessage(2,"Start for " + robotCount.ToString() + " robots");
         }
 
-        public string StartGame()
-        {
-            int startGameID = 1;
-
-            _dataService.ExecuteSQL("Update CurrentGameData set iValue = " + startGameID + " where iKey = 26;");  // set game state
-
-            _dataService.ExecuteSQL("Update CurrentGameData set iValue = 0 where iKey = 10;");  // set state to 0
-
-            var startstate = _dataService.GetIntFromDB("select funcGetNextGameState(); ");
-            //Console.WriteLine("next:" + newstate.ToString());
-            return "New Game:" + startstate.ToString();
-        }
 
         public string NextState()
         {
             var newstate = _dataService.GetIntFromDB("select funcGetNextGameState(); ");
+            UpdateGameState();
             Console.WriteLine("next:" + newstate.ToString());
             return "State:" + newstate.ToString();
+        }
+
+        public string LoadCurrentGame()
+        {
+            // load current game data from database
+            // connect to robots in current game
+            UpdateGameState();
+            return "";
         }
 
 
