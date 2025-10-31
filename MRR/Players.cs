@@ -225,7 +225,23 @@ namespace MRR
 
         #endregion
 
-//        public RRGame MainGame { get; set; }
+        //        public RRGame MainGame { get; set; }
+
+        public Robots.AIMRobot Connect(string ipAddress = "")
+        {
+            if (ipAddress != null && ipAddress != IPAddress)
+            {
+                IPAddress = ipAddress;
+            }
+            if (IPAddress == null || IPAddress == "")
+            {
+                return null;
+            }
+            RobotConnection = new Robots.AIMRobot(IPAddress);
+            RobotConnection.ConnectAsync().Wait();
+            RobotConnection.PrintAsync("Robot: " + ID).Wait();
+            return RobotConnection;
+        }
 
         public int ID { get; set; }
         public string Name { get; set; }

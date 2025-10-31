@@ -32,6 +32,7 @@ namespace MRR.Controller
         public int OptionsOnStartup { get; set; }
         public string? BoardFileName { get; set; }
         public int RobotsActive { get; set; }
+        public Players AllPlayers { get; set; } = new Players();
 
         public int UpdateGameState()
         {
@@ -79,9 +80,7 @@ namespace MRR.Controller
 
             int robotCount = 0;
 
-            Players lAllPlayers = new Players();
-
-            foreach (Player thisplayer in lAllPlayers)
+            foreach (Player thisplayer in AllPlayers)
             {
                 // set current location to next starting point...
                 // Use Any(...) to avoid calling First(...) inside the predicate which can throw if no matching action exists.
@@ -136,8 +135,45 @@ namespace MRR.Controller
         {
             // load current game data from database
             // connect to robots in current game
+            ConnectToAllRobots();
             UpdateGameState();
             return "";
+        }
+
+        public bool ConnectToAllRobots()
+        {
+//            Console.WriteLine("Connecting to robots ");
+
+            foreach (Player thisplayer in AllPlayers)
+            {
+                ConnectToRobot(thisplayer);
+            }
+            return true;
+        }
+
+        public bool ConnectToRobot(int playerID)
+        {
+            Player? thisplayer = AllPlayers.GetPlayer(playerID);
+            ConnectToRobot(thisplayer);
+            return true;
+        }
+
+        public bool ConnectToRobot(Player player)
+        {
+            if (player.RobotConnection == null)
+            {
+                string strSQL = "Select MacID from RobotBases where RobotBaseID=" + player.ID + ";";
+                var dt = _dataService.GetQueryResults(strSQL);
+                if (dt != null && dt.Rows.Count > 0)
+                {
+                    foreach (System.Data.DataRow row in dt.Rows)
+                    {
+                        Console.WriteLine("Connecting to robot " + player.ID.ToString() + " at " + row[0].ToString());
+                        player.Connect(row[0].ToString());
+                    }
+                }
+            }
+            return true;
         }
 
 

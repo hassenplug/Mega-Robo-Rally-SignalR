@@ -109,6 +109,28 @@ public class AIMRobot // : IAsyncDisposable
         }
     }
 
+    public async Task RunTest()
+    {
+        await ConnectAsync();
+
+        // Example commands
+        await ClearScreenAsync();
+    //    await robot.ShowAIAsync();
+
+        await PrintAsync("Hello from C#!");
+        await SetLedAsync("LED1", 0, 255, 0); // Green front LED
+        
+        // Move forward
+        await MoveAsync(270, 100); // 0 degrees (forward), 100mm/s speed
+        await Task.Delay(20); // Wait 2 seconds
+        await StopAsync();
+
+        await TurnAsync(90, 100); // Turn right 90 degrees at 100mm/s
+        await Task.Delay(20); // Wait 2 seconds
+        await StopAsync();
+
+    }
+
 
     // Movement commands
     public Task MoveAsync(double angle, double speed) =>

@@ -3,6 +3,7 @@ using MRR.Services;
 using Microsoft.AspNetCore.SignalR;
 using System.Net.WebSockets;
 using MRR.Controller;
+using MRR;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -76,6 +77,37 @@ app.MapGet("/api/state/{newstate?}/{parameter1?}", (string? newstate, string? pa
     return Results.Ok(dataout);
 });
 
+
+app.MapGet("/api/robot/{function?}/{parameter1?}", (string? function, string? parameter1, DataService dataService, IHubContext<DataHub> hubContext, GameController gameController) =>
+{
+
+    if (function == null) function = "";
+
+    switch (function)
+    {
+        case "test":
+            var robot = new Player().Connect(parameter1);
+            robot.RunTest().Wait();
+            break;
+        case "connect":
+            if (parameter1 == "all")
+            {
+                gameController.ConnectToAllRobots();
+            }
+            else
+            {
+                gameController.ConnectToRobot(Convert.ToInt32(parameter1));
+            }
+
+            break;  
+        default:
+            break;
+    }   
+
+    var dataout = dataService.GetQueryResultsJson($"Select * from CurrentGameData;", "State");
+    hubContext.Clients.All.SendAsync("State", dataout);
+    return Results.Ok(dataout);
+});
 
 
 app.Urls.Add("http://mrobopi3:5000"); 
