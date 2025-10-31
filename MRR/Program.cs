@@ -100,6 +100,17 @@ app.MapGet("/api/robot/{function?}/{parameter1?}", (string? function, string? pa
             }
 
             break;  
+        case "disconnect":
+            if (parameter1 == "all")
+            {
+                //gameController.DisconnectAllRobots();
+            }
+            else
+            {
+                //gameController.DisconnectRobot(Convert.ToInt32(parameter1));
+            }
+
+            break;
         default:
             break;
     }   
