@@ -297,7 +297,7 @@ namespace MRR
 
                     case SquareAction.DeletedMove:return new SquareActionDetails(CommandCategories.DB, "move from " + StartPos + " to " + EndPos + " CANCELED");
                     case SquareAction.PhaseStart:return new SquareActionDetails(CommandCategories.DB,"Start Phase: " + Phase,-1); //,Phase * 10000-1);
-                    case SquareAction.Dead:return new SquareActionDetails(CommandCategories.RobotNoReply,"is dead",0,"3,8");
+                    case SquareAction.Dead:return new SquareActionDetails(CommandCategories.RobotNoReply,"is dead",0,"3,3");
                         //return "35";
                     case SquareAction.LostLife:return new SquareActionDetails(CommandCategories.DB,"lost a life");
                     case SquareAction.RobotPush:return new SquareActionDetails(CommandCategories.DB,"pushed by " + GetRobotName(Value));

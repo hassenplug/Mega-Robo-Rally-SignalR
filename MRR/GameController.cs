@@ -13,24 +13,17 @@ namespace MRR.Controller
     public partial class GameController
     {
         private readonly DataService _dataService;
+        private readonly CreateCommands _createCommands;
 
-        public GameController(DataService dataService)
+        public GameController(DataService dataService, CreateCommands createCommands)
         {
+            _createCommands = createCommands;
             _dataService = dataService;
             LoadCurrentGame();
+            _createCommands.AllPlayers = AllPlayers;
         }
 
 
-        public int GameState { get; set; }
-        public int CurrentTurn { get; set; }
-        public int CurrentPhase { get; set; }
-        public int PhaseCount { get; set; }
-        public int RulesVersion { get; set; }
-        public int LaserDamage { get; set; }
-        public GameTypes GameType { get; set; }
-        public int BoardID { get; set; }
-        public int OptionsOnStartup { get; set; }
-        public string? BoardFileName { get; set; }
         public int RobotsActive { get; set; }
         public Players AllPlayers { get; set; } = new Players();
 
@@ -45,25 +38,33 @@ namespace MRR.Controller
                 {
                     var key = Convert.ToInt32(row[0]);
                     var value = Convert.ToInt32(row[2]);
+//                    Console.WriteLine("GameState Key:" + key.ToString() + " Value:" + value.ToString());
                     switch (key)
                     {
-                        case 1: GameType = (GameTypes)value; break;
-                        case 2: CurrentTurn = value; break;
-                        case 3: CurrentPhase = value; break;
-                        case 6: LaserDamage = value; break;
+                        case 1: _createCommands.GameType = (GameTypes)value; break;
+                        case 2: _createCommands.CurrentTurn = value; break;
+                        case 3: _createCommands.CurrentPhase = value; break;
+                        case 6: _createCommands.LaserDamage = value; break;
                         case 8: RobotsActive = value; break;
-                        case 10: GameState = value; break;
-                        case 16: PhaseCount = value; break;
+                        case 10: _createCommands.GameState = value; break;
+                        case 16: _createCommands.PhaseCount = value; break;
                         case 20:
-                            BoardID = value;
-                            if (row[3] != System.DBNull.Value) BoardFileName = row[3].ToString();
+                            _createCommands.BoardID = value;
+                            if (row[3] != System.DBNull.Value) _createCommands.BoardFileName = row[3].ToString();
                             break;
-                        case 22: OptionsOnStartup = value; break;
-                        case 27: RulesVersion = value; break;
+                        case 22: _createCommands.OptionsOnStartup = value; break;
+                        case 27: _createCommands.RulesVersion = value; break;
                     }
                 }
             }
-            return GameState;
+            return _createCommands.GameState;
+        }
+
+        public async Task ExecuteTurn()
+        {
+            //CreateCommands createCommands = new CreateCommands(_dataService);
+            var exeResult = _createCommands.ExecuteTurn();
+            Console.WriteLine("Execute Turn Result: " + exeResult);
         }
 
         public void StartGame(int startGameID = 1) // pass board elements and players // find start positions for each player
@@ -74,7 +75,7 @@ namespace MRR.Controller
 
             NextState();
 
-            BoardElementCollection g_BoardElements = _dataService.BoardLoadFromDB(BoardID);
+            BoardElementCollection g_BoardElements = _dataService.BoardLoadFromDB(_createCommands.BoardID);
 
             IEnumerable<BoardElement> StartList = g_BoardElements.BoardElements.Where(be => be.ActionList.Count(al => al.SquareAction == SquareAction.PlayerStart) > 0);
 
@@ -99,9 +100,9 @@ namespace MRR.Controller
                     //DBConn.Command("call procRobotConnectionStatus(" + thisplayer.ID + ",70);");
 
                     // insert options here...
-                    if (OptionsOnStartup > 0)
+                    if (_createCommands.OptionsOnStartup > 0)
                     {
-                        for (int opt = 0; opt < OptionsOnStartup; opt++)
+                        for (int opt = 0; opt < _createCommands.OptionsOnStartup; opt++)
                         {
                             _dataService.ExecuteSQL("call procDealOptionToRobot(" + thisplayer.ID + ");");
                         }
@@ -135,8 +136,13 @@ namespace MRR.Controller
         {
             // load current game data from database
             // connect to robots in current game
-            ConnectToAllRobots();
+
             UpdateGameState();
+            
+            if (RobotsActive != 0)
+            {
+                ConnectToAllRobots();
+            }
             return "";
         }
 
@@ -175,7 +181,5 @@ namespace MRR.Controller
             }
             return true;
         }
-
-
     }
 }

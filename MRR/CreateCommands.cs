@@ -32,29 +32,26 @@ namespace MRR
 
         private readonly DataService _dataService;
 
-        public CreateCommands(DataService dataService)
-        {
-            _dataService = dataService;
-        }
-
         #region Game Parameters & Configuration
 
         const int DamageSequence = 7; // number to use for damage & cannons within sequence
 
-        public CreateCommands() //Database lDBConn)
+        public CreateCommands(DataService dataService)
         {
-            GameCards = new CardList();
+            _dataService = dataService;
 
-            OptionCards = new OptionCardList();
+            GameCards = [];
 
-            ListOfCommands = new CommandList();
+            OptionCards = [];
+
+            ListOfCommands = [];
 
             // ensure we have a DataService instance for legacy callers
             if (_dataService == null) {
                 try { _dataService = new DataService(); } catch { /* swallow for test builds */ }
             }
 
-            AllPlayers = new Players(_dataService);
+            //AllPlayers = new Players(_dataService);
 
             g_BoardElements = new BoardElementCollection(0, 0);
         }
@@ -69,7 +66,7 @@ namespace MRR
 
         public int PhaseCount { get; set; }
 
-        public Players AllPlayers { get; set; }
+        public Players AllPlayers { get; set; } = [];
 
         public CommandList ListOfCommands { get; set; }
 
@@ -77,7 +74,7 @@ namespace MRR
 
         public OptionCardList OptionCards { get; set; }
 
-        public Dictionary<int,string> OptionCardNames = new Dictionary<int, string>();
+        public Dictionary<int,string> OptionCardNames = [];
 
         // migrated from legacy code: map of move card type id -> name
         //public Dictionary<int, string> MoveCardNames = new Dictionary<int, string>();
@@ -87,6 +84,7 @@ namespace MRR
         public BoardElementCollection g_BoardElements { get; set; } // = new BoardElementCollection(0, 0);
 
         public int CurrentTurn  { get; set; } = 0;
+        public int CurrentPhase  { get; set; } = 0;
 
         public GameTypes GameType { get;set; }
 
@@ -284,7 +282,7 @@ namespace MRR
                 int l_pushPlayerID = l_PushPlayer.ID;
                 if (thisplayer.ID == l_pushPlayerID)
                 {
-                    Console.WriteLine(l_pushPlayerID + " pushed by " + p_Player.ID + " at " + p_Player.CurrentPos.FullLocation + " ** Failure ** ");
+                    //Console.WriteLine(l_pushPlayerID + " pushed by " + p_Player.ID + " at " + p_Player.CurrentPos.FullLocation + " ** Failure ** ");
                     return 0;
                 }
 
@@ -489,17 +487,19 @@ namespace MRR
         {
             //GameState = DBConn.UpdateGameState();
 
-            if (GameState != 6) 
+            if (GameState != 6)
             {
                 return ("Wrong State:" + GameState.ToString());
             }
 
             // check all robots, and set their new state to "done moving"
             //if (!CheckPlayersReady()) return "Execute Failed: Players not ready";
+            
+            //Console.WriteLine("Players: " + AllPlayers.Count.ToString());
 
-            _dataService.BoardLoadFromDB(BoardID);
+            g_BoardElements = _dataService.BoardLoadFromDB(BoardID);
 
-            AllPlayers = new Players();
+            //AllPlayers = [];
 
             //GameCards.LoadCardList();
             LoadGameCardsFromDatabase();
@@ -511,6 +511,8 @@ namespace MRR
             //LoadRobots();
 
             ListOfCommands.Clear(); // = new CommandList();
+
+            Console.WriteLine("Check Rules Version");
 
             // update priority of card based on owner; sort by (-)
             if (RulesVersion==1)
@@ -666,11 +668,15 @@ namespace MRR
 
             AddCommandsToDatabase();
 
+            // update state
+            GameState = 8;
+
             //SendGameMessage(8,"Added " + ListOfCommands.Count + " commands"); // set to state 8, ready to start running commands
             Console.WriteLine("Added " + ListOfCommands.Count + " commands");
+            _dataService.ExecuteSQL("Update CurrentGameData set iValue = 7 where iKey = 10;");  // set state to 0
             return ("Added " + ListOfCommands.Count + " commands");
 
-
+ 
         }
 
         public void AddCommandsToDatabase()
@@ -818,7 +824,7 @@ namespace MRR
                 _dataService.ExecuteSQL("call procRobotConnectionStatus(" + thisplayer.ID + ",71);");
             }
 
-            _dataService.ExecuteSQL("Update CurrentGameData set GameState=0, Message='Exit Game'; ");
+            //_dataService.ExecuteSQL("Update CurrentGameData set GameState=0, Message='Exit Game'; ");
         }
 
         public void LoadGameCardsFromDatabase()
@@ -981,7 +987,7 @@ namespace MRR
             // get list of cards to execute
             //foreach (MoveCard thiscard in GameCards.Where(gc => gc.PhasePlayed == p_PhaseNumber).OrderByDescending(gc => gc.Priority))
 
-            List<MoveCard> FullList = new List<MoveCard>();
+            List<MoveCard> FullList = [];
 
             /*
              * this code should be ready for randomizer
@@ -1218,7 +1224,7 @@ namespace MRR
                 /// including the x,y location, and the robot on the square
                 ///
 
-                BoardActionsCollection l_activeactions = new BoardActionsCollection();
+                BoardActionsCollection l_activeactions = [];
 
                 foreach(var thissquare in ActiveSquares)
                 {
@@ -1275,7 +1281,7 @@ namespace MRR
                     //IEnumerable<Player> liveplayers = AllPlayers.Where(wp => wp.IsRunning);
 
                     // need to create a list of players to iderate through, but add to while iderating
-                    List<Player> liveplayers = new List<Player>();
+                    List<Player> liveplayers = [];
                     
                     foreach (Player thisplayer in AllPlayers.Where(wp => wp.IsRunning))
                     {
@@ -1643,7 +1649,7 @@ namespace MRR
 
                         //on rob.CurrentPos.Location equals mov.EndPos.Location
                         // revert
-                        List<CommandItem> BM2 = new List<CommandItem>(); // = BadMoves.Select(bm => new { cmd = bm}); //= new IEnumerable<CommandItem>();
+                        List<CommandItem> BM2 = []; // = BadMoves.Select(bm => new { cmd = bm}); //= new IEnumerable<CommandItem>();
 
                         foreach (CommandItem bm in BadMoves)
                         {
@@ -1695,7 +1701,7 @@ namespace MRR
                 //var TurnOne = TurnMoves.First();
                 //CommandItem FirstCommand = TurnOne.First;
                 //CommandItem SecondCommand = TurnOne.Second;
-                CommandList MovedCommands = new CommandList();
+                CommandList MovedCommands = [];
                 CommandItem thisCommand = TurnMoves.First().First;
                 CommandItem SecondCommand = TurnMoves.First().Second;
                 int CommandSequence = thisCommand.CommandSequence;
@@ -1877,7 +1883,7 @@ namespace MRR
                 // if died by pushing, credit others in DM game.
                 int pushedPlayer = p_thisrobot.ID;
                 //int pushedPhase = ListOfCommands.Max(lc => lc.Phase);
-                List<int> pushedPlayerList = new List<int>();
+                List<int> pushedPlayerList = [];
 
                 do
                 {
@@ -1927,7 +1933,7 @@ namespace MRR
 
         public void DamageAtSquare(RobotLocation DamageSquare, Player CausedDamage) // new RobotLocation(0, X, Y, Damage)
         {
-            List<RobotLocation> DamageSquareList = new List<RobotLocation>();
+            List<RobotLocation> DamageSquareList = [];
             //RobotLocation DamageThisSquare = new RobotLocation(0, 1, 2, 3);
 
             // calc squares to damage

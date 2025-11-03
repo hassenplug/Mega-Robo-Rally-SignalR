@@ -9,6 +9,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddSingleton<DataService>();
 builder.Services.AddSingleton<GameController>();
+builder.Services.AddSingleton<CreateCommands>();
 
 builder.Services.AddSignalR();
 
@@ -48,7 +49,7 @@ app.MapGet("/api/table/{tablename}/{filter?}/{setvalue?}", (string tablename, st
     return Results.Ok(dataout);
 });
 
-app.MapGet("/api/state/{newstate?}/{parameter1?}", (string? newstate, string? parameter1, DataService dataService, IHubContext<DataHub> hubContext, GameController gameController) =>
+app.MapGet("/api/state/{newstate?}/{parameter1?}", async (string? newstate, string? parameter1, DataService dataService, IHubContext<DataHub> hubContext, GameController gameController) =>
 {
 
     if (newstate == null) newstate = "";
@@ -64,13 +65,19 @@ app.MapGet("/api/state/{newstate?}/{parameter1?}", (string? newstate, string? pa
             //return Results.Ok(result);
             break;
         case "resetgame":
-            dataService.ExecuteSQL("call procResetGameState();");
+            //dataService.ExecuteSQL("call procResetGameState();");
+            break;
+        case "executeturn":
+            Console.WriteLine("Executing turn...");
+            await gameController.ExecuteTurn();
             break;
         default:
+            Console.WriteLine("State change requested: " + newstate + " Param: " + parameter1);
         //        var setStatement = "Update " + tablename + " set " + setvalue + whereClause + ";";
         //        dataService.ExecuteSQL(setStatement);
             break;
     }   
+
 
     var dataout = dataService.GetQueryResultsJson($"Select * from CurrentGameData;", "State");
     hubContext.Clients.All.SendAsync("State", dataout);
