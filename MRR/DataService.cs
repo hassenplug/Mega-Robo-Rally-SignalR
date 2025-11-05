@@ -16,18 +16,82 @@ namespace MRR.Services
 
         private readonly string _connectionString =
             $"server={DbServerIp};database={DatabaseName};uid={UserId};pwd={Password}";
+        
+        public DataService()
+        {
+            // Initialization logic if needed
+            AllPlayers = new Players(this);
+        }
 
         ///////////////////////////////////////////////////////////////////////////
         // Retrieve all relevant data from the database to send to clients
         ///////////////////////////////////////////////////////////////////////////
 
+        public Players AllPlayers { get; set; } // = new Players();
+        
+        public int RobotsActive { get; set; }
+        
+        public string BoardFileName { get; set; }
+
+        public int BoardID { get; set; }
+
+        public int GameState { get; set; }
+
+        public int RulesVersion { get; set; }
+
+        public int PhaseCount { get; set; }
+
+        public CommandList ListOfCommands { get; set; }
+
+        public CardList GameCards { get; set; }
+
+        public OptionCardList OptionCards { get; set; }
+
+        public Dictionary<int,string> OptionCardNames = [];
+
+        public BoardElementCollection g_BoardElements { get; set; } // = new BoardElementCollection(0, 0);
+
+        public int CurrentTurn  { get; set; } = 0;
+        public int CurrentPhase  { get; set; } = 0;
+
+        public GameTypes GameType { get;set; }
+
+        public int OptionsOnStartup  { get; set; } = -1;
+
+        public int LaserDamage  { get; set; } = 1;
+
+        public int TotalFlags { get; set; } = 4;
+        
+        public bool IsOptionsEnabled
+        {
+            get
+            {
+                return (OptionsOnStartup > -1);
+            }
+            set
+            {
+                if (value)
+                {
+                    OptionsOnStartup = 1;
+                }
+                else
+                {
+                    OptionsOnStartup = -1;
+                }
+            }
+        }
+
+
+        ///////////////////////////////////////////////////////////////////////////
+        // 
+        ///////////////////////////////////////////////////////////////////////////
 
         // Return the results of any query as a JSON string (uses DataTable -> JSON)
         public string GetQueryResultsJson(string query, string name = "data")
         {
             var dt = GetQueryResults(query);
             // Serialize the DataTable rows as an array of objects under a dynamic property name
-            var payload = new Dictionary<string, object> {{ name, dt }};
+            var payload = new Dictionary<string, object> { { name, dt } };
             return JsonConvert.SerializeObject(payload);
         }
 

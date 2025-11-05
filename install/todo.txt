@@ -35,8 +35,3 @@ VEX AIM WebSocket Commands (JSON)
 • Event: {"command":"event.register","event":"screen.press","callback":"onScreenPress"}
 */
 
-drive
-turn
-drive_for
-turn_for
-turn_to

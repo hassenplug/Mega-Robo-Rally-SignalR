@@ -9,7 +9,6 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddSingleton<DataService>();
 builder.Services.AddSingleton<GameController>();
-builder.Services.AddSingleton<CreateCommands>();
 
 builder.Services.AddSignalR();
 
@@ -69,6 +68,10 @@ app.MapGet("/api/state/{newstate?}/{parameter1?}", async (string? newstate, stri
             break;
         case "executeturn":
             Console.WriteLine("Executing turn...");
+            await gameController.ExecuteTurn();
+            break;
+        case "processcommands":
+            Console.WriteLine("Process Commands...");
             await gameController.ExecuteTurn();
             break;
         default:

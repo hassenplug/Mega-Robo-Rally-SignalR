@@ -115,11 +115,11 @@ public class AIMRobot // : IAsyncDisposable
 
         // Example commands
         await ClearScreenAsync();
-    //    await robot.ShowAIAsync();
+        //    await robot.ShowAIAsync();
 
         await PrintAsync("Hello from C#!");
-        await SetLedAsync("LED1", 0, 255, 0); // Green front LED
-        
+        await SetLedAsync("all", 0, 255, 0); // Green front LED
+
         // Move forward
         await MoveAsync(270, 100); // 0 degrees (forward), 100mm/s speed
         await Task.Delay(20); // Wait 2 seconds
@@ -128,9 +128,273 @@ public class AIMRobot // : IAsyncDisposable
         await TurnAsync(90, 100); // Turn right 90 degrees at 100mm/s
         await Task.Delay(20); // Wait 2 seconds
         await StopAsync();
-
+        //await ShowAIAsync();
     }
 
+/*
+from https://github.com/VEX-Robotics/AIM_Websocket_Library/blob/c96001d6830dd68ce63fe06bfdaf25ec9048a64d/vex/vex_messages.py
+    def __init__(self, angle=0.0, speed=0.0, stacking_type=0):
+        super().__init__("drive")
+        self.angle = angle
+        self.speed = speed
+        self.stacking_type = stacking_type
+
+    def __init__(self, distance =0.0, angle=0.0, drive_speed=0.0, turn_speed=0.0, final_heading=0,stacking_type=0):
+        super().__init__("drive_for")
+        self.distance = distance
+        self.angle = angle
+        self.drive_speed = drive_speed
+        self.turn_speed = turn_speed
+        self.final_heading = final_heading
+        self.stacking_type = stacking_type
+        
+    def __init__(self, x=0, t=0, r=0):
+        super().__init__("drive_with_vector")
+        self.x = x
+        self.t  = t
+        self.r = r        
+
+    def __init__(self, turn_rate=0.0, stacking_type=0):
+        super().__init__("turn")
+        self.turn_rate = turn_rate
+        self.stacking_type = stacking_type        
+
+    def __init__(self, turn_rate=0.0, stacking_type=0):
+        super().__init__("turn")
+        self.turn_rate = turn_rate
+        self.stacking_type = stacking_type
+
+    def __init__(self, heading=0.0, turn_rate=0.0, stacking_type=0):
+        super().__init__("turn_to")
+        self.heading = heading
+        self.turn_rate = turn_rate
+        self.stacking_type = stacking_type
+
+    def __init__(self, angle=0, turn_rate=0.0, stacking_type=0):
+        super().__init__("turn_for")
+        self.angle = angle
+        self.turn_rate = turn_rate
+        self.stacking_type = stacking_type
+
+    def __init__(self, vel1=0, vel2=0, vel3=0):
+        super().__init__("spin_wheels")
+        self.vel1 = vel1
+        self.vel2 = vel2
+        self.vel3 = vel3
+
+    def __init__(self, x=0, y=0):
+        super().__init__("set_pose")
+        self.x = x
+        self.y = y
+
+    def __init__(self, string=""):
+        super().__init__("lcd_print")
+        self.string = string
+
+    def __init__(self, string="", x=0, y=0, b_opaque=True):
+        super().__init__("lcd_print_at")
+        self.string = string
+        self.x = x
+        self.y = y
+        self.b_opaque = b_opaque
+
+    def __init__(self, row=0, col=0):
+        super().__init__("lcd_set_cursor")
+        self.row = row
+        self.col = col
+
+    def __init__(self, x=0, y=0):
+        super().__init__("lcd_set_origin")
+        self.x = x
+        self.y = y
+
+    def __init__(self):
+        super().__init__("lcd_next_row")
+
+    def __init__(self, row=0, r=0,g=0,b=0):
+        super().__init__("lcd_clear_row")
+        self.row = row
+        self.r = r
+        self.g = g
+        self.b = b
+
+    def __init__(self, r=0, g=0, b=0):
+        super().__init__("lcd_clear_screen")
+        self.r = r
+        self.g = g
+        self.b = b
+
+    def __init__(self, fontname):
+        super().__init__("lcd_set_font")
+        self.fontname = fontname
+
+    def __init__(self, width):
+        super().__init__("lcd_set_pen_width")
+        self.width = width
+
+    def __init__(self, r=0, g=0, b=0):
+        super().__init__("lcd_set_pen_color")
+        self.r = r
+        self.g = g
+        self.b = b
+
+    def __init__(self, r=0, g=0, b=0, transparent=False):
+        super().__init__("lcd_set_fill_color")
+        self.r = r
+        self.g = g
+        self.b = b
+        self.b_transparency = transparent
+
+    def __init__(self, x1=0, y1=0, x2=0, y2=0):
+        super().__init__("lcd_draw_line")
+        self.x1 = x1
+        self.y1 = y1
+        self.x2 = x2
+        self.y2 = y2
+
+    def __init__(self, x=0, y=0, width=0, height=0, r=0, g=0, b=0, transparent=False):
+        super().__init__("lcd_draw_rectangle")
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.r = r
+        self.g = g
+        self.b = b
+        self.b_transparency = transparent
+
+    def __init__(self, x=0, y=0, radius=0, r=0, g=0, b=0, transparent=False):
+        super().__init__("lcd_draw_circle")
+        self.x = x
+        self.y = y
+        self.radius = radius
+        self.r = r
+        self.g = g
+        self.b = b
+        self.b_transparency = transparent
+
+    def __init__(self, x=0, y=0):
+        super().__init__("lcd_draw_pixel")
+        self.x = x
+        self.y = y
+
+    def __init__(self, filename="", x=0, y=0):
+        super().__init__("lcd_draw_image_from_file")
+        self.filename = filename
+        self.x = x
+        self.y = y
+
+    def __init__(self, x=0, y=0, width=0, height=0):
+        super().__init__("lcd_set_clip_region")
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+
+    def __init__(self, name=0, look=0):
+        super().__init__("show_emoji")
+        self.name = name
+        self.look = look
+
+    def __init__(self):
+        super().__init__("hide_emoji")
+
+    def __init__(self, name=0, look=0):
+        super().__init__("show_aivision")
+
+    def __init__(self, name=0, look=0):
+        super().__init__("hide_aivision")
+
+    def __init__(self):
+        super().__init__("imu_calibrate")
+
+    def __init__(self, sensitivity=0):
+        super().__init__("imu_set_crash_threshold")
+        self.sensitivity = sensitivity
+
+    def __init__(self, kick_type=""):
+        super().__init__(kick_type)
+
+    def to_json(self):
+        return super().to_json()
+#endregion Kicker Commands
+
+#region Sound Commands
+    def __init__(self, name="", volume=0):
+        super().__init__("play_sound")
+        self.name = name
+        self.volume = volume
+
+    def __init__(self, name="", volume=0):
+        super().__init__("play_file")
+        self.name = name
+        self.volume = volume
+
+    def __init__(self, note=0, octave=0, duration=500, volume=0):
+        super().__init__("play_note")
+        self.note = note
+        self.octave = octave
+        self.duration = duration
+        self.volume = volume
+
+    def __init__(self):
+        super().__init__("stop_sound")
+
+
+#endregion Sound Commands
+
+#region LED Commands
+    def __init__(self, led="", r=0, g=0, b=0):
+        super().__init__("light_set")
+        self.led = led
+        self.r = r
+        self.g = g
+        self.b = b
+
+#endregion LED Commands
+
+#region AiVision Commands
+    def __init__(self, id, r, g, b, hangle, hdsat ):
+        super().__init__("color_description")
+        self.id = id
+        self.r = r
+        self.g = g
+        self.b = b
+        self.hdsat = hdsat
+        self.hangle = hangle
+
+    def __init__(self, id, c1, c2, *args):
+        super().__init__("code_description")
+        self.id = id
+        self.c1 = c1.id
+        self.c2 = c2.id
+        self.c3 = -1
+        self.c4 = -1
+        self.c5 = -1
+        if( len(args) > 0 ):
+            self.c3 = args[0].id
+        if( len(args) > 1 ):
+            self.c3 = args[1].id
+        if( len(args) > 2 ):
+            self.c3 = args[2].id
+
+    def __init__(self, enable=True):
+        super().__init__("tag_detection")
+        self.b_enable = enable
+
+    def __init__(self, enable=True, merge=True):
+        super().__init__("color_detection")
+        self.b_enable = enable
+        self.b_merge = merge
+
+    def __init__(self, enable=True):
+        super().__init__("model_detection")
+        self.b_enable = enable
+
+
+
+
+*/
 
     // Movement commands
     public Task MoveAsync(double angle, double speed) =>
@@ -181,6 +445,7 @@ public class AIMRobot // : IAsyncDisposable
         });
 
     // LED commands
+    // {all, light1, light2, light3, light4, light5, light6}
     public Task SetLedAsync(string led, int r, int g, int b)
     {
         var ledData = new Dictionary<string, object>

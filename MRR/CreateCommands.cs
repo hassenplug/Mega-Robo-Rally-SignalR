@@ -40,12 +40,6 @@ namespace MRR
         {
             _dataService = dataService;
 
-            GameCards = [];
-
-            OptionCards = [];
-
-            ListOfCommands = [];
-
             // ensure we have a DataService instance for legacy callers
             if (_dataService == null) {
                 try { _dataService = new DataService(); } catch { /* swallow for test builds */ }
@@ -56,69 +50,39 @@ namespace MRR
             g_BoardElements = new BoardElementCollection(0, 0);
         }
 
-        public string BoardFileName { get; set; }
+        public string BoardFileName => _dataService.BoardFileName;
 
-        public int BoardID { get; set; }
+        public int BoardID => _dataService.BoardID;
 
-        public int GameState { get; set; }
+        public int GameState => _dataService.GameState;
 
-        public int RulesVersion { get; set; }
+        public int RulesVersion => _dataService.RulesVersion;
 
-        public int PhaseCount { get; set; }
+        public int PhaseCount => _dataService.PhaseCount;
 
-        public Players AllPlayers { get; set; } = [];
+        public Players AllPlayers => _dataService.AllPlayers;
 
-        public CommandList ListOfCommands { get; set; }
+        public CommandList ListOfCommands { get; set; } = [];
 
-        public CardList GameCards { get; set; }
+        public CardList GameCards { get; set; } = [];
 
-        public OptionCardList OptionCards { get; set; }
+        public OptionCardList OptionCards { get; set; } = [];
 
         public Dictionary<int,string> OptionCardNames = [];
 
-        // migrated from legacy code: map of move card type id -> name
-        //public Dictionary<int, string> MoveCardNames = new Dictionary<int, string>();
-
-        //public OptionCardList MasterOptionCardList { get; set; }
-
         public BoardElementCollection g_BoardElements { get; set; } // = new BoardElementCollection(0, 0);
 
-        public int CurrentTurn  { get; set; } = 0;
-        public int CurrentPhase  { get; set; } = 0;
+        public int CurrentTurn => _dataService.CurrentTurn;
+        public int CurrentPhase => _dataService.CurrentPhase;
 
-        public GameTypes GameType { get;set; }
+        public GameTypes GameType => _dataService.GameType;
 
-        public bool IsOptionsEnabled
-        {
-            get
-            {
-                return (OptionsOnStartup > -1);
-            }
-            set
-            {
-                if (value)
-                {
-                    OptionsOnStartup = 1;
-                }
-                else
-                {
-                    OptionsOnStartup = -1;
-                }
-            }
-        }
+        public int OptionsOnStartup => _dataService.OptionsOnStartup;
+        
+        public bool IsOptionsEnabled => _dataService.IsOptionsEnabled;
 
-        public int OptionsOnStartup  { get; set; } = -1;
-
-        public int LaserDamage  { get; set; } = 1;
-
-        public int TotalFlags  { get; set; } = 4;
         
         #endregion Game Parameters & Configuration
-
-        #region Game Config
-
-
-        #endregion
 
 
         #region Process Move
@@ -668,8 +632,6 @@ namespace MRR
 
             AddCommandsToDatabase();
 
-            // update state
-            GameState = 8;
 
             //SendGameMessage(8,"Added " + ListOfCommands.Count + " commands"); // set to state 8, ready to start running commands
             Console.WriteLine("Added " + ListOfCommands.Count + " commands");
@@ -951,10 +913,10 @@ namespace MRR
         /// </summary>
 
 
-        public Player LoadOneRobot(int RobotID)
-        {
-            return new Players(RobotID).FirstOrDefault();
-        }
+//        public Player LoadOneRobot(int RobotID)
+//        {
+//            return new Players(RobotID).FirstOrDefault();
+//        }
 
 
         #endregion Process Robots
@@ -1381,7 +1343,7 @@ namespace MRR
                                     //int realdamage = g_BoardElements.LaserDamage;
 
                                     int LaserCount = 1 + OptionCards.Count(uc => (uc.ID == (int)tOptionCardCommandType.DoubleBarrelLaser || uc.ID == (int)tOptionCardCommandType.AdditionalLaser) && (uc.Owner == thisplayer.ID));
-                                    int realdamage = LaserDamage * LaserCount;
+                                    int realdamage = _dataService.LaserDamage * LaserCount;
                                     //OptionCard DoubleLaser = OptionCards.GetOption(tOptionCardCommandType.DoubleBarrelLaser, thisplayer);
                                     //if (DoubleLaser != null)
                                     //{
@@ -1797,7 +1759,7 @@ namespace MRR
 
             if (p_thisplayer.LastFlag > p_thisplayer.TotalFlags)
             {
-                TotalFlags = p_thisplayer.LastFlag;
+                _dataService.TotalFlags = p_thisplayer.LastFlag;
 
             }
             else if (p_thisplayer.LastFlag == p_thisplayer.TotalFlags)
@@ -2010,8 +1972,8 @@ namespace MRR
 
             if (g_BoardElements != null)
             {
-                TotalFlags = g_BoardElements.BoardElements.Count(be => be.ActionList.Count(al => al.SquareAction == SquareAction.Flag) > 0);
-                LaserDamage = g_BoardElements.LaserDamage;
+                _dataService.TotalFlags = g_BoardElements.BoardElements.Count(be => be.ActionList.Count(al => al.SquareAction == SquareAction.Flag) > 0);
+                _dataService.LaserDamage = g_BoardElements.LaserDamage;
                 //GameType = g_BoardElements.BoardType;
             }
             else

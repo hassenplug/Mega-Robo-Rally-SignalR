@@ -74,17 +74,11 @@ namespace MRR
         public Players(DataService dataservice)
         {
             _dataService = dataservice;
-        }
 
-
-
-        public Players(int RobotID = 0) // 0 = all
-        {
             // ensure a DataService exists for callers that use the parameterless/new Players()
-            if (_dataService == null) _dataService = new DataService();
-            string strSQL = "Select RobotID,CurrentFlag,Lives,Damage,ShutDown,Status,CurrentPosRow,CurrentPosCol,CurrentPosDir,Priority,Energy,PlayerSeat from Robots where Status <> 10 ";
-            if (RobotID > 0) strSQL += " and RobotID=" + RobotID ;
-            strSQL += ";";
+            //if (_dataService == null) _dataService = new DataService();
+            //string strSQL = "Select RobotID,CurrentFlag,Lives,Damage,ShutDown,Status,CurrentPosRow,CurrentPosCol,CurrentPosDir,Priority,Energy,PlayerSeat from Robots where Status <> 10 ;";
+            string strSQL = "Select RobotID,CurrentFlag,Lives,Damage,ShutDown,Status,CurrentPosRow,CurrentPosCol,CurrentPosDir,Priority,Energy,PlayerSeat from Robots  ;";
 
             var loadplayers = _dataService.GetQueryResults(strSQL);
             foreach (DataRow row in loadplayers.Rows)
@@ -106,7 +100,6 @@ namespace MRR
                     DamagePoints = 0
                 });
             }
-
         }
 
         public Player GetPlayer(int p_PlayerID)

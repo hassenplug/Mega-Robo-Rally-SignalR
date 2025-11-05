@@ -27,13 +27,14 @@ namespace MRR
         {
             _dataService = dataService;
 
-            RobotList = new Players(); // load robot list from db
+            //RobotList = new Players(); // load robot list from db
         }
 
 
-        private Players RobotList;
+        private Players RobotList => _dataService.AllPlayers;
 
-
+//CREATE  OR REPLACE VIEW `viewCommandListActive` AS
+//select * from CommandList where StatusID>=2 and StatusID <=4;
 
         /// <summary>
         /// get current commands that need processed
