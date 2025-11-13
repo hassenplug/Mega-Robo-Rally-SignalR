@@ -4,10 +4,26 @@ using Microsoft.AspNetCore.SignalR;
 using System.Net.WebSockets;
 using MRR.Controller;
 using MRR;
+using MRR.Data;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Register DataService first so we can use its connection string
 builder.Services.AddSingleton<DataService>();
+
+/*
+// Add database context factory using DataService's connection string
+builder.Services.AddDbContextFactory<MRRDbContext>((serviceProvider, options) =>
+{
+    var dataService = serviceProvider.GetRequiredService<DataService>();
+    options.UseMySql(
+        dataService.ConnectionString,
+        new MySqlServerVersion(new Version(8, 0, 0))
+    );
+});
+*/
+
 builder.Services.AddSingleton<GameController>();
 
 builder.Services.AddSignalR();
@@ -72,8 +88,13 @@ app.MapGet("/api/state/{newstate?}/{parameter1?}", async (string? newstate, stri
             break;
         case "processcommands":
             Console.WriteLine("Process Commands...");
-            await gameController.ExecuteTurn();
+            await gameController.ProcessCommands();
             break;
+        case "getalldata":
+            var alldataout = dataService.GetAllDataJson();
+            hubContext.Clients.All.SendAsync("AllDataUpdate", alldataout);
+     
+            return Results.Ok(alldataout );
         default:
             Console.WriteLine("State change requested: " + newstate + " Param: " + parameter1);
         //        var setStatement = "Update " + tablename + " set " + setvalue + whereClause + ";";

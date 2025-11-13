@@ -11,6 +11,7 @@ public class AIMRobot // : IAsyncDisposable
     private ClientWebSocket? wsStatus;
     private ClientWebSocket? wsImage;
     private bool isConnected;
+    private string robotColor { get; set; }
 
     public AIMRobot(string ipAddress = "192.168.1.150")
     {
@@ -26,8 +27,8 @@ public class AIMRobot // : IAsyncDisposable
         try
         {
             await wsCmd.ConnectAsync(new Uri($"ws://{ipAddress}:80/ws_cmd"), CancellationToken.None);
-            //await wsStatus.ConnectAsync(new Uri($"ws://{ipAddress}/ws_status"), CancellationToken.None);
-            //await wsImage.ConnectAsync(new Uri($"ws://{ipAddress}/ws_img"), CancellationToken.None);
+            //await wsStatus.ConnectAsync(new Uri($"ws://{ipAddress}:80/ws_status"), CancellationToken.None);
+            //await wsImage.ConnectAsync(new Uri($"ws://{ipAddress}:80/ws_img"), CancellationToken.None);
 
             isConnected = true;
 
@@ -121,26 +122,58 @@ public class AIMRobot // : IAsyncDisposable
         await SetLedAsync("all", 0, 255, 0); // Green front LED
 
         // Move forward
-        await MoveAsync(270, 100); // 0 degrees (forward), 100mm/s speed
+        await MoveAsync(-90, 100); // 0 degrees (forward), 100mm/s speed
         await Task.Delay(20); // Wait 2 seconds
         await StopAsync();
 
-        await TurnAsync(90, 100); // Turn right 90 degrees at 100mm/s
+        await TurnAsync(90); // Turn right 90 degrees at 100mm/s
         await Task.Delay(20); // Wait 2 seconds
         await StopAsync();
-        //await ShowAIAsync();
+
     }
 
-/*
-from https://github.com/VEX-Robotics/AIM_Websocket_Library/blob/c96001d6830dd68ce63fe06bfdaf25ec9048a64d/vex/vex_messages.py
-    def __init__(self, angle=0.0, speed=0.0, stacking_type=0):
-        super().__init__("drive")
-        self.angle = angle
-        self.speed = speed
-        self.stacking_type = stacking_type
+    // command = move, turn, lcd_print, lcd_clear_screen, light_set, show_aivision, robot_command
+    // p1 = distance
+    // p2 = direction 0=forward, 1=backward
 
-    def __init__(self, distance =0.0, angle=0.0, drive_speed=0.0, turn_speed=0.0, final_heading=0,stacking_type=0):
-        super().__init__("drive_for")
+    public async Task SendRobotCommandAsync(int CommandID, int Param1 = 0, int Param2 = 0, int waitforcompletion = 1)
+    {
+        switch (CommandID)
+        {
+            case 1: // Move
+                await MoveAsync(Param1, Param2); // forward
+                break;
+            case 2: // Turn
+                await TurnAsync(Param1); // right
+                break;
+            case 3: // Stop
+                await StopAsync();
+                break;
+            default:
+                // Unknown command
+                break;
+        }
+
+        if (waitforcompletion == 1)
+        {
+            // Simple wait to simulate completion
+            await Task.Delay(500);
+        }
+    }
+
+
+    /*        await SendCommandAsync(new
+            {
+                cmd_id = "robot_command",
+                command_id = CommandID,
+                param_1 = Param1,
+                param_2 = Param2
+            });
+        }
+    */
+
+/*
+    super().__init__("drive_for")
         self.distance = distance
         self.angle = angle
         self.drive_speed = drive_speed
@@ -397,7 +430,18 @@ from https://github.com/VEX-Robotics/AIM_Websocket_Library/blob/c96001d6830dd68c
 */
 
     // Movement commands
-    public Task MoveAsync(double angle, double speed) =>
+    public Task MoveAsync(int distance, int angle) =>
+        SendCommandAsync(new
+        {
+            cmd_id = "drive_for",
+            angle,
+            drive_speed = 100 * (distance >= 0 ? 1 : -1),
+            turn_speed = 0,
+            final_heading = 0,
+            stacking_type = 0
+        });
+
+    public Task MoveUnlimitedAsync(double angle, double speed) =>
         SendCommandAsync(new
         {
             cmd_id = "drive",
@@ -415,12 +459,12 @@ from https://github.com/VEX-Robotics/AIM_Websocket_Library/blob/c96001d6830dd68c
             stacking_type = 0
         });
 
-    public Task TurnAsync(double angle, double speed) =>
+    public Task TurnAsync(int direction) =>
         SendCommandAsync(new
         {
             cmd_id = "turn_for",
-            angle,
-            turn_rate = speed,
+            angle = direction * 90,
+            turn_rate = 100,
             stacking_type = 0
         });
 
@@ -453,7 +497,7 @@ from https://github.com/VEX-Robotics/AIM_Websocket_Library/blob/c96001d6830dd68c
             { "cmd_id", "light_set" },
             { led, new { r, g, b } }
         };
-        Console.WriteLine("LED Data: " + JsonSerializer.Serialize(ledData));
+        //Console.WriteLine("LED Data: " + JsonSerializer.Serialize(ledData));
         return SendCommandAsync(ledData);
     }
 

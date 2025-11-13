@@ -59,6 +59,7 @@ function showplayerprogram(pl) // show program for this line
     }
 
     var showmessage = "display: none;";
+    //console.log("Message:", message);
 
     if (message!="" && message != "undefined")
     {
@@ -102,6 +103,7 @@ function showall()
         var statusbox = document.getElementById("playerstatus" + rid);
         statusbox.innerText = robots[i].StatusToShow;
         statusbox.style.backgroundColor = robots[i].StatusColor;
+        document.getElementById("tr" + rid).style = "";
     }
 
 }
@@ -128,7 +130,7 @@ const connection = new signalR.HubConnectionBuilder()
     .build();
 
 connection.on("AllDataUpdate", function (data) {
-    console.log("Data received from server:", data);
+    //console.log("Data received from server:", data);
 
     // The server may now send a JSON string (or an object). Normalize to an object.
     if (typeof data === 'string') {

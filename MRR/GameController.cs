@@ -7,12 +7,15 @@
 // edit/load/save boards
 // edit database
 using MRR.Services;
+using MRR.Data;
+//using MRR.Data.Entities;
 
 namespace MRR.Controller
 {
     public partial class GameController
     {
         private readonly DataService _dataService;
+
         public GameController(DataService dataService)
         {
             _dataService = dataService;
@@ -27,35 +30,7 @@ namespace MRR.Controller
 
         public int UpdateGameState()
         {
-            // Query current game data
-            string strSQL = "Select iKey, sKey, iValue, sValue from CurrentGameData;";
-            var dt = _dataService.GetQueryResults(strSQL);
-            if (dt != null && dt.Rows.Count > 0)
-            {
-                foreach (System.Data.DataRow row in dt.Rows)
-                {
-                    var key = Convert.ToInt32(row[0]);
-                    var value = Convert.ToInt32(row[2]);
-//                    Console.WriteLine("GameState Key:" + key.ToString() + " Value:" + value.ToString());
-                    switch (key)
-                    {
-                        case 1: _dataService.GameType = (GameTypes)value; break;
-                        case 2: _dataService.CurrentTurn = value; break;
-                        case 3: _dataService.CurrentPhase = value; break;
-                        case 6: _dataService.LaserDamage = value; break;
-                        case 8: _dataService.RobotsActive = value; break;
-                        case 10: _dataService.GameState = value; break;
-                        case 16: _dataService.PhaseCount = value; break;
-                        case 20:
-                            _dataService.BoardID = value;
-                            if (row[3] != System.DBNull.Value) _dataService.BoardFileName = row[3].ToString();
-                            break;
-                        case 22: _dataService.OptionsOnStartup = value; break;
-                        case 27: _dataService.RulesVersion = value; break;
-                    }
-                }
-            }
-            return _dataService.GameState;
+            return _dataService.UpdateGameState();
         }
 
         public async Task ExecuteTurn()
@@ -63,6 +38,13 @@ namespace MRR.Controller
             CreateCommands createCommands = new CreateCommands(_dataService);
             var exeResult = createCommands.ExecuteTurn();
             Console.WriteLine("Execute Turn Result: " + exeResult);
+        }
+
+        public async Task ProcessCommands()
+        {
+            PendingCommands commandProcess = new PendingCommands(_dataService);
+            var procResult = commandProcess.ProcessCommands();
+            Console.WriteLine("Process Commands Result: " + procResult);
         }
 
         public void StartGame(int startGameID = 1) // pass board elements and players // find start positions for each player
@@ -93,7 +75,7 @@ namespace MRR.Controller
                     _dataService.ExecuteSQL("Update Robots set CurrentPosRow=" + pRow + ", CurrentPosCol=" + pCol + ",CurrentPosDir=" + pDir + ",ArchivePosRow=" + pRow + ",ArchivePosCol=" + pCol + ",ArchivePosDir=" + pDir + "  where RobotID=" + thisplayer.ID + ";");
                     // add "connect" command, here
                     // connect to robot
-                    thisplayer.RobotConnection = new Robots.AIMRobot(thisplayer.IPAddress);
+                    //thisplayer.RobotConnection = new Robots.AIMRobot(thisplayer.IPAddress);
 
                     //DBConn.Command("call procRobotConnectionStatus(" + thisplayer.ID + ",70);");
 
@@ -150,7 +132,7 @@ namespace MRR.Controller
 
             foreach (Player thisplayer in AllPlayers)
             {
-                ConnectToRobot(thisplayer);
+                thisplayer.Connect();
             }
             return true;
         }
@@ -158,26 +140,9 @@ namespace MRR.Controller
         public bool ConnectToRobot(int playerID)
         {
             Player? thisplayer = AllPlayers.GetPlayer(playerID);
-            ConnectToRobot(thisplayer);
+            thisplayer.Connect();
             return true;
         }
 
-        public bool ConnectToRobot(Player player)
-        {
-            if (player.RobotConnection == null)
-            {
-                string strSQL = "Select MacID from RobotBases where RobotBaseID=" + player.ID + ";";
-                var dt = _dataService.GetQueryResults(strSQL);
-                if (dt != null && dt.Rows.Count > 0)
-                {
-                    foreach (System.Data.DataRow row in dt.Rows)
-                    {
-                        Console.WriteLine("Connecting to robot " + player.ID.ToString() + " at " + row[0].ToString());
-                        player.Connect(row[0].ToString());
-                    }
-                }
-            }
-            return true;
-        }
     }
 }

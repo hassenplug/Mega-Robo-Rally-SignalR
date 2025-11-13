@@ -4,6 +4,8 @@ using System.Text;
 using System.IO;
 using MySqlConnector;
 using Newtonsoft.Json;
+using Microsoft.EntityFrameworkCore;
+using MRR.Data;
 
 namespace MRR.Services
 {
@@ -16,22 +18,47 @@ namespace MRR.Services
 
         private readonly string _connectionString =
             $"server={DbServerIp};database={DatabaseName};uid={UserId};pwd={Password}";
-        
+
         public DataService()
         {
-            // Initialization logic if needed
-            AllPlayers = new Players(this);
+            // Deferred initialization of players; loaded on first access via AllPlayers getter
+        }
+
+        public string ConnectionString { get { return _connectionString; } }
+
+        /// <summary>
+        /// Creates a new MRRDbContext instance using the configured connection string.
+        /// Caller is responsible for disposing.
+        /// </summary>
+        public MRRDbContext CreateDbContext()
+        {
+            var optionsBuilder = new DbContextOptionsBuilder<MRRDbContext>();
+            optionsBuilder.UseMySql(_connectionString, new MySqlServerVersion(new Version(8, 0, 0)));
+            return new MRRDbContext(optionsBuilder.Options);
         }
 
         ///////////////////////////////////////////////////////////////////////////
         // Retrieve all relevant data from the database to send to clients
         ///////////////////////////////////////////////////////////////////////////
 
-        public Players AllPlayers { get; set; } // = new Players();
-        
+        // Lazily-loaded players collection. First access will load from the database.
+        private Players? _allPlayers;
+        public Players AllPlayers
+        {
+            get
+            {
+                if (_allPlayers == null)
+                {
+                    _allPlayers = GetAllPlayers();
+                }
+                return _allPlayers;
+            }
+            set => _allPlayers = value;
+        }
+
         public int RobotsActive { get; set; }
-        
-        public string BoardFileName { get; set; }
+
+        public string BoardFileName { get; set; } = string.Empty;
 
         public int BoardID { get; set; }
 
@@ -41,27 +68,27 @@ namespace MRR.Services
 
         public int PhaseCount { get; set; }
 
-        public CommandList ListOfCommands { get; set; }
+        public CommandList ListOfCommands { get; set; } = new CommandList();
 
-        public CardList GameCards { get; set; }
+        public CardList GameCards { get; set; } = new CardList();
 
-        public OptionCardList OptionCards { get; set; }
+        public OptionCardList OptionCards { get; set; } = new OptionCardList();
 
-        public Dictionary<int,string> OptionCardNames = [];
+        public Dictionary<int, string> OptionCardNames = new Dictionary<int, string>();
 
-        public BoardElementCollection g_BoardElements { get; set; } // = new BoardElementCollection(0, 0);
+        public BoardElementCollection g_BoardElements { get; set; } = new BoardElementCollection();
 
-        public int CurrentTurn  { get; set; } = 0;
-        public int CurrentPhase  { get; set; } = 0;
+        public int CurrentTurn { get; set; } = 0;
+        public int CurrentPhase { get; set; } = 0;
 
-        public GameTypes GameType { get;set; }
+        public GameTypes GameType { get; set; }
 
-        public int OptionsOnStartup  { get; set; } = -1;
+        public int OptionsOnStartup { get; set; } = -1;
 
-        public int LaserDamage  { get; set; } = 1;
+        public int LaserDamage { get; set; } = 1;
 
         public int TotalFlags { get; set; } = 4;
-        
+
         public bool IsOptionsEnabled
         {
             get
@@ -242,7 +269,7 @@ namespace MRR.Services
                 }
             }
         }
-        
+
         ////////////////////////////////////////////////////////////////////////////
         // Load board data from the database into a BoardElementCollection
         ////////////////////////////////////////////////////////////////////////////    
@@ -307,9 +334,9 @@ namespace MRR.Services
                     if (!firstCol) sb.Append(',');
                     firstCol = false;
                     var val = row[col];
-                    var sval = val == DBNull.Value ? "" : val.ToString();
+                    var sval = val == DBNull.Value ? "" : val?.ToString();
                     // escape quotes
-                    sval = sval.Replace("\"", "\\\"");
+                    sval = (sval ?? "").Replace("\"", "\\\"");
                     sb.Append('"').Append(col.ColumnName).Append("\":\"").Append(sval).Append('"');
                 }
                 sb.Append('}');
@@ -380,6 +407,146 @@ namespace MRR.Services
             // retained for compatibility; original implementation was empty
             // but higher-level initialization should call appropriate procedures
         }
+
+
+        /*
+
+                select Robots.RobotID, 
+        RobotBodies.`Name` as RobotName, 
+        RobotBodies.Color as RobotColor, 
+        RobotBodies.ColorFG as RobotColorFG,
+        Robots.CurrentFlag, 
+        RobotStatus.StatusColor as StatusColor,
+        RobotStatus.LEDColor as LEDColor,
+        RobotStatus.ShortDescription as PlayerStatus,
+        Robots.Status as StatusID,
+        CurrentPosCol as `X`,
+        CurrentPosRow as `Y`,
+        CurrentPosDir as Dir,
+        ShortDirDesc as sDir,
+        ArchivePosCol as `AX`,
+        ArchivePosRow as `AY`,
+        Robots.Score as Score,
+        OperatorName,
+        PositionValid,
+        Priority,
+        `ShutDown`,
+        `Password`,
+        PlayerSeat,
+        Energy,
+        Concat(CurrentFlag,"/",Energy) FlagEnergy,
+        so.Direction as PlayerViewDirection,
+        so.Direction as DirectionAdjustment,
+        Robots.CardsDealt,
+        Robots.CardsPlayed,
+        if(isnull(ShowCardsPlayed) || RobotStatus.Active=0,RobotStatus.ShortDescription,ShowCardsPlayed) as StatusToShow,
+        cl.Description msg
+
+
+        from (Robots inner join RobotBodies on Robots.RobotBodyID = RobotBodies.RobotBodyID)
+         inner join RobotStatus on if(Robots.IsConnected=1,Robots.`Status`,10) = RobotStatus.RobotStatusID
+         inner join RobotDirections on Robots.CurrentPosDir = RobotDirections.DirID
+         inner join SeatOrientation so on PlayerSeat = so.SeatID
+
+         left join (
+         #show cards played
+        select Owner, 
+        GROUP_CONCAT(if(isnull(mc.CardID),"-",if(mc.Executed,mct.ShortDescription,"X")) order by PhasePlayed ) ShowCardsPlayed
+        from MoveCards mc inner join MoveCardTypes mct on mc.CardTypeID = mct.CardTypeID 
+        where mc.PhasePlayed>0 group by owner order by Owner) played
+        on Robots.RobotID = played.Owner
+        left join CommandList cl on Robots.MessageCommandID = cl.CommandID
+        */
+
+        public Players GetAllPlayers()
+        {
+            if (_allPlayers != null)
+            {
+                return _allPlayers;
+            }
+            var players = new Players();
+
+            string strSQL = "Select * from viewRobotsInit;";
+
+            var loadplayers = this.GetQueryResults(strSQL);
+            foreach (DataRow row in loadplayers.Rows)
+            {
+                players.Add(new Player()
+                {
+                    ID = (int)row["RobotID"],
+                    PlayerSeat = (int)row["PlayerSeat"],
+                    Name = row["RobotName"].ToString(),
+                    Color = row["RobotColor"].ToString() ?? "FFFFFF", // default white
+                    IPAddress = row["MACID"].ToString(),
+
+                });
+                //Console.WriteLine("Loaded player ID:" + row["RobotID"].ToString() + " Name:" + row["RobotName"].ToString() + " IP:" + IPAddress);
+            }
+
+            RefreshAllPlayers();
+            
+            _allPlayers = players;
+            return players;
+        }
+
+        public void RefreshAllPlayers()
+        {
+            string strSQL = "Select * from viewRobotsRefresh;";
+
+            var loadplayers = this.GetQueryResults(strSQL);
+            foreach (DataRow row in loadplayers.Rows)
+            {
+                var existingPlayer = _allPlayers?.FirstOrDefault(p => p.ID == (int)row["RobotID"]);
+                if (existingPlayer != null)
+                {
+                    existingPlayer.LastFlag = (int)row["CurrentFlag"];
+                    existingPlayer.Lives = (int)row["Lives"];
+                    existingPlayer.Damage = (int)row["Damage"];
+                    existingPlayer.ShutDown = (tShutDown)((int)row["ShutDown"]);
+                    existingPlayer.PlayerStatus = (tPlayerStatus)((int)row["Status"]);
+                    existingPlayer.CurrentPos = new RobotLocation((Direction)(int)row["CurrentPosDir"], (int)row["CurrentPosCol"], (int)row["CurrentPosRow"]);
+                    existingPlayer.Priority = (int)row["Priority"];
+                    existingPlayer.Energy = (int)row["Energy"];
+                    existingPlayer.Active = ((int)row["Status"] != 10);
+                };
+            }
+
+        }
+
+        public int UpdateGameState()
+        {
+            // Query current game data
+            string strSQL = "Select iKey, sKey, iValue, sValue from CurrentGameData;";
+            var dt = GetQueryResults(strSQL);
+            if (dt != null && dt.Rows.Count > 0)
+            {
+                foreach (System.Data.DataRow row in dt.Rows)
+                {
+                    var key = Convert.ToInt32(row[0]);
+                    var value = Convert.ToInt32(row[2]);
+//                    Console.WriteLine("GameState Key:" + key.ToString() + " Value:" + value.ToString());
+                    switch (key)
+                    {
+                        case 1: GameType = (GameTypes)value; break;
+                        case 2: CurrentTurn = value; break;
+                        case 3: CurrentPhase = value; break;
+                        case 6: LaserDamage = value; break;
+                        case 8: RobotsActive = value; break;
+                        case 10: GameState = value; break;
+                        case 16: PhaseCount = value; break;
+                        case 20:
+                            BoardID = value;
+                            if (row[3] != System.DBNull.Value) BoardFileName = row[3].ToString();
+                            break;
+                        case 22: OptionsOnStartup = value; break;
+                        case 27: RulesVersion = value; break;
+                    }
+                }
+            }
+            return GameState;
+        }
+
+
 
 
     }

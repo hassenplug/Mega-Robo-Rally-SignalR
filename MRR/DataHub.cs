@@ -50,9 +50,9 @@ namespace MRR.Hubs
                     //DBConn.Command("update Robots set PositionValid=" + positionValid + " where RobotID=" + playerid + ";");
                     break;
                 case 3:
-                    //int markcommand = DBConn.GetIntFromDB("Select MessageCommandID from Robots where RobotID=" + playerid);
-                    //DBConn.Command("update Robots set MessageCommandID=null where RobotID=" + playerid + ";");
-                    //DBConn.Command("update CommandList set StatusID=6 where CommandID=" + markcommand + ";");
+                    int markcommand = _dataService.GetIntFromDB("Select MessageCommandID from Robots where RobotID=" + playerId);
+                    _dataService.ExecuteSQL("update Robots set MessageCommandID=null where RobotID=" + playerId + ";");
+                    _dataService.ExecuteSQL("update CommandList set StatusID=6 where CommandID=" + markcommand + ";");
                     break;
 
             }

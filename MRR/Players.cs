@@ -69,37 +69,8 @@ namespace MRR
     #region Player Collection
     public class Players : List<Player>
     {
-        private DataService _dataService;
-
-        public Players(DataService dataservice)
+        public Players()
         {
-            _dataService = dataservice;
-
-            // ensure a DataService exists for callers that use the parameterless/new Players()
-            //if (_dataService == null) _dataService = new DataService();
-            //string strSQL = "Select RobotID,CurrentFlag,Lives,Damage,ShutDown,Status,CurrentPosRow,CurrentPosCol,CurrentPosDir,Priority,Energy,PlayerSeat from Robots where Status <> 10 ;";
-            string strSQL = "Select RobotID,CurrentFlag,Lives,Damage,ShutDown,Status,CurrentPosRow,CurrentPosCol,CurrentPosDir,Priority,Energy,PlayerSeat from Robots  ;";
-
-            var loadplayers = _dataService.GetQueryResults(strSQL);
-            foreach (DataRow row in loadplayers.Rows)
-            {
-                this.Add(new Player()
-                {
-                    ID = (int)row["RobotID"],
-                    LastFlag = (int)row["CurrentFlag"],
-                    Lives = (int)row["Lives"],
-                    Damage = (int)row["Damage"],
-                    ShutDown = (tShutDown)((int)row["ShutDown"]),
-                    PlayerStatus = (tPlayerStatus)((int)row["Status"]),
-                    CurrentPos = new RobotLocation((Direction)(int)row["CurrentPosDir"], (int)row["CurrentPosCol"], (int)row["CurrentPosRow"]),
-                    Priority = (int)row["Priority"],
-                    Energy = (int)row["Energy"],
-                    PlayerSeat = (int)row["PlayerSeat"],
-                    Name = "Robo-" + row["RobotID"].ToString(),
-                    Active = ((int)row["Status"] != 10),
-                    DamagePoints = 0
-                });
-            }
         }
 
         public Player GetPlayer(int p_PlayerID)
@@ -149,7 +120,6 @@ namespace MRR
             int p_LastFlag, 
             tShutDown p_ShutDown, 
             bool p_Active,
-            bool p_ComputerPlayer,
             int p_DamagePoints)
         {
             //MainGame = mainGame;
@@ -174,7 +144,6 @@ namespace MRR
 
             PositionValid = false;
 
-            ComputerPlayer = p_ComputerPlayer;
             DamagePoints = p_DamagePoints;
 
             DamagedBy = -1;
@@ -189,7 +158,7 @@ namespace MRR
         public Player(int p_ID)
         {
             int currentlives = conTotalLives;
-            SetPlayer(p_ID, ToString(), new RobotLocation(), new RobotLocation(), new RobotLocation(), conTotalDamage, currentlives, 0, tShutDown.None, true, false,0);
+            SetPlayer(p_ID, ToString(), new RobotLocation(), new RobotLocation(), new RobotLocation(), conTotalDamage, currentlives, 0, tShutDown.None, true, 0);
         }
 
         public Player()
@@ -205,7 +174,7 @@ namespace MRR
 
         public Player CopyPlayer(Player p_Player)
         {
-            SetPlayer( p_Player.ID, p_Player.Name, p_Player.CurrentPos, p_Player.NextPos, p_Player.ArchivePos, p_Player.Damage, p_Player.Lives, p_Player.LastFlag, p_Player.ShutDown, p_Player.Active, p_Player.ComputerPlayer,p_Player.DamagePoints);
+            SetPlayer( p_Player.ID, p_Player.Name, p_Player.CurrentPos, p_Player.NextPos, p_Player.ArchivePos, p_Player.Damage, p_Player.Lives, p_Player.LastFlag, p_Player.ShutDown, p_Player.Active,p_Player.DamagePoints);
             //GameType = p_Player.GameType;
             NextFlag = p_Player.NextFlag;
             Operator = p_Player.Operator;
@@ -219,22 +188,6 @@ namespace MRR
         #endregion
 
         //        public RRGame MainGame { get; set; }
-
-        public Robots.AIMRobot Connect(string ipAddress = "")
-        {
-            if (ipAddress != null && ipAddress != IPAddress)
-            {
-                IPAddress = ipAddress;
-            }
-            if (IPAddress == null || IPAddress == "")
-            {
-                return null;
-            }
-            RobotConnection = new Robots.AIMRobot(IPAddress);
-            RobotConnection.ConnectAsync().Wait();
-            RobotConnection.PrintAsync("Robot: " + ID).Wait();
-            return RobotConnection;
-        }
 
         public int ID { get; set; }
         public string Name { get; set; }
@@ -282,8 +235,6 @@ namespace MRR
         public int Energy { get; set; }
         public int PlayerSeat { get; set; }
 
-        public bool ComputerPlayer { get; set; }
-
         //[XmlIgnore]
         //public int CardsNeeded
         //{
@@ -294,6 +245,8 @@ namespace MRR
 
 
         public int Lives { get; set; }
+
+        public string Color { get; set; } = "333333"; // hex color string RRGGBB
 
         private int l_damage = 0;
         public int Damage
@@ -445,6 +398,62 @@ namespace MRR
         public string IPAddress { get; set; }
 
         public Robots.AIMRobot RobotConnection { get; set; }
+
+        public Robots.AIMRobot Connect(string ipAddress = "")
+        {
+            if (ipAddress != "")
+            {
+                if (ipAddress != null && ipAddress != IPAddress)
+                {
+                    IPAddress = ipAddress;
+                }
+            }
+            if (IPAddress == null || IPAddress == "")
+            {
+                return null;
+            }
+            
+            if (RobotConnection != null)
+            {
+                //RobotConnection.DisconnectAsync().Wait();
+                //RobotConnection = null;
+            }
+            //Console.WriteLine("Final Connect to robot ID:" + ID.ToString() + " IP:" + IPAddress);
+            RobotConnection = new Robots.AIMRobot(IPAddress);
+            RobotConnection.ConnectAsync().Wait();
+            RobotConnection.PrintAsync(Name).Wait();
+            SendColorStatus();
+            return RobotConnection;
+        }
+
+        public bool SendColorStatus(int Status = 0)
+        {
+            if (RobotConnection == null) return false;
+            //if (!RobotConnection.IsConnected) return false;
+
+            // Convert the hex strings to integers (base 16).
+            int r = int.Parse(Color.Substring(0, 2), NumberStyles.HexNumber);
+            int g = int.Parse(Color.Substring(2, 2), NumberStyles.HexNumber);
+            int b = int.Parse(Color.Substring(4, 2), NumberStyles.HexNumber);
+            
+            switch (Status)
+            {
+                case 1: // programming
+                    RobotConnection.SetLedAsync("all", 255, 255, 0).Wait(); // yellow
+                    break;
+                case 2: // running
+                    RobotConnection.SetLedAsync("all", 0, 255, 0).Wait(); // green
+                    break;
+                case 3: // error
+                    RobotConnection.SetLedAsync("all", 255, 0, 0).Wait(); // red
+                    break;
+                default:
+                    RobotConnection.SetLedAsync("all", r, g, b).Wait(); // robot color
+                    break;
+            }
+
+            return true;
+        }
 
         public override string ToString()
         {

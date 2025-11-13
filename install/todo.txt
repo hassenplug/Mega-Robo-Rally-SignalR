@@ -35,3 +35,22 @@ VEX AIM WebSocket Commands (JSON)
 • Event: {"command":"event.register","event":"screen.press","callback":"onScreenPress"}
 */
 
+
+add entity framework to setup
+
+
+Generate c# code to create an editable table view of a game board, which can be edited a complete, self-contained example of an ASP.NET Core Razor Page (.cshtml.cs and .cshtml content combined into one file).
+
+The application should use the existing simulate connecting to an SQLite database with a single table named "Products".
+
+The "Products" table has the following schema:
+- Id (INT, Primary Key)
+- Name (TEXT)
+- Price (REAL)
+
+The page must perform the following actions:
+1.  **Initialize/Seed:** Create the SQLite file and the "Products" table if they don't exist, and insert three sample products on first load.
+2.  **Display:** Display all products in the database using a clean, modern HTML table.
+3.  **Code Format:** Provide the full C# code for the Razor Page Model and the HTML/Razor markup for the view, demonstrating modern async database interaction.
+
+
