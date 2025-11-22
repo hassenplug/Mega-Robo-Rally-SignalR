@@ -111,7 +111,7 @@ app.MapGet("/api/state/{newstate?}/{parameter1?}", async (string? newstate, stri
             break;
         case "processcommands":
             Console.WriteLine("Process Commands...");
-            await gameController.ProcessCommands();
+            gameController.StartProcessCommandsThread();
             break;
         case "getalldata":
             var alldataout = dataService.GetAllDataJson();

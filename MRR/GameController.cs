@@ -40,11 +40,48 @@ namespace MRR.Controller
             Console.WriteLine("Execute Turn Result: " + exeResult);
         }
 
-        public async Task ProcessCommands()
+        private Thread? _processCommandsThread = null;
+        private readonly object _processCommandsLock = new object();
+        private PendingCommands? _pendingCommands = null;
+
+        public void StartProcessCommandsThread()
         {
-            PendingCommands commandProcess = new PendingCommands(_dataService);
-            var procResult = commandProcess.ProcessCommands();
-            Console.WriteLine("Process Commands Result: " + procResult);
+            lock (_processCommandsLock)
+            {
+                if (_processCommandsThread == null || !_processCommandsThread.IsAlive)
+                {
+                    // Clean up previous PendingCommands if any
+                    if (_pendingCommands != null)
+                    {
+                        _pendingCommands.Dispose();
+                        _pendingCommands = null;
+                    }
+                    _pendingCommands = new PendingCommands(_dataService);
+                    _processCommandsThread = new Thread(() =>
+                    {
+                        try
+                        {
+                            var result = _pendingCommands.ProcessCommands();
+                            Console.WriteLine("Process Commands Result: " + result);
+                        }
+                        finally
+                        {
+                            lock (_processCommandsLock)
+                            {
+                                _pendingCommands?.Dispose();
+                                _pendingCommands = null;
+                                _processCommandsThread = null;
+                            }
+                        }
+                    });
+                    _processCommandsThread.IsBackground = true;
+                    _processCommandsThread.Start();
+                }
+                else
+                {
+                    Console.WriteLine("ProcessCommands thread is already running.");
+                }
+            }
         }
 
         public void StartGame(int startGameID = 1) // pass board elements and players // find start positions for each player
