@@ -36,14 +36,12 @@ app.UseWebSockets();
 
 app.MapHub<DataHub>("/datahub");
 
-app.MapGet("/api/alldata", (DataService dataService, IHubContext<DataHub> hubContext) =>
+// Unified table data API - GET/POST for list, read, and write operations
+app.MapGet("/api/table", (DataService dataService) =>
 {
-    var dataout = dataService.GetAllDataJson();
-    hubContext.Clients.All.SendAsync("AllDataUpdate", dataout);
-     
-    return Results.Ok(dataout );
+    var tables = dataService.GetTableList();
+    return Results.Ok(new { tables });
 });
-
 
 app.MapGet("/api/table/{tablename}/{filter?}/{setvalue?}", (string tablename, string? filter, string? setvalue, DataService dataService, IHubContext<DataHub> hubContext) =>
 {
@@ -61,7 +59,32 @@ app.MapGet("/api/table/{tablename}/{filter?}/{setvalue?}", (string tablename, st
 
     var dataout = dataService.GetQueryResultsJson($"Select * from {tablename}{whereClause};", tablename);
     hubContext.Clients.All.SendAsync(tablename, dataout);
-    return Results.Ok(dataout);
+    return Results.Content(dataout, "application/json");
+});
+
+app.MapPost("/api/table/{tablename}", async (string tablename, DataService dataService, HttpRequest request) =>
+{
+    try
+    {
+        using (var reader = new StreamReader(request.Body))
+        {
+            var json = await reader.ReadToEndAsync();
+            var result = dataService.SaveTableData(tablename, json);
+            return Results.Ok(result);
+        }
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+});
+
+app.MapGet("/api/alldata", (DataService dataService, IHubContext<DataHub> hubContext) =>
+{
+    var dataout = dataService.GetAllDataJson();
+    hubContext.Clients.All.SendAsync("AllDataUpdate", dataout);
+     
+    return Results.Content(dataout, "application/json");
 });
 
 app.MapGet("/api/state/{newstate?}/{parameter1?}", async (string? newstate, string? parameter1, DataService dataService, IHubContext<DataHub> hubContext, GameController gameController) =>
@@ -93,8 +116,12 @@ app.MapGet("/api/state/{newstate?}/{parameter1?}", async (string? newstate, stri
         case "getalldata":
             var alldataout = dataService.GetAllDataJson();
             hubContext.Clients.All.SendAsync("AllDataUpdate", alldataout);
-     
-            return Results.Ok(alldataout );
+
+            return Results.Ok(alldataout);
+        case "gametables":
+
+            return Results.Content(dataService.GetTableDataAsHTML("CurrentGameData/Robots/CommandList"), "text/html");
+            break;
         default:
             Console.WriteLine("State change requested: " + newstate + " Param: " + parameter1);
         //        var setStatement = "Update " + tablename + " set " + setvalue + whereClause + ";";

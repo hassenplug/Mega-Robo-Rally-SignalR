@@ -136,6 +136,7 @@ namespace MRR
                 switch (onecommand.CommandCatID)
                 {
                     case 1: // Robot with Reply
+                    case 2: // Robot No Reply
                         if (onecommand.StatusID == 2)
                         {
                             Console.WriteLine($"Robot Command({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandTypeID}}}{onecommand.Parameter},{onecommand.ParameterB}");
@@ -145,6 +146,7 @@ namespace MRR
                             {
                                 if (robot.RobotConnection != null)
                                 {
+                                    robot.RobotConnection.SendRobotCommandAsync(onecommand).Wait();
                                     // send command to robot here..
                                     /*
                                     robot.RobotConnection.SendCommandAsync(new
@@ -171,23 +173,19 @@ namespace MRR
                         }
                         return false;
 
-                    case 2: // Robot No Reply
-                        Console.WriteLine($"Robot Command - no reply({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandTypeID}}}{onecommand.Parameter},{onecommand.ParameterB}");
-                        // send command to robot here..
-                        command.StatusID = 5;
-                        db.SaveChanges();
-                        return true;
 
                     case 3: // DB
                         Console.WriteLine($"Database Command ({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandTypeID}}}{onecommand.Parameter},{onecommand.ParameterB}");
-                        command.StatusID = 5;
+                        // call database procedure here..
+                        command.StatusID = _dataService.ExecuteSQL("call funcProcessCommand(" + onecommand.CommandID + ",-1);");
+                        //command.StatusID = 5;
                         db.SaveChanges();
                         return true;
 
                     case 6: // User Input
-                        Console.WriteLine($"User Input({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandTypeID}}}{onecommand.Parameter},{onecommand.ParameterB}");
                         if (onecommand.StatusID < 4)
                         {
+                            Console.WriteLine($"User Input({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandTypeID}}}{onecommand.Parameter},{onecommand.ParameterB}");
                             var robot = db.Robots.FirstOrDefault(r => r.RobotID == onecommand.RobotID);
 
                             if (robot != null)

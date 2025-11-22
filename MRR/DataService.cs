@@ -125,10 +125,16 @@ namespace MRR.Services
         // Convenience: return the same payload as GetAllData but as a JSON string
         public string GetAllDataJson()
         {
-            string strSQLcgd = "Select iKey, sKey, iValue, sValue from CurrentGameData;";
+            UpdateGameState();
+            //string strSQLcgd = "Select iKey, sKey, iValue, sValue from CurrentGameData;";
 
             string strSQL = "select * from viewRobots;";
-            string titlemessage = "Turn " + GetIntFromDB("Select iValue from CurrentGameData where iKey=2;");
+            //string titlemessage = "Turn " + GetIntFromDB("Select iValue from CurrentGameData where iKey=2;");
+            string titlemessage = "Turn " + CurrentTurn;
+            if (CurrentPhase > 0)
+            {
+                titlemessage += " Phase " + CurrentPhase;
+            }
             //            var payload = new { robots = GetQueryResults(strSQL), currentgamedata = GetQueryResults(strSQLcgd), ServerTime = DateTime.Now.ToLongTimeString() };
             var payload = new { titlemsg = titlemessage, robots = GetQueryResults(strSQL) };
             return JsonConvert.SerializeObject(payload);
@@ -316,34 +322,6 @@ namespace MRR.Services
         // Provide backwards-compatible methods so existing code that used Database
         // can call similar APIs on DataService during the migration.
 
-        public string JsonFromQuery(string strSQL)
-        {
-            // Build a simple JSON array string from the query results (field values are escaped naively)
-            var dt = GetQueryResults(strSQL);
-            var sb = new System.Text.StringBuilder();
-            sb.Append('[');
-            var firstRow = true;
-            foreach (DataRow row in dt.Rows)
-            {
-                if (!firstRow) sb.Append(',');
-                firstRow = false;
-                sb.Append('{');
-                var firstCol = true;
-                foreach (DataColumn col in dt.Columns)
-                {
-                    if (!firstCol) sb.Append(',');
-                    firstCol = false;
-                    var val = row[col];
-                    var sval = val == DBNull.Value ? "" : val?.ToString();
-                    // escape quotes
-                    sval = (sval ?? "").Replace("\"", "\\\"");
-                    sb.Append('"').Append(col.ColumnName).Append("\":\"").Append(sval).Append('"');
-                }
-                sb.Append('}');
-            }
-            sb.Append(']');
-            return sb.ToString();
-        }
 
         public string GetHTMLfromQuery(string strSQL)
         {
@@ -373,31 +351,18 @@ namespace MRR.Services
             return sb.ToString();
         }
 
-        public string GetTableNames(string useTable)
+        public string GetTableDataAsHTML(string readdata)
         {
-            string strSQL = "select TABLE_NAME  from information_schema.TABLES t where TABLE_SCHEMA ='" + DatabaseName + "' order by TABLE_TYPE , TABLE_NAME  ;";
-            var dt = GetQueryResults(strSQL);
-            var sb = new System.Text.StringBuilder();
-            foreach (DataRow row in dt.Rows)
-            {
-                var name = row[0].ToString();
-                sb.Append("<option value='").Append(name).Append("'");
-                if (name == useTable) sb.Append(" selected");
-                sb.Append('>').Append(name).Append("</option>");
-            }
-            return "<select id='tables' onchange='changeToTable();'>" + sb.ToString() + "</select>";
-        }
-
-        public string GetEditor(string readdata)
-        {
-            var sout = readdata.Split('/');
-            var newQuery = sout[sout.Length - 1];
+            var tablesin = readdata.Split('/');
+//            var newQuery = sout[sout.Length - 1];
             string output = "<html><head>";
             output += "<script src='/jscode.js' type='text/javascript' charset='utf-8'></script>";
             output += "</head><body>";
-            output += GetTableNames(newQuery);
-            newQuery = "Select * from " + newQuery;
-            output += GetHTMLfromQuery(newQuery);
+            foreach (var eachtable in tablesin)
+            {
+                var newQuery = "Select * from " + eachtable;
+                output += GetHTMLfromQuery(newQuery);
+            }
             output += "</body></html>";
             return output;
         }
@@ -546,7 +511,118 @@ namespace MRR.Services
             return GameState;
         }
 
+        ///////////////////////////////////////////////////////////////////////////
+        // Datagrid editor API methods
+        ///////////////////////////////////////////////////////////////////////////
 
+        /// <summary>
+        /// Get list of all tables in the database
+        /// </summary>
+        public List<string> GetTableList()
+        {
+            var tableNames = new List<string>();
+            string strSQL = $"SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = '{DatabaseName}' ORDER BY TABLE_NAME;";
+            
+            var dt = GetQueryResults(strSQL);
+            foreach (DataRow row in dt.Rows)
+            {
+                var name = row[0]?.ToString();
+                if (!string.IsNullOrEmpty(name))
+                {
+                    tableNames.Add(name);
+                }
+            }
+            
+            return tableNames;
+        }
+
+        /// <summary>
+        /// Get table data as JSON with columns and rows
+        /// </summary>
+        public string GetTableDataAsJson(string tableName)
+        {
+            if (string.IsNullOrWhiteSpace(tableName))
+                throw new ArgumentException("Table name cannot be empty", nameof(tableName));
+
+            // Validate table name to prevent SQL injection
+            if (!IsValidTableName(tableName))
+                throw new ArgumentException($"Invalid table name: {tableName}", nameof(tableName));
+
+            var dt = GetQueryResults($"SELECT * FROM `{tableName}` LIMIT 1000;");
+            var rows = new List<Dictionary<string, object>>();
+            var columns = new List<string>();
+
+            // Get column names
+            foreach (DataColumn col in dt.Columns)
+            {
+                columns.Add(col.ColumnName);
+            }
+
+            // Convert rows to dictionaries
+            foreach (DataRow row in dt.Rows)
+            {
+                var rowDict = new Dictionary<string, object>();
+                foreach (DataColumn col in dt.Columns)
+                {
+                    rowDict[col.ColumnName] = row[col] ?? DBNull.Value;
+                }
+                rows.Add(rowDict);
+            }
+
+            var result = new { columns, rows };
+            return JsonConvert.SerializeObject(result);
+        }
+
+        /// <summary>
+        /// Save table data from JSON format
+        /// </summary>
+        public object SaveTableData(string tableName, string jsonData)
+        {
+            if (string.IsNullOrWhiteSpace(tableName))
+                throw new ArgumentException("Table name cannot be empty", nameof(tableName));
+
+            if (!IsValidTableName(tableName))
+                throw new ArgumentException($"Invalid table name: {tableName}", nameof(tableName));
+
+            try
+            {
+                var data = JsonConvert.DeserializeObject<dynamic>(jsonData);
+                
+                if (data == null)
+                    throw new ArgumentException("Invalid JSON format.");
+
+                var rows = data["rows"];
+                if (rows == null)
+                    throw new ArgumentException("Invalid JSON format. Expected 'rows' array.");
+
+                // For this simple implementation, we'll just return a success message
+                // A full implementation would track changes, perform updates, inserts, deletes
+                var rowCount = ((Newtonsoft.Json.Linq.JArray)rows).Count;
+                
+                return new 
+                { 
+                    success = true, 
+                    message = $"Data received for table '{tableName}' with {rowCount} rows. (Full save not yet implemented)", 
+                    rowCount 
+                };
+            }
+            catch (JsonException ex)
+            {
+                throw new ArgumentException("Invalid JSON format: " + ex.Message, ex);
+            }
+        }
+
+        /// <summary>
+        /// Validate table name to prevent SQL injection
+        /// </summary>
+        private bool IsValidTableName(string tableName)
+        {
+            if (string.IsNullOrWhiteSpace(tableName))
+                return false;
+
+            // Only allow alphanumeric characters and underscores
+            return System.Text.RegularExpressions.Regex.IsMatch(tableName, @"^[a-zA-Z0-9_]+$");
+        }
 
 
     }
