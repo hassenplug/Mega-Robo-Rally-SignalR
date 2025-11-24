@@ -82,6 +82,7 @@ namespace MRR
                 }
 
                 //Console.WriteLine("Process Commands:Done ");
+                // update to next state (post execute state)
             }
             return false;
         }
@@ -167,7 +168,7 @@ namespace MRR
                             {
                                 command.StatusID = 5;
                             }
-                            // send command to robot here..
+                            // set the state based on type 1/2
                             db.SaveChanges();
                             return true;
                         }

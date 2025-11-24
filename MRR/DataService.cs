@@ -598,6 +598,12 @@ namespace MRR.Services
                 // For this simple implementation, we'll just return a success message
                 // A full implementation would track changes, perform updates, inserts, deletes
                 var rowCount = ((Newtonsoft.Json.Linq.JArray)rows).Count;
+                // find table key
+                // for each row
+                // find the record with the key
+                // if none, add record
+                // else
+                // update values listed
                 
                 return new 
                 { 
