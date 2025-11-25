@@ -122,11 +122,13 @@ function SendUpdate( command,  playerid=0,  data1=0,  data2=0)
 {
     connection.invoke("UpdatePlayer", command, playerid, data1, data2)
         .catch(err => console.error(err.toString()));
+    const response = fetch('/api/state/nextstate');
 }
 
-// signalR part
+// signalR part with automatic reconnect
 const connection = new signalR.HubConnectionBuilder()
-    .withUrl("/datahub") 
+    .withUrl("/datahub")
+    .withAutomaticReconnect()
     .build();
 
 connection.on("AllDataUpdate", function (data) {
@@ -147,9 +149,30 @@ connection.on("AllDataUpdate", function (data) {
     showplayerprogram(CurrentLine);
 });
 
-connection.start().then(() => {
-    console.log("SignalR Connected!");
-}).catch(function (err) {
-    console.error(err.toString());
+// handle reconnect lifecycle events
+connection.onreconnecting(error => {
+    console.warn('SignalR connection lost. Reconnecting...', error);
 });
+
+connection.onreconnected(connectionId => {
+    console.log('SignalR reconnected. ConnectionId:', connectionId);
+});
+
+connection.onclose(error => {
+    console.error('SignalR connection closed.', error);
+    // try to restart the connection after a short delay
+    setTimeout(() => startConnection(), 2000);
+});
+
+function startConnection() {
+    connection.start().then(() => {
+        console.log("SignalR Connected!");
+    }).catch(function (err) {
+        console.error('SignalR failed to connect, retrying in 2s', err.toString());
+        setTimeout(() => startConnection(), 2000);
+    });
+}
+
+// start initially
+startConnection();
 

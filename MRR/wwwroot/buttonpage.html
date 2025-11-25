@@ -4,7 +4,8 @@
         // 4. Add an event listener to the button to trigger the server function
         updateButton.addEventListener("click", function() {
             // Call the HTTP GET endpoint on the server
-            fetch('/api/alldata')
+            //fetch('/api/alldata')
+            fetch('/api/state')
                 .then(response => {
                     if (response.ok) {
                         console.log("Server update triggered.");

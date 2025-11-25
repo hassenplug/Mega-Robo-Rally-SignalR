@@ -34,7 +34,33 @@ namespace MRR.Services
         {
             var optionsBuilder = new DbContextOptionsBuilder<MRRDbContext>();
             optionsBuilder.UseMySql(_connectionString, new MySqlServerVersion(new Version(8, 0, 0)));
-            return new MRRDbContext(optionsBuilder.Options);
+            var ctx = new MRRDbContext(optionsBuilder.Options);
+
+            // Populate PendingCommandEntity.RobotPlayer when entities are materialized/tracked
+            ctx.ChangeTracker.Tracked += (sender, e) =>
+            {
+                try
+                {
+                    if (e.Entry.Entity is MRR.Data.Entities.PendingCommandEntity pc)
+                    {
+                        // Only populate when coming from a query (materialized)
+                        if (e.FromQuery)
+                        {
+                            var players = this.AllPlayers;
+                            if (players != null)
+                            {
+                                pc.RobotPlayer = players.GetPlayer(p => p.ID == pc.RobotID);
+                            }
+                        }
+                    }
+                }
+                catch
+                {
+                    // swallow any errors to avoid breaking tracking
+                }
+            };
+
+            return ctx;
         }
 
         ///////////////////////////////////////////////////////////////////////////
@@ -136,7 +162,7 @@ namespace MRR.Services
                 titlemessage += " Phase " + CurrentPhase;
             }
             //            var payload = new { robots = GetQueryResults(strSQL), currentgamedata = GetQueryResults(strSQLcgd), ServerTime = DateTime.Now.ToLongTimeString() };
-            var payload = new { titlemsg = titlemessage, robots = GetQueryResults(strSQL) };
+            var payload = new { titlemsg = titlemessage, gamestate = GameState, robots = GetQueryResults(strSQL) };
             return JsonConvert.SerializeObject(payload);
         }
 

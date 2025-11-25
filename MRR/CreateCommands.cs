@@ -476,7 +476,7 @@ namespace MRR
 
             ListOfCommands.Clear(); // = new CommandList();
 
-            Console.WriteLine("Check Rules Version");
+            //Console.WriteLine("Check Rules Version");
 
             // update priority of card based on owner; sort by (-)
             if (RulesVersion==1)

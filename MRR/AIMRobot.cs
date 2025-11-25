@@ -12,6 +12,7 @@ public class AIMRobot // : IAsyncDisposable
     private ClientWebSocket? wsStatus;
     private ClientWebSocket? wsImage;
     private bool isConnected;
+    public bool isMoving;
     private string robotColor { get; set; }
 
     public AIMRobot(string ipAddress = "192.168.1.150")
@@ -28,7 +29,7 @@ public class AIMRobot // : IAsyncDisposable
         try
         {
             await wsCmd.ConnectAsync(new Uri($"ws://{ipAddress}:80/ws_cmd"), CancellationToken.None);
-            //await wsStatus.ConnectAsync(new Uri($"ws://{ipAddress}:80/ws_status"), CancellationToken.None);
+            await wsStatus.ConnectAsync(new Uri($"ws://{ipAddress}:80/ws_status"), CancellationToken.None);
             //await wsImage.ConnectAsync(new Uri($"ws://{ipAddress}:80/ws_img"), CancellationToken.None);
 
             isConnected = true;
@@ -84,6 +85,19 @@ public class AIMRobot // : IAsyncDisposable
                 }
             }
         }
+    }
+
+    public async Task CheckMovingStatus()
+    {
+        if (!isConnected || wsStatus == null)
+        {
+            isConnected = false;
+            isMoving = false;
+            return;
+        }
+
+        await SendCommandAsync(new { cmd_id = "get_motion_status" });
+        isMoving = false;
     }
 
     public async ValueTask DisposeAsync()

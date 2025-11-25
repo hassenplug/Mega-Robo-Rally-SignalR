@@ -24,5 +24,8 @@ namespace MRR.Data.Entities
         public int PositionCol { get; set; }
         public int PositionDir { get; set; }
         public int CommandCatID { get; set; }
+
+        [NotMapped]
+        public Player? RobotPlayer { get; set; }
     }
 }

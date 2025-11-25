@@ -417,6 +417,7 @@ namespace MRR
             {
                 //RobotConnection.DisconnectAsync().Wait();
                 //RobotConnection = null;
+                // ensure robot is connected here...
             }
             //Console.WriteLine("Final Connect to robot ID:" + ID.ToString() + " IP:" + IPAddress);
             RobotConnection = new Robots.AIMRobot(IPAddress);

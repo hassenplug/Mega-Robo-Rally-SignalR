@@ -70,7 +70,7 @@ namespace MRR.Controller
                         try
                         {
                             var result = _pendingCommands.ProcessCommands();
-                            Console.WriteLine("Process Commands Result: " + result);
+                            //Console.WriteLine("Process Commands Result: " + result);
                         }
                         finally
                         {
@@ -265,7 +265,7 @@ namespace MRR.Controller
                 _dataService.GetIntFromDB("select funcGetNextGameState(); ");
 
                 UpdateGameState();
-                Console.WriteLine("next:" + GameState.ToString());
+                //Console.WriteLine("next:" + GameState.ToString());
                 
             } while (GameState != newstate);
             //UpdateGameState();

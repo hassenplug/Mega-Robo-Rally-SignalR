@@ -53,6 +53,7 @@ namespace MRR.Hubs
                     int markcommand = _dataService.GetIntFromDB("Select MessageCommandID from Robots where RobotID=" + playerId);
                     _dataService.ExecuteSQL("update Robots set MessageCommandID=null where RobotID=" + playerId + ";");
                     _dataService.ExecuteSQL("update CommandList set StatusID=6 where CommandID=" + markcommand + ";");
+                    
                     break;
 
             }

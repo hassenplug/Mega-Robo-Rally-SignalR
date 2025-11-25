@@ -14,17 +14,20 @@
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
+            height: 100vh;
+            padding: 0;
+            margin: 0;
         }
 
         .container {
-            max-width: 1400px;
-            margin: 0 auto;
+            width: 100%;
+            height: 100%;
             background: white;
-            border-radius: 8px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            border-radius: 0;
+            box-shadow: none;
             overflow: hidden;
+            display: flex;
+            flex-direction: column;
         }
 
         .header {
@@ -129,7 +132,7 @@
 
         .grid-container {
             overflow: auto;
-            max-height: 600px;
+            flex: 1;
             padding: 20px 30px;
         }
 
@@ -323,11 +326,6 @@
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1>📊 Database Table Editor</h1>
-            <p>Select a table to view and edit data</p>
-        </div>
-
         <div class="controls">
             <div class="control-group">
                 <label for="tableSelect">Select Table:</label>
@@ -336,12 +334,14 @@
                 </select>
             </div>
             <div class="control-group">
-                <input type="search" id="searchInput" placeholder="Search table..." disabled>
+                <input type="search" id="searchInput" placeholder="Filter table..." disabled>
+                <input type="text" id="setValueInput" placeholder="Set value..." disabled>
             </div>
             <div class="control-group">
-                <button id="refreshBtn" onclick="loadTableList()">🔄 Refresh Tables</button>
-                <button id="addRowBtn" onclick="addNewRow()" disabled>➕ Add Row</button>
+                <button id="refreshTableBtn" onclick="refreshCurrentTable()" disabled>🔄 Refresh Table</button>
+                <button id="addRowBtn" onclick="addNewRow()" disabled style="display:none;">➕ Add Row</button>
                 <button id="saveBtn" onclick="saveChanges()" disabled style="display:none;">💾 Save</button>
+                <button id="refreshBtn" onclick="loadTableList()" style="display:none;">🔄 Refresh Tables</button>
             </div>
         </div>
 
@@ -377,12 +377,41 @@
     <script>
         let currentTable = null;
         let tableData = [];
+        let originalTableData = [];
         let currentPage = 1;
         const pageSize = 50;
         let unsavedChanges = false;
 
-        // Load table list on page load
-        document.addEventListener('DOMContentLoaded', loadTableList);
+        // Load table list on page load and wire setValue + search inputs
+        document.addEventListener('DOMContentLoaded', () => {
+            loadTableList();
+            const setInput = document.getElementById('setValueInput');
+            const saveBtn = document.getElementById('saveBtn');
+            const searchInput = document.getElementById('searchInput');
+            // initialize save button hidden/disabled
+            if (saveBtn) {
+                saveBtn.disabled = true;
+                saveBtn.style.display = 'none';
+            }
+            if (setInput) {
+                setInput.addEventListener('input', (e) => {
+                    const has = e.target.value.trim().length > 0;
+                    if (saveBtn) {
+                        saveBtn.disabled = !has;
+                        saveBtn.style.display = has ? 'inline-block' : 'none';
+                    }
+                });
+            }
+            if (searchInput) {
+                // when user exits search field, reload table with search value as filter
+                searchInput.addEventListener('blur', (e) => {
+                    const v = e.target.value.trim();
+                    if (currentTable) {
+                        loadTable(currentTable, v);
+                    }
+                });
+            }
+        });
 
         // Table selection change
         document.getElementById('tableSelect').addEventListener('change', function () {
@@ -392,11 +421,24 @@
             if (currentTable) {
                 loadTable(currentTable);
                 document.getElementById('addRowBtn').disabled = false;
-                document.getElementById('searchInput').disabled = false;
+                document.getElementById('refreshTableBtn').disabled = false;
+                const filter = document.getElementById('searchInput');
+                    filter.disabled = false;
+                    filter.value = '';
+                const setvalue = document.getElementById('setValueInput');
+                    setvalue.disabled = false;
+                    setvalue.value = '';
+                // initialize/hide save button until setValueInput has text
+                const saveBtn = document.getElementById('saveBtn');
+                if (saveBtn) { saveBtn.disabled = true; saveBtn.style.display = 'none'; }
             } else {
                 document.getElementById('gridContainer').innerHTML = '<div class="loading"><p>Select a table to get started</p></div>';
-                document.getElementById('addRowBtn').disabled = true;
+                //document.getElementById('addRowBtn').disabled = true;
+                //document.getElementById('refreshTableBtn').disabled = true;
                 document.getElementById('searchInput').disabled = true;
+                document.getElementById('setValueInput').disabled = true;
+                const saveBtn = document.getElementById('saveBtn');
+                if (saveBtn) { saveBtn.disabled = true; saveBtn.style.display = 'none'; }
             }
         });
 
@@ -425,17 +467,28 @@
             }
         }
 
-        async function loadTable(tableName) {
+        async function refreshCurrentTable() {
+            if (currentTable) {
+                const searchVal = (document.getElementById('searchInput') || {}).value || '';
+                await loadTable(currentTable, searchVal.trim());
+            }
+        }
+
+        async function loadTable(tableName, filter = '') {
             try {
                 document.getElementById('gridContainer').innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading data...</p></div>';
-                const response = await fetch(`/api/table/${tableName}`);
+                const url = (filter && filter.trim()) ? `/api/table/${encodeURIComponent(tableName)}/${encodeURIComponent(filter)}` : `/api/table/${encodeURIComponent(tableName)}`;
+                const response = await fetch(url);
                 
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
                 
                 const data = await response.json();
-                tableData = data.data || [];
+                // store table data
+                tableData = data[tableName] || [];
+                // keep an original snapshot to detect changes
+                originalTableData = JSON.parse(JSON.stringify(tableData));
                 document.getElementById('currentTable').textContent = tableName;
                 document.getElementById('rowCount').textContent = tableData.length;
                 renderTable(tableName, []);
@@ -451,6 +504,7 @@
                 document.getElementById('gridContainer').innerHTML = '<div class="loading"><p>No data in this table</p></div>';
                 return;
             }
+            //console.log('Rendering table with data:', tableData);
 
             const keys = Object.keys(tableData[0]);
             const html = `
@@ -534,18 +588,27 @@
         }
 
         async function saveChanges() {
-            if (!currentTable || tableData.length === 0) return;
+            if (!currentTable) return;
             try {
-                const response = await fetch(`/api/table/${currentTable}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ rows: tableData })
-                });
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                const setValue = (document.getElementById('setValueInput') || {}).value.trim();
+                const filterClause = (document.getElementById('searchInput') || {}).value.trim() || '';
+                if (setValue && filterClause) {
+                    
+                    const url = `/api/table/${encodeURIComponent(currentTable)}/${encodeURIComponent(filterClause)}/${encodeURIComponent(setValue)}`;
+                    const resp = await fetch(url);
+                    if (!resp.ok) {
+                        const txt = await resp.text();
+                        throw new Error(`Failed update row ${item.index}: HTTP ${resp.status} - ${txt}`);
+                    }
+                }
+
+                // Reload table to refresh data and reset snapshot
+                await loadTable(currentTable);
                 unsavedChanges = false;
                 showMessage('Changes saved successfully!');
             } catch (error) {
-                showError('Failed to save changes: ' + error.message);
+                showError('Failed to save changes: ' + (error.message || error));
             }
         }
 

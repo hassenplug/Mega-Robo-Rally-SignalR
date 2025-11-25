@@ -130,9 +130,14 @@ app.MapGet("/api/state/{newstate?}/{parameter1?}", async (string? newstate, stri
     }   
 
 
-    var dataout = dataService.GetQueryResultsJson($"Select * from CurrentGameData;", "State");
-    hubContext.Clients.All.SendAsync("State", dataout);
-    return Results.Ok(dataout);
+//    var dataout = dataService.GetQueryResultsJson($"Select * from CurrentGameData;", "State");
+//    hubContext.Clients.All.SendAsync("State", dataout);
+//    return Results.Ok(dataout);
+//    return Results.Ok(dataout);
+    var dataout = dataService.GetAllDataJson();
+    hubContext.Clients.All.SendAsync("AllDataUpdate", dataout);
+     
+    return Results.Content(dataout, "application/json");
 });
 
 
