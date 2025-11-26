@@ -451,33 +451,33 @@ namespace MRR.Services
 
         public Players GetAllPlayers()
         {
-            if (_allPlayers != null)
+            if (_allPlayers == null)
             {
-                return _allPlayers;
-            }
-            var players = new Players();
+                var players = new Players();
 
-            string strSQL = "Select * from viewRobotsInit;";
+                string strSQL = "Select * from viewRobotsInit;";
 
-            var loadplayers = this.GetQueryResults(strSQL);
-            foreach (DataRow row in loadplayers.Rows)
-            {
-                players.Add(new Player()
+                var loadplayers = this.GetQueryResults(strSQL);
+                foreach (DataRow row in loadplayers.Rows)
                 {
-                    ID = (int)row["RobotID"],
-                    PlayerSeat = (int)row["PlayerSeat"],
-                    Name = row["RobotName"].ToString(),
-                    Color = row["RobotColor"].ToString() ?? "FFFFFF", // default white
-                    IPAddress = row["MACID"].ToString(),
+                    players.Add(new Player()
+                    {
+                        ID = (int)row["RobotID"],
+                        PlayerSeat = (int)row["PlayerSeat"],
+                        Name = row["RobotName"].ToString(),
+                        Color = row["RobotColor"].ToString() ?? "FFFFFF", // default white
+                        IPAddress = row["MACID"].ToString(),
 
-                });
-                //Console.WriteLine("Loaded player ID:" + row["RobotID"].ToString() + " Name:" + row["RobotName"].ToString() + " IP:" + IPAddress);
+                    });
+                    //Console.WriteLine("Loaded player ID:" + row["RobotID"].ToString() + " Name:" + row["RobotName"].ToString() + " IP:" + IPAddress);
+                }
+                _allPlayers = players;
+
             }
 
             RefreshAllPlayers();
             
-            _allPlayers = players;
-            return players;
+            return _allPlayers;
         }
 
         public void RefreshAllPlayers()
@@ -491,14 +491,14 @@ namespace MRR.Services
                 if (existingPlayer != null)
                 {
                     existingPlayer.LastFlag = (int)row["CurrentFlag"];
-                    existingPlayer.Lives = (int)row["Lives"];
-                    existingPlayer.Damage = (int)row["Damage"];
+                    //existingPlayer.Lives = (int)row["Lives"];
+                    //existingPlayer.Damage = (int)row["Damage"];
                     existingPlayer.ShutDown = (tShutDown)((int)row["ShutDown"]);
-                    existingPlayer.PlayerStatus = (tPlayerStatus)((int)row["Status"]);
-                    existingPlayer.CurrentPos = new RobotLocation((Direction)(int)row["CurrentPosDir"], (int)row["CurrentPosCol"], (int)row["CurrentPosRow"]);
+                    existingPlayer.PlayerStatus = (tPlayerStatus)((int)row["StatusID"]);
+                    existingPlayer.CurrentPos = new RobotLocation((Direction)(int)row["Dir"], (int)row["X"], (int)row["Y"]);
                     existingPlayer.Priority = (int)row["Priority"];
                     existingPlayer.Energy = (int)row["Energy"];
-                    existingPlayer.Active = ((int)row["Status"] != 10);
+                    existingPlayer.Active = ((int)row["StatusID"] != 10);
                 };
             }
 

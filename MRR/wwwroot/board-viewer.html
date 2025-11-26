@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Board Viewer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            background: #222;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+        .board {
+            display: grid;
+            margin: 0;
+            padding: 0;
+            background: #333;
+            box-shadow: 0 0 20px #000a;
+            border-radius: 0;
+            overflow: auto;
+            position: relative;
+        }
+        .cell {
+            width: 80px;
+            height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #444;
+            border: none;
+            position: relative;
+            margin: 0;
+            padding: 0;
+        }
+        .cell img {
+            width: 80px;
+            height: 80px;
+            transition: transform 0.2s;
+            display: block;
+        }
+        .robot-marker {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            border-radius: 50% 50% 50% 0; 
+            border: 2px solid #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: bold;
+            color: #fff;
+            z-index: 10;
+            pointer-events: none;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="boardContainer" style="width:fit-content;margin:auto;"></div>
+    <script src="js/signalr.min.js"></script>
+    <script>
+    let boardDiv = null;
+    let boardWidth = 0;
+    let boardHeight = 0;
+
+    async function loadBoard() {
+        const response = await fetch('/api/board');
+        if (!response.ok) {
+            document.getElementById('boardContainer').innerHTML = '<div style="color:red">Failed to load board</div>';
+            return;
+        }
+        const data = await response.json();
+        // Expecting: { board: [ { BoardID, X, Y, SquareType, Rotation } ] }
+        const squares = data.board || [];
+        if (!squares.length) {
+            document.getElementById('boardContainer').innerHTML = '<div style="color:red">No board data</div>';
+            return;
+        }
+        // Find board dimensions
+        let maxX = 0, maxY = 0;
+        for (const sq of squares) {
+            maxX = Math.max(maxX, sq.X);
+            maxY = Math.max(maxY, sq.Y);
+        }
+        const width = maxX + 1;
+        const height = maxY + 1;
+        boardWidth = width;
+        boardHeight = height;
+        
+        boardDiv = document.createElement('div');
+        boardDiv.className = 'board';
+        boardDiv.style.gridTemplateColumns = `repeat(${width}, 80px)`;
+        boardDiv.style.gridTemplateRows = `repeat(${height}, 80px)`;
+        
+        // Create a 2D array for fast lookup
+        const grid = Array.from({ length: height }, () => Array(width).fill(null));
+        for (const sq of squares) {
+            grid[sq.Y][sq.X] = sq;
+        }
+        
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                cell.id = `cell-${x}-${y}`;
+                const sq = grid[y][x];
+                if (sq) {
+                    const img = document.createElement('img');
+                    img.src = `images/Element${sq.SquareType}.jpg`;
+                    img.onerror = () => { img.src = 'images/Element0.jpg'; }; // fallback
+                    // Rotation: 0=0deg, 1=90deg, 2=180deg, 3=270deg, 4=360deg (same as 0)
+                    const deg = ((sq.Rotation-1) % 4) * 90;
+                    img.style.transform = `rotate(${deg}deg)`;
+                    cell.appendChild(img);
+                }
+                boardDiv.appendChild(cell);
+            }
+        }
+        const container = document.getElementById('boardContainer');
+        container.innerHTML = '';
+        container.appendChild(boardDiv);
+
+        // Connect to SignalR and listen for robot updates
+        connectToHub();
+    }
+
+    function connectToHub() {
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl("/datahub")
+            .withAutomaticReconnect()
+            .build();
+
+        connection.on("AllDataUpdate", function(data) {
+            // Normalize data if it's a string
+            if (typeof data === 'string') {
+                try {
+                    data = JSON.parse(data);
+                } catch (err) {
+                    console.error('Failed to parse AllDataUpdate:', err);
+                    return;
+                }
+            }
+
+            // Update robot positions on board
+            if (data.robots && Array.isArray(data.robots)) {
+                updateRobotPositions(data.robots);
+            }
+        });
+
+        connection.start().catch(err => console.error('SignalR connection error:', err));
+    }
+
+    function updateRobotPositions(robots) {
+        // Clear existing robot markers
+        const existingMarkers = document.querySelectorAll('.robot-marker');
+        existingMarkers.forEach(m => m.remove());
+
+        // Add robot markers for each robot
+        robots.forEach(robot => {
+            const x = robot.LocationX || robot.X || 0;
+            const y = robot.LocationY || robot.Y || 0;
+
+            // Ensure we're within bounds
+            if (x >= 0 && x < boardWidth && y >= 0 && y < boardHeight) {
+                const cell = document.getElementById(`cell-${x}-${y}`);
+                if (cell) {
+                    const marker = document.createElement('div');
+                    marker.className = 'robot-marker';
+                    
+                    // Assign color based on robot ID or use a default
+                    marker.style.backgroundColor = "#" + robot.RobotColor;
+                    marker.style.color = "#" + robot.RobotColorFG;
+                    
+                    // Set rotation based on direction (Dir)
+                    // Assuming Dir values: 1=Up(0°), 2=Right(90°), 3=Down(180°), 4=Left(270°)
+                    const dir = robot.Dir || 1;
+                    const degreeMap = { 1: 135, 2: 225, 3: 315, 4: 45 };
+                    const rotation = degreeMap[dir] || 0;
+                    marker.style.transform = `rotate(${rotation}deg)`;
+                    
+                    // Show robot ID or name
+                    //marker.textContent = robot.RobotID || 'R';
+                    marker.textContent = robot.RobotName ;
+                    marker.title = `Robot ${robot.RobotName} - Pos(${x}, ${y})`;
+                    //console.log(robot);
+
+                    cell.appendChild(marker);
+                }
+            }
+        });
+    }
+
+    loadBoard();
+    </script>
+</body>
+</html>

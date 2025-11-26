@@ -183,6 +183,15 @@ app.MapGet("/api/robot/{function?}/{parameter1?}", (string? function, string? pa
     return Results.Ok(dataout);
 });
 
+app.MapGet("/api/board/{boardID?}", (int? boardID, DataService dataService, IHubContext<DataHub> hubContext, GameController gameController) =>
+{
+    if (boardID == null) boardID = dataService.BoardID;
+    else dataService.BoardID = boardID.Value;
+    var dataout = dataService.GetQueryResultsJson($"Select * from BoardItems where BoardID={boardID};", "board");
+    //hubContext.Clients.All.SendAsync("board", dataout);
+    return Results.Content(dataout, "application/json");
+});
+
 
 app.Urls.Add("http://mrobopi3:5000"); 
 

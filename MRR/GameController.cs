@@ -92,10 +92,13 @@ namespace MRR.Controller
             }
         }
 
-        public void StartGame(int startGameID = 1) // pass board elements and players // find start positions for each player
+        public void StartGame(int startGameID = 0) // pass board elements and players // find start positions for each player
         {
+            if (startGameID > 0) 
+            {
+                _dataService.ExecuteSQL("Update CurrentGameData set iValue = " + startGameID + " where iKey = 26;");  // set game state
+            }
 
-            _dataService.ExecuteSQL("Update CurrentGameData set iValue = " + startGameID + " where iKey = 26;");  // set game state
             _dataService.ExecuteSQL("Update CurrentGameData set iValue = 0 where iKey = 10;");  // set state to 0
 
             NextState();
@@ -244,7 +247,7 @@ namespace MRR.Controller
                     case 15: // Create program
                         // prompt
                         //#Create programs
-                        SetGameState(0);
+                        SetGameState(4);
                         break;
                     case 16: // Reload Position
                         // prompt
@@ -256,7 +259,7 @@ namespace MRR.Controller
                     
                     default:
                         Console.WriteLine("NextStateError: Current State=" + GameState);
-                        SetGameState(0);
+                        SetGameState(7);
                         break;
                 }
 
