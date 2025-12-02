@@ -75,7 +75,7 @@ namespace MRR
                     foreach (PendingCommandEntity onecommand in active)
                     {
                         //Console.WriteLine("Processing Command ID: " + onecommand.ToString());
-                        stillRunning = stillRunning || ExecuteCommand(onecommand);
+                        stillRunning = stillRunning || ProcessCommand(onecommand);
                     }
                     // refresh active set for the next inner loop iteration
                     active = GetActiveCommandList();
@@ -139,7 +139,7 @@ namespace MRR
 
         */
 //        public async Task<bool> ExecuteCommand(PendingCommandEntity onecommand)
-        public bool ExecuteCommand(PendingCommandEntity onecommand)
+        public bool ProcessCommand(PendingCommandEntity onecommand)
         {
             //Console.WriteLine($"Process Command({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandTypeID}}}{onecommand.Parameter},{onecommand.ParameterB}");
 
@@ -154,7 +154,7 @@ namespace MRR
                     case 2: // Robot No Reply
                         if (onecommand.StatusID == 2)
                         {
-                            Console.WriteLine($"Robot Command    ({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandTypeID}}}{onecommand.Parameter},{onecommand.ParameterB}");
+                            Console.WriteLine($"Robot Command    ({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandTypeID}}}-{onecommand.Parameter},{onecommand.ParameterB}:{onecommand.Description}");
                             command.StatusID = 4; // executing
                             db.SaveChanges();
                             var robot = command.RobotPlayer;
@@ -213,7 +213,7 @@ namespace MRR
                             command.RobotPlayer.RobotConnection.CheckMovingStatus().Wait();
                             if (!command.RobotPlayer.RobotConnection.isMoving)
                             {
-                                Console.WriteLine($"Robot Command Done({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandTypeID}}}{onecommand.Parameter},{onecommand.ParameterB}");
+                                Console.WriteLine($"Robot Command Done({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandTypeID}}}-{onecommand.Parameter},{onecommand.ParameterB}:{onecommand.Description}");
                                 // get next state from DB
                                 command.StatusID = _dataService.GetIntFromDB("select funcProcessCommand(" + onecommand.CommandID + ",-1);");
                                 command.StatusID = 6;
@@ -227,7 +227,7 @@ namespace MRR
 
 
                     case 3: // DB
-                        Console.WriteLine($"Database Command ({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandTypeID}}}{onecommand.Parameter},{onecommand.ParameterB}");
+                        Console.WriteLine($"Database Command ({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandTypeID}}}-{onecommand.Parameter},{onecommand.ParameterB}:{onecommand.Description}");
                         // call database procedure here..
 //                        command.StatusID = _dataService.ExecuteSQL("call funcProcessCommand(" + onecommand.CommandID + ",-1);");
                         command.StatusID = _dataService.GetIntFromDB("select funcProcessCommand(" + onecommand.CommandID + ",-1);");
@@ -238,7 +238,7 @@ namespace MRR
                     case 6: // User Input
                         if (onecommand.StatusID < 4)
                         {
-                            Console.WriteLine($"User Input       ({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandTypeID}}}{onecommand.Parameter},{onecommand.ParameterB}");
+                            Console.WriteLine($"User Input       ({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandTypeID}}}-{onecommand.Parameter},{onecommand.ParameterB}:{onecommand.Description}");
                             var robot = db.Robots.FirstOrDefault(r => r.RobotID == onecommand.RobotID);
 
                             if (robot != null)
@@ -252,7 +252,7 @@ namespace MRR
                         return false;
 
                     default:
-                        Console.WriteLine($"Not processed here({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandTypeID}}}{onecommand.Parameter},{onecommand.ParameterB}");
+                        Console.WriteLine($"Not processed here({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandTypeID}}}-{onecommand.Parameter},{onecommand.ParameterB}:{onecommand.Description}");
                         command.StatusID = _dataService.GetIntFromDB("select funcProcessCommand(" + onecommand.CommandID + ",-1);");
                         db.SaveChanges();
                         break;

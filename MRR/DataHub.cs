@@ -103,6 +103,13 @@ namespace MRR.Hubs
 
         }
 
+        public async Task SendActiveCommands()
+        {
+            var dataout = _dataService.GetAllDataJson();
+            await Clients.All.SendAsync("ActiveCommandsUpdate", dataout);
+
+        }
+
         public async Task NextState()
         {
             var newstate = _dataService.GetIntFromDB("select funcGetNextGameState(); ");

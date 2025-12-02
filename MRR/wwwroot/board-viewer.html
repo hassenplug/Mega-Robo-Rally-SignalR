@@ -66,8 +66,19 @@
     let boardWidth = 0;
     let boardHeight = 0;
 
+    function getQueryParam(name) {
+        const params = new URLSearchParams(window.location.search);
+        return params.get(name);
+    }
+
     async function loadBoard() {
-        const response = await fetch('/api/board');
+        const boardId = getQueryParam('boardid');
+        let url = '/api/board';
+        if (boardId) {
+            //url += '?boardId=' + encodeURIComponent(boardId);
+            url += '/' + encodeURIComponent(boardId);
+        }
+        const response = await fetch(url);
         if (!response.ok) {
             document.getElementById('boardContainer').innerHTML = '<div style="color:red">Failed to load board</div>';
             return;
