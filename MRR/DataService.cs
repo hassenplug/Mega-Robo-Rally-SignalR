@@ -6,6 +6,7 @@ using MySqlConnector;
 using Newtonsoft.Json;
 using Microsoft.EntityFrameworkCore;
 using MRR.Data;
+using System.Xml.Serialization;
 
 namespace MRR.Services
 {
@@ -655,6 +656,46 @@ namespace MRR.Services
             // Only allow alphanumeric characters and underscores
             return System.Text.RegularExpressions.Regex.IsMatch(tableName, @"^[a-zA-Z0-9_]+$");
         }
+
+        public void BoardFileRead(string p_Filename)
+        {
+
+            if (p_Filename.Contains(".jpg")) p_Filename = p_Filename.Replace(".jpg", ".srx");
+            if (p_Filename.Contains(".srx"))
+            {
+                g_BoardElements = (BoardElementCollection)LoadFile(typeof(BoardElementCollection), p_Filename);
+            }
+
+            if (g_BoardElements != null)
+            {
+                TotalFlags = g_BoardElements.BoardElements.Count(be => be.ActionList.Count(al => al.SquareAction == SquareAction.Flag) > 0);
+                LaserDamage = g_BoardElements.LaserDamage;
+                //GameType = g_BoardElements.BoardType;
+            }
+            else
+            {
+                Console.WriteLine("Load Board Failed:" + p_Filename);
+            }
+        }
+
+        public Object LoadFile(Type FileType, string FileName)
+        {
+            if (!File.Exists(FileName))
+            {
+                return null;
+            }
+            //XmlDeserializationEvents
+            DateTime starttime = DateTime.Now;
+            XmlSerializer serialPlay = new XmlSerializer(FileType);
+            System.IO.StreamReader csvfile = new System.IO.StreamReader(FileName);
+            Object localfile = serialPlay.Deserialize(csvfile);
+            csvfile.Close();
+            //Console.WriteLine("Load " + FileType.ToString() + " ET:" + (DateTime.Now - starttime).ToString());
+
+            return localfile;
+        }
+
+
 
 
     }

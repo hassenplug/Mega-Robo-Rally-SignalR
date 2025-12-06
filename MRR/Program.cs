@@ -122,6 +122,9 @@ app.MapGet("/api/state/{newstate?}/{parameter1?}", async (string? newstate, stri
 
             return Results.Content(dataService.GetTableDataAsHTML("CurrentGameData/Robots/CommandList"), "text/html");
             break;
+        case "loadboard":
+            gameController.LoadBoard();
+            break;
         default:
             Console.WriteLine("State change requested: " + newstate + " Param: " + parameter1);
         //        var setStatement = "Update " + tablename + " set " + setvalue + whereClause + ";";

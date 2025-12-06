@@ -94,9 +94,9 @@ namespace MRR.Controller
 
         public void StartGame(int startGameID = 0) // pass board elements and players // find start positions for each player
         {
-            if (startGameID > 0) 
+            if (startGameID > 0)
             {
-                _dataService.ExecuteSQL("Update CurrentGameData set iValue = " + startGameID + " where iKey = 26;");  // set game state
+                 _dataService.ExecuteSQL("Update CurrentGameData set iValue = " + startGameID + " where iKey = 26;");  // set game state
             }
 
             _dataService.ExecuteSQL("Update CurrentGameData set iValue = 0 where iKey = 10;");  // set state to 0
@@ -160,6 +160,8 @@ namespace MRR.Controller
 //                GameState = newstate;
                 newstate = GameState;
 
+                Console.WriteLine("Current State:" + GameState.ToString());
+
                 switch (GameState)
                 {
                     case 0: // start game
@@ -206,7 +208,10 @@ namespace MRR.Controller
                         break;
                     case 6: // execute turn
                         //ExecuteTurn().Wait;
+                        //Console.WriteLine("Executing turn...");
                         Task.Run(async () => await ExecuteTurn());
+                        //Task.Delay(10);
+                        //Console.WriteLine("Executing turn Done");
                         //ExecuteTurn();
                         break;
                     case 7: // executing turn
@@ -312,6 +317,12 @@ namespace MRR.Controller
             Player? thisplayer = AllPlayers.GetPlayer(playerID);
             thisplayer.Connect();
             return true;
+        }
+
+        public void LoadBoard()
+        {
+            _dataService.BoardFileRead("../install/Boards/6x6x6R4Fb.srx");
+            _dataService.BoardSaveToDB(3,_dataService.g_BoardElements);
         }
 
     }
