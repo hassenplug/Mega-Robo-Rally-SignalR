@@ -4,6 +4,8 @@ using System.Net.Sockets;
 using System.Net;
 using System.Net.Cache;
 using MRR.Services;
+using Microsoft.AspNetCore.SignalR;
+using MRR.Hubs;
 using MRR.Data;
 using MRR.Data.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -24,11 +26,13 @@ namespace MRR
     public class PendingCommands : IDisposable
     {
         private readonly DataService _dataService;
+        private readonly IHubContext<DataHub> _hubContext;
         private MRRDbContext? _dbContext;
 
-        public PendingCommands(DataService dataService)
+        public PendingCommands(DataService dataService, IHubContext<DataHub> hubContext)
         {
             _dataService = dataService;
+            _hubContext = hubContext;
             _dbContext = _dataService.CreateDbContext();
         }
 
@@ -79,6 +83,12 @@ namespace MRR
                     }
                     // refresh active set for the next inner loop iteration
                     active = GetActiveCommandList();
+                    // send updates to clients
+                    var allDataJson = _dataService.GetAllDataJson();
+                    // Notify connected SignalR clients using the hub context from background thread
+                    _hubContext.Clients.All.SendAsync("AllDataUpdate", allDataJson).GetAwaiter().GetResult();
+                    //_hubContext .Clients.All.SendAsync("AllDataUpdate", allDataJson).GetAwaiter().GetResult();
+
                 }
 
                 //Console.WriteLine("Process Commands:Done ");
@@ -158,15 +168,15 @@ namespace MRR
                             Console.WriteLine($"Robot not found for Command({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandTypeID}}}-{onecommand.Parameter},{onecommand.ParameterB}:{onecommand.Description}");
                             command.StatusID = 6; // command complete
                             db.SaveChanges();
-                            return false;
+                            return true;
                         }
 
                         if (robot.RobotConnection == null)
                         {
                             Console.WriteLine($"Robot not connected for Command({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandTypeID}}}-{onecommand.Parameter},{onecommand.ParameterB}:{onecommand.Description}");
-                            command.StatusID = _dataService.GetIntFromDB("select funcProcessCommand(" + onecommand.CommandID + ",-1);");
+                            command.StatusID = _dataService.GetIntFromDB("select funcProcessCommand(" + onecommand.CommandID + ",5);");
                             db.SaveChanges();
-                            return false;
+                            return true;
                         }
 
                         if (onecommand.StatusID == 2)
@@ -210,7 +220,6 @@ namespace MRR
                             command.StatusID = _dataService.GetIntFromDB("select funcProcessCommand(" + onecommand.CommandID + ",5);");
                             //command.StatusID = 6;
                             db.SaveChanges();
-                            return false;
                         }
                         return true;
 
@@ -228,11 +237,11 @@ namespace MRR
                         if (onecommand.StatusID < 4)
                         {
                             Console.WriteLine($"User Input       ({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandTypeID}}}-{onecommand.Parameter},{onecommand.ParameterB}:{onecommand.Description}");
-                            var robot = db.Robots.FirstOrDefault(r => r.RobotID == onecommand.RobotID);
+                            var robot6 = db.Robots.FirstOrDefault(r => r.RobotID == onecommand.RobotID);
 
-                            if (robot != null)
+                            if (robot6 != null)
                             {
-                                robot.MessageCommandID = onecommand.CommandID;
+                                robot6.MessageCommandID = onecommand.CommandID;
                                 command.StatusID = 4;
                                 db.SaveChanges();
                                 return false; // wait for user input

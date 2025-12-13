@@ -7,6 +7,8 @@
 // edit/load/save boards
 // edit database
 using MRR.Services;
+using Microsoft.AspNetCore.SignalR;
+using MRR.Hubs;
 using MRR.Data;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
 //using MRR.Data.Entities;
@@ -16,10 +18,12 @@ namespace MRR.Controller
     public partial class GameController
     {
         private readonly DataService _dataService;
+        private readonly IHubContext<DataHub> _hubContext;
 
-        public GameController(DataService dataService)
+        public GameController(DataService dataService, IHubContext<DataHub> hubContext)
         {
             _dataService = dataService;
+            _hubContext = hubContext;
             LoadCurrentGame();
         }
 
@@ -31,7 +35,11 @@ namespace MRR.Controller
 
         public int UpdateGameState()
         {
-            return _dataService.UpdateGameState();
+            int gamestate = _dataService.UpdateGameState();
+            var allDataJson = _dataService.GetAllDataJson();
+            // Notify connected SignalR clients using the hub context from background thread
+            _hubContext.Clients.All.SendAsync("AllDataUpdate", allDataJson).GetAwaiter().GetResult();
+            return gamestate;
         }
 
         public async Task ExecuteTurn()
@@ -64,7 +72,7 @@ namespace MRR.Controller
                         _pendingCommands.Dispose();
                         _pendingCommands = null;
                     }
-                    _pendingCommands = new PendingCommands(_dataService);
+                    _pendingCommands = new PendingCommands(_dataService, _hubContext);
                     _processCommandsThread = new Thread(() =>
                     {
                         try

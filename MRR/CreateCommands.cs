@@ -933,7 +933,8 @@ namespace MRR
             var firstplayer = AllPlayers.OrderBy(ob=>ob.Priority).FirstOrDefault();
             
             ListOfCommands.AddCommand("Run Phase " + p_PhaseNumber.ToString(),firstplayer);  // set button text & wait for click
-            //ListOfCommands.AddCommand(null, SquareAction.PhaseStart, p_PhaseNumber);
+            //ListOfCommands.AddCommand(3,p_PhaseNumber);
+            ListOfCommands.AddCommand(null, SquareAction.PhaseStart, p_PhaseNumber);
             //ListOfCommands.AddCommand(10,7); // set game state to waiting for input
 
 
