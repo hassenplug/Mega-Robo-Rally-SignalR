@@ -298,6 +298,9 @@ namespace MRR.Controller
             {
                 ConnectToAllRobots();
             }
+
+            // reset commands in process
+            _dataService.ExecuteSQL("Update CommandList set StatusID = 1 where StatusID=4 or StatusID=3;");
             return "";
         }
 

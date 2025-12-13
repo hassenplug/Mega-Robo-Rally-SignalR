@@ -152,78 +152,67 @@ namespace MRR
                 {
                     case 1: // Robot with Reply
                     case 2: // Robot No Reply
+                        var robot = command.RobotPlayer;
+                        if (robot == null )
+                        {
+                            Console.WriteLine($"Robot not found for Command({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandTypeID}}}-{onecommand.Parameter},{onecommand.ParameterB}:{onecommand.Description}");
+                            command.StatusID = 6; // command complete
+                            db.SaveChanges();
+                            return false;
+                        }
+
+                        if (robot.RobotConnection == null)
+                        {
+                            Console.WriteLine($"Robot not connected for Command({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandTypeID}}}-{onecommand.Parameter},{onecommand.ParameterB}:{onecommand.Description}");
+                            command.StatusID = _dataService.GetIntFromDB("select funcProcessCommand(" + onecommand.CommandID + ",-1);");
+                            db.SaveChanges();
+                            return false;
+                        }
+
                         if (onecommand.StatusID == 2)
                         {
                             Console.WriteLine($"Robot Command    ({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandTypeID}}}-{onecommand.Parameter},{onecommand.ParameterB}:{onecommand.Description}");
-                            command.StatusID = 4; // executing
-                            db.SaveChanges();
-                            var robot = command.RobotPlayer;
-                            if (robot != null)
+                            command.StatusID = 3; // executing
+                            robot.RobotConnection.SendRobotCommandAsync(onecommand).Wait();
+                            if (onecommand.CommandCatID == 2)
                             {
-                                if (robot.RobotConnection != null)
-                                {
-                                    robot.RobotConnection.SendRobotCommandAsync(onecommand).Wait();
-                                    if (onecommand.CommandCatID == 1)
-                                    {
-                                        // wait for reply
-                                        command.StatusID = 4; // waiting for reply
-                                        db.SaveChanges();
-                                    }
-                                    else
-                                    {
-                                        // no reply expected
-                                        //command.StatusID = 5; // command complete
-                                        command.StatusID = _dataService.GetIntFromDB("select funcProcessCommand(" + onecommand.CommandID + ",-1);");
-                                        command.StatusID = 6;
-                                        db.SaveChanges();
-                                    }
-
-                                }
-                                else
-                                {
-                                    command.StatusID = 6; // onecommand.CommandCatID == 1 ? 5 : 6; // no connection
-                                }
+                                // don't wait for reply
+                                command.StatusID = 4; // not waiting for reply
                             }
-                            else
-                            {
-                                //command.StatusID = onecommand.CommandCatID == 1 ? 5 : 6; // no connection
-                            }
+                            //command.StatusID = onecommand.CommandCatID == 1 ? 5 : 6; // no connection
                             // set the state based on type 1/2
-                            //db.SaveChanges();
+                            db.SaveChanges();
                             return true;
                         }
-                        else // not status 2
-                        {
-                            // check to see if the previous command has completed
 
-                            if (command.RobotPlayer == null)
-                            {
-                                command.StatusID = 6;
-                                db.SaveChanges();
-                                return true;
-                            }
-                            
-                            if (command.RobotPlayer.RobotConnection == null)
-                            {
-                                command.StatusID = 6;
-                                db.SaveChanges();
-                                return true;
-                            }
-                            
-                            command.RobotPlayer.RobotConnection.CheckMovingStatus().Wait();
-                            if (!command.RobotPlayer.RobotConnection.isMoving)
+                        if (onecommand.StatusID == 3)
+                        {
+                            // check here to make sure the robot has replied
+                            //Console.WriteLine($"Waiting for Robot Reply ({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandTypeID}}}-{onecommand.Parameter},{onecommand.ParameterB}:{onecommand.Description}");
+                            // wait for robot to finish moving
+                            // check robot status
+                            robot.RobotConnection.CheckMovingStatus().Wait();
+                            if (!robot.RobotConnection.isMoving)
                             {
                                 Console.WriteLine($"Robot Command Done({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandTypeID}}}-{onecommand.Parameter},{onecommand.ParameterB}:{onecommand.Description}");
                                 // get next state from DB
-                                command.StatusID = _dataService.GetIntFromDB("select funcProcessCommand(" + onecommand.CommandID + ",-1);");
-                                command.StatusID = 6;
-                                db.SaveChanges();
-                                return true;
+                                //command.StatusID = _dataService.GetIntFromDB("select funcProcessCommand(" + onecommand.CommandID + ",-1);");
+                                command.StatusID = 4;
+                                //db.SaveChanges();
+                                //return true;
                             }
-
-
                         }
-                        return false;
+
+                        if (onecommand.StatusID == 4)
+                        {
+                            // no reply expected
+                            //command.StatusID = 5; // command complete
+                            command.StatusID = _dataService.GetIntFromDB("select funcProcessCommand(" + onecommand.CommandID + ",5);");
+                            //command.StatusID = 6;
+                            db.SaveChanges();
+                            return false;
+                        }
+                        return true;
 
 
                     case 3: // DB
