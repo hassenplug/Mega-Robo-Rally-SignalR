@@ -24,9 +24,9 @@ builder.Services.AddDbContextFactory<MRRDbContext>((serviceProvider, options) =>
 });
 */
 
-builder.Services.AddSingleton<GameController>();
-
+// Register SignalR before GameController so IHubContext<DataHub> is available
 builder.Services.AddSignalR();
+builder.Services.AddSingleton<GameController>();
 
 var app = builder.Build();
 
@@ -95,10 +95,12 @@ app.MapGet("/api/state/{newstate?}/{parameter1?}", async (string? newstate, stri
     switch (newstate)
     {
         case "nextstate":
+            if (Convert.ToInt32(parameter1) > 0) gameController.SetGameState(Convert.ToInt32(parameter1));
             gameController.NextState();
             //return Results.Ok(nextstate);
             break;
         case "startgame":
+            gameController.SetGameState(0);
             gameController.StartGame(Convert.ToInt32(parameter1));
             //return Results.Ok(result);
             break;

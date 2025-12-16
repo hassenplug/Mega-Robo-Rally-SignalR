@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.SignalR;
 using MRR.Hubs;
 using MRR.Data;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
+using System.Threading;
 //using MRR.Data.Entities;
 
 namespace MRR.Controller
@@ -44,14 +45,35 @@ namespace MRR.Controller
 
         public async Task ExecuteTurn()
         {
-            CreateCommands createCommands = new CreateCommands(_dataService);
-            var exeResult = createCommands.ExecuteTurn();
-            Console.WriteLine("Execute Turn Result: " + exeResult);
+            if (Interlocked.CompareExchange(ref _executeTurnRunningFlag, 1, 0) == 1)
+            {
+                Console.WriteLine("ExecuteTurn already running; call ignored.");
+                return;
+            }
+
+            try
+            {
+                await Task.Run(() =>
+                {
+                    CreateCommands createCommands = new CreateCommands(_dataService);
+                    var exeResult = createCommands.ExecuteTurn();
+                    Console.WriteLine("Execute Turn Result: " + exeResult);
+                });
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _executeTurnRunningFlag, 0);
+                NextState();
+            }
         }
 
         private Thread? _processCommandsThread = null;
         private readonly object _processCommandsLock = new object();
         private PendingCommands? _pendingCommands = null;
+        // guard flag to prevent re-entrant NextState() calls
+        private int _nextStateRunningFlag = 0;
+        // guard to ensure ExecuteTurn runs only one instance at a time
+        private int _executeTurnRunningFlag = 0;
 
         public void StartProcessCommandsThread()
         {
@@ -62,6 +84,7 @@ namespace MRR.Controller
                 //return ("Wrong State:" + GameState.ToString());
             }
 
+            Console.WriteLine("Starting Process Commands Thread...");
             lock (_processCommandsLock)
             {
                 if (_processCommandsThread == null || !_processCommandsThread.IsAlive)
@@ -108,8 +131,11 @@ namespace MRR.Controller
             }
 
             _dataService.ExecuteSQL("Update CurrentGameData set iValue = 0 where iKey = 10;");  // set state to 0
+            _dataService.ExecuteSQL("Update CurrentGameData set iValue = 0 where iKey = 2;");  // set Turn
+            _dataService.ExecuteSQL("Update CurrentGameData set iValue = 0 where iKey = 3;");  // set Phase
 
-            NextState();
+
+            //NextState();
 
             BoardElementCollection g_BoardElements = _dataService.BoardLoadFromDB(_dataService.BoardID);
 
@@ -159,134 +185,99 @@ namespace MRR.Controller
             //SendGameMessage(2,"Start for " + robotCount.ToString() + " robots");
         }
 
-
         public string NextState()
         {
-            int newstate;
-            do
+            // Ensure only one thread can run NextState at a time
+            if (Interlocked.CompareExchange(ref _nextStateRunningFlag, 1, 0) == 1)
             {
-//                GameState = newstate;
-                newstate = GameState;
+                Console.WriteLine("NextState() already running; call ignored.");
+                return "State:" + GameState.ToString();
+            }
 
-                Console.WriteLine("Current State:" + GameState.ToString());
-
-                switch (GameState)
+            try
+            {
+                int newstate;
+                do
                 {
-                    case 0: // start game
-            			//call procGameNew();
-                        //startnewgame
-                        StartGame();
-                        SetGameState(2);
-                        break;
-                    case 2: //			#Next Turn
-                        _dataService.ExecuteSQL("call procResetPlayers();");
-                        _dataService.ExecuteSQL("call procMoveCardsShuffleAndDeal();");
-                        _dataService.ExecuteSQL("update CurrentGameData set iValue=iValue+1 where iKey=2;"); // next turn
-                        //call procResetPlayers();
-                        //#call procUpdateShutDown();
-                        //call procMoveCardsShuffleAndDeal();
-                        //set cState = 3; #verify position
-                        //update CurrentGameData set iValue=iValue+1 where iKey=2; # next turn
-                        SetGameState(3);
-                        break;
+                    newstate = GameState;
 
-                    case 3: // Verify Position
-                        //select count(*) into cResult from Robots where PositionValid=0;
-                        //if cResult = 0 then 
-                        //    set cState = 4;
-                        //end if;
-                        SetGameState(4);
-                        break;
-                    case 4: //# still programming
-                        //Select Count(*) into cResult from Robots where (Status <> 4 and Status < 9) ; # not programmed & still active
-                        //if cResult = 0 then
-                        //    set cState = 5;
-                        //end if;
-                        int playersProgramming = _dataService.GetIntFromDB("Select Count(*) from  Robots where (Status <> 4 and Status < 9)");
-                        if (playersProgramming==0)
-                        {
-                            SetGameState(5);
-                        }
-                        break;
-                    case 5: //ready to execute turn
-                        //Update Robots set `Status` = 13; // don't allow other programming changes
-                        //call procCurrentPosSave();
-                        _dataService.ExecuteSQL("Update Robots set `Status` = 13;"); // don't allow player changes to programs
-                        SetGameState(6);
-                        break;
-                    case 6: // execute turn
-                        //ExecuteTurn().Wait;
-                        //Console.WriteLine("Executing turn...");
-                        Task.Run(async () => await ExecuteTurn());
-                        //Task.Delay(10);
-                        //Console.WriteLine("Executing turn Done");
-                        //ExecuteTurn();
-                        break;
-                    case 7: // executing turn
-                        SetGameState(8);
-                        break;
-                    case 8: //#running phase  
-                        StartProcessCommandsThread();
-                        // set to 9 when done running
-                        break;
-                    case 9:// #continue (prompt)
-                        SetGameState(8);
-                        break;
-                    case 10: // remove robot
-                        // prompt
-                        SetGameState(8);
-                        break;
-                    case 11: // game winner
-                        // prompt
-                        SetGameState(8);
-                        break;
-                    case 12: // End of game
-                        // prompt
-                        SetGameState(2);
-                        break;
-                    case 13: // Exit game (disconnect all robots)
-                        // prompt
-                        //# remove all connect commands from Command List
-                        //Delete from CommandList where CommandTypeID = 70;
-                        //#Exit game
-                        SetGameState(0);
-                        break;
-                    case 14: // Reset board
-                        // prompt
-                        //#reset board (move robots)
-                        //#set cState = 0;
-                        SetGameState(0);
-                        break;
-                    case 15: // Create program
-                        // prompt
-                        //#Create programs
-                        SetGameState(4);
-                        break;
-                    case 16: // Reload Position
-                        // prompt
-                        //#restore robot positions from previous turn
-                        //# restore saved cards from previous turn
-                        //call procCurrentPosLoad();
-                        SetGameState(3);
-                        break;
-                    
-                    default:
-                        Console.WriteLine("NextStateError: Current State=" + GameState);
-                        SetGameState(7);
-                        break;
-                }
+                    Console.WriteLine("Current State:" + GameState.ToString());
 
+                    switch (GameState)
+                    {
+                        case 0: // start game
+                            StartGame();
+                            SetGameState(2);
+                            break;
+                        case 2: // Next Turn
+                            _dataService.ExecuteSQL("call procResetPlayers();");
+                            _dataService.ExecuteSQL("call procMoveCardsShuffleAndDeal();");
+                            _dataService.ExecuteSQL("update CurrentGameData set iValue=iValue+1 where iKey=2;"); // next turn
+                            SetGameState(3);
+                            break;
+                        case 3: // Verify Position
+                            SetGameState(4);
+                            break;
+                        case 4: // still programming
+                            int playersProgramming = _dataService.GetIntFromDB("Select Count(*) from  Robots where (Status <> 4 and Status < 9)");
+                            if (playersProgramming == 0)
+                            {
+                                SetGameState(5);
+                            }
+                            break;
+                        case 5: // ready to execute turn
+                            _dataService.ExecuteSQL("Update Robots set `Status` = 13;"); // don't allow player changes to programs
+                            SetGameState(6);
+                            break;
+                        case 6: // execute turn
+                            Task.Run(async () => await ExecuteTurn());
+                            break;
+                        case 7: // executing turn
+                            SetGameState(8);
+                            break;
+                        case 8: // running phase
+                            StartProcessCommandsThread();
+                            break;
+                        case 9: // continue (prompt)
+                        case 10: // remove robot
+                        case 11: // game winner
+                            SetGameState(8);
+                            break;
+                        case 12: // End of game
+                            SetGameState(2);
+                            break;
+                        case 13: // Exit game (disconnect all robots)
+                        case 14: // Reset board
+                            SetGameState(0);
+                            break;
+                        case 15: // Create program
+                            SetGameState(4);
+                            break;
+                        case 16: // Reload Position
+                            // load current positions
+                            SetGameState(3);
+                            break;
+                        default:
+                            Console.WriteLine("NextStateError: Current State=" + GameState);
+                            SetGameState(7);
+                            break;
+                    }
 
-                //newstate = 
-                _dataService.GetIntFromDB("select funcGetNextGameState(); ");
+                    // update from DB whether state should advance further
+                    //_dataService.GetIntFromDB("select funcGetNextGameState(); ");
 
-                UpdateGameState();
-                //Console.WriteLine("next:" + GameState.ToString());
-                
-            } while (GameState != newstate);
-            //UpdateGameState();
-            return "State:" + GameState.ToString();
+                    UpdateGameState();
+
+                } while (GameState != newstate);
+
+                return "State:" + GameState.ToString();
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _nextStateRunningFlag, 0);
+            }
         }
+
 
         public bool SetGameState(int newstate)
         {
