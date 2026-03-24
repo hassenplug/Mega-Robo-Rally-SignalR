@@ -110,11 +110,12 @@ namespace MRR.Hubs
 
         }
 
-        public async Task NextState()
+        public Task NextState()
         {
             var newstate = _dataService.GetIntFromDB("select funcGetNextGameState(); ");
             Console.WriteLine("next:" + newstate.ToString());
             //return "State:" + newstate.ToString();
+            return Task.CompletedTask;
         }
 
         // Handle robot responses and events

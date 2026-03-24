@@ -82,8 +82,8 @@ app.MapPost("/api/table/{tablename}", async (string tablename, DataService dataS
 app.MapGet("/api/alldata", (DataService dataService, IHubContext<DataHub> hubContext) =>
 {
     var dataout = dataService.GetAllDataJson();
-    hubContext.Clients.All.SendAsync("AllDataUpdate", dataout);
-     
+    _ = hubContext.Clients.All.SendAsync("AllDataUpdate", dataout);
+
     return Results.Content(dataout, "application/json");
 });
 
@@ -117,13 +117,12 @@ app.MapGet("/api/state/{newstate?}/{parameter1?}", async (string? newstate, stri
             break;
         case "getalldata":
             var alldataout = dataService.GetAllDataJson();
-            hubContext.Clients.All.SendAsync("AllDataUpdate", alldataout);
+            await hubContext.Clients.All.SendAsync("AllDataUpdate", alldataout);
 
             return Results.Ok(alldataout);
         case "gametables":
 
             return Results.Content(dataService.GetTableDataAsHTML("CurrentGameData/Robots/CommandList"), "text/html");
-            break;
         case "loadboard":
             gameController.LoadBoard();
             break;
@@ -140,8 +139,8 @@ app.MapGet("/api/state/{newstate?}/{parameter1?}", async (string? newstate, stri
 //    return Results.Ok(dataout);
 //    return Results.Ok(dataout);
     var dataout = dataService.GetAllDataJson();
-    hubContext.Clients.All.SendAsync("AllDataUpdate", dataout);
-     
+    await hubContext.Clients.All.SendAsync("AllDataUpdate", dataout);
+
     return Results.Content(dataout, "application/json");
 });
 
@@ -154,8 +153,8 @@ app.MapGet("/api/robot/{function?}/{parameter1?}", (string? function, string? pa
     switch (function)
     {
         case "test":
-            var robot = new Player().Connect(parameter1);
-            robot.RunTest().Wait();
+            var robot = new Player().Connect(parameter1 ?? "");
+            robot?.RunTest().Wait();
             break;
         case "connect":
             if (parameter1 == "all")

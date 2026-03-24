@@ -73,17 +73,17 @@ namespace MRR
         {
         }
 
-        public Player GetPlayer(int p_PlayerID)
+        public Player? GetPlayer(int p_PlayerID)
         {
             return GetPlayer(pl => pl.ID == p_PlayerID);
         }
 
-        public Player GetPlayer(RobotLocation p_Square)
+        public Player? GetPlayer(RobotLocation p_Square)
         {
             return GetPlayer(ap => ((ap.CurrentPos.X == p_Square.X) && (ap.CurrentPos.Y == p_Square.Y) && (ap.Active)));
         }
 
-        public Player GetPlayer(Func<Player,bool> filter)
+        public Player? GetPlayer(Func<Player,bool> filter)
         {
             return this.FirstOrDefault(filter);
         }
@@ -190,8 +190,8 @@ namespace MRR
         //        public RRGame MainGame { get; set; }
 
         public int ID { get; set; }
-        public string Name { get; set; }
-        public string Operator { get; set; }
+        public string Name { get; set; } = "";
+        public string Operator { get; set; } = "";
 
         public int TotalFlags
         {
@@ -200,17 +200,17 @@ namespace MRR
         }
 
         [XmlIgnore]
-        public RobotLocation NextPos { get; set; }
+        public RobotLocation NextPos { get; set; } = new RobotLocation();
 
         [XmlIgnore]
-        public RobotLocation NextFlag { get; set; }
+        public RobotLocation NextFlag { get; set; } = new RobotLocation();
 
         [XmlIgnore]
         public bool PositionValid { get; set; }
 
-        public RobotLocation ArchivePos { get; set; }
+        public RobotLocation ArchivePos { get; set; } = new RobotLocation();
 
-        public RobotLocation CurrentPos { get; set; }
+        public RobotLocation CurrentPos { get; set; } = new RobotLocation();
 
         public tShutDown ShutDown { get; set; }
 
@@ -352,12 +352,12 @@ namespace MRR
         public CardList CardsPlayed
         {
             //get { return (CardList)(CardsPlayer.Where(gc => gc.PhasePlayed > 0).OrderBy(pc => pc.PhasePlayed)); }
-            get { return new CardList(CardsPlayer.Where(gc => gc.PhasePlayed > 0).OrderBy(pc => pc.PhasePlayed)); }
+            get { return new CardList((CardsPlayer ?? new CardList()).Where(gc => gc.PhasePlayed > 0).OrderBy(pc => pc.PhasePlayed)); }
         }
 
-        private CardList hiddenCardsPlayer;
+        private CardList? hiddenCardsPlayer;
         //[XmlIgnore]
-        public CardList CardsPlayer
+        public CardList? CardsPlayer
         {
             get
             {
@@ -368,9 +368,9 @@ namespace MRR
             set { hiddenCardsPlayer = value; }
         }
 
-        private OptionCardList hiddenOptionCards;
+        private OptionCardList? hiddenOptionCards;
         //[XmlIgnore]
-        public OptionCardList OptionCards
+        public OptionCardList? OptionCards
         {
             get
             {
@@ -378,7 +378,7 @@ namespace MRR
                 //if (MainGame == null) return null;
 
                 //return new OptionCardList(MainGame.OptionCards.Where(gc => gc.Owner == ID));
-                return null ; 
+                return null ;
             }
             set { hiddenOptionCards = value; }
         }
@@ -395,11 +395,11 @@ namespace MRR
 
         public tPlayerStatus PlayerStatus { get; set; }
 
-        public string IPAddress { get; set; }
+        public string? IPAddress { get; set; }
 
-        public Robots.AIMRobot RobotConnection { get; set; }
+        public Robots.AIMRobot? RobotConnection { get; set; }
 
-        public Robots.AIMRobot Connect(string ipAddress = "")
+        public Robots.AIMRobot? Connect(string ipAddress = "")
         {
             if (ipAddress != "")
             {

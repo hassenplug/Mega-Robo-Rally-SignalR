@@ -35,7 +35,7 @@ namespace MRR
             }
         }
 
-        public void ClearFromPlayer(OptionCard removeCard, Player fromPlayer)
+        public void ClearFromPlayer(OptionCard removeCard, Player? fromPlayer)
         {
             //RRGame maingame = fromPlayer.MainGame;
             // need to clear from whole list, not from player list..
@@ -44,10 +44,10 @@ namespace MRR
 
         }
 
-        public OptionCard GetOption(tOptionCardCommandType OptionID, Player usePlayer, int Phase = -1)
+        public OptionCard? GetOption(tOptionCardCommandType OptionID, Player usePlayer, int Phase = -1)
         {
             //OptionCard useCard = this.FirstOrDefault(uc => uc.ID == (int)OptionID);  // return that card
-            OptionCard useCard = this.FirstOrDefault(uc => (uc.ID == (int)OptionID) && (uc.Owner==usePlayer.ID));  // return that card
+            OptionCard? useCard = this.FirstOrDefault(uc => (uc.ID == (int)OptionID) && (uc.Owner==usePlayer.ID));  // return that card
 
             if (useCard == null) return null; // option not available for this player
 
@@ -58,9 +58,9 @@ namespace MRR
             return useCard;
         }
 
-        public OptionCard GetOption(int OptionID)
+        public OptionCard? GetOption(int OptionID)
         {
-            OptionCard useCard = this.FirstOrDefault(uc => uc.ID == OptionID);
+            OptionCard? useCard = this.FirstOrDefault(uc => uc.ID == OptionID);
             //OptionCard useCard = this[OptionID];
             return useCard;
         }
@@ -86,9 +86,9 @@ namespace MRR
             }
         }
 
-        public OptionCard GetOptionToDestroy(Player Player)
+        public OptionCard? GetOptionToDestroy(Player Player)
         {
-            OptionCard useCard = this.FirstOrDefault(uc => uc.Owner == Player.ID && uc.DestroyWhenDamaged);
+            OptionCard? useCard = this.FirstOrDefault(uc => uc.Owner == Player.ID && uc.DestroyWhenDamaged);
             //OptionCard useCard = this[OptionID];
             return useCard;
         }
@@ -327,10 +327,10 @@ Kind:Device, Launcher
 
         public tOptionCardCommandType CommandType { get { return (tOptionCardCommandType)ID; } }
 
-        public string Name { get; set; }
+        public string Name { get; set; } = "";
 
-        public string Text { get; set; }
-        public string SRR_Text { get; set; }
+        public string Text { get; set; } = "";
+        public string SRR_Text { get; set; } = "";
 
         public tOptionSource Source { get; set; } // this is not really used.  It's where the option came from
         public tOptionType Type { get; set; }

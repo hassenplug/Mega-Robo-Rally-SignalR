@@ -10,10 +10,9 @@ public class AIMRobot // : IAsyncDisposable
     private readonly string ipAddress;
     private ClientWebSocket? wsCmd;
     private ClientWebSocket? wsStatus;
-    private ClientWebSocket? wsImage;
     private bool isConnected;
     public bool isMoving;
-    private string robotColor { get; set; }
+    private string robotColor { get; set; } = "";
 
     public AIMRobot(string ipAddress = "192.168.1.150")
     {
@@ -38,7 +37,7 @@ public class AIMRobot // : IAsyncDisposable
             await SendCommandAsync(new { cmd_id = "program_init" });
 
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             isConnected = false;
             //throw new Exception($"Failed to connect to AIM robot: {ex.Message}", ex);
@@ -115,13 +114,6 @@ public class AIMRobot // : IAsyncDisposable
             if (wsStatus.State == WebSocketState.Open)
                 await wsStatus.CloseAsync(WebSocketCloseStatus.NormalClosure, "Disposing", CancellationToken.None);
             wsStatus.Dispose();
-        }
-
-        if (wsImage != null)
-        {
-            if (wsImage.State == WebSocketState.Open)
-                await wsImage.CloseAsync(WebSocketCloseStatus.NormalClosure, "Disposing", CancellationToken.None);
-            wsImage.Dispose();
         }
     }
 

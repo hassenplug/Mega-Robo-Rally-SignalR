@@ -317,7 +317,7 @@ namespace MRR.Controller
         public bool ConnectToRobot(int playerID)
         {
             Player? thisplayer = AllPlayers.GetPlayer(playerID);
-            thisplayer.Connect();
+            thisplayer?.Connect();
             return true;
         }
 

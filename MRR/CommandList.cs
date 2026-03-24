@@ -44,14 +44,14 @@ namespace MRR
             return newCommand;
         }
 
-        public CommandItem AddCommand(Player p_Player, SquareAction p_Action, int p_Value = 0, int p_ValueB = 0)
+        public CommandItem AddCommand(Player? p_Player, SquareAction p_Action, int p_Value = 0, int p_ValueB = 0)
         {
             Direction holddir = Direction.None;
             if (p_Player != null) holddir = p_Player.CurrentPos.Direction;
             return AddCommand(p_Player, p_Value, p_ValueB, holddir, p_Action);
         }
 
-        public CommandItem AddCommand(Player p_Player, OptionCard p_OptionCard, SquareAction p_action = SquareAction.PlayOptionCard)
+        public CommandItem? AddCommand(Player? p_Player, OptionCard? p_OptionCard, SquareAction p_action = SquareAction.PlayOptionCard)
         {
             if (p_OptionCard == null) return null;
             switch (p_action)
@@ -79,7 +79,7 @@ namespace MRR
         /// <param name="p_Direction"></param>
         /// <param name="p_Action"></param>
         /// <returns></returns>
-        public CommandItem AddCommand(Player p_Player, int p_Value, int p_ValueB, Direction p_Direction, SquareAction p_Action)
+        public CommandItem AddCommand(Player? p_Player, int p_Value, int p_ValueB, Direction p_Direction, SquareAction p_Action)
         {
             CommandItem newCommand = new CommandItem(Phase, PhaseStep, p_Player, p_Value, p_ValueB, p_Direction, p_Action);
             this.Add(newCommand);
@@ -101,7 +101,7 @@ namespace MRR
             return newCommand;
         }
 
-        public CommandItem AddCommand(string p_buttonText,Player p_Robot = null)
+        public CommandItem AddCommand(string p_buttonText, Player? p_Robot = null)
         {
             CommandItem newCommand = new CommandItem(Phase, PhaseStep, p_Robot, 0, 0, Direction.None, SquareAction.SetButtonText);
             newCommand.text = p_buttonText;
@@ -164,7 +164,7 @@ namespace MRR
         /// <param name="p_Value"></param>
         /// <param name="p_Direction"></param>
         /// <param name="p_Type"></param>
-        public CommandItem(int p_Phase, int p_PhaseStep, Player p_Robot, int p_Value, int p_ValueB, Direction p_Direction, SquareAction p_Type) //, RRGame p_mainGame)
+        public CommandItem(int p_Phase, int p_PhaseStep, Player? p_Robot, int p_Value, int p_ValueB, Direction p_Direction, SquareAction p_Type) //, RRGame p_mainGame)
         {
             Phase = p_Phase;
             PhaseStep = p_PhaseStep;
@@ -227,7 +227,7 @@ namespace MRR
         public int CommandTypeInt { get { return (int)CommandType; } set { } }
         public int Value { get; set; }
         public int ValueB { get; set; }
-        public string text { get; set; }
+        public string text { get; set; } = "";
         public CommandStatus Status { get; set; }
 
         private string GetOptionName()
@@ -439,8 +439,9 @@ namespace MRR
             return true;
         }
 
-        public int CompareTo(object otherCommand)
+        public int CompareTo(object? otherCommand)
         {
+            if (otherCommand == null) return 0;
             CommandItem that = (CommandItem)otherCommand;
             if (this == that) return 0;
             if (this.CommandType != SquareAction.BoardMove) return 0; // move
@@ -463,9 +464,9 @@ namespace MRR
 
         public class ItemSequenceCompare : IEqualityComparer<CommandItem>
         {
-            public bool Equals(CommandItem First, CommandItem Second)
+            public bool Equals(CommandItem? First, CommandItem? Second)
             {
-
+                if (First == null || Second == null) return false;
                 if (First.CommandType != SquareAction.BoardMove) return false;
                 if (First.CommandSequence != Second.CommandSequence) return false;
                 if (First.CommandDirection == Second.CommandDirection) return false;

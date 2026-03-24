@@ -30,7 +30,7 @@ namespace MRR
     public class CreateCommands 
     {
 
-        private readonly DataService _dataService;
+        private DataService _dataService = null!;
 
         #region Game Parameters & Configuration
 
@@ -87,9 +87,11 @@ namespace MRR
 
         #region Process Move
 
-        public void ProcessMove(MoveCard p_movecard)  //MoveCard.tCardType p_card, int p_player )
+        public void ProcessMove(MoveCard? p_movecard)  //MoveCard.tCardType p_card, int p_player )
         {
-            Player thisplayer = AllPlayers.GetPlayer(p_movecard.Owner);
+            if (p_movecard == null) return;
+            Player? thisplayer = AllPlayers.GetPlayer(p_movecard.Owner);
+            if (thisplayer == null) return;
 
             ListOfCommands.PhaseStep += 10;
             ListOfCommands.AddCommand(thisplayer, SquareAction.Card, p_movecard.ID);
@@ -148,8 +150,8 @@ namespace MRR
                             break;
                     }
 
-                    BoardElement l_CurrentSquare = g_BoardElements.GetSquare(thisplayer.CurrentPos.X, thisplayer.CurrentPos.Y);
-                    if (l_CurrentSquare.ActionList.Count(al => al.SquareAction == SquareAction.Water) > 0) // this square has water...
+                    BoardElement? l_CurrentSquare = g_BoardElements.GetSquare(thisplayer.CurrentPos.X, thisplayer.CurrentPos.Y);
+                    if (l_CurrentSquare?.ActionList.Count(al => al.SquareAction == SquareAction.Water) > 0) // this square has water...
                     {
                         l_MoveDistance -= Math.Sign(l_MoveDistance); // move one closer to 0
                         ListOfCommands.AddCommand(thisplayer, SquareAction.Water);
@@ -197,7 +199,7 @@ namespace MRR
             int PlayerX = thisplayer.CurrentPos.X;
             int PlayerY = thisplayer.CurrentPos.Y;
 
-            BoardElement l_CurrentSquare = g_BoardElements.GetSquare(PlayerX, PlayerY);
+            BoardElement? l_CurrentSquare = g_BoardElements.GetSquare(PlayerX, PlayerY);
 
             // reverse direction to check for walls if moving backwards
             Direction l_ActualMoveDirection = (p_Distance > 0 ? p_Direction : RotationFunctions.Rotate(2, p_Direction));
@@ -206,7 +208,7 @@ namespace MRR
 
             int l_MoveDistance = Math.Sign(p_Distance); // could be +1 or -1 depending on forward/backward
 
-            if (l_CurrentSquare.ActionList.Count(al => ((al.SquareAction == SquareAction.BlockDirection) && (al.Parameter == l_CheckDirection))) > 0)
+            if (l_CurrentSquare?.ActionList.Count(al => ((al.SquareAction == SquareAction.BlockDirection) && (al.Parameter == l_CheckDirection))) > 0)
             {
                 // path blocked by a wall
                 ListOfCommands.AddCommand(thisplayer, SquareAction.BlockDirection);
@@ -217,7 +219,7 @@ namespace MRR
             //RobotLocation l_newsquare = thisplayer.CalcNewLocation(l_MoveDistance, p_Direction);
             RobotLocation l_newsquare = thisplayer.CurrentPos.CalcNewLocation(l_MoveDistance, p_Direction);
             // actions for new square
-            BoardActionsCollection l_TargetActions = g_BoardElements.GetSquare(l_newsquare.X, l_newsquare.Y).ActionList;
+            BoardActionsCollection l_TargetActions = g_BoardElements.GetSquare(l_newsquare.X, l_newsquare.Y)?.ActionList ?? new BoardActionsCollection();
 
             if (l_TargetActions.Count(al => ((al.SquareAction == SquareAction.BlockDirection) && (al.Parameter == (int)l_ActualMoveDirection))) > 0)
             {
@@ -228,13 +230,13 @@ namespace MRR
 
 
             //   check for robot on target square
-            Player l_PushPlayer = AllPlayers.GetPlayer(l_newsquare);
+            Player? l_PushPlayer = AllPlayers.GetPlayer(l_newsquare);
             if (l_PushPlayer != null)
             {
                 ListOfCommands.AddCommand(l_PushPlayer, SquareAction.RobotPush, thisplayer.ID);
                 AddDeathPoints(thisplayer, 1, l_PushPlayer);
 
-                OptionCard ramming = OptionCards.GetOption(tOptionCardCommandType.RammingGear, thisplayer);
+                OptionCard? ramming = OptionCards.GetOption(tOptionCardCommandType.RammingGear, thisplayer);
                 if (ramming != null) // this player has ramming gear
                 {
                     ListOfCommands.AddCommand(thisplayer, ramming);
@@ -354,9 +356,9 @@ namespace MRR
 
             //   check for damage on entering
 
-            BoardActionsCollection l_TargetActions = g_BoardElements.GetSquare(p_NewLocation.X, p_NewLocation.Y).ActionList;
+            BoardActionsCollection l_TargetActions = g_BoardElements.GetSquare(p_NewLocation.X, p_NewLocation.Y)?.ActionList ?? new BoardActionsCollection();
 
-            BoardAction mineAction = l_TargetActions.FirstOrDefault(ta => ta.SquareAction == SquareAction.Mine);
+            BoardAction? mineAction = l_TargetActions.FirstOrDefault(ta => ta.SquareAction == SquareAction.Mine);
             if (mineAction != null)
             {
                 DamageAtSquare(new RobotLocation(0, mineAction.SquareX, mineAction.SquareY, mineAction.Parameter),p_Robot);
@@ -383,7 +385,7 @@ namespace MRR
 
         public void ClearThisSpot(int currentX, int currentY, int changeX, int changeY, Direction changeD)
         {
-            Player blockingPlayer = AllPlayers.FirstOrDefault(wp => wp.CurrentPos.X == currentX && wp.CurrentPos.Y == currentY);
+            Player? blockingPlayer = AllPlayers.FirstOrDefault(wp => wp.CurrentPos.X == currentX && wp.CurrentPos.Y == currentY);
             if (blockingPlayer!= null)
             {
                 if (currentX + changeX < 0)
@@ -483,7 +485,7 @@ namespace MRR
             {
                 foreach(MoveCard thiscard in GameCards)
                 {
-                    thiscard.Priority = -AllPlayers.GetPlayer(thiscard.Owner).Priority;
+                    thiscard.Priority = -(AllPlayers.GetPlayer(thiscard.Owner)?.Priority ?? 0);
                 }
 
             }
@@ -508,7 +510,7 @@ namespace MRR
 
             foreach (Player thisplayer in AllPlayers) // AllPlayers)
             {
-                CommandItem lastcommand = null;
+                CommandItem? lastcommand = null;
                 int lastphase = 0;
                 int laststep = -1;
 
@@ -587,10 +589,10 @@ namespace MRR
             foreach (Player thisplayer in AllPlayers)
             {
                 //thisplayer.FutureCards = AllPlayers.First(wp => wp.ID == thisplayer.ID).TotalCards();
-                Player futureplayer = AllPlayers.GetPlayer(thisplayer.ID);
+                Player? futureplayer = AllPlayers.GetPlayer(thisplayer.ID);
                 //if ((CircuitBreaker.Owner == thisplayer.ID) && (futureplayer.Damage > 2) && (futureplayer.Damage <10))
-                OptionCard CircuitBreaker = OptionCards.GetOption(tOptionCardCommandType.CircuitBreaker, thisplayer);
-                if ((CircuitBreaker != null) && (futureplayer.Damage > 2) && (futureplayer.Damage < 10))
+                OptionCard? CircuitBreaker = OptionCards.GetOption(tOptionCardCommandType.CircuitBreaker, thisplayer);
+                if ((CircuitBreaker != null) && (futureplayer?.Damage > 2) && (futureplayer?.Damage < 10))
 
                 {
                     ListOfCommands.AddCommand(thisplayer, CircuitBreaker);
@@ -619,11 +621,11 @@ namespace MRR
                 {
                     if (turncount > 5)
                     {
-                        ListOfCommands.AddCommand(null, SquareAction.SetGameState, 13); // shut down game (don't just end)
+                        ListOfCommands.AddCommand((Player?)null, SquareAction.SetGameState, 13); // shut down game (don't just end)
                     }
                     else
                     {
-                        ListOfCommands.AddCommand(null, SquareAction.EndOfGame);
+                        ListOfCommands.AddCommand((Player?)null, SquareAction.EndOfGame);
                     }
                 }
             }
@@ -724,7 +726,7 @@ namespace MRR
                 if (renumberList)
                 {
                     // renumber expressList
-                    expressList.Select(el => el.ExpressSequence = RunningCommand).ToList();
+                    expressList?.Select(el => el.ExpressSequence = RunningCommand).ToList();
                 }
                 else
                 {
@@ -848,7 +850,7 @@ namespace MRR
         }
 
 
-        public int TurnRobot(Player p_thisplayer, CommandItem p_OnMove, tCommandSequence p_Sequence)
+        public int TurnRobot(Player p_thisplayer, CommandItem? p_OnMove, tCommandSequence p_Sequence)
         {
             // return number of commands added
 
@@ -934,7 +936,7 @@ namespace MRR
             
             ListOfCommands.AddCommand("Run Phase " + p_PhaseNumber.ToString(),firstplayer);  // set button text & wait for click
             //ListOfCommands.AddCommand(3,p_PhaseNumber);
-            ListOfCommands.AddCommand(null, SquareAction.PhaseStart, p_PhaseNumber);
+            ListOfCommands.AddCommand((Player?)null, SquareAction.PhaseStart, p_PhaseNumber);
             //ListOfCommands.AddCommand(10,7); // set game state to waiting for input
 
 
@@ -969,10 +971,11 @@ namespace MRR
             }*/
 
             foreach (Player thisplayer in AllPlayers.Where(ap => (ap.Active &&
-                g_BoardElements.GetSquare(ap.CurrentPos.X, ap.CurrentPos.Y).ActionList.Any(al=>al.SquareAction == SquareAction.Randomizer))))
+                g_BoardElements.GetSquare(ap.CurrentPos.X, ap.CurrentPos.Y)?.ActionList.Any(al=>al.SquareAction == SquareAction.Randomizer) == true)))
             {
-                Player currentPlayer = AllPlayers.GetPlayer(thisplayer.ID);
-                MoveCard currentcard = currentPlayer.CardsPlayed.First(pc => pc.PhasePlayed == p_PhaseNumber);
+                Player? currentPlayer = AllPlayers.GetPlayer(thisplayer.ID);
+                if (currentPlayer == null) continue;
+                MoveCard currentcard = currentPlayer.CardsPlayed!.First(pc => pc.PhasePlayed == p_PhaseNumber);
                 if (!currentcard.Random) // already a random card?
                 {
                     // clear previous card
@@ -1001,8 +1004,8 @@ namespace MRR
                     if (EMPOptionList.Count() == 1) // only work if only one is being set off
                     {
                         OptionCard EMP = EMPOptionList.First();
-                        Player EMPlayer = AllPlayers.GetPlayer(EMP.Owner);
-                        if (UseOption(EMPlayer, EMP))
+                        Player? EMPlayer = AllPlayers.GetPlayer(EMP.Owner);
+                        if (EMPlayer != null && UseOption(EMPlayer, EMP))
                         {
                             // clear cards and shut down all players
                             var AllOtherCards = GameCards.Where(mc => mc.Owner != EMPlayer.ID); // this will clear flywheel cards that are in memory
@@ -1030,8 +1033,8 @@ namespace MRR
                     while (OptionCards.Where(oc => oc.ID == (int)tOptionCardCommandType.DamageEraser && oc.PhasePlayed > 0).Any())
                     {
                         OptionCard Eraser = OptionCards.First(oc => oc.ID == (int)tOptionCardCommandType.DamageEraser && oc.PhasePlayed > 0);
-                        Player eraseDamagePlayer = AllPlayers.GetPlayer(Eraser.Owner); ;
-                        if (UseOption(eraseDamagePlayer, Eraser))
+                        Player? eraseDamagePlayer = AllPlayers.GetPlayer(Eraser.Owner);
+                        if (eraseDamagePlayer != null && UseOption(eraseDamagePlayer, Eraser))
                         {
                             // erase damage
                             AddDamage(eraseDamagePlayer, -eraseDamagePlayer.Damage);
@@ -1074,10 +1077,10 @@ namespace MRR
 
                 foreach (OptionCard currentCard in LocalOptionList)
                 {
-                    Player currentPlayer = AllPlayers.GetPlayer(currentCard.Owner);
-                    if (currentPlayer.IsRunning)
+                    Player? currentPlayer = AllPlayers.GetPlayer(currentCard.Owner);
+                    if (currentPlayer != null && currentPlayer.IsRunning)
                     {
-                        BoardElement currentBoardSquare = g_BoardElements.GetSquare(currentPlayer.CurrentPos);
+                        BoardElement? currentBoardSquare = g_BoardElements.GetSquare(currentPlayer.CurrentPos);
                         RobotLocation currentLocation = new RobotLocation(currentPlayer.CurrentPos);
                         if (UseOption(currentPlayer,currentCard))
                         {
@@ -1096,14 +1099,15 @@ namespace MRR
                                 case tOptionCardCommandType.ScramblerBomb:
 
                                     currentCard.PhasePlayed = 1;
-                                    currentBoardSquare.AddAction(new BoardAction(currentCard));
+                                    currentBoardSquare?.AddAction(new BoardAction(currentCard));
                                     break;
 
                                 case tOptionCardCommandType.BridgeLayer:
-                                    BoardElement FacingSquare = g_BoardElements.GetSquare(currentPlayer.CurrentPos.CalcNewLocation()); // location of square in front of robot
-                                    if (FacingSquare.ActionList.Count(al => al.SquareAction == SquareAction.Archive) == 0) // no Archive on this square
+                                    BoardElement? FacingSquare = g_BoardElements.GetSquare(currentPlayer.CurrentPos.CalcNewLocation()); // location of square in front of robot
+                                    if (FacingSquare?.ActionList.Count(al => al.SquareAction == SquareAction.Archive) == 0) // no Archive on this square
                                     {
-                                        FacingSquare.SetSquare(g_BoardElements.GetSquare(SquareType.Blank));
+                                        BoardElement? blankSquare = g_BoardElements.GetSquare(SquareType.Blank);
+                                        if (blankSquare != null) FacingSquare?.SetSquare(blankSquare);
                                     }
                                     break;
 
@@ -1118,7 +1122,7 @@ namespace MRR
 
             foreach (MoveCard thiscard in GameCards.Where(gc => gc.PhasePlayed == p_PhaseNumber).OrderByDescending(gc => gc.Priority))
             {
-                Player thisplayer = AllPlayers.GetPlayer(thiscard.Owner);
+                Player? thisplayer = AllPlayers.GetPlayer(thiscard.Owner);
                 if (thisplayer != null)
                 {
                     if (thisplayer.IsRunning) // player not dead
@@ -1140,13 +1144,13 @@ namespace MRR
                                 
                             }
                         }
-                        while(newcard.Type==MoveCard.tCardType.Spam)
+                        while(newcard != null && newcard.Type==MoveCard.tCardType.Spam)
                         {
                             ListOfCommands.AddCommand(thisplayer, SquareAction.Card, newcard.ID);
                             int newcardID = (int)_dataService.GetIntFromDB("select funcGetNextCard(" + thiscard.Owner + "," + newcard.ID + ")");
                             //newcard = new MoveCard(thiscard,(MoveCard.tCardType)newcardtype);
-                            newcard = GameCards.FirstOrDefault(gc=>gc.ID == newcardID && gc.Owner == thiscard.Owner);
-                            //Console.WriteLine("Got new card for " + thisplayer.Name + "="+newcard.ID + ":"+newcardID.ToString());
+                            newcard = GameCards.FirstOrDefault(gc=>gc.ID == newcardID && gc.Owner == thiscard.Owner)!;
+                            //Console.WriteLine("Got new card for " + thisplayer?.Name + "="+newcard?.ID + ":"+newcardID.ToString());
                         }
                         ProcessMove(newcard);
                     }
@@ -1169,7 +1173,7 @@ namespace MRR
             //    (be,ap) => be);
 
             int CurrentAction = 0;
-            ListOfCommands.AddCommand(null, SquareAction.BeginBoardEffects);
+            ListOfCommands.AddCommand((Player?)null, SquareAction.BeginBoardEffects);
 
             while (true)
             {
@@ -1249,7 +1253,7 @@ namespace MRR
                     foreach (Player thisplayer in AllPlayers.Where(wp => wp.IsRunning))
                     {
                         liveplayers.Add(thisplayer);
-                        OptionCard RearLaser = OptionCards.GetOption(tOptionCardCommandType.RearLaser, thisplayer);
+                        OptionCard? RearLaser = OptionCards.GetOption(tOptionCardCommandType.RearLaser, thisplayer);
                         if (RearLaser != null) // add another player for rear laser
                         {
                             Player rearPlayer = new Player(thisplayer);
@@ -1262,9 +1266,9 @@ namespace MRR
                     foreach (Player thisplayer in liveplayers) // robots only shoot if they are running
                     {
                         int RemainingPower = 1;
-                        OptionCard RearLaser = OptionCards.GetOption(tOptionCardCommandType.RearLaser, thisplayer);
-                        if (thisplayer.CurrentPos.Direction == AllPlayers.GetPlayer(thisplayer.ID).CurrentPos.Direction) RearLaser = null;
-                        OptionCard HighPowerLaser = OptionCards.GetOption(tOptionCardCommandType.HighPowerLaser, thisplayer);
+                        OptionCard? RearLaser = OptionCards.GetOption(tOptionCardCommandType.RearLaser, thisplayer);
+                        if (thisplayer.CurrentPos.Direction == AllPlayers.GetPlayer(thisplayer.ID)?.CurrentPos.Direction) RearLaser = null;
+                        OptionCard? HighPowerLaser = OptionCards.GetOption(tOptionCardCommandType.HighPowerLaser, thisplayer);
                         if (HighPowerLaser != null)
                         {
                             // increase damage
@@ -1272,7 +1276,7 @@ namespace MRR
                             //ListOfCommands.AddCommand(thisplayer, HighPowerLaser);
                         }
                         Direction canndir = thisplayer.CurrentPos.Direction;
-                        OptionCard Turret = OptionCards.GetOption(tOptionCardCommandType.Turret, thisplayer);
+                        OptionCard? Turret = OptionCards.GetOption(tOptionCardCommandType.Turret, thisplayer);
                         if (Turret != null)
                         {
                             if (Turret.OptionDirection != Direction.Up ) // if turret is not facing up, use it.  Otherwise, ignore it.
@@ -1295,7 +1299,7 @@ namespace MRR
                         while ((CheckX > 0)  && (CheckY > 0) && (CheckX < g_BoardElements.BoardCols-1) && (CheckY < g_BoardElements.BoardRows-1))
                         {
                             /// check wall in same square
-                            if (g_BoardElements.GetSquare(CheckX, CheckY).ActionList.Count(al => ((al.SquareAction == SquareAction.BlockDirection) && (al.Parameter == (int)canndir2))) > 0)
+                            if (g_BoardElements.GetSquare(CheckX, CheckY)?.ActionList.Count(al => ((al.SquareAction == SquareAction.BlockDirection) && (al.Parameter == (int)canndir2))) > 0)
                             {
                                 RemainingPower--;
                                 if (RemainingPower == 0)
@@ -1316,7 +1320,7 @@ namespace MRR
                             //BoardElement currentsquare = g_BoardElements.GetSquare(CheckX, CheckY);
 
                             /// check wall in close edge of next square
-                            if (g_BoardElements.GetSquare(CheckX, CheckY).ActionList.Count(al => ((al.SquareAction == SquareAction.BlockDirection) && (al.Parameter == (int)canndir))) > 0)
+                            if (g_BoardElements.GetSquare(CheckX, CheckY)?.ActionList.Count(al => ((al.SquareAction == SquareAction.BlockDirection) && (al.Parameter == (int)canndir))) > 0)
                             {
                                 RemainingPower--;
                                 if (RemainingPower == 0)
@@ -1330,7 +1334,7 @@ namespace MRR
                             }
 
                             /// check for opponent
-                            Player shootPlayer = AllPlayers.GetPlayer(new RobotLocation(Direction.None, CheckX, CheckY)); //.Where(wp=>!wp.IsDead)
+                            Player? shootPlayer = AllPlayers.GetPlayer(new RobotLocation(Direction.None, CheckX, CheckY)); //.Where(wp=>!wp.IsDead)
                             if (shootPlayer != null)
                             {
                                 if (!shootPlayer.IsDead)
@@ -1352,7 +1356,7 @@ namespace MRR
                                     //    ListOfCommands.AddCommand(thisplayer, DoubleLaser);
                                     //}
 
-                                    OptionCard PowerDownShield = OptionCards.GetOption(tOptionCardCommandType.PowerDownShield, shootPlayer);
+                                    OptionCard? PowerDownShield = OptionCards.GetOption(tOptionCardCommandType.PowerDownShield, shootPlayer);
                                     if (PowerDownShield != null)
                                     {
                                         if (shootPlayer.ShutDown == tShutDown.Currently)
@@ -1365,7 +1369,7 @@ namespace MRR
                                         }
                                     }
 
-                                    OptionCard Shield = OptionCards.GetOption(tOptionCardCommandType.Shield, shootPlayer);
+                                    OptionCard? Shield = OptionCards.GetOption(tOptionCardCommandType.Shield, shootPlayer);
                                     if (Shield != null)
                                     {
                                         if (RotationFunctions.GetOptionDirection(shootPlayer, Shield,true) == canndir)
@@ -1385,7 +1389,7 @@ namespace MRR
                                     }
 
                                     // reflector
-                                    OptionCard reflector = OptionCards.GetOption(tOptionCardCommandType.Reflector, shootPlayer);
+                                    OptionCard? reflector = OptionCards.GetOption(tOptionCardCommandType.Reflector, shootPlayer);
                                     if (reflector != null)
                                     {
                                         if (RotationFunctions.GetOptionDirection(shootPlayer, reflector, true ) == canndir)
@@ -1421,7 +1425,8 @@ namespace MRR
 
                 foreach (BoardAction thisaction in l_CurrentActions)
                 {
-                    Player thisplayer = AllPlayers.GetPlayer(thisaction.RobotID);
+                    Player? thisplayer = AllPlayers.GetPlayer(thisaction.RobotID);
+                    if (thisplayer == null) continue;
                     switch (thisaction.SquareAction)
                     {
                         case SquareAction.Archive:
@@ -1496,7 +1501,7 @@ namespace MRR
 
                             break;
                         case SquareAction.Rotate: // board rotation...
-                            OptionCard optGyroscopicStabilizer = OptionCards.GetOption(tOptionCardCommandType.GyroscopicStabilizer, thisplayer,p_PhaseNumber);
+                            OptionCard? optGyroscopicStabilizer = OptionCards.GetOption(tOptionCardCommandType.GyroscopicStabilizer, thisplayer,p_PhaseNumber);
                             if (optGyroscopicStabilizer != null)
                             {
                                 ListOfCommands.AddCommand(thisplayer, optGyroscopicStabilizer);
@@ -1632,9 +1637,9 @@ namespace MRR
                             if (BM2.Count(bm => bm.RobotID == thisplayer.PlayerID) > 0)
                             {
                                 CommandItem firstmove = BM2.First(bm => bm.RobotID == thisplayer.PlayerID);
-                                Player thisWorkingPlayer = AllPlayers.GetPlayer(thisplayer.PlayerID);
-                                thisWorkingPlayer.SetLocation(firstmove.StartPos);
-                                thisWorkingPlayer.NextPos.SetLocation(thisWorkingPlayer.CurrentPos);
+                                Player? thisWorkingPlayer = AllPlayers.GetPlayer(thisplayer.PlayerID);
+                                thisWorkingPlayer?.SetLocation(firstmove.StartPos);
+                                thisWorkingPlayer?.NextPos.SetLocation(thisWorkingPlayer.CurrentPos);
                             }
                         }
 
@@ -1679,7 +1684,7 @@ namespace MRR
 
                     // find any other matching commands
                     //thisCommand = ListOfCommands.FirstOrDefault(lc => (thisCommand.CompareTo(lc) > 0) && (SecondCommand != lc)); // matching, but direction doesn't matter
-                    thisCommand = ListOfCommands.FirstOrDefault(lc => (lc.CompareTo(thisCommand) > 0) && (SecondCommand != lc)); // matching, but direction doesn't matter
+                    thisCommand = ListOfCommands.FirstOrDefault(lc => (lc.CompareTo(thisCommand) > 0) && (SecondCommand != lc))!; // matching, but direction doesn't matter
                     //thisCommand = ListOfCommands.FirstOrDefault(lc => (lc.CompareTo(thisCommand) > 0) ); // matching, but direction doesn't matter
 
                 } while (thisCommand != null);
@@ -1700,7 +1705,7 @@ namespace MRR
 
         #region Helper Functions
         
-        public bool UseOption(Player currentPlayer, OptionCard currentCard)
+        public bool UseOption(Player? currentPlayer, OptionCard currentCard)
         {
             if (currentCard.Use())
             {
@@ -1721,7 +1726,7 @@ namespace MRR
             int flagid = p_thisplayer.LastFlag + 1;
             if (nextFlagID != 0) flagid = nextFlagID;
 
-            BoardElement nextflag = g_BoardElements.GetFlagSquare(flagid);
+            BoardElement? nextflag = g_BoardElements.GetFlagSquare(flagid);
             if (nextflag != null)
             {
                 //p_thisplayer.NextFlag.SetLocation(new RobotLocation(nextflag));
@@ -1729,7 +1734,7 @@ namespace MRR
             }
             else
             {
-                nextflag = g_BoardElements.GetFlagSquare( 1);
+                nextflag = g_BoardElements.GetFlagSquare(1);
                 if (nextflag != null)
                 {
 
@@ -1741,7 +1746,7 @@ namespace MRR
         }
 
 
-        public bool AddDeathPoints(Player p_thisplayer, int AddCount, Player p_DamagedPlayer = null)
+        public bool AddDeathPoints(Player p_thisplayer, int AddCount, Player? p_DamagedPlayer = null)
         {
             // if (p_DamagedPlayer != null)
             // {
@@ -1771,7 +1776,7 @@ namespace MRR
             return false;
         }
 
-        public bool AddDamage(Player p_thisrobot, int p_Damage, Player p_DamagingRobot = null)
+        public bool AddDamage(Player p_thisrobot, int p_Damage, Player? p_DamagingRobot = null)
         {
             /*
             if (p_DamagingRobot != null)
@@ -1781,7 +1786,7 @@ namespace MRR
 
             if (p_Damage > 0)
             {
-                OptionCard DestroyOption = OptionCards.GetOptionToDestroy(p_thisrobot);
+                OptionCard? DestroyOption = OptionCards.GetOptionToDestroy(p_thisrobot);
                 if (DestroyOption != null)
                 {
                     OptionCards.ClearFromPlayer(DestroyOption, p_thisrobot);
@@ -1800,7 +1805,7 @@ namespace MRR
                 }
                 
                 // check if any options prevent this damage
-                OptionCard Ablative = OptionCards.GetOption(tOptionCardCommandType.AblativePaint, p_thisrobot, ListOfCommands.Phase);
+                OptionCard? Ablative = OptionCards.GetOption(tOptionCardCommandType.AblativePaint, p_thisrobot, ListOfCommands.Phase);
                 if (Ablative != null) // active for this player
                 {
                     if(UseOption(p_thisrobot, Ablative))
@@ -1840,7 +1845,7 @@ namespace MRR
                 AddDeathPoints(p_thisrobot, -10);
                 if (p_thisrobot.DamagedBy > 0)
                 {
-                    AddDeathPoints(AllPlayers.GetPlayer(p_thisrobot.DamagedBy),10);
+                    AddDeathPoints(AllPlayers.GetPlayer(p_thisrobot.DamagedBy)!, 10);
                 }
 
                 // if died by pushing, credit others in DM game.
@@ -1855,7 +1860,7 @@ namespace MRR
 
 
                     // here, pushedPlayer was pushed by the robot listed in the ID/value
-                    CommandItem pushCommand = ListOfCommands.FirstOrDefault(lc => lc.RobotID == pushedPlayer && lc.CommandType == SquareAction.RobotPush && lc.Phase <= pushedPhase);
+                    CommandItem? pushCommand = ListOfCommands.FirstOrDefault(lc => lc.RobotID == pushedPlayer && lc.CommandType == SquareAction.RobotPush && lc.Phase <= pushedPhase);
                     if (pushCommand == null) break;
                     pushedPlayer = pushCommand.Value;
                     pushedPhase = pushCommand.Phase;  // must have happened before or during the same phase
@@ -1868,7 +1873,7 @@ namespace MRR
                 if (pushedPlayer != p_thisrobot.ID)
                 {
                     
-                    AddDeathPoints(AllPlayers.GetPlayer(pushedPlayer), 10); // pushing caused this player to die
+                    AddDeathPoints(AllPlayers.GetPlayer(pushedPlayer)!, 10); // pushing caused this player to die
                 }
 
 /*
@@ -1931,7 +1936,7 @@ namespace MRR
 
 
             // check to make sure this square is not already on the list
-            RobotLocation MatchingSquare = DamageSquareList.FirstOrDefault(dsl => dsl.Location == DamageSquare.Location);
+            RobotLocation? MatchingSquare = DamageSquareList.FirstOrDefault(dsl => dsl.Location == DamageSquare.Location);
             //if (!(MatchingSquare.Equals(null))) // already on list.  Is this better?
             if (MatchingSquare != null) // already on list.  Is this better?
             //if (DamageSquareList.Count(dsl => dsl == DamageSquare) > 0)

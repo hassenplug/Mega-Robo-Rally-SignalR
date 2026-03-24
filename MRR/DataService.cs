@@ -465,7 +465,7 @@ namespace MRR.Services
                     {
                         ID = (int)row["RobotID"],
                         PlayerSeat = (int)row["PlayerSeat"],
-                        Name = row["RobotName"].ToString(),
+                        Name = row["RobotName"].ToString() ?? "",
                         Color = row["RobotColor"].ToString() ?? "FFFFFF", // default white
                         IPAddress = row["MACID"].ToString(),
 
@@ -528,7 +528,7 @@ namespace MRR.Services
                         case 16: PhaseCount = value; break;
                         case 20:
                             BoardID = value;
-                            if (row[3] != System.DBNull.Value) BoardFileName = row[3].ToString();
+                            if (row[3] != System.DBNull.Value) BoardFileName = row[3].ToString() ?? "";
                             break;
                         case 22: OptionsOnStartup = value; break;
                         case 27: RulesVersion = value; break;
@@ -663,7 +663,7 @@ namespace MRR.Services
             if (p_Filename.Contains(".jpg")) p_Filename = p_Filename.Replace(".jpg", ".srx");
             if (p_Filename.Contains(".srx"))
             {
-                g_BoardElements = (BoardElementCollection)LoadFile(typeof(BoardElementCollection), p_Filename);
+                g_BoardElements = LoadFile(typeof(BoardElementCollection), p_Filename) as BoardElementCollection ?? new BoardElementCollection();
             }
 
             if (g_BoardElements != null)
@@ -678,7 +678,7 @@ namespace MRR.Services
             }
         }
 
-        public Object LoadFile(Type FileType, string FileName)
+        public Object? LoadFile(Type FileType, string FileName)
         {
             if (!File.Exists(FileName))
             {
@@ -688,7 +688,7 @@ namespace MRR.Services
             DateTime starttime = DateTime.Now;
             XmlSerializer serialPlay = new XmlSerializer(FileType);
             System.IO.StreamReader csvfile = new System.IO.StreamReader(FileName);
-            Object localfile = serialPlay.Deserialize(csvfile);
+            Object? localfile = serialPlay.Deserialize(csvfile);
             csvfile.Close();
             //Console.WriteLine("Load " + FileType.ToString() + " ET:" + (DateTime.Now - starttime).ToString());
 
