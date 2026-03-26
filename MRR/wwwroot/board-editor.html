@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Board Editor - Mega Robo Rally</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; }
+
+        body {
+            background: #222;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* ── Top bar ── */
+        #topbar {
+            background: #1a1a1a;
+            border-bottom: 2px solid #444;
+            padding: 6px 10px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+        #topbar h2 {
+            margin: 0;
+            font-size: 16px;
+            color: #ffcc00;
+            white-space: nowrap;
+        }
+        #topbar select, #topbar input[type="text"], #topbar input[type="number"] {
+            background: #333;
+            color: #fff;
+            border: 1px solid #555;
+            padding: 3px 6px;
+            border-radius: 3px;
+            font-size: 13px;
+        }
+        #topbar input[type="number"] { width: 56px; }
+        #topbar label { font-size: 13px; color: #ccc; }
+        .btn {
+            background: #444;
+            color: #fff;
+            border: 1px solid #666;
+            padding: 4px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .btn:hover { background: #555; }
+        .btn-primary { background: #2a6; border-color: #3b7; }
+        .btn-primary:hover { background: #3b7; }
+        .btn-warn { background: #a62; border-color: #c74; }
+        .btn-warn:hover { background: #c74; }
+        #statusMsg {
+            font-size: 12px;
+            padding: 2px 8px;
+            border-radius: 3px;
+            background: #333;
+            color: #aaa;
+            min-width: 120px;
+        }
+        #statusMsg.dirty { background: #553; color: #ffcc00; }
+        #statusMsg.saved { background: #253; color: #4f8; }
+        #statusMsg.error { background: #522; color: #f88; }
+
+        /* ── Main layout ── */
+        #main {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* ── Palette ── */
+        #palette {
+            width: 130px;
+            min-width: 130px;
+            background: #1c1c1c;
+            border-right: 2px solid #444;
+            overflow-y: auto;
+            padding: 4px;
+            flex-shrink: 0;
+        }
+        #palette h3 {
+            margin: 4px 0 6px;
+            font-size: 12px;
+            color: #aaa;
+            text-align: center;
+            text-transform: uppercase;
+        }
+        .palette-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 3px;
+            cursor: pointer;
+            border-radius: 3px;
+            border: 2px solid transparent;
+            margin-bottom: 2px;
+        }
+        .palette-item:hover { background: #333; }
+        .palette-item.active { border-color: #ffcc00; background: #333; }
+        .palette-item img {
+            width: 40px;
+            height: 40px;
+            display: block;
+        }
+        .palette-item span {
+            font-size: 9px;
+            color: #bbb;
+            text-align: center;
+            margin-top: 2px;
+            word-break: break-word;
+            line-height: 1.1;
+        }
+
+        /* ── Grid area ── */
+        #gridArea {
+            flex: 1;
+            overflow: auto;
+            background: #282828;
+            padding: 10px;
+        }
+        #boardGrid {
+            display: inline-grid;
+            background: #333;
+            box-shadow: 0 0 20px #000a;
+        }
+        .cell {
+            width: 56px;
+            height: 56px;
+            position: relative;
+            overflow: hidden;
+            cursor: crosshair;
+            border: 1px solid #3a3a3a;
+            background: #444;
+            user-select: none;
+        }
+        .cell img {
+            width: 56px;
+            height: 56px;
+            display: block;
+            pointer-events: none;
+        }
+        .cell.selected {
+            outline: 2px solid #0ff;
+            outline-offset: -2px;
+            z-index: 5;
+        }
+        .cell-label {
+            position: absolute;
+            top: 30%;
+            right: 25%;
+            font-size: 11px;
+            font-weight: bold;
+            color: #fff;
+            pointer-events: none;
+            text-shadow: 0 0 2px #000, 0 0 2px #000;
+            z-index: 3;
+        }
+        .cell-icon {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: bold;
+            color: #000;
+            pointer-events: none;
+            z-index: 3;
+        }
+
+        /* ── Properties panel ── */
+        #props {
+            width: 260px;
+            min-width: 260px;
+            background: #1c1c1c;
+            border-left: 2px solid #444;
+            overflow-y: auto;
+            padding: 8px;
+            flex-shrink: 0;
+        }
+        #props h3 {
+            margin: 0 0 8px;
+            font-size: 13px;
+            color: #aaa;
+            text-transform: uppercase;
+            border-bottom: 1px solid #444;
+            padding-bottom: 4px;
+        }
+        .prop-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 6px;
+            gap: 6px;
+        }
+        .prop-label {
+            font-size: 12px;
+            color: #aaa;
+            min-width: 70px;
+        }
+        .prop-value {
+            font-size: 12px;
+            color: #fff;
+        }
+        .prop-section {
+            margin-top: 10px;
+            padding-top: 6px;
+            border-top: 1px solid #333;
+        }
+        .prop-section h4 {
+            margin: 0 0 6px;
+            font-size: 11px;
+            color: #888;
+            text-transform: uppercase;
+        }
+        .dir-buttons {
+            display: grid;
+            grid-template-columns: repeat(3, 28px);
+            grid-template-rows: repeat(3, 28px);
+            gap: 2px;
+        }
+        .dir-btn {
+            background: #333;
+            border: 1px solid #555;
+            color: #ccc;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+        }
+        .dir-btn:hover:not(.disabled) { background: #444; }
+        .dir-btn.active { background: #0aa; border-color: #0cc; color: #fff; }
+        .dir-btn.disabled { opacity: 0.35; cursor: default; pointer-events: none; }
+        .dir-btn.spacer { visibility: hidden; }
+        .check-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 4px;
+            font-size: 12px;
+        }
+        .check-row input[type="checkbox"] { cursor: pointer; }
+        .radio-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 4px;
+            font-size: 12px;
+        }
+        .radio-row input[type="radio"] { cursor: pointer; }
+        #props input[type="number"] {
+            background: #333;
+            color: #fff;
+            border: 1px solid #555;
+            padding: 3px 5px;
+            border-radius: 3px;
+            width: 60px;
+            font-size: 13px;
+        }
+        .prop-img {
+            width: 48px;
+            height: 48px;
+            border: 1px solid #555;
+            border-radius: 3px;
+        }
+        #btnApplyProps, #btnClearCell {
+            width: 100%;
+            margin-top: 6px;
+        }
+        #btnClearCell { background: #622; border-color: #844; }
+        #btnClearCell:hover { background: #844; }
+        #noSelection {
+            color: #555;
+            font-size: 13px;
+            text-align: center;
+            margin-top: 30px;
+        }
+        .collapse-section { margin-bottom: 4px; }
+        .collapse-header {
+            display: flex; justify-content: space-between; align-items: center;
+            cursor: pointer; padding: 5px 6px; background: #252525;
+            border: 1px solid #444; border-radius: 3px; user-select: none;
+            font-size: 12px; color: #aaa; text-transform: uppercase; font-weight: bold;
+        }
+        .collapse-header:hover { background: #2e2e2e; }
+        .collapse-body { padding: 6px 2px; }
+        .collapse-body.hidden { display: none; }
+        .param-row { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; font-size: 12px; color: #ccc; flex-wrap: wrap; }
+        .param-row label { color: #aaa; font-size: 11px; }
+        .param-row input { background: #333; color: #fff; border: 1px solid #555; padding: 3px 5px; border-radius: 3px; }
+    </style>
+</head>
+<body>
+
+<div id="topbar">
+    <h2>Board Editor</h2>
+    <label>Board:</label>
+    <select id="boardSelect" onchange="onBoardSelectChange()">
+        <option value="">-- select --</option>
+    </select>
+    <span id="statusMsg">Ready</span>
+</div>
+
+<div id="main">
+    <div id="palette">
+        <h3>Palette</h3>
+        <div id="paletteItems"></div>
+    </div>
+    <div id="gridArea">
+        <div id="boardGrid"></div>
+    </div>
+    <div id="props">
+        <div class="collapse-section">
+            <div class="collapse-header" onclick="toggleSection('boardSettings')">
+                <span>Board Settings</span><span id="arrow-boardSettings">▼</span>
+            </div>
+            <div id="boardSettings" class="collapse-body">
+                <div class="param-row"><label>Name</label><input type="text" id="boardName" value="New Board" style="width:100%"></div>
+                <div class="param-row"><label>W</label><input type="number" id="boardW" value="12" min="1" max="40" style="width:52px"> <label>H</label><input type="number" id="boardH" value="12" min="1" max="40" style="width:52px"></div>
+                <div class="param-row"><label>LaserDmg</label><input type="number" id="laserDamage" value="1" min="0" max="10" style="width:52px"> <label>Phases</label><input type="number" id="phaseCount" value="5" min="1" max="5" style="width:52px"></div>
+                <button class="btn" style="width:100%;margin-top:4px" onclick="applySizeChange()">Apply Size</button>
+                <div style="display:flex;gap:4px;margin-top:4px">
+                    <button class="btn" style="flex:1" onclick="newBoard()">New Board</button>
+                    <button class="btn btn-primary" style="flex:1" onclick="saveBoard()">Save Board</button>
+                </div>
+            </div>
+        </div>
+        <div class="collapse-section">
+            <div class="collapse-header" onclick="toggleSection('propsPanel')">
+                <span>Properties</span><span id="arrow-propsPanel">▼</span>
+            </div>
+            <div id="propsPanel" class="collapse-body">
+                <div id="propsContent"><div id="noSelection">Click a cell to select it, or choose a tile from the palette.</div></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ── Collapsible panels ─────────────────────────────────────────────────────
+function toggleSection(id) {
+    const body = document.getElementById(id);
+    const arrow = document.getElementById('arrow-' + id);
+    const hidden = body.classList.toggle('hidden');
+    arrow.textContent = hidden ? '►' : '▼';
+}
+
+// ── Constants ──────────────────────────────────────────────────────────────
+const SA = { Move:12, Rotate:13, Damage:14, Archive:15, Flag:16, Option:17, BlockDirection:18, PlayerStart:19, FireCannon:60 };
+const DIR = { None:0, Up:1, Right:2, Down:3, Left:4 };
+const DIR_NAMES = ['None','Up','Right','Down','Left'];
+
+// ── State ──────────────────────────────────────────────────────────────────
+let squareTypes = [];
+let boards = [];
+let currentBoard = null;
+let grid = [];
+let activeTypeId = null;
+let selectedCell = null;
+let paletteCell = null;
+let isDirty = false;
+let isDragging = false;
+let didDragMove = false;
+
+// ── Phase helpers ──────────────────────────────────────────────────────────
+function phaseToBitmask(phases) { return phases.reduce((m, p) => m | (1 << (p - 1)), 0); }
+function bitmaskToPhases(mask) { return [1,2,3,4,5].filter(p => (mask & (1 << (p-1))) !== 0); }
+
+// ── Rotation helpers ───────────────────────────────────────────────────────
+function rotationToDeg(rotation) {
+    if (rotation === 0) return 0;
+    return ((rotation - 1) % 4) * 90;
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+async function init() {
+    await Promise.all([loadTypes(), loadBoards()]);
+    buildGrid(parseInt(document.getElementById('boardW').value), parseInt(document.getElementById('boardH').value));
+    renderGrid();
+}
+
+async function loadTypes() {
+    try {
+        const res = await fetch('/api/boardeditor/types');
+        if (res.ok) squareTypes = await res.json();
+    } catch(e) { console.error('Failed to load types', e); }
+    buildPalette();
+}
+
+async function loadBoards() {
+    try {
+        const res = await fetch('/api/boardeditor/boards');
+        if (res.ok) {
+            const data = await res.json();
+            boards = data.boards || [];
+        }
+    } catch(e) { console.error('Failed to load boards', e); }
+    populateBoardDropdown();
+}
+
+function buildPalette() {
+    const container = document.getElementById('paletteItems');
+    container.innerHTML = '';
+    for (const t of squareTypes) {
+        const div = document.createElement('div');
+        div.className = 'palette-item';
+        div.dataset.typeId = t.typeId;
+        div.title = t.name + ' (' + t.typeId + ')';
+        div.onclick = () => selectPaletteType(t.typeId, t.defaultRotation);
+
+        const img = document.createElement('img');
+        img.src = `images/Element${t.typeId}.jpg`;
+        img.onerror = () => { img.src = 'images/Element0.jpg'; };
+
+        const span = document.createElement('span');
+        span.textContent = t.name;
+
+        div.appendChild(img);
+        div.appendChild(span);
+        container.appendChild(div);
+    }
+}
+
+function populateBoardDropdown() {
+    const sel = document.getElementById('boardSelect');
+    sel.innerHTML = '<option value="">-- select --</option>';
+    for (const b of boards) {
+        const opt = document.createElement('option');
+        opt.value = b.BoardID;
+        opt.textContent = `${b.BoardID}: ${b.BoardName} (${b.X}x${b.Y})`;
+        sel.appendChild(opt);
+    }
+}
+
+// ── Load board ─────────────────────────────────────────────────────────────
+async function loadBoard(boardId) {
+    try {
+        const res = await fetch(`/api/boardeditor/${boardId}`);
+        if (!res.ok) { showStatus('Failed to load board', 'error'); return; }
+        const data = await res.json();
+        currentBoard = {
+            boardId: data.boardId,
+            boardName: data.boardName,
+            x: data.x,
+            y: data.y,
+            laserDamage: data.laserDamage,
+            phaseCount: data.phaseCount,
+            gameType: data.gameType,
+            rulesVersion: data.rulesVersion
+        };
+        document.getElementById('boardName').value = data.boardName;
+        document.getElementById('boardW').value = data.x;
+        document.getElementById('boardH').value = data.y;
+        document.getElementById('laserDamage').value = data.laserDamage;
+        document.getElementById('phaseCount').value = data.phaseCount;
+
+        buildGrid(data.x, data.y);
+        overlayBoardData(data.items, data.actions);
+        renderGrid();
+        selectedCell = null;
+        paletteCell = null;
+        activeTypeId = null;
+        document.querySelectorAll('.palette-item').forEach(el => el.classList.remove('active'));
+        document.getElementById('boardGrid').style.cursor = 'default';
+        showNoSelection();
+        isDirty = false;
+        showStatus('Loaded', 'saved');
+    } catch(e) {
+        showStatus('Error loading board', 'error');
+        console.error(e);
+    }
+}
+
+function onBoardSelectChange() {
+    const sel = document.getElementById('boardSelect');
+    if (!sel.value) return;
+    if (isDirty && !confirm('You have unsaved changes. Load a different board and lose them?')) {
+        // revert selection
+        sel.value = currentBoard ? currentBoard.boardId : '';
+        return;
+    }
+    loadBoard(parseInt(sel.value));
+}
+
+// ── Grid management ────────────────────────────────────────────────────────
+function buildGrid(w, h) {
+    grid = [];
+    for (let y = 0; y < h; y++) {
+        grid[y] = [];
+        for (let x = 0; x < w; x++) {
+            grid[y][x] = { squareType: 0, rotation: 0, actions: [] };
+        }
+    }
+}
+
+function overlayBoardData(items, actions) {
+    const h = grid.length;
+    const w = h > 0 ? grid[0].length : 0;
+
+    // Group actions by x,y
+    const actMap = {};
+    for (const a of (actions || [])) {
+        const key = `${a.x},${a.y}`;
+        if (!actMap[key]) actMap[key] = [];
+        actMap[key].push({ squareAction: a.squareAction, sequence: a.sequence, phase: a.phase, parameter: a.parameter });
+    }
+
+    for (const item of (items || [])) {
+        if (item.y < h && item.x < w) {
+            const key = `${item.x},${item.y}`;
+            grid[item.y][item.x] = {
+                squareType: item.squareType,
+                rotation: item.rotation,
+                actions: actMap[key] || []
+            };
+        }
+    }
+}
+
+// ── Render ─────────────────────────────────────────────────────────────────
+function renderGrid() {
+    const h = grid.length;
+    const w = h > 0 ? grid[0].length : 0;
+    const container = document.getElementById('boardGrid');
+    container.style.gridTemplateColumns = `repeat(${w}, 56px)`;
+    container.style.gridTemplateRows = `repeat(${h}, 56px)`;
+    container.innerHTML = '';
+
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            const div = document.createElement('div');
+            div.className = 'cell';
+            div.id = `cell-${x}-${y}`;
+            div.title = `(${x}, ${y})`;
+
+            div.addEventListener('mousedown', e => onCellDown(e, x, y));
+            div.addEventListener('mouseenter', () => onCellEnter(x, y));
+            div.addEventListener('mouseup', e => onCellUp(e, x, y));
+
+            fillCell(div, x, y);
+            container.appendChild(div);
+        }
+    }
+
+    // Global mouseup to end drag
+    document.onmouseup = () => { isDragging = false; };
+}
+
+function renderCell(x, y) {
+    const div = document.getElementById(`cell-${x}-${y}`);
+    if (!div) return;
+    fillCell(div, x, y);
+    if (selectedCell && selectedCell.x === x && selectedCell.y === y) {
+        div.classList.add('selected');
+    }
+}
+
+function fillCell(div, x, y) {
+    const cell = grid[y][x];
+    div.innerHTML = '';
+
+    const img = document.createElement('img');
+    img.src = `images/Element${cell.squareType}.jpg`;
+    img.onerror = () => { img.src = 'images/Element0.jpg'; };
+    const deg = rotationToDeg(cell.rotation);
+    img.style.transform = `rotate(${deg}deg)`;
+    div.appendChild(img);
+
+    // Overlay label: flag number, start number
+    for (const act of cell.actions) {
+        if (act.squareAction === SA.Flag) {
+            const lbl = document.createElement('div');
+            lbl.className = 'cell-label';
+            lbl.textContent = 'F' + act.parameter;
+            div.appendChild(lbl);
+        } else if (act.squareAction === SA.PlayerStart) {
+            const lbl = document.createElement('div');
+            lbl.className = 'cell-icon';
+            lbl.textContent = 'S' + act.parameter;
+            lbl.style.transform = `rotate(${deg}deg)`;
+            div.appendChild(lbl);
+        }
+    }
+}
+
+// ── Interaction ────────────────────────────────────────────────────────────
+function onCellDown(e, x, y) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    isDragging = true;
+    didDragMove = false;
+
+    if (activeTypeId !== null) {
+        const cell = grid[y][x];
+        if (cell.squareType !== activeTypeId) {
+            placeSquare(x, y);  // only replace if different type
+        }
+        // same type: will rotate on mouseup
+    }
+}
+
+function onCellEnter(x, y) {
+    if (!isDragging) return;
+    didDragMove = true;
+    if (activeTypeId !== null) {
+        placeSquare(x, y);  // always replace when dragging
+    }
+}
+
+function onCellUp(e, x, y) {
+    if (e.button !== 0) return;
+    const wasDragging = isDragging;
+    isDragging = false;
+
+    if (activeTypeId === null && !didDragMove) {
+        selectCell(x, y);
+    } else if (activeTypeId !== null && !didDragMove) {
+        // Already placed on mousedown; if same type, cycle rotation
+        const cell = grid[y][x];
+        if (cell.squareType === activeTypeId) {
+            const typeInfo = squareTypes.find(t => t.typeId === activeTypeId);
+            if (typeInfo && typeInfo.canRotate) {
+                cycleRotation(x, y);
+            }
+        }
+    }
+}
+
+function selectPaletteType(typeId, defaultRotation) {
+    if (activeTypeId === typeId) {
+        // Deselect
+        activeTypeId = null;
+        paletteCell = null;
+        document.querySelectorAll('.palette-item').forEach(el => el.classList.remove('active'));
+        document.getElementById('boardGrid').style.cursor = 'default';
+        showNoSelection();
+        return;
+    }
+    activeTypeId = typeId;
+    document.querySelectorAll('.palette-item').forEach(el => {
+        el.classList.toggle('active', parseInt(el.dataset.typeId) === typeId);
+    });
+    document.getElementById('boardGrid').style.cursor = 'crosshair';
+
+    // Deselect any selected board cell
+    if (selectedCell) {
+        const prev = document.getElementById(`cell-${selectedCell.x}-${selectedCell.y}`);
+        if (prev) prev.classList.remove('selected');
+        selectedCell = null;
+    }
+
+    const typeInfo = squareTypes.find(t => t.typeId === typeId);
+    if (typeInfo) {
+        paletteCell = {
+            squareType: typeId,
+            rotation: defaultRotation !== undefined ? defaultRotation : typeInfo.defaultRotation,
+            actions: typeInfo.actions.map(a => ({ ...a }))
+        };
+        showPropsForCell(paletteCell, null, null);
+    }
+}
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+        activeTypeId = null;
+        paletteCell = null;
+        document.querySelectorAll('.palette-item').forEach(el => el.classList.remove('active'));
+        document.getElementById('boardGrid').style.cursor = 'default';
+        if (!selectedCell) showNoSelection();
+    }
+});
+
+// ── Place square ───────────────────────────────────────────────────────────
+function placeSquare(x, y) {
+    const typeInfo = squareTypes.find(t => t.typeId === activeTypeId);
+    if (!typeInfo) return;
+
+    const cell = grid[y][x];
+    cell.squareType = activeTypeId;
+    const source = paletteCell || typeInfo;
+    cell.rotation = source.rotation !== undefined ? source.rotation : typeInfo.defaultRotation;
+
+    // Copy actions from paletteCell template or typeInfo defaults, auto-setting flag/start params
+    cell.actions = (paletteCell ? paletteCell.actions : typeInfo.actions).map(a => {
+        const copy = { ...a };
+        if (a.squareAction === SA.Flag) copy.parameter = getNextFlagNumber();
+        if (a.squareAction === SA.PlayerStart) copy.parameter = getNextStartNumber();
+        return copy;
+    });
+
+    renderCell(x, y);
+    setDirty();
+}
+
+function cycleRotation(x, y) {
+    const cell = grid[y][x];
+    // Rotation cycles: 1->2->3->4->1
+    if (cell.rotation === 0) cell.rotation = 1;
+    else cell.rotation = (cell.rotation % 4) + 1;
+    renderCell(x, y);
+    setDirty();
+    selectedCell = { x, y };
+    showProps(x, y);
+}
+
+function getNextFlagNumber() {
+    let max = 0;
+    const h = grid.length, w = h > 0 ? grid[0].length : 0;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        for (const a of grid[y][x].actions) {
+            if (a.squareAction === SA.Flag && a.parameter > max) max = a.parameter;
+        }
+    }
+    return max + 1;
+}
+
+function getNextStartNumber() {
+    let max = 0;
+    const h = grid.length, w = h > 0 ? grid[0].length : 0;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        for (const a of grid[y][x].actions) {
+            if (a.squareAction === SA.PlayerStart && a.parameter > max) max = a.parameter;
+        }
+    }
+    return max + 1;
+}
+
+// ── Select and show props ──────────────────────────────────────────────────
+function selectCell(x, y) {
+    // Deselect old
+    if (selectedCell) {
+        const old = document.getElementById(`cell-${selectedCell.x}-${selectedCell.y}`);
+        if (old) old.classList.remove('selected');
+    }
+    selectedCell = { x, y };
+    const div = document.getElementById(`cell-${x}-${y}`);
+    if (div) div.classList.add('selected');
+    showProps(x, y);
+}
+
+function showNoSelection() {
+    document.getElementById('propsContent').innerHTML = '<div id="noSelection">Click a cell to select it, or choose a tile from the palette.</div>';
+}
+
+function showProps(x, y) {
+    showPropsForCell(grid[y][x], x, y);
+}
+
+function showPropsForCell(cell, x, y) {
+    const typeInfo = squareTypes.find(t => t.typeId === cell.squareType) || { name: 'Blank', typeId: 0, canRotate: false };
+    const container = document.getElementById('propsContent');
+
+    const isPaletteMode = (x === null && y === null);
+
+    let html = '';
+
+    // Header
+    html += `<div class="prop-row">
+        <img class="prop-img" src="images/Element${cell.squareType}.jpg" onerror="this.src='images/Element0.jpg'" style="transform:rotate(${rotationToDeg(cell.rotation)}deg)">
+        <div>
+            <div class="prop-value" style="font-weight:bold">${typeInfo.name}</div>
+            <div style="font-size:11px;color:#888">Type ID: ${cell.squareType}</div>
+        </div>
+    </div>`;
+    if (isPaletteMode) {
+        html += `<div class="prop-row"><span class="prop-label">Position:</span><span class="prop-value">Template</span></div>`;
+    } else {
+        html += `<div class="prop-row"><span class="prop-label">Position:</span><span class="prop-value">(${x}, ${y})</span></div>`;
+    }
+
+    // Rotation buttons
+    const canRotate = typeInfo.canRotate !== false;
+    html += `<div class="prop-section"><h4>Rotation</h4>`;
+    html += `<div class="dir-buttons">`;
+    // Row 1: spacer, Up (1), spacer
+    html += `<div class="dir-btn spacer"></div>`;
+    const dis = canRotate ? '' : ' disabled';
+    html += `<div class="dir-btn${cell.rotation===1?' active':''}${dis}" onclick="setRotationOnActive(1)" title="Up">↑</div>`;
+    html += `<div class="dir-btn spacer"></div>`;
+    // Row 2: Left (4), None (0), Right (2)
+    html += `<div class="dir-btn${cell.rotation===4?' active':''}${dis}" onclick="setRotationOnActive(4)" title="Left">←</div>`;
+    html += `<div class="dir-btn${cell.rotation===0?' active':''}" onclick="setRotationOnActive(0)" title="None">·</div>`;
+    html += `<div class="dir-btn${cell.rotation===2?' active':''}${dis}" onclick="setRotationOnActive(2)" title="Right">→</div>`;
+    // Row 3: spacer, Down (3), spacer
+    html += `<div class="dir-btn spacer"></div>`;
+    html += `<div class="dir-btn${cell.rotation===3?' active':''}${dis}" onclick="setRotationOnActive(3)" title="Down">↓</div>`;
+    html += `<div class="dir-btn spacer"></div>`;
+    html += `</div></div>`;
+
+    // Wall section (type 200)
+    if (cell.squareType === 200) {
+        html += `<div class="prop-section"><h4>Blocked Directions</h4>`;
+        for (const [dirName, dirVal] of [['Up',1],['Right',2],['Down',3],['Left',4]]) {
+            const hasBlock = cell.actions.some(a => a.squareAction === SA.BlockDirection && a.parameter === dirVal);
+            html += `<div class="check-row"><input type="checkbox" id="wall_${dirVal}" ${hasBlock?'checked':''}><label for="wall_${dirVal}">${dirName} (${dirVal})</label></div>`;
+        }
+        html += `</div>`;
+    }
+
+    // Pusher section (type 50)
+    if (cell.squareType === 50) {
+        const pusherDirAct = cell.actions.find(a => a.squareAction === SA.FireCannon || a.squareAction === SA.BlockDirection);
+        const pusherDir = cell.rotation || 1;
+        const pusherPhaseAct = cell.actions.find(a => a.squareAction === SA.Move);
+        const pusherPhase = pusherPhaseAct ? pusherPhaseAct.phase : 31;
+        const activePhases = bitmaskToPhases(pusherPhase);
+
+        html += `<div class="prop-section"><h4>Pusher Direction</h4>`;
+        for (const [dn, dv] of [['Up',1],['Right',2],['Down',3],['Left',4]]) {
+            html += `<div class="radio-row"><input type="radio" name="pusherDir" id="pdir_${dv}" value="${dv}" ${cell.rotation===dv?'checked':''}><label for="pdir_${dv}">${dn}</label></div>`;
+        }
+        html += `<h4>Active Phases</h4>`;
+        for (let p = 1; p <= 5; p++) {
+            const checked = activePhases.includes(p);
+            html += `<div class="check-row"><input type="checkbox" id="pphase_${p}" ${checked?'checked':''}><label for="pphase_${p}">Phase ${p}</label></div>`;
+        }
+        html += `</div>`;
+    }
+
+    // Cannon section (type 60)
+    if (cell.squareType === 60) {
+        html += `<div class="prop-section"><h4>Cannon Direction</h4>`;
+        for (const [dn, dv] of [['Up',1],['Right',2],['Down',3],['Left',4]]) {
+            html += `<div class="radio-row"><input type="radio" name="cannonDir" id="cdir_${dv}" value="${dv}" ${cell.rotation===dv?'checked':''}><label for="cdir_${dv}">${dn}</label></div>`;
+        }
+        html += `</div>`;
+    }
+
+    // Flag section (type 100)
+    if (cell.squareType === 100) {
+        const flagAct = cell.actions.find(a => a.squareAction === SA.Flag);
+        const flagNum = flagAct ? flagAct.parameter : 1;
+        html += `<div class="prop-section"><h4>Flag Number</h4>`;
+        html += `<div class="prop-row"><label class="prop-label">Flag #:</label><input type="number" id="flagNum" value="${flagNum}" min="1" max="99"></div>`;
+        html += `</div>`;
+    }
+
+    // StartSquare section (type 110)
+    if (cell.squareType === 110) {
+        const startAct = cell.actions.find(a => a.squareAction === SA.PlayerStart);
+        const startNum = startAct ? startAct.parameter : 1;
+        html += `<div class="prop-section"><h4>Start Position</h4>`;
+        html += `<div class="prop-row"><label class="prop-label">Start #:</label><input type="number" id="startNum" value="${startNum}" min="1" max="99"></div>`;
+        html += `</div>`;
+    }
+
+    // Apply / Clear buttons
+    html += `<button class="btn btn-primary" id="btnApplyProps" onclick="applyProps()">Apply</button>`;
+    if (!isPaletteMode) {
+        html += `<button class="btn" id="btnClearCell" onclick="clearCell(${x},${y})">Clear Cell</button>`;
+    }
+
+    container.innerHTML = html;
+}
+
+function setRotationOnActive(rot) {
+    if (selectedCell) {
+        setRotation(selectedCell.x, selectedCell.y, rot);
+    } else if (paletteCell) {
+        const typeInfo = squareTypes.find(t => t.typeId === paletteCell.squareType);
+        if (rot !== 0 && typeInfo && typeInfo.canRotate === false) return;
+        paletteCell.rotation = rot;
+        showPropsForCell(paletteCell, null, null);
+    }
+}
+
+function setRotation(x, y, rot) {
+    const typeInfo = squareTypes.find(t => t.typeId === grid[y][x].squareType);
+    if (rot !== 0 && typeInfo && typeInfo.canRotate === false) return;
+    grid[y][x].rotation = rot;
+    renderCell(x, y);
+    setDirty();
+    showProps(x, y);
+}
+
+function clearCell(x, y) {
+    grid[y][x] = { squareType: 0, rotation: 0, actions: [] };
+    renderCell(x, y);
+    setDirty();
+    showProps(x, y);
+}
+
+function applyPropsToCell(cell) {
+    // Walls
+    if (cell.squareType === 200) {
+        const wallActions = [];
+        for (const dirVal of [1,2,3,4]) {
+            const cb = document.getElementById(`wall_${dirVal}`);
+            if (cb && cb.checked) {
+                wallActions.push({ squareAction: SA.BlockDirection, sequence: 0, phase: 31, parameter: dirVal });
+            }
+        }
+        // Preserve non-wall actions, replace block actions
+        cell.actions = [
+            ...cell.actions.filter(a => a.squareAction !== SA.BlockDirection),
+            ...wallActions
+        ];
+    }
+
+    // Pusher
+    if (cell.squareType === 50) {
+        const dirRadio = document.querySelector('input[name="pusherDir"]:checked');
+        if (dirRadio) cell.rotation = parseInt(dirRadio.value);
+
+        const phases = [];
+        for (let p = 1; p <= 5; p++) {
+            const cb = document.getElementById(`pphase_${p}`);
+            if (cb && cb.checked) phases.push(p);
+        }
+        const phaseMask = phaseToBitmask(phases.length ? phases : [1,2,3,4,5]);
+        // Update Move action phase, or set it
+        const moveAct = cell.actions.find(a => a.squareAction === SA.Move);
+        if (moveAct) moveAct.phase = phaseMask;
+        else cell.actions.push({ squareAction: SA.Move, sequence: 3, phase: phaseMask, parameter: cell.rotation });
+    }
+
+    // Cannon
+    if (cell.squareType === 60) {
+        const dirRadio = document.querySelector('input[name="cannonDir"]:checked');
+        if (dirRadio) cell.rotation = parseInt(dirRadio.value);
+    }
+
+    // Flag
+    if (cell.squareType === 100) {
+        const inp = document.getElementById('flagNum');
+        if (inp) {
+            const flagAct = cell.actions.find(a => a.squareAction === SA.Flag);
+            if (flagAct) flagAct.parameter = parseInt(inp.value);
+        }
+    }
+
+    // StartSquare
+    if (cell.squareType === 110) {
+        const inp = document.getElementById('startNum');
+        if (inp) {
+            const startAct = cell.actions.find(a => a.squareAction === SA.PlayerStart);
+            if (startAct) startAct.parameter = parseInt(inp.value);
+        }
+    }
+}
+
+function applyProps() {
+    if (selectedCell) {
+        const { x, y } = selectedCell;
+        const cell = grid[y][x];
+        applyPropsToCell(cell);
+        renderCell(x, y);
+        setDirty();
+        showProps(x, y);
+    } else if (paletteCell) {
+        applyPropsToCell(paletteCell);
+        showPropsForCell(paletteCell, null, null);
+    }
+}
+
+// ── Size change ────────────────────────────────────────────────────────────
+function applySizeChange() {
+    const newW = parseInt(document.getElementById('boardW').value);
+    const newH = parseInt(document.getElementById('boardH').value);
+    const oldH = grid.length;
+    const oldW = oldH > 0 ? grid[0].length : 0;
+
+    if ((newW < oldW || newH < oldH)) {
+        if (!confirm(`This will remove cells outside the new bounds (${newW}x${newH}). Continue?`)) return;
+    }
+
+    const newGrid = [];
+    for (let y = 0; y < newH; y++) {
+        newGrid[y] = [];
+        for (let x = 0; x < newW; x++) {
+            if (y < oldH && x < oldW) {
+                newGrid[y][x] = grid[y][x];
+            } else {
+                newGrid[y][x] = { squareType: 0, rotation: 0, actions: [] };
+            }
+        }
+    }
+    grid = newGrid;
+    if (selectedCell && (selectedCell.x >= newW || selectedCell.y >= newH)) {
+        selectedCell = null;
+        showNoSelection();
+    }
+    renderGrid();
+    setDirty();
+}
+
+// ── New board ──────────────────────────────────────────────────────────────
+async function newBoard() {
+    if (isDirty && !confirm('You have unsaved changes. Create a new board anyway?')) return;
+
+    const payload = {
+        boardName: document.getElementById('boardName').value || 'New Board',
+        x: parseInt(document.getElementById('boardW').value),
+        y: parseInt(document.getElementById('boardH').value),
+        laserDamage: parseInt(document.getElementById('laserDamage').value),
+        phaseCount: parseInt(document.getElementById('phaseCount').value),
+        gameType: 0,
+        rulesVersion: 1
+    };
+
+    try {
+        const res = await fetch('/api/boardeditor', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (!res.ok) {
+            const err = await res.json();
+            showStatus('Error: ' + (err.error || 'create failed'), 'error');
+            return;
+        }
+        const data = await res.json();
+        showStatus('Created board ' + data.boardId, 'saved');
+        // Reload board list and load new board
+        await loadBoards();
+        document.getElementById('boardSelect').value = data.boardId;
+        await loadBoard(data.boardId);
+    } catch(e) {
+        showStatus('Network error', 'error');
+        console.error(e);
+    }
+}
+
+// ── Save board ─────────────────────────────────────────────────────────────
+async function saveBoard() {
+    if (!currentBoard) {
+        showStatus('No board loaded. Use New Board first.', 'error');
+        return;
+    }
+
+    const h = grid.length;
+    const w = h > 0 ? grid[0].length : 0;
+    const squares = [];
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            const cell = grid[y][x];
+            squares.push({
+                x, y,
+                squareType: cell.squareType,
+                rotation: cell.rotation,
+                actions: cell.actions
+            });
+        }
+    }
+
+    const payload = {
+        boardName: document.getElementById('boardName').value || currentBoard.boardName,
+        x: w,
+        y: h,
+        laserDamage: parseInt(document.getElementById('laserDamage').value),
+        phaseCount: parseInt(document.getElementById('phaseCount').value),
+        gameType: currentBoard.gameType || 0,
+        rulesVersion: currentBoard.rulesVersion || 1,
+        squares
+    };
+
+    try {
+        const res = await fetch(`/api/boardeditor/${currentBoard.boardId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (!res.ok) {
+            const err = await res.json();
+            showStatus('Error: ' + (err.error || 'save failed'), 'error');
+            return;
+        }
+        const data = await res.json();
+        isDirty = false;
+        showStatus(`Saved! Flags: ${data.totalFlags}, Starts: ${data.totalPlayers}`, 'saved');
+        currentBoard.boardName = payload.boardName;
+        currentBoard.x = w;
+        currentBoard.y = h;
+        // Refresh board list name
+        await loadBoards();
+        document.getElementById('boardSelect').value = currentBoard.boardId;
+    } catch(e) {
+        showStatus('Network error', 'error');
+        console.error(e);
+    }
+}
+
+// ── Status ─────────────────────────────────────────────────────────────────
+function setDirty() {
+    isDirty = true;
+    showStatus('Unsaved changes', 'dirty');
+}
+
+function showStatus(msg, type) {
+    const el = document.getElementById('statusMsg');
+    el.textContent = msg;
+    el.className = type || '';
+    if (type === 'saved') {
+        setTimeout(() => {
+            if (el.textContent === msg) { el.textContent = 'Ready'; el.className = ''; }
+        }, 3000);
+    }
+}
+
+// ── Beforeunload warning ───────────────────────────────────────────────────
+window.addEventListener('beforeunload', e => {
+    if (isDirty) { e.preventDefault(); e.returnValue = ''; }
+});
+
+// ── Start ──────────────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>

@@ -68,5 +68,7 @@ wwwroot/             Static web assets for phone UI
 - No breaking changes to existing REST API contracts without discussion
 - Server hostname: `mrobopi3` — used in connection strings and launch URLs
 
-## Active Agent
+## Active Agents
 Use the **`robo-rally-dev`** sub-agent (`.claude/agents/robo-rally-dev.md`) for all game development tasks. It contains the full Robo Rally Renegade rule set, VEX AIM robot command reference, and implementation guidance.
+
+Use the **`sql-to-csharp`** sub-agent (`.claude/agents/sql-to-csharp.md`) for converting MySQL stored procedures, triggers, and functions into C# methods in `DataService.cs`. It contains the full rally DB schema, all procedure logic, trigger behavior, and C# conversion patterns.
