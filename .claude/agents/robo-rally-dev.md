@@ -514,6 +514,7 @@ Each element has:
 7. **Option card effects** — wire OptionCards into CreateCommands phase processing
 8. **Win condition** — detect when a robot touches the final flag and end the game
 9. **AI robot display** — show robot name/player info on AIM robot LCD at game start
+10. **Camera-based position calibration** — use AIM color detection to identify black board grid lines and confirm robot is centered on a square (see §4.10)
 
 ### 4.6 Board Square Size for Robot Movement
 The physical board consists of printed squares. To move one square:
@@ -521,6 +522,28 @@ The physical board consists of printed squares. To move one square:
 - Use `drive_for` with appropriate distance parameter
 - Standard Robo Rally board squares are approximately 80×80mm
 - Robot must complete the move before the next command executes (stacking_type=0)
+
+### 4.10 Camera-Based Position Calibration
+The AIM robot's AI Vision system can detect black lines (grid lines printed between board squares) to verify the robot is correctly centered on a square after a move.
+
+**Setup:**
+```json
+// Define black as color target ID 1
+{ "cmd_id": "color_description", "id": 1, "r": 0, "g": 0, "b": 0, "hangle": 10, "hdsat": 0.2 }
+// Enable detection
+{ "cmd_id": "color_detection", "b_enable": true, "b_merge": false }
+```
+
+**How it works:**
+- When a robot is centered on a square, black grid lines should appear symmetrically at the camera edges
+- When a robot is off-center, lines will be asymmetric or absent on one side
+- Detection results arrive on `ws_status` WebSocket — **the exact response payload format is unknown and must be determined empirically** by connecting to `ws_status` and logging output while color detection is active
+
+**Implementation notes:**
+- `hdsat: 0.2` limits matches to very low-saturation (near-grey/black) colors; tune this to avoid false positives from shadows
+- Lighting conditions significantly affect reliability — consistent overhead lighting is required
+- This would be called after each `drive_for` completes to optionally nudge the robot into alignment
+- Add a helper method `CalibratePositionAsync()` in `AIMRobot.cs` once the `ws_status` response format is known
 
 ### 4.7 Naming & Constants
 ```csharp
@@ -610,4 +633,5 @@ Phone clients are served from `wwwroot/`. They:
 | Sense HAT joystick | Missing | `Sensors/SenseHatService.cs` (new file) |
 | Robot LCD at game start | Missing | `AIMRobot.cs` / `GameController.cs` |
 | Physical distance calibration | Missing | `AIMRobot.cs` |
+| Camera line detection for position calibration | Missing | `AIMRobot.cs` (see §4.10) |
 | Phone programming UI | Partial | `wwwroot/` |
