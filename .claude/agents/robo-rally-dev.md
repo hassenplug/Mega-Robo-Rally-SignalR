@@ -39,7 +39,7 @@ Players simultaneously program their robots using movement cards, then all progr
 - **Robots** — one per player, have a position (column, row) and facing direction (Up/Right/Down/Left)
 - **Movement cards** — dealt to players each turn
 - **Upgrade cards** (Option cards) — persistent special abilities
-- **Damage tokens** — track robot health
+- **Damage stack** — a shared stack of Spam/Haywire/Trojan Horse damage cards; robots draw from it when damaged
 - **Flag tokens** — placed on the board; robots must touch them in order
 
 ### 1.3 Turn Structure
@@ -51,13 +51,9 @@ Each turn consists of **5 phases**. Each phase:
 5. Checkpoints are touched
 
 ### 1.4 Card Dealing & Programming
-- Each player is dealt **9 cards** from a shuffled deck (minus their damage count)
-  - A robot with 5+ damage tokens gets fewer cards (9 − damage tokens dealt)
-  - A robot with 9+ damage cannot program and shuts down
+- Each player is dealt **9 cards** from their personal shuffled deck (their deck includes any damage cards they have accumulated)
 - Players secretly choose **5 cards** and place one in each of 5 register slots
-- **Locked registers**: when a robot has taken damage, the last N registers are locked
-  - Locked cards stay from turn to turn and cannot be changed
-  - N = damage tokens above 4 (e.g., 5 damage → 1 locked register)
+- There are no locked registers — all 5 registers are always freely programmable each turn
 - After programming, players announce ready (in digital version, press submit)
 - Once all players are ready (or timer expires), programs are locked and execution begins
 
@@ -97,41 +93,34 @@ Each turn consists of **5 phases**. Each phase:
 - Walls do NOT stop laser fire (lasers pass through, but walls on the *far* side of the source/target square block)
 
 **Pits:**
-- If a robot enters a pit square, it is immediately destroyed (loses a life, reboots)
+- If a robot enters a pit square, it is immediately rebooted
 
 **Off-board:**
-- Moving off the board edge loses a life; robot reboots
+- Moving off the board edge causes the robot to reboot
 
 ### 1.7 Damage System
 
-| Damage Tokens | Effect |
-|---|---|
-| 1–4 | Reduced cards dealt (9 − tokens) |
-| 5 | 1 register locked (last register) |
-| 6 | 2 registers locked |
-| 7 | 3 registers locked |
-| 8 | 4 registers locked |
-| 9 | 5 registers locked — can still execute but no new programming |
-| 10 | **Robot destroyed** — lose a life, reboot |
+There are no damage tokens or locked registers in the Renegade edition. Instead:
 
 **Taking damage:**
-- Lasers (board or robot) deal 1 damage token each
-- Falling in pits deals 10 (instant destroy)
-- Spam cards: when executed, the robot performs the top card of the draw pile without choice
+- When a robot is damaged (by a laser, board element, or other effect), the owner draws the top card from the **damage stack** and adds it to their discard pile
+- Damage cards (Spam, Haywire, Trojan Horse) cycle into the player's deck over time and must be executed when drawn into a register — they cannot be freely chosen like normal cards
+- **Spam**: when executed, the robot performs the top card of their deck without choice
+- **Haywire**: when executed, the robot performs 5 random cards from their deck
+- **Trojan Horse**: when executed, all other robots take 1 damage (draw a Spam card)
 
 **Repair:**
-- Landing on a **Repair Site** (wrench icon) at the end of a turn removes 1 damage token
-- Landing on a **Double Wrench** removes 2 tokens
+- Landing on a **Repair Site** (wrench icon) at end of a turn: remove 1 damage card from your discard pile
+- Landing on a **Double Wrench**: remove 2 damage cards from your discard pile
 
 ### 1.8 Reboot
-When a robot is destroyed:
+When a robot falls into a pit or off the board:
 1. The owner chooses a **Reboot Token** location on the board (usually one per zone)
-2. The robot is placed there facing a direction of the owner's choice
-3. The robot receives **2 Spam cards** inserted into their discard pile (they become damage cards for future turns)
-4. If the robot had locked registers, all locks clear (damage resets to 0 after reboot)
-5. Robot continues to participate in the current turn from that position
+2. The robot is placed there facing any cardinal direction the owner chooses
+3. The robot receives **2 Spam cards** added to their discard pile
+4. Robot continues to participate in the current turn from that position
 
-**Lives:** Each robot starts with 3 lives. Losing all lives = permanently eliminated.
+There are no lives — a robot that reboots simply respawns at the reboot token and continues playing.
 
 ### 1.9 Board Element Activation Order (each phase, after card execution)
 
@@ -168,9 +157,8 @@ When a robot is destroyed:
 - A robot can voluntarily **shut down** for a turn:
   - Takes no damage from lasers that turn
   - Cannot move or act
-  - Repairs 2 damage at end of turn (optional rule)
+  - May remove damage cards from hand/discard at end of turn (optional rule)
   - Announces shutdown during programming phase
-- **Forced shutdown**: if robot cannot be dealt enough cards to fill unlocked registers, it shuts down automatically
 
 ### 1.14 Option / Upgrade Cards
 Players may gain upgrade cards during the game. Key examples:
@@ -182,7 +170,6 @@ Players may gain upgrade cards during the game. Key examples:
 | **Fourth Gear** | Move 3 moves you 4 squares |
 | **Recompile** | Once per turn, discard your hand and redraw |
 | **Crab Legs** | Move sideways 1 square instead of forward on a Move 1 |
-| **Flywheel** | Locked registers don't count as locked during programming |
 
 ---
 
@@ -522,8 +509,8 @@ Each element has:
 2. **Physical robot calibration** — `MoveAsync` needs proper distance values for one board square
 3. **Sense HAT service** — create `Sensors/SenseHatService.cs` with LED matrix display and joystick input
 4. **Phone UI (wwwroot)** — player programming interface needs card selection and drag-to-register UI
-5. **Reboot logic** — robot destruction, life tracking, archive mark respawn
-6. **Damage + locked registers** — enforce in `DataService.AllPlayers` and card dealing
+5. **Reboot logic** — robot falls into pit/off-board, place at reboot token, add 2 Spam cards to discard
+6. **Damage card dealing** — when robot takes damage, draw from damage stack into discard; Spam/Haywire execute when drawn
 7. **Option card effects** — wire OptionCards into CreateCommands phase processing
 8. **Win condition** — detect when a robot touches the final flag and end the game
 9. **AI robot display** — show robot name/player info on AIM robot LCD at game start
@@ -614,8 +601,8 @@ Phone clients are served from `wwwroot/`. They:
 | Robot laser fire | Missing | `CreateCommands.cs` |
 | Board laser fire | Missing | `CreateCommands.cs` |
 | Flag/checkpoint detection | Missing | `CreateCommands.cs` / `GameController.cs` |
-| Damage → locked registers | Missing | `DataService.cs` / card dealing |
-| Reboot mechanic | Missing | `GameController.cs` |
+| Damage card draw (take damage → draw from damage stack) | Missing | `DataService.cs` / `CreateCommands.cs` |
+| Reboot mechanic (pit/off-board → reboot token + 2 Spam) | Missing | `GameController.cs` |
 | Win condition detection | Missing | `GameController.cs` |
 | Shutdown mechanic | Missing | `GameController.cs` |
 | Option card effects | Partial | `CreateCommands.cs` |
