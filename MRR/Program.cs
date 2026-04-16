@@ -96,17 +96,25 @@ app.MapGet("/api/state/{newstate?}/{parameter1?}", async (string? newstate, stri
 {
 
     if (newstate == null) newstate = "";
+    int paramInt = 0;
+    if (parameter1 != null) int.TryParse(parameter1, out paramInt);
 
     switch (newstate)
     {
         case "nextstate":
-            if (Convert.ToInt32(parameter1) > 0) gameController.SetGameState(Convert.ToInt32(parameter1));
+            if (paramInt > 0) gameController.SetGameState(paramInt);
             gameController.NextState();
             //return Results.Ok(nextstate);
             break;
         case "startgame":
+            if (paramInt > 0)
+            {
+                // Load specified GameData into CurrentGameData and start game
+                gameController.LoadGameData(paramInt);
+            }
             gameController.SetGameState(0);
-            gameController.StartGame(Convert.ToInt32(parameter1));
+            //gameController.StartGame();
+            gameController.NextState();
             //return Results.Ok(result);
             break;
         case "resetgame":

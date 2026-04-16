@@ -233,6 +233,7 @@ namespace MRR.Services
                 {
                     // Log or handle the exception appropriately
                     Console.WriteLine($"DB Error ({ex.Number}): {ex.Message}");
+                    Console.WriteLine($"sql: ({query})");
                     return 0;
                 }
             }
@@ -262,6 +263,8 @@ namespace MRR.Services
                 {
                     // Log/throw as appropriate; returning empty table could also be chosen
                     Console.WriteLine($"DB Error ({ex.Number}): {ex.Message}");
+                    Console.WriteLine($"sql: ({query})");
+
                     return dt; // empty table lets callers iterate without null checks
                 }
             }
@@ -450,9 +453,9 @@ namespace MRR.Services
         left join CommandList cl on Robots.MessageCommandID = cl.CommandID
         */
 
-        public Players GetAllPlayers()
+        public Players GetAllPlayers(bool forceRefresh = false)
         {
-            if (_allPlayers == null)
+            if (_allPlayers == null || forceRefresh)
             {
                 var players = new Players();
 
