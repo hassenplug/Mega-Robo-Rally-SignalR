@@ -59,6 +59,9 @@ namespace MRR.Controller
                     var exeResult = createCommands.ExecuteTurn();
                     Console.WriteLine("Execute Turn Result: " + exeResult);
                 });
+
+                // Sync C# state from DB so NextState() sees state 7, not stale 6
+                _dataService.UpdateGameState();
             }
             finally
             {
