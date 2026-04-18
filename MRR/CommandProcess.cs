@@ -174,7 +174,7 @@ namespace MRR
                         if (robot.RobotConnection == null)
                         {
                             Console.WriteLine($"Robot not connected for Command({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandTypeID}}}-{onecommand.Parameter},{onecommand.ParameterB}:{onecommand.Description}");
-                            command.StatusID = _dataService.GetIntFromDB("select funcProcessCommand(" + onecommand.CommandID + ",5);");
+                            command.StatusID = _dataService.ProcessDbCommand(onecommand.CommandID, 5);
                             db.SaveChanges();
                             return true;
                         }
@@ -216,9 +216,7 @@ namespace MRR
                         if (onecommand.StatusID == 4)
                         {
                             // no reply expected
-                            //command.StatusID = 5; // command complete
-                            command.StatusID = _dataService.GetIntFromDB("select funcProcessCommand(" + onecommand.CommandID + ",5);");
-                            //command.StatusID = 6;
+                            command.StatusID = _dataService.ProcessDbCommand(onecommand.CommandID, 5);
                             db.SaveChanges();
                         }
                         return true;
@@ -226,10 +224,7 @@ namespace MRR
 
                     case 3: // DB
                         Console.WriteLine($"Database Command ({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandTypeID}}}-{onecommand.Parameter},{onecommand.ParameterB}:{onecommand.Description}");
-                        // call database procedure here..
-//                        command.StatusID = _dataService.ExecuteSQL("call funcProcessCommand(" + onecommand.CommandID + ",-1);");
-                        command.StatusID = _dataService.GetIntFromDB("select funcProcessCommand(" + onecommand.CommandID + ",-1);");
-                        //command.StatusID = 5;
+                        command.StatusID = _dataService.ProcessDbCommand(onecommand.CommandID, -1);
                         db.SaveChanges();
                         return true;
 
@@ -251,7 +246,7 @@ namespace MRR
 
                     default:
                         Console.WriteLine($"Not processed here({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandTypeID}}}-{onecommand.Parameter},{onecommand.ParameterB}:{onecommand.Description}");
-                        command.StatusID = _dataService.GetIntFromDB("select funcProcessCommand(" + onecommand.CommandID + ",-1);");
+                        command.StatusID = _dataService.ProcessDbCommand(onecommand.CommandID, -1);
                         db.SaveChanges();
                         break;
                 }

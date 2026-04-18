@@ -1,7 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "Bash(powershell -Command \"Remove-Item 'c:\\\\Users\\\\hasse\\\\OneDrive\\\\Documents\\\\MRR_Repo\\\\Mega-Robo-Rally-SignalR\\\\make_uturn.py','c:\\\\Users\\\\hasse\\\\OneDrive\\\\Documents\\\\MRR_Repo\\\\Mega-Robo-Rally-SignalR\\\\inspect.py' -ErrorAction SilentlyContinue; Remove-Item 'c:\\\\Users\\\\hasse\\\\OneDrive\\\\Documents\\\\MRR_Repo\\\\Mega-Robo-Rally-SignalR\\\\inspect_*.png' -ErrorAction SilentlyContinue; Write-Host 'Done'\")"
+      "Bash(powershell -Command \"Remove-Item 'c:\\\\Users\\\\hasse\\\\OneDrive\\\\Documents\\\\MRR_Repo\\\\Mega-Robo-Rally-SignalR\\\\make_uturn.py','c:\\\\Users\\\\hasse\\\\OneDrive\\\\Documents\\\\MRR_Repo\\\\Mega-Robo-Rally-SignalR\\\\inspect.py' -ErrorAction SilentlyContinue; Remove-Item 'c:\\\\Users\\\\hasse\\\\OneDrive\\\\Documents\\\\MRR_Repo\\\\Mega-Robo-Rally-SignalR\\\\inspect_*.png' -ErrorAction SilentlyContinue; Write-Host 'Done'\")",
+      "Read(//c/Users/hasse/OneDrive/Documents/MRR_Repo/Mega-Robo-Rally-SignalR/install/**)",
+      "Bash(Damage)",
+      "Bash(grep -n \"CREATE TABLE.*Robots\\\\|DamagePoints\\\\|`Damage`\" /c/Users/hasse/OneDrive/Documents/MRR_Repo/Mega-Robo-Rally-SignalR/install/SRRDatabase20251001.sql)",
+      "Bash(grep -n \"CREATE TABLE.*\\\\`Robots\\\\`\" /c/Users/hasse/OneDrive/Documents/MRR_Repo/Mega-Robo-Rally-SignalR/install/SRRDatabase20251001.sql)",
+      "Bash(dotnet build *)",
+      "Read(//c/Users/hasse/OneDrive/Documents/MRR_Repo/Mega-Robo-Rally-SignalR/MRR/**)"
     ]
   }
 }

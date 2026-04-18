@@ -660,6 +660,240 @@ namespace MRR.Services
             return System.Text.RegularExpressions.Regex.IsMatch(tableName, @"^[a-zA-Z0-9_]+$");
         }
 
+        /// <summary>
+        /// C# equivalent of funcProcessCommand(p_CommandID, p_NewStatus).
+        /// Loads the command row, performs any DB-side effect based on CommandTypeID,
+        /// applies position updates when p_NewStatus==5, then writes the final StatusID
+        /// back to CommandList. Returns the resulting StatusID.
+        /// Pass p_NewStatus=-1 to auto-complete (equivalent to SQL default).
+        /// </summary>
+        public int ProcessDbCommand(int p_CommandID, int p_NewStatus)
+        {
+            // Load command row
+            int cType = 0, cRobotID = 0, cParameter = 0, cParameterB = 0;
+            int cRow = 0, cCol = 0, cDir = 0;
+
+            using (var connection = new MySqlConnection(_connectionString))
+            {
+                connection.Open();
+                using var loadCmd = new MySqlCommand(
+                    "SELECT CommandTypeID, RobotID, Parameter, ParameterB, PositionRow, PositionCol, PositionDir " +
+                    "FROM CommandList WHERE CommandID = @id", connection);
+                loadCmd.Parameters.AddWithValue("@id", p_CommandID);
+                using var reader = loadCmd.ExecuteReader();
+                if (!reader.Read())
+                {
+                    // Command not found — nothing to do
+                    return p_NewStatus == -1 ? 6 : p_NewStatus;
+                }
+                cType       = reader.GetInt32(0);
+                cRobotID    = reader.GetInt32(1);
+                cParameter  = reader.GetInt32(2);
+                cParameterB = reader.GetInt32(3);
+                cRow        = reader.GetInt32(4);
+                cCol        = reader.GetInt32(5);
+                cDir        = reader.GetInt32(6);
+            }
+
+            if (p_NewStatus == -1)
+                p_NewStatus = 6; // command complete
+
+            // Process side-effects by CommandTypeID
+            switch ((SquareAction)cType)
+            {
+                case SquareAction.PlayerLocation: // Player Location — handled below in the status==5 block
+                    p_NewStatus = 5;
+                    break;
+
+                case SquareAction.Damage: // Set Damage
+                    ExecuteSQL(
+                        $"UPDATE Robots SET Damage = {cParameter} WHERE RobotID = {cRobotID}");
+                    break;
+
+                case SquareAction.Archive: // Set Archive position
+                    ExecuteSQL(
+                        $"UPDATE Robots SET ArchivePosRow = {cRow}, ArchivePosCol = {cCol}, ArchivePosDir = 0 " +
+                        $"WHERE RobotID = {cRobotID}");
+                    break;
+
+                case SquareAction.Flag: // Set Current Flag
+                    ExecuteSQL(
+                        $"UPDATE Robots SET CurrentFlag = {cParameter} WHERE RobotID = {cRobotID}");
+                    break;
+
+                case SquareAction.Option: // Deal option card to robot
+                {
+                    int optionID = cParameter;
+                    if (optionID == 0)
+                        optionID = GetNextOption(cRobotID);
+                    ExecuteSQL(
+                        $"INSERT INTO RobotOptions (RobotID, OptionID, DestroyWhenDamaged, Quantity, IsActive, PhasePlayed, DataValue) " +
+                        $"SELECT {cRobotID}, OptionID, false, Quantity, false, 0, 0 " +
+                        $"FROM `Options` WHERE OptionID = {optionID}");
+                    break;
+                }
+
+                case SquareAction.LostLife: // Set Lives
+                    ExecuteSQL(
+                        $"UPDATE Robots SET Lives = {cParameter} WHERE RobotID = {cRobotID}");
+                    break;
+
+                case SquareAction.DealCard: // Deal card to player (assign card owner)
+                    ExecuteSQL(
+                        $"UPDATE MoveCards SET Owner = {cRobotID} WHERE CardID = {cParameter}");
+                    break;
+
+                case SquareAction.GameWinner: // Game Winner
+                    ExecuteSQL(
+                        $"UPDATE CurrentGameData SET iValue = 11 WHERE iKey = 10");
+                    ExecuteSQL(
+                        $"UPDATE CurrentGameData SET iValue = {cRobotID} WHERE iKey = 13");
+                    break;
+
+                case SquareAction.Card: // Mark card as executed
+                    ExecuteSQL(
+                        $"UPDATE MoveCards SET Executed = 1 WHERE CardID = {cParameter} AND Owner = {cRobotID}");
+                    ExecuteSQL(
+                        $"UPDATE CurrentGameData SET sValue = 'Played Card' WHERE iKey = 21");
+                    break;
+
+                case SquareAction.SetPlayerStatus: // Set robot Status
+                    ExecuteSQL(
+                        $"UPDATE Robots SET Status = {cParameter} WHERE RobotID = {cRobotID}");
+                    break;
+
+                case SquareAction.DeathPoints: // Set DamagePoints — column does not exist in schema; log and skip
+                    Console.WriteLine($"ProcessDbCommand: DeathPoints is not supported — skipped.");
+                    break;
+
+                case SquareAction.DealOptionCard: // no-op in original SQL
+                    break;
+
+                case SquareAction.DestroyOptionCard: // Delete Option from player
+                    ExecuteSQL(
+                        $"DELETE FROM RobotOptions WHERE RobotID = {cRobotID} AND OptionID = {cParameter}");
+                    break;
+
+                case SquareAction.OptionCountSet: // Set option quantity
+                    ExecuteSQL(
+                        $"UPDATE RobotOptions SET Quantity = {cParameterB} WHERE RobotID = {cRobotID} AND OptionID = {cParameter}");
+                    break;
+
+                case SquareAction.SetDamagePointTotal: // Set MaxDamage
+                    ExecuteSQL(
+                        $"UPDATE CurrentGameData SET iValue = {cParameter} WHERE iKey = 17");
+                    break;
+
+                case SquareAction.DealSpamCard: // Deal Spam card to player
+                    DealSpamToPlayer(cRobotID);
+                    break;
+
+                case SquareAction.SetShutDownMode: // Set ShutDown
+                    ExecuteSQL(
+                        $"UPDATE Robots SET ShutDown = {cParameter} WHERE RobotID = {cRobotID}");
+                    break;
+
+                case SquareAction.SetCurrentGameData: // Set CurrentGameData iValue by iKey
+                    ExecuteSQL(
+                        $"UPDATE CurrentGameData SET iValue = {cParameterB} WHERE iKey = {cParameter}");
+                    break;
+
+                case SquareAction.EndOfGame: // End of game
+                    ExecuteSQL(
+                        $"UPDATE CurrentGameData SET iValue = 12 WHERE iKey = 10");
+                    break;
+
+                case SquareAction.DeleteRobot: // Delete robot
+                    ExecuteSQL(
+                        $"DELETE FROM Robots WHERE RobotID = {cRobotID}");
+                    break;
+
+                case SquareAction.SetGameState: // Set GameState
+                    ExecuteSQL(
+                        $"UPDATE CurrentGameData SET iValue = {cParameter} WHERE iKey = 10");
+                    ExecuteSQL(
+                        $"UPDATE CurrentGameData SET iValue = {cRobotID} WHERE iKey = 13");
+                    break;
+
+                // The following are no-ops in the SQL original
+                case SquareAction.BlockDirection:
+                case SquareAction.RobotPush:
+                case SquareAction.PhaseStart:
+                case SquareAction.PlayOptionCard:
+                case SquareAction.BeginBoardEffects:
+                case SquareAction.Water:
+                case SquareAction.DeletedMove:
+                case SquareAction.FireCannon:
+                case SquareAction.SetButtonText:
+                    break;
+                case SquareAction.SetEnergy:
+                    ExecuteSQL(
+                        $"UPDATE Robots SET Energy = {cParameter} WHERE RobotID = {cRobotID}");
+                    break;
+
+                default:
+                    // Unknown type — no side-effect, fall through to status update
+                    break;
+            }
+
+            // Status 5 means "move complete — update robot position then mark done"
+            if (p_NewStatus == 5)
+            {
+                if (cCol >= 0 && cRow >= 0)
+                {
+                    ExecuteSQL(
+                        $"UPDATE Robots SET CurrentPosRow = {cRow}, CurrentPosCol = {cCol}, " +
+                        $"CurrentPosDir = {cDir}, Score = {cParameterB} WHERE RobotID = {cRobotID}");
+                }
+                p_NewStatus = 6; // command complete
+            }
+
+            // Write final status back to CommandList
+            if (p_CommandID > 0)
+            {
+                ExecuteSQL(
+                    $"UPDATE CommandList SET StatusID = {p_NewStatus} WHERE CommandID = {p_CommandID}");
+            }
+
+            return p_NewStatus;
+        }
+
+        /// <summary>
+        /// C# equivalent of funcDealSpamToPlayer.
+        /// Inserts a new Spam card (CardTypeID=10) into the robot's discard pile.
+        /// Returns the new CardID.
+        /// </summary>
+        public int DealSpamToPlayer(int robotID)
+        {
+            int maxId = GetIntFromDB(
+                $"SELECT COALESCE(MAX(CardID), 0) + 1 FROM MoveCards WHERE Owner = {robotID}");
+            ExecuteSQL(
+                $"INSERT INTO MoveCards (CardID, CardTypeID, Owner, CardLocation) " +
+                $"VALUES ({maxId}, 10, {robotID}, 3)");
+            return maxId;
+        }
+
+        /// <summary>
+        /// C# equivalent of funcGetNextOption.
+        /// Returns the next available OptionID for a robot (not already owned, Functional > 7),
+        /// ordered by CurrentOrder. Advances the shuffle pointer by adding 100 to CurrentOrder.
+        /// </summary>
+        public int GetNextOption(int robotID)
+        {
+            int optionID = GetIntFromDB(
+                $"SELECT o.OptionID FROM `Options` o " +
+                $"LEFT JOIN (SELECT OptionID FROM RobotOptions WHERE RobotID = {robotID}) AS ro " +
+                $"ON o.OptionID = ro.OptionID " +
+                $"WHERE ro.OptionID IS NULL AND o.Functional > 7 " +
+                $"ORDER BY o.CurrentOrder LIMIT 1");
+            if (optionID > 0)
+            {
+                ExecuteSQL(
+                    $"UPDATE `Options` SET CurrentOrder = CurrentOrder + 100 WHERE OptionID = {optionID}");
+            }
+            return optionID;
+        }
+
         public void BoardFileRead(string p_Filename)
         {
 
