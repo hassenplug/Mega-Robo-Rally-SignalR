@@ -463,6 +463,58 @@ app.MapPut("/api/boardeditor/{boardId:int}", async (int boardId, DataService dat
     }
 });
 
+// ── Game Data API ────────────────────────────────────────────────────────────
+
+app.MapGet("/api/boardeditor/gamedata", (DataService dataService) =>
+{
+    var data = dataService.GetQueryResultsJson(
+        "SELECT GameDataID, Description, GameCode, BoardID, GameType, TotalFlags, LaserDamage, " +
+        "PhaseCount, BoardCols, BoardRows, OptionCount, PlayerListID, RulesVersion " +
+        "FROM GameData ORDER BY GameDataID;",
+        "gameData");
+    return Results.Content(data, "application/json");
+});
+
+app.MapPut("/api/boardeditor/gamedata/{gameDataId:int}", async (int gameDataId, DataService dataService, HttpRequest request) =>
+{
+    try
+    {
+        using var reader = new StreamReader(request.Body);
+        var json = await reader.ReadToEndAsync();
+        using var doc = JsonDocument.Parse(json);
+        var boardId = doc.RootElement.GetProperty("boardId").GetInt32();
+
+        var boardCheck = dataService.GetQueryResults($"SELECT BoardID FROM Boards WHERE BoardID={boardId};");
+        if (boardCheck.Rows.Count == 0)
+            return Results.NotFound(new { error = $"Board {boardId} not found" });
+
+        var gdCheck = dataService.GetQueryResults($"SELECT GameDataID FROM GameData WHERE GameDataID={gameDataId};");
+        if (gdCheck.Rows.Count == 0)
+            return Results.NotFound(new { error = $"GameData {gameDataId} not found" });
+
+        dataService.ExecuteSQL(
+            $"UPDATE GameData g JOIN Boards b ON b.BoardID={boardId} " +
+            $"SET g.BoardID=b.BoardID, g.LaserDamage=b.LaserDamage, g.PhaseCount=b.PhaseCount, " +
+            $"g.BoardCols=b.X, g.BoardRows=b.Y, g.TotalFlags=b.TotalFlags, " +
+            $"g.GameType=b.GameType, g.Description=b.BoardName " +
+            $"WHERE g.GameDataID={gameDataId};");
+
+        dataService.ExecuteSQL(
+            $"UPDATE CurrentGameData SET iValue={gameDataId} WHERE iKey=26;");
+
+        var result = dataService.GetQueryResultsJson(
+            $"SELECT GameDataID, Description, GameCode, BoardID, GameType, TotalFlags, LaserDamage, " +
+            $"PhaseCount, BoardCols, BoardRows, OptionCount, PlayerListID, RulesVersion " +
+            $"FROM GameData WHERE GameDataID={gameDataId};",
+            "gameData");
+        return Results.Content(result, "application/json");
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+});
+
 // ────────────────────────────────────────────────────────────────────────────
 
 app.Urls.Add("http://mrobopi3:5000");

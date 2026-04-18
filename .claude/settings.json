@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(powershell -Command \"Remove-Item 'c:\\\\Users\\\\hasse\\\\OneDrive\\\\Documents\\\\MRR_Repo\\\\Mega-Robo-Rally-SignalR\\\\make_uturn.py','c:\\\\Users\\\\hasse\\\\OneDrive\\\\Documents\\\\MRR_Repo\\\\Mega-Robo-Rally-SignalR\\\\inspect.py' -ErrorAction SilentlyContinue; Remove-Item 'c:\\\\Users\\\\hasse\\\\OneDrive\\\\Documents\\\\MRR_Repo\\\\Mega-Robo-Rally-SignalR\\\\inspect_*.png' -ErrorAction SilentlyContinue; Write-Host 'Done'\")"
+    ]
+  }
+}

@@ -1464,7 +1464,6 @@ namespace MRR
 
                             break;
                         case SquareAction.Flag:
-                            break;
                         case SquareAction.TouchFlag:
                             if (thisplayer.LastFlag + 1 == thisaction.Parameter)
                             {

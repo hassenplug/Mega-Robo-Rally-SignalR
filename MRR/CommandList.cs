@@ -318,7 +318,7 @@ namespace MRR
                     //case SquareAction.Card:return new SquareActionDetails(CommandCategories.DB, "played card: ") ; //+ MainGame.GameCards.FirstOrDefault(gc=>gc.ID == Value).Text + "");
                     case SquareAction.Card:
                         if (Value==99) return new SquareActionDetails(CommandCategories.DB, "played card: SPAM"); // + MainGame.GameCards.FirstOrDefault(gc=>(gc.ID == Value) && (gc.Owner==RobotID)).Text + "");
-                        return new SquareActionDetails(CommandCategories.DB, "played card: " + "");
+                        return new SquareActionDetails(CommandCategories.DB, "played card: " + (Robot.CardsPlayer?.FirstOrDefault(gc => gc.ID == Value)?.Text ?? Value.ToString()));
                         // return new SquareActionDetails(CommandCategories.DB, "played card: " + MainGame.GameCards.FirstOrDefault(gc=>(gc.ID == Value) && (gc.Owner==RobotID)).Text + "");
                     case SquareAction.Randomizer:return new SquareActionDetails(CommandCategories.DB, "gets random card");
                     case SquareAction.BeginBoardEffects: return new SquareActionDetails(CommandCategories.DB, "begin board effects");

@@ -158,7 +158,7 @@ namespace MRR
         public Player(int p_ID)
         {
             int currentlives = conTotalLives;
-            SetPlayer(p_ID, ToString(), new RobotLocation(), new RobotLocation(), new RobotLocation(), conTotalDamage, currentlives, 0, tShutDown.None, true, 0);
+            SetPlayer(p_ID, ToString(), new RobotLocation(), new RobotLocation(), new RobotLocation(), 0, currentlives, 0, tShutDown.None, true, 0);
         }
 
         public Player()

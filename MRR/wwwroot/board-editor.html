@@ -346,6 +346,29 @@
                 <div id="propsContent"><div id="noSelection">Click a cell to select it, or choose a tile from the palette.</div></div>
             </div>
         </div>
+        <div class="collapse-section">
+            <div class="collapse-header" onclick="toggleSection('actionsPanel')">
+                <span>Actions</span><span id="arrow-actionsPanel">▼</span>
+            </div>
+            <div id="actionsPanel" class="collapse-body">
+                <div id="actionsContent"><div id="noActionsSelection" style="color:#555;font-size:13px;text-align:center;margin-top:10px">Select a cell to view its actions.</div></div>
+            </div>
+        </div>
+        <div class="collapse-section">
+            <div class="collapse-header" onclick="toggleSection('gameDataPanel')">
+                <span>Game Data</span><span id="arrow-gameDataPanel">▼</span>
+            </div>
+            <div id="gameDataPanel" class="collapse-body">
+                <div class="param-row">
+                    <label style="white-space:nowrap">Game Data:</label>
+                    <select id="gameDataSelect" onchange="onGameDataSelectChange()" style="flex:1;background:#333;color:#fff;border:1px solid #555;padding:3px 4px;border-radius:3px;font-size:12px">
+                        <option value="">-- select --</option>
+                    </select>
+                </div>
+                <div id="gameDataDetails"></div>
+                <button class="btn btn-primary" id="btnApplyGameData" onclick="applyBoardToGameData()" style="width:100%;margin-top:6px" disabled>Apply Board to Game Data</button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -362,6 +385,8 @@ function toggleSection(id) {
 const SA = { Move:12, Rotate:13, Damage:14, Archive:15, Flag:16, Option:17, BlockDirection:18, PlayerStart:19, FireCannon:60 };
 const DIR = { None:0, Up:1, Right:2, Down:3, Left:4 };
 const DIR_NAMES = ['None','Up','Right','Down','Left'];
+const SA_NAMES = {12:'Move', 13:'Rotate', 14:'Damage', 15:'Archive', 16:'Flag', 17:'Option', 18:'BlockDirection', 19:'PlayerStart', 60:'FireCannon'};
+const SA_SORTED = Object.entries(SA_NAMES).sort((a,b) => parseInt(a[0])-parseInt(b[0]));
 
 // ── State ──────────────────────────────────────────────────────────────────
 let squareTypes = [];
@@ -374,6 +399,10 @@ let paletteCell = null;
 let isDirty = false;
 let isDragging = false;
 let didDragMove = false;
+let justPlaced = false;
+let editingActions = [];
+let gameDataRows = [];
+let selectedGameDataId = null;
 
 // ── Phase helpers ──────────────────────────────────────────────────────────
 function phaseToBitmask(phases) { return phases.reduce((m, p) => m | (1 << (p - 1)), 0); }
@@ -385,9 +414,21 @@ function rotationToDeg(rotation) {
     return ((rotation - 1) % 4) * 90;
 }
 
+// ── Actions panel ─────────────────────────────────────────────────────────
+function renderActionsPanel() {
+    const container = document.getElementById('actionsContent');
+    if (!container) return;
+    let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">`;
+    html += `<span style="font-size:11px;color:#888">${editingActions.length} action(s)</span>`;
+    html += `<button class="btn" onclick="addAction()" style="padding:2px 8px;font-size:11px">+ Add</button>`;
+    html += `</div>`;
+    html += `<div id="actionsTableContainer">${renderActionsTable()}</div>`;
+    container.innerHTML = html;
+}
+
 // ── Init ───────────────────────────────────────────────────────────────────
 async function init() {
-    await Promise.all([loadTypes(), loadBoards()]);
+    await Promise.all([loadTypes(), loadBoards(), loadGameData()]);
     buildGrid(parseInt(document.getElementById('boardW').value), parseInt(document.getElementById('boardH').value));
     renderGrid();
 }
@@ -477,6 +518,7 @@ async function loadBoard(boardId) {
         document.getElementById('boardGrid').style.cursor = 'default';
         showNoSelection();
         isDirty = false;
+        renderGameDataDetails();  // re-enable Apply Board button if a GameData row is selected
         showStatus('Loaded', 'saved');
     } catch(e) {
         showStatus('Error loading board', 'error');
@@ -602,13 +644,15 @@ function onCellDown(e, x, y) {
     e.preventDefault();
     isDragging = true;
     didDragMove = false;
+    justPlaced = false;
 
     if (activeTypeId !== null) {
         const cell = grid[y][x];
         if (cell.squareType !== activeTypeId) {
-            placeSquare(x, y);  // only replace if different type
+            placeSquare(x, y);
+            justPlaced = true;  // freshly placed — don't rotate on mouseup
         }
-        // same type: will rotate on mouseup
+        // same type already: will rotate on mouseup
     }
 }
 
@@ -622,21 +666,21 @@ function onCellEnter(x, y) {
 
 function onCellUp(e, x, y) {
     if (e.button !== 0) return;
-    const wasDragging = isDragging;
     isDragging = false;
 
     if (activeTypeId === null && !didDragMove) {
         selectCell(x, y);
     } else if (activeTypeId !== null && !didDragMove) {
-        // Already placed on mousedown; if same type, cycle rotation
+        // If the cell already had this type (not freshly placed), cycle its rotation
         const cell = grid[y][x];
-        if (cell.squareType === activeTypeId) {
+        if (!justPlaced && cell.squareType === activeTypeId) {
             const typeInfo = squareTypes.find(t => t.typeId === activeTypeId);
             if (typeInfo && typeInfo.canRotate) {
                 cycleRotation(x, y);
             }
         }
     }
+    justPlaced = false;
 }
 
 function selectPaletteType(typeId, defaultRotation) {
@@ -712,6 +756,10 @@ function cycleRotation(x, y) {
     else cell.rotation = (cell.rotation % 4) + 1;
     renderCell(x, y);
     setDirty();
+    // Persist new rotation into paletteCell so future placements use it
+    if (paletteCell && paletteCell.squareType === cell.squareType) {
+        paletteCell.rotation = cell.rotation;
+    }
     selectedCell = { x, y };
     showProps(x, y);
 }
@@ -753,109 +801,63 @@ function selectCell(x, y) {
 
 function showNoSelection() {
     document.getElementById('propsContent').innerHTML = '<div id="noSelection">Click a cell to select it, or choose a tile from the palette.</div>';
+    const ac = document.getElementById('actionsContent');
+    if (ac) ac.innerHTML = '<div id="noActionsSelection" style="color:#555;font-size:13px;text-align:center;margin-top:10px">Select a cell to view its actions.</div>';
 }
 
 function showProps(x, y) {
     showPropsForCell(grid[y][x], x, y);
 }
 
-function showPropsForCell(cell, x, y) {
+function showPropsForCell(cell, x, y, keepEditingActions) {
+    if (!keepEditingActions) {
+        editingActions = (cell.actions || []).map(a => ({...a}));
+    }
     const typeInfo = squareTypes.find(t => t.typeId === cell.squareType) || { name: 'Blank', typeId: 0, canRotate: false };
     const container = document.getElementById('propsContent');
-
     const isPaletteMode = (x === null && y === null);
 
     let html = '';
 
     // Header
     html += `<div class="prop-row">
-        <img class="prop-img" src="images/Element${cell.squareType}.jpg" onerror="this.src='images/Element0.jpg'" style="transform:rotate(${rotationToDeg(cell.rotation)}deg)">
+        <img class="prop-img" id="propTypeImg" src="images/Element${cell.squareType}.jpg" onerror="this.src='images/Element0.jpg'" style="transform:rotate(${rotationToDeg(cell.rotation)}deg)">
         <div>
-            <div class="prop-value" style="font-weight:bold">${typeInfo.name}</div>
-            <div style="font-size:11px;color:#888">Type ID: ${cell.squareType}</div>
+            <div class="prop-value" id="propTypeName" style="font-weight:bold">${typeInfo.name}</div>
+            <div id="propTypeId" style="font-size:11px;color:#888">Type ID: ${cell.squareType}</div>
         </div>
     </div>`;
+
+    // Position
     if (isPaletteMode) {
         html += `<div class="prop-row"><span class="prop-label">Position:</span><span class="prop-value">Template</span></div>`;
     } else {
         html += `<div class="prop-row"><span class="prop-label">Position:</span><span class="prop-value">(${x}, ${y})</span></div>`;
     }
 
-    // Rotation buttons
+    // Square Type selector
+    html += `<div class="prop-section"><h4>Square Type</h4>`;
+    html += `<select id="propSquareType" style="background:#333;color:#fff;border:1px solid #555;padding:3px 4px;border-radius:3px;width:100%;font-size:12px" onchange="onPropTypeChange()">`;
+    for (const t of squareTypes) {
+        html += `<option value="${t.typeId}"${t.typeId===cell.squareType?' selected':''}>${t.name} (${t.typeId})</option>`;
+    }
+    html += `</select></div>`;
+
+    // Rotation
     const canRotate = typeInfo.canRotate !== false;
+    const dis = canRotate ? '' : ' disabled';
     html += `<div class="prop-section"><h4>Rotation</h4>`;
     html += `<div class="dir-buttons">`;
-    // Row 1: spacer, Up (1), spacer
     html += `<div class="dir-btn spacer"></div>`;
-    const dis = canRotate ? '' : ' disabled';
-    html += `<div class="dir-btn${cell.rotation===1?' active':''}${dis}" onclick="setRotationOnActive(1)" title="Up">↑</div>`;
+    html += `<div class="dir-btn${cell.rotation===1?' active':''}${dis}" onclick="setRotationOnActive(1)" title="Up (1)">↑</div>`;
     html += `<div class="dir-btn spacer"></div>`;
-    // Row 2: Left (4), None (0), Right (2)
-    html += `<div class="dir-btn${cell.rotation===4?' active':''}${dis}" onclick="setRotationOnActive(4)" title="Left">←</div>`;
-    html += `<div class="dir-btn${cell.rotation===0?' active':''}" onclick="setRotationOnActive(0)" title="None">·</div>`;
-    html += `<div class="dir-btn${cell.rotation===2?' active':''}${dis}" onclick="setRotationOnActive(2)" title="Right">→</div>`;
-    // Row 3: spacer, Down (3), spacer
+    html += `<div class="dir-btn${cell.rotation===4?' active':''}${dis}" onclick="setRotationOnActive(4)" title="Left (4)">←</div>`;
+    html += `<div class="dir-btn${cell.rotation===0?' active':''}" onclick="setRotationOnActive(0)" title="None (0)">·</div>`;
+    html += `<div class="dir-btn${cell.rotation===2?' active':''}${dis}" onclick="setRotationOnActive(2)" title="Right (2)">→</div>`;
     html += `<div class="dir-btn spacer"></div>`;
-    html += `<div class="dir-btn${cell.rotation===3?' active':''}${dis}" onclick="setRotationOnActive(3)" title="Down">↓</div>`;
+    html += `<div class="dir-btn${cell.rotation===3?' active':''}${dis}" onclick="setRotationOnActive(3)" title="Down (3)">↓</div>`;
     html += `<div class="dir-btn spacer"></div>`;
     html += `</div></div>`;
-
-    // Wall section (type 200)
-    if (cell.squareType === 200) {
-        html += `<div class="prop-section"><h4>Blocked Directions</h4>`;
-        for (const [dirName, dirVal] of [['Up',1],['Right',2],['Down',3],['Left',4]]) {
-            const hasBlock = cell.actions.some(a => a.squareAction === SA.BlockDirection && a.parameter === dirVal);
-            html += `<div class="check-row"><input type="checkbox" id="wall_${dirVal}" ${hasBlock?'checked':''}><label for="wall_${dirVal}">${dirName} (${dirVal})</label></div>`;
-        }
-        html += `</div>`;
-    }
-
-    // Pusher section (type 50)
-    if (cell.squareType === 50) {
-        const pusherDirAct = cell.actions.find(a => a.squareAction === SA.FireCannon || a.squareAction === SA.BlockDirection);
-        const pusherDir = cell.rotation || 1;
-        const pusherPhaseAct = cell.actions.find(a => a.squareAction === SA.Move);
-        const pusherPhase = pusherPhaseAct ? pusherPhaseAct.phase : 31;
-        const activePhases = bitmaskToPhases(pusherPhase);
-
-        html += `<div class="prop-section"><h4>Pusher Direction</h4>`;
-        for (const [dn, dv] of [['Up',1],['Right',2],['Down',3],['Left',4]]) {
-            html += `<div class="radio-row"><input type="radio" name="pusherDir" id="pdir_${dv}" value="${dv}" ${cell.rotation===dv?'checked':''}><label for="pdir_${dv}">${dn}</label></div>`;
-        }
-        html += `<h4>Active Phases</h4>`;
-        for (let p = 1; p <= 5; p++) {
-            const checked = activePhases.includes(p);
-            html += `<div class="check-row"><input type="checkbox" id="pphase_${p}" ${checked?'checked':''}><label for="pphase_${p}">Phase ${p}</label></div>`;
-        }
-        html += `</div>`;
-    }
-
-    // Cannon section (type 60)
-    if (cell.squareType === 60) {
-        html += `<div class="prop-section"><h4>Cannon Direction</h4>`;
-        for (const [dn, dv] of [['Up',1],['Right',2],['Down',3],['Left',4]]) {
-            html += `<div class="radio-row"><input type="radio" name="cannonDir" id="cdir_${dv}" value="${dv}" ${cell.rotation===dv?'checked':''}><label for="cdir_${dv}">${dn}</label></div>`;
-        }
-        html += `</div>`;
-    }
-
-    // Flag section (type 100)
-    if (cell.squareType === 100) {
-        const flagAct = cell.actions.find(a => a.squareAction === SA.Flag);
-        const flagNum = flagAct ? flagAct.parameter : 1;
-        html += `<div class="prop-section"><h4>Flag Number</h4>`;
-        html += `<div class="prop-row"><label class="prop-label">Flag #:</label><input type="number" id="flagNum" value="${flagNum}" min="1" max="99"></div>`;
-        html += `</div>`;
-    }
-
-    // StartSquare section (type 110)
-    if (cell.squareType === 110) {
-        const startAct = cell.actions.find(a => a.squareAction === SA.PlayerStart);
-        const startNum = startAct ? startAct.parameter : 1;
-        html += `<div class="prop-section"><h4>Start Position</h4>`;
-        html += `<div class="prop-row"><label class="prop-label">Start #:</label><input type="number" id="startNum" value="${startNum}" min="1" max="99"></div>`;
-        html += `</div>`;
-    }
 
     // Apply / Clear buttons
     html += `<button class="btn btn-primary" id="btnApplyProps" onclick="applyProps()">Apply</button>`;
@@ -864,6 +866,7 @@ function showPropsForCell(cell, x, y) {
     }
 
     container.innerHTML = html;
+    renderActionsPanel();
 }
 
 function setRotationOnActive(rot) {
@@ -872,18 +875,20 @@ function setRotationOnActive(rot) {
     } else if (paletteCell) {
         const typeInfo = squareTypes.find(t => t.typeId === paletteCell.squareType);
         if (rot !== 0 && typeInfo && typeInfo.canRotate === false) return;
+        readAllActionRowValues();
         paletteCell.rotation = rot;
-        showPropsForCell(paletteCell, null, null);
+        showPropsForCell(paletteCell, null, null, true);
     }
 }
 
 function setRotation(x, y, rot) {
     const typeInfo = squareTypes.find(t => t.typeId === grid[y][x].squareType);
     if (rot !== 0 && typeInfo && typeInfo.canRotate === false) return;
+    readAllActionRowValues();
     grid[y][x].rotation = rot;
     renderCell(x, y);
     setDirty();
-    showProps(x, y);
+    showPropsForCell(grid[y][x], x, y, true);
 }
 
 function clearCell(x, y) {
@@ -894,62 +899,109 @@ function clearCell(x, y) {
 }
 
 function applyPropsToCell(cell) {
-    // Walls
-    if (cell.squareType === 200) {
-        const wallActions = [];
-        for (const dirVal of [1,2,3,4]) {
-            const cb = document.getElementById(`wall_${dirVal}`);
-            if (cb && cb.checked) {
-                wallActions.push({ squareAction: SA.BlockDirection, sequence: 0, phase: 31, parameter: dirVal });
-            }
-        }
-        // Preserve non-wall actions, replace block actions
-        cell.actions = [
-            ...cell.actions.filter(a => a.squareAction !== SA.BlockDirection),
-            ...wallActions
-        ];
-    }
+    readAllActionRowValues();
 
-    // Pusher
-    if (cell.squareType === 50) {
-        const dirRadio = document.querySelector('input[name="pusherDir"]:checked');
-        if (dirRadio) cell.rotation = parseInt(dirRadio.value);
+    // Square type
+    const typeEl = document.getElementById('propSquareType');
+    if (typeEl) cell.squareType = parseInt(typeEl.value);
 
-        const phases = [];
-        for (let p = 1; p <= 5; p++) {
-            const cb = document.getElementById(`pphase_${p}`);
-            if (cb && cb.checked) phases.push(p);
-        }
-        const phaseMask = phaseToBitmask(phases.length ? phases : [1,2,3,4,5]);
-        // Update Move action phase, or set it
-        const moveAct = cell.actions.find(a => a.squareAction === SA.Move);
-        if (moveAct) moveAct.phase = phaseMask;
-        else cell.actions.push({ squareAction: SA.Move, sequence: 3, phase: phaseMask, parameter: cell.rotation });
-    }
+    // Actions
+    cell.actions = editingActions.map(a => ({...a}));
+}
 
-    // Cannon
-    if (cell.squareType === 60) {
-        const dirRadio = document.querySelector('input[name="cannonDir"]:checked');
-        if (dirRadio) cell.rotation = parseInt(dirRadio.value);
+function renderActionsTable() {
+    if (editingActions.length === 0) {
+        return `<div style="color:#555;font-size:11px;text-align:center;padding:6px">No actions</div>`;
     }
+    return editingActions.map((a, i) => renderActionRow(a, i)).join('');
+}
 
-    // Flag
-    if (cell.squareType === 100) {
-        const inp = document.getElementById('flagNum');
-        if (inp) {
-            const flagAct = cell.actions.find(a => a.squareAction === SA.Flag);
-            if (flagAct) flagAct.parameter = parseInt(inp.value);
-        }
-    }
+function renderActionRow(a, idx) {
+    const phases = bitmaskToPhases(a.phase || 0);
+    let html = `<div style="background:#252525;border:1px solid #3a3a3a;border-radius:3px;padding:5px;margin-bottom:4px">`;
 
-    // StartSquare
-    if (cell.squareType === 110) {
-        const inp = document.getElementById('startNum');
-        if (inp) {
-            const startAct = cell.actions.find(a => a.squareAction === SA.PlayerStart);
-            if (startAct) startAct.parameter = parseInt(inp.value);
-        }
+    // Row 1: action type select + delete button
+    html += `<div style="display:flex;gap:4px;margin-bottom:4px;align-items:center">`;
+    html += `<select id="act_type_${idx}" style="flex:1;background:#333;color:#fff;border:1px solid #555;padding:2px 3px;border-radius:3px;font-size:11px">`;
+    for (const [val, name] of SA_SORTED) {
+        html += `<option value="${val}"${parseInt(val)===a.squareAction?' selected':''}>${name} (${val})</option>`;
     }
+    html += `</select>`;
+    html += `<button onclick="deleteAction(${idx})" style="background:#622;border:1px solid #844;color:#f88;border-radius:3px;padding:0 7px;cursor:pointer;font-size:14px;line-height:22px" title="Delete action">×</button>`;
+    html += `</div>`;
+
+    // Row 2: sequence + parameter
+    html += `<div style="display:flex;gap:6px;margin-bottom:4px">`;
+    html += `<div style="flex:1"><div style="font-size:10px;color:#888;margin-bottom:2px">Sequence</div>`;
+    html += `<input type="number" id="act_seq_${idx}" value="${a.sequence || 0}" min="0" style="width:100%;background:#333;color:#fff;border:1px solid #555;padding:2px 4px;border-radius:3px;font-size:11px"></div>`;
+    html += `<div style="flex:1"><div style="font-size:10px;color:#888;margin-bottom:2px">Parameter</div>`;
+    html += `<input type="number" id="act_param_${idx}" value="${a.parameter || 0}" style="width:100%;background:#333;color:#fff;border:1px solid #555;padding:2px 4px;border-radius:3px;font-size:11px"></div>`;
+    html += `</div>`;
+
+    // Row 3: phase bitmask toggles (phases 1–5)
+    html += `<div style="display:flex;align-items:center;gap:3px">`;
+    html += `<span style="font-size:10px;color:#888;margin-right:2px">Phase:</span>`;
+    for (let p = 1; p <= 5; p++) {
+        const active = phases.includes(p);
+        html += `<button onclick="togglePhase(${idx},${p})" style="background:${active?'#0aa':'#333'};border:1px solid ${active?'#0cc':'#555'};color:${active?'#fff':'#aaa'};padding:1px 5px;border-radius:3px;font-size:11px;cursor:pointer;min-width:22px">${p}</button>`;
+    }
+    html += `</div>`;
+
+    html += `</div>`;
+    return html;
+}
+
+function onPropTypeChange() {
+    const sel = document.getElementById('propSquareType');
+    if (!sel) return;
+    const newTypeId = parseInt(sel.value);
+    const typeInfo = squareTypes.find(t => t.typeId === newTypeId) || { name: 'Unknown', typeId: newTypeId };
+    const img = document.getElementById('propTypeImg');
+    if (img) { img.src = `images/Element${newTypeId}.jpg`; img.onerror = function(){ this.src='images/Element0.jpg'; }; }
+    const nm = document.getElementById('propTypeName');
+    if (nm) nm.textContent = typeInfo.name;
+    const ti = document.getElementById('propTypeId');
+    if (ti) ti.textContent = 'Type ID: ' + newTypeId;
+}
+
+function readAllActionRowValues() {
+    for (let i = 0; i < editingActions.length; i++) {
+        const typeEl = document.getElementById(`act_type_${i}`);
+        const seqEl = document.getElementById(`act_seq_${i}`);
+        const paramEl = document.getElementById(`act_param_${i}`);
+        if (typeEl) editingActions[i].squareAction = parseInt(typeEl.value);
+        if (seqEl) editingActions[i].sequence = parseInt(seqEl.value) || 0;
+        if (paramEl) editingActions[i].parameter = parseInt(paramEl.value) || 0;
+    }
+}
+
+function addAction() {
+    readAllActionRowValues();
+    editingActions.push({ squareAction: SA.Move, sequence: 0, phase: 31, parameter: 0 });
+    refreshActionsSection();
+}
+
+function deleteAction(idx) {
+    readAllActionRowValues();
+    editingActions.splice(idx, 1);
+    refreshActionsSection();
+}
+
+function togglePhase(idx, phase) {
+    readAllActionRowValues();
+    const a = editingActions[idx];
+    const phases = bitmaskToPhases(a.phase || 0);
+    if (phases.includes(phase)) {
+        a.phase = phaseToBitmask(phases.filter(p => p !== phase));
+    } else {
+        a.phase = phaseToBitmask([...phases, phase]);
+    }
+    refreshActionsSection();
+}
+
+function refreshActionsSection() {
+    const container = document.getElementById('actionsTableContainer');
+    if (container) container.innerHTML = renderActionsTable();
 }
 
 function applyProps() {
@@ -959,10 +1011,10 @@ function applyProps() {
         applyPropsToCell(cell);
         renderCell(x, y);
         setDirty();
-        showProps(x, y);
+        showPropsForCell(cell, x, y, true);
     } else if (paletteCell) {
         applyPropsToCell(paletteCell);
-        showPropsForCell(paletteCell, null, null);
+        showPropsForCell(paletteCell, null, null, true);
     }
 }
 
@@ -1107,6 +1159,111 @@ function showStatus(msg, type) {
         setTimeout(() => {
             if (el.textContent === msg) { el.textContent = 'Ready'; el.className = ''; }
         }, 3000);
+    }
+}
+
+// ── Game Data panel ────────────────────────────────────────────────────────
+async function loadGameData() {
+    try {
+        const res = await fetch('/api/boardeditor/gamedata');
+        if (res.ok) {
+            const data = await res.json();
+            gameDataRows = data.gameData || [];
+        }
+    } catch(e) { console.error('Failed to load game data', e); }
+    populateGameDataDropdown();
+}
+
+function populateGameDataDropdown() {
+    const sel = document.getElementById('gameDataSelect');
+    if (!sel) return;
+    const prev = selectedGameDataId;
+    sel.innerHTML = '<option value="">-- select --</option>';
+    for (const gd of gameDataRows) {
+        const opt = document.createElement('option');
+        opt.value = gd.GameDataID;
+        const label = gd.Description || gd.GameCode || ('Game ' + gd.GameDataID);
+        opt.textContent = `${gd.GameDataID}: ${label}`;
+        sel.appendChild(opt);
+    }
+    if (prev) { sel.value = prev; }
+}
+
+function onGameDataSelectChange() {
+    const sel = document.getElementById('gameDataSelect');
+    selectedGameDataId = sel.value ? parseInt(sel.value) : null;
+    renderGameDataDetails();
+}
+
+const GD_LABELS = {
+    BoardID: 'Board ID', GameType: 'Game Type', TotalFlags: 'Total Flags',
+    LaserDamage: 'Laser Damage', PhaseCount: 'Phase Count',
+    BoardCols: 'Board Cols', BoardRows: 'Board Rows',
+    RulesVersion: 'Rules Version', PlayerListID: 'Player List ID',
+    OptionCount: 'Option Count'
+};
+
+function renderGameDataDetails() {
+    const el = document.getElementById('gameDataDetails');
+    const btn = document.getElementById('btnApplyGameData');
+    if (!el) return;
+
+    if (!selectedGameDataId) {
+        el.innerHTML = '';
+        if (btn) btn.disabled = true;
+        return;
+    }
+
+    const gd = gameDataRows.find(g => g.GameDataID === selectedGameDataId);
+    if (!gd) { el.innerHTML = ''; return; }
+
+    const fields = ['BoardID','GameType','TotalFlags','LaserDamage','PhaseCount',
+                    'BoardCols','BoardRows','RulesVersion','PlayerListID','OptionCount'];
+    let rows = '';
+    for (const f of fields) {
+        rows += `<tr><td style="color:#888;padding:2px 4px;font-size:11px">${GD_LABELS[f]}</td>` +
+                `<td style="color:#ccc;padding:2px 4px;font-size:11px;text-align:right">${gd[f] ?? ''}</td></tr>`;
+    }
+    el.innerHTML = `<div class="prop-section">
+        <table style="width:100%;border-collapse:collapse">
+            <tr><td colspan="2" style="color:#aaa;font-size:11px;padding:2px 4px;border-bottom:1px solid #333">
+                ${gd.Description || gd.GameCode || ''}
+            </td></tr>
+            ${rows}
+        </table>
+    </div>`;
+
+    if (btn) btn.disabled = !currentBoard;
+}
+
+async function applyBoardToGameData() {
+    if (!currentBoard || !selectedGameDataId) return;
+    const btn = document.getElementById('btnApplyGameData');
+    if (btn) { btn.disabled = true; btn.textContent = 'Applying...'; }
+    try {
+        const res = await fetch(`/api/boardeditor/gamedata/${selectedGameDataId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ boardId: currentBoard.boardId })
+        });
+        if (!res.ok) {
+            const err = await res.json();
+            showStatus('GameData error: ' + (err.error || 'update failed'), 'error');
+            return;
+        }
+        const data = await res.json();
+        if (data.gameData && data.gameData.length > 0) {
+            const idx = gameDataRows.findIndex(g => g.GameDataID === selectedGameDataId);
+            if (idx >= 0) gameDataRows[idx] = data.gameData[0];
+            else gameDataRows.push(data.gameData[0]);
+        }
+        renderGameDataDetails();
+        showStatus('Game Data updated', 'saved');
+    } catch(e) {
+        showStatus('Network error', 'error');
+        console.error(e);
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Apply Board to Game Data'; }
     }
 }
 

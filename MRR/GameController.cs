@@ -136,8 +136,6 @@ namespace MRR.Controller
                 "  CASE CurrentGameData.sKey " +
                 "    WHEN 'GameDataID'   THEN GameData.GameDataID " +
                 "    WHEN 'GameState'    THEN 0 " +
-                "    WHEN 'Turn'         THEN 0 " +
-                "    WHEN 'Phase'        THEN 0 " +
                 "    WHEN 'GameType'     THEN GameData.GameType " +
                 "    WHEN 'LaserDamage'  THEN GameData.LaserDamage " +
                 "    WHEN 'TotalFlags'   THEN GameData.TotalFlags " +
@@ -157,6 +155,9 @@ namespace MRR.Controller
         public void StartGame() // pass board elements and players // find start positions for each player
         {
 
+            _dataService.ExecuteSQL("Update CurrentGameData set iValue=0 where sKey='GameState';");
+            _dataService.ExecuteSQL("Update CurrentGameData set iValue=0 where sKey='Turn';");
+            _dataService.ExecuteSQL("Update CurrentGameData set iValue=0 where sKey='Phase';");
             _dataService.ExecuteSQL("Delete from MoveCards;");
             _dataService.ExecuteSQL("Delete from CommandList;");        
             _dataService.ExecuteSQL("Delete from RobotOptions;");

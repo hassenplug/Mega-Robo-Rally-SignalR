@@ -107,7 +107,7 @@ namespace MRR
 
                 // Find the minimum command sequence that has pending commands
                 var minSequence = db.PendingCommands
-                    .Where(c => c.StatusID == 1)
+                    .Where(c => c.StatusID == 1 && c.Turn == _dataService.CurrentTurn)
                     .Min(c => (int?)c.CommandSequence) ?? -1;
 
                 //Console.WriteLine("Next Command Sequence to process: " + minSequence.ToString());
@@ -116,7 +116,7 @@ namespace MRR
 
                 // Update all commands with the minimum sequence to ready status
                 var affected = db.PendingCommands
-                    .Where(c => c.CommandSequence == minSequence)
+                    .Where(c => c.CommandSequence == minSequence && c.Turn == _dataService.CurrentTurn)
                     .ExecuteUpdate(s => s
                         .SetProperty(b => b.StatusID, 2));
                 
