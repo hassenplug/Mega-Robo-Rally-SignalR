@@ -257,7 +257,7 @@ namespace MRR.Controller
                             break;
                         case 2: // Next Turn
                             _dataService.ExecuteSQL("call procResetPlayers();");
-                            _dataService.ExecuteSQL("call procMoveCardsShuffleAndDeal();");
+                            _dataService.MoveCardsShuffleAndDeal();
                             _dataService.ExecuteSQL("update CurrentGameData set iValue=iValue+1 where iKey=2;"); // next turn
                             SetGameState(3);
                             break;

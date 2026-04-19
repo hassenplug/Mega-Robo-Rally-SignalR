@@ -58,6 +58,11 @@ function showplayerprogram(pl) // show program for this line
         card.cid = Number(cardtag);
     }
 
+    var active = canProgram();
+    var displayVal = active ? '' : 'none';
+    document.getElementById("DealtRow1").style.display = displayVal;
+    document.getElementById("DealtRow2").style.display = displayVal;
+
     var showmessage = "display: none;";
     //console.log("Message:", message);
 
@@ -108,8 +113,15 @@ function showall()
 
 }
 
+function canProgram()
+{
+    var gs = datapacket && datapacket.gamestate;
+    return gs >= 2 && gs <= 4;
+}
+
 function PlayCard(cardObj)
 {
+    if (!canProgram()) return;
     SendUpdate( 1, CurrentPlayer, cardObj.cid, cardObj.loc);
 }
 
@@ -122,7 +134,7 @@ function SendUpdate( command,  playerid=0,  data1=0,  data2=0)
 {
     connection.invoke("UpdatePlayer", command, playerid, data1, data2)
         .catch(err => console.error(err.toString()));
-    const response = fetch('/api/state/nextstate');
+    //const response = fetch('/api/state/nextstate');
 }
 
 // signalR part with automatic reconnect

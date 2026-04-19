@@ -15,6 +15,11 @@ Ability to use merge conveyor belts
 
 Options
 
+Two procedures still remain as raw SQL calls within the new C# code (separate migration tasks):
+
+procUpdatePlayerPriority (10-Turn mode path)
+procGameFillPrograms (Classic rules, damage > 4 path)
+
 Move SQL functions into c#
 
         (port: 80, path: "ws_img"),       // Camera images

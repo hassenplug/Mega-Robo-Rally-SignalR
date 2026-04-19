@@ -894,6 +894,454 @@ namespace MRR.Services
             return optionID;
         }
 
+        /// <summary>
+        /// C# equivalent of procMoveCardsShuffleAndDeal.
+        /// Shuffles and deals move cards to each active player at the start of a turn.
+        /// Behaviour varies by RulesVersion and PhaseCount:
+        ///   PhaseCount=1  — single-phase (10-Turn) mode: rotate priorities then assign
+        ///                   cards to players by priority slot.
+        ///   RulesVersion=1 — Renegade rules: discard played Spam cards, move hand/played
+        ///                   cards to discard, shuffle with DealPriority weighting, refill
+        ///                   deck from discard if a player has fewer than 9 cards, deal 9
+        ///                   cards and update Robots.CardsDealt / CardsPlayed strings.
+        ///   RulesVersion=0 — Classic rules: deal (9 - Damage + ExtraMemoryOption) cards
+        ///                   per robot, respecting locked registers, then call
+        ///                   MoveCardsCheckProgrammed to update robot Status values.
+        /// </summary>
+        public void MoveCardsShuffleAndDeal()
+        {
+            int rulesVersion = GetIntFromDB(
+                "SELECT iValue FROM CurrentGameData WHERE sKey = 'RulesVersion'");
+            int phaseCount = GetIntFromDB(
+                "SELECT iValue FROM CurrentGameData WHERE sKey = 'PhaseCount'");
+
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+
+            // Unlock all non-locked cards; reset Executed and Random flags.
+            // If no rows exist (empty deck) call procGameNewAddCards to create the deck.
+            using (var cmd = new MySqlCommand(
+                "UPDATE MoveCards SET `Locked` = IF(CardLocation = 4, 1, 0), Executed = 0, Random = 0",
+                connection))
+            {
+                int affected = cmd.ExecuteNonQuery();
+                if (affected == 0)
+                {
+                    // No cards exist yet — create the deck via the stored procedure.
+                    using var addCards = new MySqlCommand("CALL procGameNewAddCards()", connection);
+                    addCards.ExecuteNonQuery();
+                }
+            }
+
+            if (phaseCount == 1)
+            {
+                // Single-phase (10-Turn) mode.
+                // Rotate player priorities via the stored procedure, then assign
+                // cards to each robot by their priority slot (10 - floor((CardID-1)/7)).
+                using (var cmd = new MySqlCommand("CALL procUpdatePlayerPriority()", connection))
+                {
+                    cmd.ExecuteNonQuery();
+                }
+
+                using (var cmd = new MySqlCommand(
+                    "UPDATE MoveCards SET PhasePlayed = -1",
+                    connection))
+                {
+                    cmd.ExecuteNonQuery();
+                }
+
+                using (var cmd = new MySqlCommand(
+                    "UPDATE MoveCards, Robots SET Owner = RobotID " +
+                    "WHERE 10 - FLOOR((CardID - 1) / 7) = Priority",
+                    connection))
+                {
+                    cmd.ExecuteNonQuery();
+                }
+            }
+            else if (rulesVersion == 1)
+            {
+                // Renegade rules.
+
+                // 1. Discard played Spam cards (CardLocation=2 with CardTypeID=10).
+                using (var cmd = new MySqlCommand(
+                    "DELETE FROM MoveCards WHERE CardLocation = 5 AND CardTypeID = 10",
+                    connection))
+                {
+                    cmd.ExecuteNonQuery();
+                }
+
+                // 2. Move all remaining hand (1) and played (2) cards to discard (3).
+                using (var cmd = new MySqlCommand(
+                    "UPDATE MoveCards SET CardLocation = 3, PhasePlayed = 0 " +
+                    "WHERE CardLocation = 1 OR CardLocation = 2",
+                    connection))
+                {
+                    cmd.ExecuteNonQuery();
+                }
+
+                // 3. Shuffle: assign a random value weighted by DealPriority, reset CurrentOrder.
+                using (var cmd = new MySqlCommand(
+                    "UPDATE MoveCards mc " +
+                    "INNER JOIN MoveCardLocations mcl ON mc.CardLocation = mcl.LocationID " +
+                    "SET mc.Random = ROUND(500.0 * RAND()) + mcl.DealPriority * 500, mc.CurrentOrder = 0",
+                    connection))
+                {
+                    cmd.ExecuteNonQuery();
+                }
+
+                // 4. Rank cards within each owner by their Random value using the
+                //    self-join count pattern, storing rank in CurrentOrder.
+                using (var cmd = new MySqlCommand(
+                    "UPDATE MoveCards m1 " +
+                    "INNER JOIN (" +
+                    "  SELECT mc.CardID, mc.Owner, COUNT(mc.CardID) AS cnt, mc.CardLocation " +
+                    "  FROM MoveCards mc " +
+                    "  INNER JOIN MoveCards mc2 " +
+                    "    ON mc.Owner = mc2.Owner " +
+                    "    AND (mc.Random > mc2.Random OR (mc.Random = mc2.Random AND mc.CardID >= mc2.CardID)) " +
+                    "  GROUP BY mc.CardID, mc.Owner, mc.CardLocation " +
+                    "  ORDER BY mc.Owner, cnt" +
+                    ") ij ON m1.Owner = ij.Owner AND m1.CardID = ij.CardID " +
+                    "SET m1.CurrentOrder = ij.cnt",
+                    connection))
+                {
+                    cmd.ExecuteNonQuery();
+                }
+
+                // 5. If any player has fewer than 9 cards in their deck (CardLocation=0),
+                //    move their discards (CardLocation=3) back into their deck.
+                using (var cmd = new MySqlCommand(
+                    "UPDATE MoveCards m0 " +
+                    "INNER JOIN (" +
+                    "  SELECT Owner FROM MoveCards WHERE CardLocation = 0 " +
+                    "  GROUP BY Owner HAVING COUNT(CardID) < 9" +
+                    ") lt9 ON m0.Owner = lt9.Owner " +
+                    "SET CardLocation = 0 " +
+                    "WHERE CardLocation = 3",
+                    connection))
+                {
+                    cmd.ExecuteNonQuery();
+                }
+
+                // 6. Deal 9 cards per player: promote the 9 lowest-ordered cards to hand.
+                using (var cmd = new MySqlCommand(
+                    "UPDATE MoveCards SET CardLocation = 1 WHERE CurrentOrder <= 9",
+                    connection))
+                {
+                    cmd.ExecuteNonQuery();
+                }
+
+                // 7. Rebuild Robots.CardsDealt (sorted by CardTypeID desc) and
+                //    reset CardsPlayed to "0,0,0,0,0".
+                using (var cmd = new MySqlCommand(
+                    "UPDATE Robots rb " +
+                    "INNER JOIN (" +
+                    "  SELECT mc.Owner, GROUP_CONCAT(mc.CardTypeID ORDER BY mc.CardTypeID DESC) AS gctl " +
+                    "  FROM MoveCards mc " +
+                    "  WHERE mc.CardLocation = 1 " +
+                    "  GROUP BY mc.Owner" +
+                    ") ctl ON rb.RobotID = ctl.Owner " +
+                    "SET CardsDealt = ctl.gctl, CardsPlayed = '0,0,0,0,0'",
+                    connection))
+                {
+                    cmd.ExecuteNonQuery();
+                }
+            }
+            else
+            {
+                // Classic rules (RulesVersion=0).
+
+                // Load all active robots (Programming=1) with their Damage values.
+                var activeRobots = new List<(int robotID, int damage)>();
+                using (var cmd = new MySqlCommand(
+                    "SELECT Robots.Damage, Robots.RobotID " +
+                    "FROM Robots " +
+                    "INNER JOIN RobotStatus ON Robots.`Status` = RobotStatus.RobotStatusID " +
+                    "WHERE RobotStatus.Programming = 1",
+                    connection))
+                using (var reader = cmd.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        activeRobots.Add((reader.GetInt32(1), reader.GetInt32(0)));
+                    }
+                }
+
+                // First pass: handle locked registers for robots with damage > 4.
+                foreach (var (robotID, damage) in activeRobots)
+                {
+                    int lastLockedCard;
+                    if (damage > 4)
+                    {
+                        lastLockedCard = 10 - damage;
+
+                        // Check that the robot has enough cards; fill from unowned pool if short.
+                        int cardCount = GetIntFromDB(
+                            $"SELECT COUNT(CardID) FROM MoveCards WHERE `Owner` = {robotID}");
+                        if (cardCount < 5)
+                        {
+                            using var fillCmd = new MySqlCommand(
+                                $"UPDATE MoveCards SET `Owner` = {robotID}, Random = 1 " +
+                                $"WHERE `Owner` = -1 ORDER BY CurrentOrder, CardID LIMIT 5",
+                                connection);
+                            fillCmd.ExecuteNonQuery();
+
+                            // Auto-fill empty program registers.
+                            using var fillProgs = new MySqlCommand("CALL procGameFillPrograms()", connection);
+                            fillProgs.ExecuteNonQuery();
+                        }
+                    }
+                    else
+                    {
+                        lastLockedCard = 6;
+                    }
+
+                    // Lock any cards that were played in registers >= lastLockedCard.
+                    using var lockCmd = new MySqlCommand(
+                        $"UPDATE MoveCards SET `Locked` = 1 " +
+                        $"WHERE `Owner` = {robotID} AND PhasePlayed >= {lastLockedCard} AND PhasePlayed < 6",
+                        connection);
+                    lockCmd.ExecuteNonQuery();
+                }
+
+                // Return all unlocked, non-programmed cards to the unowned pool
+                // with a fresh random shuffle order.
+                using (var cmd = new MySqlCommand(
+                    "UPDATE MoveCards " +
+                    "SET CurrentOrder = ROUND(500.0 * RAND()), `Owner` = -1, PhasePlayed = -1, Random = 0 " +
+                    "WHERE `Locked` = 0 AND PhasePlayed < 6",
+                    connection))
+                {
+                    cmd.ExecuteNonQuery();
+                }
+
+                // Second pass: deal cards to each active robot.
+                foreach (var (robotID, damage) in activeRobots)
+                {
+                    // Extra Memory option (OptionID=16) adds 1 to card count.
+                    int optionCards = GetIntFromDB(
+                        $"SELECT IFNULL(SUM(Quantity), 0) FROM RobotOptions " +
+                        $"WHERE RobotID = {robotID} AND OptionID = 16");
+
+                    int newCardCount = 9 - damage + optionCards;
+
+                    while (newCardCount > 0)
+                    {
+                        using var dealCmd = new MySqlCommand(
+                            $"UPDATE MoveCards SET `Owner` = {robotID} " +
+                            $"WHERE `Owner` = -1 ORDER BY CurrentOrder, CardID LIMIT 1",
+                            connection);
+                        dealCmd.ExecuteNonQuery();
+                        newCardCount--;
+                    }
+                }
+
+                // Update robot Status values based on programming state.
+                MoveCardsCheckProgrammed(connection);
+            }
+        }
+
+        /// <summary>
+        /// C# equivalent of procMoveCardsCheckProgrammed.
+        /// Reads each active robot's card counts and updates their Status:
+        ///   1 = Waiting for Cards (fewer than 5 cards)
+        ///   4 = Ready to Run (all PhaseCount registers filled)
+        ///   3 = Programming (some registers filled beyond locked count)
+        ///   2 = Ready to Program (no progress yet)
+        /// Uses an existing open connection so it can be called within a transaction
+        /// or alongside other commands without opening a second connection.
+        /// </summary>
+        public void MoveCardsCheckProgrammed(MySqlConnection? connection = null)
+        {
+            bool ownConnection = connection == null;
+            if (ownConnection)
+            {
+                connection = new MySqlConnection(_connectionString);
+                connection.Open();
+            }
+
+            try
+            {
+                int requiredCards = GetIntFromDB(
+                    "SELECT iValue FROM CurrentGameData WHERE sKey = 'PhaseCount'");
+
+                // Collect per-robot card statistics for all actively-programming robots.
+                var robotStats = new List<(int cards, int programmed, int locked, int robotID, int currentStatus)>();
+                using (var cmd = new MySqlCommand(
+                    "SELECT COUNT(CardID) AS countCards, " +
+                    "  SUM(IF(MoveCards.PhasePlayed > 0 AND MoveCards.PhasePlayed < 6, 1, 0)) AS countProgrammed, " +
+                    "  SUM(IF(MoveCards.Locked > 0, 1, 0)) AS countLocked, " +
+                    "  Robots.RobotID AS rID, " +
+                    "  Robots.`Status` AS CurrentStatus " +
+                    "FROM Robots " +
+                    "INNER JOIN RobotStatus ON Robots.`Status` = RobotStatus.RobotStatusID " +
+                    "INNER JOIN MoveCards ON Robots.RobotID = MoveCards.`Owner` " +
+                    "WHERE RobotStatus.Programming = 1 " +
+                    "GROUP BY rID, CurrentStatus",
+                    connection!))
+                using (var reader = cmd.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        robotStats.Add((
+                            reader.GetInt32(0),
+                            reader.IsDBNull(1) ? 0 : reader.GetInt32(1),
+                            reader.IsDBNull(2) ? 0 : reader.GetInt32(2),
+                            reader.GetInt32(3),
+                            reader.GetInt32(4)
+                        ));
+                    }
+                }
+
+                foreach (var (cards, programmed, locked, robotID, currentStatus) in robotStats)
+                {
+                    int newStatus;
+                    if (cards < 5)
+                        newStatus = 1;
+                    else if (programmed == requiredCards)
+                        newStatus = 4;
+                    else if (programmed > locked)
+                        newStatus = 3;
+                    else
+                        newStatus = 2;
+
+                    if (newStatus != currentStatus)
+                    {
+                        using var updateCmd = new MySqlCommand(
+                            $"UPDATE Robots SET `Status` = {newStatus} WHERE RobotID = {robotID}",
+                            connection!);
+                        updateCmd.ExecuteNonQuery();
+                    }
+                }
+            }
+            finally
+            {
+                if (ownConnection)
+                {
+                    connection!.Dispose();
+                }
+            }
+        }
+
+        /// <summary>
+        /// C# equivalent of funcGetNextCard.
+        /// Draws the next card from the player's deck for use when a Spam card is played.
+        /// Marks the previously-played spam card as CardLocation=5 (Played Spam).
+        /// If the player has no cards in the deck (CardLocation=0), shuffles the discard
+        /// pile (CardLocation=3) back into the deck before drawing.
+        /// Returns the CardID of the drawn card, or 0 if none is available.
+        /// </summary>
+        public int GetNextCard(int player, int usedSpamCardID)
+        {
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+
+            // Mark the used spam card as Played Spam (CardLocation=5)
+            using (var cmd = new MySqlCommand(
+                "UPDATE MoveCards SET CardLocation = 5 WHERE Owner = @player AND CardID = @usedSpam",
+                connection))
+            {
+                cmd.Parameters.AddWithValue("@player", player);
+                cmd.Parameters.AddWithValue("@usedSpam", usedSpamCardID);
+                cmd.ExecuteNonQuery();
+            }
+
+            // Try to get the first card in deck (0) or discard (3), ordered by CurrentOrder
+            int cCardID = 0;
+            int cCardLoc = -1;
+            using (var cmd = new MySqlCommand(
+                "SELECT CardID, CardLocation FROM MoveCards " +
+                "WHERE Owner = @player AND (CardLocation = 0 OR CardLocation = 3) " +
+                "ORDER BY CurrentOrder LIMIT 1",
+                connection))
+            {
+                cmd.Parameters.AddWithValue("@player", player);
+                using var reader = cmd.ExecuteReader();
+                if (reader.Read())
+                {
+                    cCardID = reader.GetInt32(0);
+                    cCardLoc = reader.GetInt32(1);
+                }
+            }
+
+            if (cCardID == 0)
+            {
+                // No cards available at all
+                return 0;
+            }
+
+            // If the top card was not already in the deck, reshuffle discards into deck
+            if (cCardLoc != 0)
+            {
+                // Move all discards back to deck
+                using (var cmd = new MySqlCommand(
+                    "UPDATE MoveCards SET CardLocation = 0 WHERE CardLocation = 3",
+                    connection))
+                {
+                    cmd.ExecuteNonQuery();
+                }
+
+                // Assign random order weighted by DealPriority
+                using (var cmd = new MySqlCommand(
+                    "UPDATE MoveCards mc " +
+                    "INNER JOIN MoveCardLocations mcl ON mc.CardLocation = mcl.LocationID " +
+                    "SET mc.Random = ROUND(500.0 * RAND()) + mcl.DealPriority * 500, mc.CurrentOrder = 0",
+                    connection))
+                {
+                    cmd.ExecuteNonQuery();
+                }
+
+                // Rank cards by Random within each owner (self-join count pattern)
+                using (var cmd = new MySqlCommand(
+                    "UPDATE MoveCards m1 " +
+                    "INNER JOIN (" +
+                    "  SELECT mc.CardID, mc.Owner, COUNT(mc.CardID) AS cnt " +
+                    "  FROM MoveCards mc " +
+                    "  INNER JOIN MoveCards mc2 ON mc.Owner = mc2.Owner AND mc.Random >= mc2.Random " +
+                    "  GROUP BY mc.CardID, mc.Owner, mc.CardLocation " +
+                    "  ORDER BY mc.Owner, cnt" +
+                    ") ij ON m1.Owner = ij.Owner AND m1.CardID = ij.CardID " +
+                    "SET m1.CurrentOrder = ij.cnt",
+                    connection))
+                {
+                    cmd.ExecuteNonQuery();
+                }
+
+                // Re-fetch top card now that deck is rebuilt
+                cCardID = 0;
+                using (var cmd = new MySqlCommand(
+                    "SELECT CardID FROM MoveCards " +
+                    "WHERE Owner = @player AND CardLocation = 0 " +
+                    "ORDER BY CurrentOrder LIMIT 1",
+                    connection))
+                {
+                    cmd.Parameters.AddWithValue("@player", player);
+                    using var reader = cmd.ExecuteReader();
+                    if (reader.Read())
+                    {
+                        cCardID = reader.GetInt32(0);
+                    }
+                }
+            }
+
+            if (cCardID == 0)
+            {
+                return 0;
+            }
+
+            // Mark the drawn card as Hand (CardLocation=1)
+            using (var cmd = new MySqlCommand(
+                "UPDATE MoveCards SET CardLocation = 1 WHERE Owner = @player AND CardID = @cardID",
+                connection))
+            {
+                cmd.Parameters.AddWithValue("@player", player);
+                cmd.Parameters.AddWithValue("@cardID", cCardID);
+                cmd.ExecuteNonQuery();
+            }
+
+            return cCardID;
+        }
+
         public void BoardFileRead(string p_Filename)
         {
 

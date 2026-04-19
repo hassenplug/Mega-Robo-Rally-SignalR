@@ -1147,7 +1147,7 @@ namespace MRR
                         while(newcard != null && newcard.Type==MoveCard.tCardType.Spam)
                         {
                             ListOfCommands.AddCommand(thisplayer, SquareAction.Card, newcard.ID);
-                            int newcardID = (int)_dataService.GetIntFromDB("select funcGetNextCard(" + thiscard.Owner + "," + newcard.ID + ")");
+                            int newcardID = _dataService.GetNextCard(thiscard.Owner, newcard.ID);
                             //newcard = new MoveCard(thiscard,(MoveCard.tCardType)newcardtype);
                             newcard = GameCards.FirstOrDefault(gc=>gc.ID == newcardID && gc.Owner == thiscard.Owner)!;
                             //Console.WriteLine("Got new card for " + thisplayer?.Name + "="+newcard?.ID + ":"+newcardID.ToString());

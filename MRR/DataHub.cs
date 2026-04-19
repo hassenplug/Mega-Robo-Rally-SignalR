@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.SignalR;
 using System.Threading.Tasks;
 using MRR.Services;
+using MRR.Controller;
 
 namespace MRR.Hubs
 {
@@ -8,10 +9,12 @@ namespace MRR.Hubs
     public class DataHub : Hub
     {
         private readonly DataService _dataService;
+        private readonly GameController _gameController;
 
-        public DataHub(DataService dataService)
+        public DataHub(DataService dataService, GameController gameController)
         {
             _dataService = dataService;
+            _gameController = gameController;
         }
 
         // This method can be called directly by a client (e.g., to send a message)
@@ -24,59 +27,21 @@ namespace MRR.Hubs
 
         public async Task UpdatePlayer(int command, int playerId = 0, int data1 = 0, int data2 = 0)
         {
-            //Console.WriteLine($"UpdatePlayer called with playerId={playerId}, command={command}, data1={data1}, data2={data2}");
-
-            //string strSQL = $"call updatePlayer({playerId},{command},{data1},{data2});";
-            //Console.WriteLine("Update: " + request);
-            // update/player/card/removefrom/
-
-            //string[] requestSplit = request.Split('/');
-            //string commandID = requestSplit[2];
-            //string playerid = requestSplit[3];
             switch (command)
             {
                 case 1:
-                    //string cardid = requestSplit[4];
-                    //string position = requestSplit[5];
-                    //DBConn.Command("call procUpdateCardPlayed(" + playerid + "," + cardid + "," + position + ");");
-                    //Console.WriteLine($"UpdatePlayer called with playerId={playerId}, command={command}, data1={data1}, data2={data2}");
                     _dataService.ExecuteSQL("call procUpdateCardPlayed(" + playerId + "," + data1 + "," + data2 + ");");
-                    //Console.WriteLine($"UpdatePlayer called with playerId={playerId}, command={command}, data1={data1}, data2={data2}");
-                    // check to see if we an go to next state
                     break;
                 case 2:
-                    //string positionValid = requestSplit[4];
-                    // clear message
-                    //DBConn.Command("update Robots set PositionValid=" + positionValid + " where RobotID=" + playerid + ";");
                     break;
                 case 3:
                     int markcommand = _dataService.GetIntFromDB("Select MessageCommandID from Robots where RobotID=" + playerId);
                     _dataService.ExecuteSQL("update Robots set MessageCommandID=null where RobotID=" + playerId + ";");
                     _dataService.ExecuteSQL("update CommandList set StatusID=6 where CommandID=" + markcommand + ";");
-                    
                     break;
-
             }
-            // check to see if we an go to next state
-            //select funcGetNextGameState();
-            
-            //var gamestate = rDBConn.Exec("select funcGetNextGameState();"); //going to next state?
-//            var gamestate = DBConn.Command("select funcGetNextGameState();"); //going to next state?
-            
-            //if (createCommands.UpdateGameState() == 6)
-//            if (gamestate == 6)
-//            {
-//                createCommands.ExecuteTurn();
-//            }
-//            return MakeRobotsJson(request);
 
-            var gamestate = _dataService.GetIntFromDB("select funcGetNextGameState();"); //going to next state?
-            
-            //if (createCommands.UpdateGameState() == 6)
-            if (gamestate == 6)
-            {
-                //createCommands.ExecuteTurn();
-            }
+            _gameController.NextState();
 
            await SendUpdate();
         }
@@ -112,9 +77,8 @@ namespace MRR.Hubs
 
         public Task NextState()
         {
-            var newstate = _dataService.GetIntFromDB("select funcGetNextGameState(); ");
-            Console.WriteLine("next:" + newstate.ToString());
-            //return "State:" + newstate.ToString();
+            _gameController.NextState();
+            Console.WriteLine("next:" + _dataService.GameState.ToString());
             return Task.CompletedTask;
         }
 
