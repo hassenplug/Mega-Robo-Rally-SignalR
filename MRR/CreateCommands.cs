@@ -472,6 +472,8 @@ namespace MRR
 
             LoadOptionCardsFromDatabase();
 
+            _dataService.GetAllPlayers(true); // force refresh of player list after DB changes
+
             //MasterOptionCardList = (OptionCardList)LoadFile(typeof(OptionCardList), "" + "OptionList.xml");
 
             //LoadRobots();
@@ -481,14 +483,11 @@ namespace MRR
             //Console.WriteLine("Check Rules Version");
 
             // update priority of card based on owner; sort by (-)
-            if (RulesVersion==1)
+            foreach(MoveCard thiscard in GameCards)
             {
-                foreach(MoveCard thiscard in GameCards)
-                {
-                    thiscard.Priority = -(AllPlayers.GetPlayer(thiscard.Owner)?.Priority ?? 0);
-                }
-
+                thiscard.Priority = AllPlayers.GetPlayer(thiscard.Owner)?.Priority ?? 0;
             }
+
 
             // save AllPlayers here...
             // set button text
@@ -1120,7 +1119,7 @@ namespace MRR
 
             }
 
-            foreach (MoveCard thiscard in GameCards.Where(gc => gc.PhasePlayed == p_PhaseNumber).OrderByDescending(gc => gc.Priority))
+            foreach (MoveCard thiscard in GameCards.Where(gc => gc.PhasePlayed == p_PhaseNumber).OrderBy(gc => gc.Priority))
             {
                 Player? thisplayer = AllPlayers.GetPlayer(thiscard.Owner);
                 if (thisplayer != null)
@@ -1777,11 +1776,12 @@ namespace MRR
 
         public bool AddDamage(Player p_thisrobot, int p_Damage, Player? p_DamagingRobot = null)
         {
-            /*
+            
             if (p_DamagingRobot != null)
             {
-                AddDeathPoints(p_DamagingRobot, p_Damage, p_thisrobot);
-            }*/
+                //AddDeathPoints(p_DamagingRobot, p_Damage, p_thisrobot);
+                ListOfCommands.AddCommand(p_DamagingRobot, SquareAction.SetPlayerStatus, 14);
+            }
 
             if (p_Damage > 0)
             {

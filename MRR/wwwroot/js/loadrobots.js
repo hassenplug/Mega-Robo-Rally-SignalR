@@ -179,6 +179,7 @@ connection.onclose(error => {
 function startConnection() {
     connection.start().then(() => {
         console.log("SignalR Connected!");
+        fetch('/api/alldata').catch(err => console.error('Initial data fetch failed', err));
     }).catch(function (err) {
         console.error('SignalR failed to connect, retrying in 2s', err.toString());
         setTimeout(() => startConnection(), 2000);

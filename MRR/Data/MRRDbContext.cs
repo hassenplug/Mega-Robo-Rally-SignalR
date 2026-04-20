@@ -11,6 +11,7 @@ namespace MRR.Data
 
         public DbSet<PendingCommandEntity> PendingCommands { get; set; } = null!;
         public DbSet<Robot> Robots { get; set; } = null!;
+        public DbSet<CurrentGameDataEntity> CurrentGameData { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

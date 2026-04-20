@@ -6,6 +6,7 @@ using MySqlConnector;
 using Newtonsoft.Json;
 using Microsoft.EntityFrameworkCore;
 using MRR.Data;
+using MRR.Data.Entities;
 using System.Xml.Serialization;
 
 namespace MRR.Services
@@ -89,7 +90,22 @@ namespace MRR.Services
 
         public int BoardID { get; set; }
 
-        public int GameState { get; set; }
+        private int _gameState;
+        public int GameState
+        {
+            get => _gameState;
+            set
+            {
+                _gameState = value;
+                using var ctx = CreateDbContext();
+                var row = ctx.CurrentGameData.Find(10);
+                if (row != null)
+                {
+                    row.IValue = value;
+                    ctx.SaveChanges();
+                }
+            }
+        }
 
         public int RulesVersion { get; set; }
 
@@ -527,7 +543,7 @@ namespace MRR.Services
                         case 3: CurrentPhase = value; break;
                         case 6: LaserDamage = value; break;
                         case 8: RobotsActive = value; break;
-                        case 10: GameState = value; break;
+                        case 10: _gameState = value; break;
                         case 16: PhaseCount = value; break;
                         case 20:
                             BoardID = value;
@@ -744,8 +760,7 @@ namespace MRR.Services
                     break;
 
                 case SquareAction.GameWinner: // Game Winner
-                    ExecuteSQL(
-                        $"UPDATE CurrentGameData SET iValue = 11 WHERE iKey = 10");
+                    GameState = 11;
                     ExecuteSQL(
                         $"UPDATE CurrentGameData SET iValue = {cRobotID} WHERE iKey = 13");
                     break;
@@ -799,8 +814,7 @@ namespace MRR.Services
                     break;
 
                 case SquareAction.EndOfGame: // End of game
-                    ExecuteSQL(
-                        $"UPDATE CurrentGameData SET iValue = 12 WHERE iKey = 10");
+                    GameState = 12;
                     break;
 
                 case SquareAction.DeleteRobot: // Delete robot
@@ -809,8 +823,7 @@ namespace MRR.Services
                     break;
 
                 case SquareAction.SetGameState: // Set GameState
-                    ExecuteSQL(
-                        $"UPDATE CurrentGameData SET iValue = {cParameter} WHERE iKey = 10");
+                    GameState = cParameter;
                     ExecuteSQL(
                         $"UPDATE CurrentGameData SET iValue = {cRobotID} WHERE iKey = 13");
                     break;
@@ -936,12 +949,9 @@ namespace MRR.Services
             if (phaseCount == 1)
             {
                 // Single-phase (10-Turn) mode.
-                // Rotate player priorities via the stored procedure, then assign
-                // cards to each robot by their priority slot (10 - floor((CardID-1)/7)).
-                using (var cmd = new MySqlCommand("CALL procUpdatePlayerPriority()", connection))
-                {
-                    cmd.ExecuteNonQuery();
-                }
+                // Rotate player priorities, then assign cards to each robot by their
+                // priority slot (10 - floor((CardID-1)/7)).
+                UpdatePlayerPriority(connection);
 
                 using (var cmd = new MySqlCommand(
                     "UPDATE MoveCards SET PhasePlayed = -1",
@@ -1046,6 +1056,8 @@ namespace MRR.Services
                 {
                     cmd.ExecuteNonQuery();
                 }
+
+                UpdatePlayerPriority(connection);
             }
             else
             {
@@ -1340,6 +1352,66 @@ namespace MRR.Services
             }
 
             return cCardID;
+        }
+
+        /// <summary>
+        /// C# equivalent of procUpdatePlayerPriority.
+        /// Rotates robot turn-order priorities round-robin for 10-Turn (single-phase) mode:
+        ///   1. Decrement every robot's Priority by 1.
+        ///   2. Count the total number of robots.
+        ///   3. The robot whose Priority wrapped to 0 is assigned the highest priority
+        ///      (robotCount), so turn order cycles through all players evenly.
+        /// Accepts an optional open connection so it can be called within the same
+        /// connection context as MoveCardsShuffleAndDeal without opening a second one.
+        /// </summary>
+        public void UpdatePlayerPriority(MySqlConnection? connection = null)
+        {
+            bool ownConnection = connection == null;
+            if (ownConnection)
+            {
+                connection = new MySqlConnection(_connectionString);
+                connection.Open();
+            }
+
+            try
+            {
+                // Step 1: Decrement all robot priorities by 1.
+                using (var cmd = new MySqlCommand(
+                    "UPDATE Robots SET Priority = Priority - 1",
+                    connection!))
+                {
+                    cmd.ExecuteNonQuery();
+                }
+
+                // Step 2: Count total robots.
+                int robotCount;
+                using (var cmd = new MySqlCommand(
+                    "SELECT COUNT(RobotID) FROM Robots",
+                    connection!))
+                {
+                    var result = cmd.ExecuteScalar();
+                    robotCount = result == null || result == DBNull.Value
+                        ? 0
+                        : Convert.ToInt32(result);
+                }
+
+                // Step 3: Wrap the robot that hit Priority=0 back to the highest slot.
+                if (robotCount > 0)
+                {
+                    using var cmd = new MySqlCommand(
+                        "UPDATE Robots SET Priority = @count WHERE Priority = 0",
+                        connection!);
+                    cmd.Parameters.AddWithValue("@count", robotCount);
+                    cmd.ExecuteNonQuery();
+                }
+            }
+            finally
+            {
+                if (ownConnection)
+                {
+                    connection!.Dispose();
+                }
+            }
         }
 
         public void BoardFileRead(string p_Filename)

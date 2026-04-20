@@ -258,6 +258,8 @@ namespace MRR.Controller
                         case 2: // Next Turn
                             _dataService.ExecuteSQL("call procResetPlayers();");
                             _dataService.MoveCardsShuffleAndDeal();
+                            //_dataService.ExecuteSQL("call procUpdateRobotCards();");
+                            //UpdateGameState(); // ensure DB changes are visible before next command
                             _dataService.ExecuteSQL("update CurrentGameData set iValue=iValue+1 where iKey=2;"); // next turn
                             SetGameState(3);
                             break;
@@ -327,7 +329,6 @@ namespace MRR.Controller
 
         public bool SetGameState(int newstate)
         {
-            _dataService.ExecuteSQL("Update CurrentGameData set iValue=" + newstate.ToString() + " where iKey=10;");
             _dataService.GameState = newstate;
             return true;
         }

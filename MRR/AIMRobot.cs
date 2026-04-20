@@ -53,6 +53,8 @@ public class AIMRobot // : IAsyncDisposable
         }
         //    throw new InvalidOperationException("Not connected to AIM robot");
 
+        Console.WriteLine("Sending command: " + JsonSerializer.Serialize(command)); 
+
         var jsonCommand = JsonSerializer.Serialize(command);
         var bytes = Encoding.UTF8.GetBytes(jsonCommand);
 

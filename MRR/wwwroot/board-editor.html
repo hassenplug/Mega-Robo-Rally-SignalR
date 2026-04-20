@@ -1019,6 +1019,29 @@ function applyProps() {
 }
 
 // ── Size change ────────────────────────────────────────────────────────────
+function addBorderWalls(w, h) {
+    // Element 200: wall stripe at bottom by default (rotation 1 = 0° = south face)
+    // rotation 1 → south wall  |  rotation 2 → east wall
+    // rotation 3 → north wall  |  rotation 4 → west wall
+    // BlockDirection parameter matches the wall face direction
+    const place = (x, y, rotation, blockDir) => {
+        const cell = grid[y][x];
+        if (cell.squareType === 0) {
+            cell.squareType = 200;
+            cell.rotation = rotation;
+            cell.actions = [{ squareAction: SA.BlockDirection, sequence: 0, phase: 31, parameter: blockDir }];
+        }
+    };
+    for (let x = 0; x < w; x++) {
+        place(x, 0,     1, DIR.Down);  // top edge: south wall, block Down
+        place(x, h - 1, 3, DIR.Up);   // bottom edge: north wall, block Up
+    }
+    for (let y = 1; y < h - 1; y++) {
+        place(0,     y, 4, DIR.Left);  // left edge: west wall, block Left
+        place(w - 1, y, 2, DIR.Right); // right edge: east wall, block Right
+    }
+}
+
 function applySizeChange() {
     const newW = parseInt(document.getElementById('boardW').value);
     const newH = parseInt(document.getElementById('boardH').value);
@@ -1041,6 +1064,7 @@ function applySizeChange() {
         }
     }
     grid = newGrid;
+    addBorderWalls(newW, newH);
     if (selectedCell && (selectedCell.x >= newW || selectedCell.y >= newH)) {
         selectedCell = null;
         showNoSelection();

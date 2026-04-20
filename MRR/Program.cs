@@ -204,7 +204,11 @@ app.MapGet("/api/board/{boardID?}", (int? boardID, DataService dataService, IHub
 {
     if (boardID == null) boardID = dataService.BoardID;
     else dataService.BoardID = boardID.Value;
-    var dataout = dataService.GetQueryResultsJson($"Select * from BoardItems where BoardID={boardID};", "board");
+//    var dataout = dataService.GetQueryResultsJson($"Select * from BoardItems where BoardID={boardID};", "board");
+    var dataout = dataService.GetQueryResultsJson(
+        $"Select bi.*, bia.SquareAction, bia.Parameter from BoardItems bi left join BoardItemActions bia " +
+        $" on bi.BoardID=bia.BoardID and bi.X=bia.X and bi.Y=bia.Y and (bia.SquareAction=19 or bia.SquareAction=16) " +
+        $" where bi.BoardID={boardID};", "board");
     //hubContext.Clients.All.SendAsync("board", dataout);
     return Results.Content(dataout, "application/json");
 });
