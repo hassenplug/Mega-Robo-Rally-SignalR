@@ -1,11 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.ComponentModel;//INotifyPropertyChanged
 //using System.Windows.Media; // brushes
 using System.Xml.Serialization; // serializer
 //using System.Windows.Data; // iconverter
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 
 ///command item sub steps
@@ -140,6 +141,7 @@ namespace MRR
 
 
     #region Command Item
+    [Table("CommandList")]
     public class CommandItem : IComparable
     {
 
@@ -176,7 +178,7 @@ namespace MRR
             CommandDirection = p_Direction;
             PhaseStepAdder = 5;
 
-			Status = CommandStatus.Waiting;
+			StatusID = (int)CommandStatus.Waiting;
 
             if (p_Robot != null)
             {
@@ -184,51 +186,94 @@ namespace MRR
                 //RobotID = p_Robot.ID;
                 StartPos = new RobotLocation(p_Robot.CurrentPos);
                 EndPos = new RobotLocation(p_Robot.NextPos);
-                //RobotDirection = StartPos.Direction;
-                //RobotName = p_Robot.ToString();
             }
             else
             {
                 Robot = new Player();
-                //RobotID = -1;
+                //RobotID = 0;
                 StartPos = new RobotLocation();
                 EndPos = new RobotLocation();
-                //RobotName = "no robot";
             }
 
             //Status = CommandStatus.Complete;
         }
 
-        public Player Robot { get; set; }
-        public int RobotID { get { return Robot.ID; } set { } } // load robot from list of robots
-        //public int RobotID { get { return Robot.ID; } set; }
+        [Key]
+        [DatabaseGenerated(DatabaseGeneratedOption.None)]
+        public int CommandID { get; set; }
+        public int Turn { get; set; }
 
+        public static Players? AllPlayers { get; set; }
+
+        private Player _Robot;
+        [NotMapped]
+        public Player Robot {
+            get { return _Robot; }
+            set
+            {
+                _Robot = value;
+                if (value != null && value.ID > 0) _RobotID = value.ID;
+            }
+        }
+        private int _RobotID;
+
+        public int RobotID {
+            get { return _RobotID; }
+            set
+            {
+                _RobotID = value;
+                if (value > 0)
+                {
+                    var player = AllPlayers?.GetPlayer(p => p.ID == value);
+                    if (player != null) _Robot = player;
+                }
+            }
+        }
+
+        [NotMapped]
         public Direction CommandDirection { get; set; }
 
-
+        [NotMapped]
         public RobotLocation StartPos { get; set; }
-        public RobotLocation EndPos { get; set; }
+        [NotMapped]
+        public RobotLocation EndPos
+        {
+            get => new((Direction)PositionDir, PositionCol, PositionRow);
+            set { PositionRow = value.Y; PositionCol = value.X; PositionDir = (int)value.Direction; }
+        }
 
         public int Phase { get; set; }
+        [NotMapped]
         public int PhaseStep { get; set; }
+        [NotMapped]
         public int PhaseStepAdder { get; set; }
-        //public Sequences Sequence { get; set; } // order within the step
-        //public SequenceSubCommand SequenceSubCommand { get; set; }
 
-        //public int OrderBy { get { return Phase * 10000000 + PhaseStep * 10000 + (int)Sequence * 1000 + RunningCounter; } }
-        //public int OrderBy { get { return Phase * 10000000 + PhaseStep * 10000 + RunningCounter; } }  // +(int)Sequence * 1000 + RunningCounter; } }
-
+        [Column("CommandSubSequence")]
         public int RunningCounter { get; set; }
+        [Column("CommandSequence")]
         public int NormalSequence { get; set; }
+        [NotMapped]
         public int ExpressSequence { get; set; }
-        //public int ExpressCounter { get; set; }
 
+        [Column("CommandTypeID")]
         public SquareAction CommandType { get; set; }
-        public int CommandTypeInt { get { return (int)CommandType; } set { } }
+
+        [Column("Parameter")]
         public int Value { get; set; }
+        [Column("ParameterB")]
         public int ValueB { get; set; }
+        [NotMapped]
         public string text { get; set; } = "";
-        public CommandStatus Status { get; set; }
+        [Column("StatusID")]
+        public int StatusID { get; set; }
+        [NotMapped]
+        public CommandStatus Status { get => (CommandStatus)StatusID; set => StatusID = (int)value; }
+        [Column("BTCommand")]
+        public string BTCommand { get; set; } = "";
+        public int PositionRow { get; set; }
+        public int PositionCol { get; set; }
+        public int PositionDir { get; set; }
+        public int CommandCatID { get; set; }
 
         private string GetOptionName()
         {
@@ -249,15 +294,25 @@ namespace MRR
             // return MainGame.AllPlayers.GetPlayer(p_RobotID).Name;
         }
 
+        [NotMapped]
         public CommandCategories Category { get { return GetCommandDetails.Category; }}
 
+        [NotMapped]
         public int CommandSequence { get { return GetCommandDetails.CommandSequence; }}
 
-        public string Description { get { return GetCommandDetails.Description; }}
+        private string? _dbDescription;
+        [Column("Description")]
+        public string Description
+        {
+            get => _dbDescription ?? GetCommandDetails.Description;
+            set => _dbDescription = value;
+        }
 
+        [NotMapped]
         public string StringCommand { get { return GetCommandDetails.BTCommand; }}
 
 
+        [NotMapped]
         public SquareActionDetails GetCommandDetails
         {
             get 
@@ -353,6 +408,7 @@ namespace MRR
         // distance
 
 
+        [NotMapped]
         public bool IsRobotMoveCommand
         {
             get

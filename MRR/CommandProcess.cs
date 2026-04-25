@@ -7,7 +7,6 @@ using MRR.Services;
 using Microsoft.AspNetCore.SignalR;
 using MRR.Hubs;
 using MRR.Data;
-using MRR.Data.Entities;
 using Microsoft.EntityFrameworkCore;
 using System.Data;
 
@@ -29,11 +28,16 @@ namespace MRR
         private readonly IHubContext<DataHub> _hubContext;
         private MRRDbContext? _dbContext;
 
+        private List<CommandItem> _commandList;
+
         public PendingCommands(DataService dataService, IHubContext<DataHub> hubContext)
         {
             _dataService = dataService;
             _hubContext = hubContext;
             _dbContext = _dataService.CreateDbContext();
+            _commandList = _dbContext.CommandItems
+                .Where(c => c.Turn == _dataService.Turn)
+                .ToList();
         }
 
         //private Players RobotList => _dataService.AllPlayers;
@@ -59,11 +63,8 @@ namespace MRR
             }
         }
 
-        private List<PendingCommandEntity> GetActiveCommandList()
-        {
-            using var db = _dataService.CreateDbContext();
-            return db.PendingCommands.Where(c => c.StatusID >= 2 && c.StatusID <= 4).ToList();
-        }
+        private List<CommandItem> GetActiveCommandList()
+            => _commandList.Where(c => c.StatusID >= 2 && c.StatusID <= 4).ToList();
 
         public bool ProcessCommands() // make sure state = 7 or 8
         {
@@ -76,7 +77,7 @@ namespace MRR
                 {
                     //Console.WriteLine("Active Commands:" + active.Count);
                     stillRunning = false;
-                    foreach (PendingCommandEntity onecommand in active)
+                    foreach (CommandItem onecommand in active)
                     {
                         //Console.WriteLine("Processing Command ID: " + onecommand.ToString());
                         stillRunning = stillRunning || ProcessCommand(onecommand);
@@ -99,31 +100,26 @@ namespace MRR
 
         public int MarkCommandsReady()
         {
-            using (var db = _dataService.CreateDbContext())
-            {
-                var result = db.PendingCommands.Count(c => c.StatusID >= 2 && c.StatusID <= 4);
-                //Console.WriteLine("Pending Commands to process: " + result.ToString());
-                if (result > 0) return result;
+            var result = _commandList.Count(c => c.StatusID >= 2 && c.StatusID <= 4);
+            if (result > 0) return result;
 
-                // Find the minimum command sequence that has pending commands
-                var minSequence = db.PendingCommands
-                    .Where(c => c.StatusID == 1 && c.Turn == _dataService.CurrentTurn)
-                    .Min(c => (int?)c.CommandSequence) ?? -1;
+            var minSequence = _commandList
+                .Where(c => c.StatusID == 1)
+                .Min(c => (int?)c.NormalSequence) ?? -1;
 
-                //Console.WriteLine("Next Command Sequence to process: " + minSequence.ToString());
+            if (minSequence == -1) return 0; // no commands waiting
 
-                if (minSequence == -1) return 0; // no commands waiting
+            // Update DB
+            using var db = _dataService.CreateDbContext();
+            var affected = db.CommandItems
+                .Where(c => c.NormalSequence == minSequence && c.Turn == _dataService.Turn)
+                .ExecuteUpdate(s => s.SetProperty(b => b.StatusID, 2));
 
-                // Update all commands with the minimum sequence to ready status
-                var affected = db.PendingCommands
-                    .Where(c => c.CommandSequence == minSequence && c.Turn == _dataService.CurrentTurn)
-                    .ExecuteUpdate(s => s
-                        .SetProperty(b => b.StatusID, 2));
-                
-                //Console.WriteLine("Marked Commands as Ready: " + affected.ToString());
+            // Sync in-memory list
+            foreach (var item in _commandList.Where(c => c.NormalSequence == minSequence))
+                item.StatusID = 2;
 
-                return affected;
-            }
+            return affected;
         }
 
         /*
@@ -148,108 +144,94 @@ namespace MRR
 #8 - Running Phase (in process)
 
         */
-//        public async Task<bool> ExecuteCommand(PendingCommandEntity onecommand)
-        public bool ProcessCommand(PendingCommandEntity onecommand)
+//        public async Task<bool> ExecuteCommand(CommandItem onecommand)
+        public bool ProcessCommand(CommandItem onecommand)
         {
-            //Console.WriteLine($"Process Command({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandTypeID}}}{onecommand.Parameter},{onecommand.ParameterB}");
+            //Console.WriteLine($"Process Command({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandType}}}{onecommand.Value},{onecommand.ValueB}");
 
-            using (var db = _dataService.CreateDbContext())
+            //var robot = _dataService.AllPlayers.GetPlayer(p => p.ID == onecommand.RobotID);
+            var robot = onecommand.Robot;
+            switch (onecommand.CommandCatID)
             {
-                var command = db.PendingCommands.Find(onecommand.CommandID);
-                if (command == null) return false;
-
-                switch (onecommand.CommandCatID)
-                {
-                    case 1: // Robot with Reply
-                    case 2: // Robot No Reply
-                        var robot = command.RobotPlayer;
-                        if (robot == null )
-                        {
-                            Console.WriteLine($"Robot not found for Command({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandTypeID}}}-{onecommand.Parameter},{onecommand.ParameterB}:{onecommand.Description}");
-                            command.StatusID = 6; // command complete
-                            db.SaveChanges();
-                            return true;
-                        }
-
-                        if (robot.RobotConnection == null)
-                        {
-                            Console.WriteLine($"Robot not connected for Command({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandTypeID}}}-{onecommand.Parameter},{onecommand.ParameterB}:{onecommand.Description}");
-                            command.StatusID = _dataService.ProcessDbCommand(onecommand.CommandID, 5);
-                            db.SaveChanges();
-                            return true;
-                        }
-
-                        if (onecommand.StatusID == 2)
-                        {
-                            Console.WriteLine($"Robot Command    ({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandTypeID}}}-{onecommand.Parameter},{onecommand.ParameterB}:{onecommand.Description}");
-                            command.StatusID = 3; // executing
-                            robot.RobotConnection.SendRobotCommandAsync(onecommand).Wait();
-                            if (onecommand.CommandCatID == 2)
-                            {
-                                // don't wait for reply
-                                command.StatusID = 4; // not waiting for reply
-                            }
-                            //command.StatusID = onecommand.CommandCatID == 1 ? 5 : 6; // no connection
-                            // set the state based on type 1/2
-                            db.SaveChanges();
-                            return true;
-                        }
-
-                        if (onecommand.StatusID == 3)
-                        {
-                            // check here to make sure the robot has replied
-                            //Console.WriteLine($"Waiting for Robot Reply ({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandTypeID}}}-{onecommand.Parameter},{onecommand.ParameterB}:{onecommand.Description}");
-                            // wait for robot to finish moving
-                            // check robot status
-                            robot.RobotConnection.CheckMovingStatus().Wait();
-                            if (!robot.RobotConnection.isMoving)
-                            {
-                                Console.WriteLine($"Robot Command Done({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandTypeID}}}-{onecommand.Parameter},{onecommand.ParameterB}:{onecommand.Description}");
-                                // get next state from DB
-                                //command.StatusID = _dataService.GetIntFromDB("select funcProcessCommand(" + onecommand.CommandID + ",-1);");
-                                command.StatusID = 4;
-                                //db.SaveChanges();
-                                //return true;
-                            }
-                        }
-
-                        if (onecommand.StatusID == 4)
-                        {
-                            // no reply expected
-                            command.StatusID = _dataService.ProcessDbCommand(onecommand.CommandID, 5);
-                            db.SaveChanges();
-                        }
+                case 1: // Robot with Reply
+                case 2: // Robot No Reply
+                    //var robot = _dataService.AllPlayers.GetPlayer(p => p.ID == onecommand.RobotID);
+                    if (robot == null)
+                    {
+                        Console.WriteLine($"Robot not found for Command({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandType}}}-{onecommand.Value},{onecommand.ValueB}:{onecommand.Description}");
+                        onecommand.StatusID = 6; // command complete
+                        Db.SaveChanges();
                         return true;
+                    }
 
-
-                    case 3: // DB
-                        Console.WriteLine($"Database Command ({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandTypeID}}}-{onecommand.Parameter},{onecommand.ParameterB}:{onecommand.Description}");
-                        command.StatusID = _dataService.ProcessDbCommand(onecommand.CommandID, -1);
-                        db.SaveChanges();
+                    if (robot.RobotConnection == null)
+                    {
+                        Console.WriteLine($"Robot not connected for Command({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandType}}}-{onecommand.Value},{onecommand.ValueB}:{onecommand.Description}");
+                        onecommand.StatusID = _dataService.ProcessDbCommand(onecommand, 5);
+                        Db.SaveChanges();
                         return true;
+                    }
 
-                    case 6: // User Input
-                        if (onecommand.StatusID < 4)
+                    if (onecommand.StatusID == 2)
+                    {
+                        Console.WriteLine($"Robot Command    ({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandType}}}-{onecommand.Value},{onecommand.ValueB}:{onecommand.Description}");
+                        onecommand.StatusID = 3; // executing
+                        robot.RobotConnection.SendRobotCommandAsync(onecommand).Wait();
+                        if (onecommand.CommandCatID == 2)
                         {
-                            Console.WriteLine($"User Input       ({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandTypeID}}}-{onecommand.Parameter},{onecommand.ParameterB}:{onecommand.Description}");
-                            var robot6 = db.Robots.FirstOrDefault(r => r.RobotID == onecommand.RobotID);
-
-                            if (robot6 != null)
-                            {
-                                robot6.MessageCommandID = onecommand.CommandID;
-                                command.StatusID = 4;
-                                db.SaveChanges();
-                                return false; // wait for user input
-                            }
+                            // don't wait for reply
+                            onecommand.StatusID = 4; // not waiting for reply
                         }
-                        return false;
+                        Db.SaveChanges();
+                        return true;
+                    }
 
-                    default:
-                        Console.WriteLine($"Not processed here({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandTypeID}}}-{onecommand.Parameter},{onecommand.ParameterB}:{onecommand.Description}");
-                        command.StatusID = _dataService.ProcessDbCommand(onecommand.CommandID, -1);
-                        db.SaveChanges();
-                        break;
-                }
+                    if (onecommand.StatusID == 3)
+                    {
+                        robot.RobotConnection.CheckMovingStatus().Wait();
+                        if (!robot.RobotConnection.isMoving)
+                        {
+                            Console.WriteLine($"Robot Command Done({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandType}}}-{onecommand.Value},{onecommand.ValueB}:{onecommand.Description}");
+                            onecommand.StatusID = 4;
+                        }
+                    }
+
+                    if (onecommand.StatusID == 4)
+                    {
+                        // no reply expected
+                        onecommand.StatusID = _dataService.ProcessDbCommand(onecommand, 5);
+                        Db.SaveChanges();
+                    }
+                    return true;
+
+
+                case 3: // DB
+                    Console.WriteLine($"Database Command ({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandType}}}-{onecommand.Value},{onecommand.ValueB}:{onecommand.Description}");
+                    onecommand.StatusID = _dataService.ProcessDbCommand(onecommand, -1);
+                    Db.SaveChanges();
+                    return true;
+
+                case 6: // User Input
+                    if (onecommand.StatusID < 4)
+                    {
+                        Console.WriteLine($"User Input       ({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandType}}}-{onecommand.Value},{onecommand.ValueB}:{onecommand.Description}");
+                        //var robot6 = Db.Robots.FirstOrDefault(r => r.ID == onecommand.RobotID);
+
+                        if (robot != null)
+                        {
+                            robot.MessageCommandID = onecommand.CommandID;
+                            onecommand.StatusID = 4;
+                            Db.SaveChanges();
+                            return false; // wait for user input
+                        }
+                    }
+                    return false;
+
+                default:
+                    Console.WriteLine($"Not processed here({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandType}}}-{onecommand.Value},{onecommand.ValueB}:{onecommand.Description}");
+                    onecommand.StatusID = _dataService.ProcessDbCommand(onecommand, -1);
+                    Db.SaveChanges();
+                    break;
             }
 
             return false;

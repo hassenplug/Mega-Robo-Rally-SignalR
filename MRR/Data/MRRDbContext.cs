@@ -9,19 +9,17 @@ namespace MRR.Data
         {
         }
 
-        public DbSet<PendingCommandEntity> PendingCommands { get; set; } = null!;
-        public DbSet<Robot> Robots { get; set; } = null!;
+        public DbSet<CommandItem> CommandItems { get; set; } = null!;
+        public DbSet<Player> Robots { get; set; } = null!;
         public DbSet<CurrentGameDataEntity> CurrentGameData { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
 
-            // Configure default schema if needed
             modelBuilder.HasDefaultSchema("rally");
 
-            // Configure PendingCommands
-            modelBuilder.Entity<PendingCommandEntity>(entity =>
+            modelBuilder.Entity<CommandItem>(entity =>
             {
                 entity.ToTable("CommandList");
                 entity.HasKey(e => e.CommandID);

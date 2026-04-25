@@ -72,8 +72,8 @@ namespace MRR
 
         public BoardElementCollection g_BoardElements { get; set; } // = new BoardElementCollection(0, 0);
 
-        public int CurrentTurn => _dataService.CurrentTurn;
-        public int CurrentPhase => _dataService.CurrentPhase;
+        public int Turn => _dataService.Turn;
+        public int Phase => _dataService.Phase;
 
         public GameTypes GameType => _dataService.GameType;
 
@@ -616,7 +616,7 @@ namespace MRR
                 {
                     turncount = 9;
                 }
-                if (CurrentTurn > turncount)
+                if (Turn > turncount)
                 {
                     if (turncount > 5)
                     {
@@ -650,7 +650,7 @@ namespace MRR
             int RunningCommand = 0;
             //int ExpressCounter = 0;
 
-            string cTurn = CurrentTurn.ToString();
+            string cTurn = Turn.ToString();
 
             string strSQL = "Delete from CommandList where Turn=" + cTurn + " and Phase>0;";
             _dataService.ExecuteSQL(strSQL);
@@ -737,57 +737,18 @@ namespace MRR
 
             foreach (CommandItem thisCommand in ListOfCommands)
             {
-
-                /*
-                 * CommandID
-                 * GameDataID
-                 * Turn
-                 * Phase
-                 * CommandSequence
-                 * CommandSubSequence
-                 * CommandTypeID
-                 * Parameter
-                 * RobotID
-                 * StatusID
-                 * BTCommand
-                 * BTReply
-                 * Description
-                 *
-                 * Follows Command
-                 *
-                 *
-                 */
-
-                AddOneCommandToDB(thisCommand); //, commandID, RunningCommand);
-
+                thisCommand.CommandID = thisCommand.NormalSequence;
+                thisCommand.Turn = Turn;
+                thisCommand.StatusID = thisCommand.StatusID;
+                thisCommand.BTCommand = thisCommand.StringCommand;
+                thisCommand.PositionRow = thisCommand.EndPos.Y;
+                thisCommand.PositionCol = thisCommand.EndPos.X;
+                thisCommand.PositionDir = (int)thisCommand.EndPos.Direction;
+                thisCommand.CommandCatID = (int)thisCommand.Category;
+                using var ctx = _dataService.CreateDbContext();
+                ctx.CommandItems.Add(thisCommand);
+                ctx.SaveChanges();
             }
-
-            //Console.WriteLine("Added " + ListOfCommands.Count + " commands to the database");
-
-        }
-        public void AddOneCommandToDB(CommandItem thisCommand) //, int commandID, int RunningCommand)
-        {
-            string strSQL = "insert into CommandList " +
-                "(CommandID, Turn, Phase, CommandSequence, CommandSubSequence, " +
-                " CommandTypeID, Parameter, ParameterB, RobotID, StatusID, BTCommand, Description, PositionRow, PositionCol, PositionDir,CommandCatID) " +
-                " values (" + thisCommand.NormalSequence.ToString() + "," + CurrentTurn.ToString() + "," + thisCommand.Phase + "," + thisCommand.NormalSequence + "," + thisCommand.RunningCounter + "," +
-                thisCommand.CommandTypeInt + "," + thisCommand.Value + "," + thisCommand.ValueB + "," + thisCommand.RobotID + "," + (int)thisCommand.Status + ",'" + thisCommand.StringCommand + "','" +
-                thisCommand.Description + "'," + thisCommand.EndPos.Y + "," + thisCommand.EndPos.X + "," + (int)thisCommand.EndPos.Direction + "," + (int)thisCommand.Category
-                + ")";
-
-            _dataService.ExecuteSQL(strSQL);
-
-        }
-
-        public void AddDisconnectsToDB()
-        {
-
-            foreach (Player thisplayer in AllPlayers)
-            {
-                _dataService.ExecuteSQL("call procRobotConnectionStatus(" + thisplayer.ID + ",71);");
-            }
-
-            //_dataService.ExecuteSQL("Update CurrentGameData set GameState=0, Message='Exit Game'; ");
         }
 
         public void LoadGameCardsFromDatabase()

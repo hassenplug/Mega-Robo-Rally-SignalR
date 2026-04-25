@@ -1,8 +1,6 @@
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
-using MRR.Data.Entities;
-
 namespace MRR.Robots;
 
 public class AIMRobot // : IAsyncDisposable
@@ -141,9 +139,9 @@ public class AIMRobot // : IAsyncDisposable
 
     }
 
-    public async Task SendRobotCommandAsync(PendingCommandEntity Command)
+    public async Task SendRobotCommandAsync(CommandItem cmd)
     {
-        await SendRobotCommandAsync(Command.CommandID, Command.Parameter, Command.ParameterB, (Command.CommandCatID == 1) ? 1 : 0);
+        await SendRobotCommandAsync(cmd.CommandID, cmd.Value, cmd.ValueB, (cmd.CommandCatID == 1) ? 1 : 0);
     }
 
     // command = move, turn, lcd_print, lcd_clear_screen, light_set, show_aivision, robot_command

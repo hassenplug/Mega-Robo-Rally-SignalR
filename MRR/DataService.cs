@@ -36,33 +36,7 @@ namespace MRR.Services
         {
             var optionsBuilder = new DbContextOptionsBuilder<MRRDbContext>();
             optionsBuilder.UseMySql(_connectionString, new MySqlServerVersion(new Version(8, 0, 0)));
-            var ctx = new MRRDbContext(optionsBuilder.Options);
-
-            // Populate PendingCommandEntity.RobotPlayer when entities are materialized/tracked
-            ctx.ChangeTracker.Tracked += (sender, e) =>
-            {
-                try
-                {
-                    if (e.Entry.Entity is MRR.Data.Entities.PendingCommandEntity pc)
-                    {
-                        // Only populate when coming from a query (materialized)
-                        if (e.FromQuery)
-                        {
-                            var players = this.AllPlayers;
-                            if (players != null)
-                            {
-                                pc.RobotPlayer = players.GetPlayer(p => p.ID == pc.RobotID);
-                            }
-                        }
-                    }
-                }
-                catch
-                {
-                    // swallow any errors to avoid breaking tracking
-                }
-            };
-
-            return ctx;
+            return new MRRDbContext(optionsBuilder.Options);
         }
 
         ///////////////////////////////////////////////////////////////////////////
@@ -78,10 +52,15 @@ namespace MRR.Services
                 if (_allPlayers == null)
                 {
                     _allPlayers = GetAllPlayers();
+                    CommandItem.AllPlayers = _allPlayers;
                 }
                 return _allPlayers;
             }
-            set => _allPlayers = value;
+            set
+            {
+                _allPlayers = value;
+                CommandItem.AllPlayers = value;
+            }
         }
 
         public int RobotsActive { get; set; }
@@ -121,8 +100,8 @@ namespace MRR.Services
 
         public BoardElementCollection g_BoardElements { get; set; } = new BoardElementCollection();
 
-        public int CurrentTurn { get; set; } = 0;
-        public int CurrentPhase { get; set; } = 0;
+        public int Turn { get; set; } = 0;
+        public int Phase { get; set; } = 0;
 
         public GameTypes GameType { get; set; }
 
@@ -173,10 +152,10 @@ namespace MRR.Services
 
             string strSQL = "select * from viewRobots;";
             //string titlemessage = "Turn " + GetIntFromDB("Select iValue from CurrentGameData where iKey=2;");
-            string titlemessage = "Turn " + CurrentTurn;
-            if (CurrentPhase > 0)
+            string titlemessage = "Turn " + Turn;
+            if (Phase > 0)
             {
-                titlemessage += " Phase " + CurrentPhase;
+                titlemessage += " Phase " + Phase;
             }
             //            var payload = new { robots = GetQueryResults(strSQL), currentgamedata = GetQueryResults(strSQLcgd), ServerTime = DateTime.Now.ToLongTimeString() };
             var payload = new { titlemsg = titlemessage, gamestate = GameState, robots = GetQueryResults(strSQL) };
@@ -539,8 +518,8 @@ namespace MRR.Services
                     switch (key)
                     {
                         case 1: GameType = (GameTypes)value; break;
-                        case 2: CurrentTurn = value; break;
-                        case 3: CurrentPhase = value; break;
+                        case 2: Turn = value; break;
+                        case 3: Phase = value; break;
                         case 6: LaserDamage = value; break;
                         case 8: RobotsActive = value; break;
                         case 10: _gameState = value; break;
@@ -683,58 +662,42 @@ namespace MRR.Services
         /// back to CommandList. Returns the resulting StatusID.
         /// Pass p_NewStatus=-1 to auto-complete (equivalent to SQL default).
         /// </summary>
-        public int ProcessDbCommand(int p_CommandID, int p_NewStatus)
+        public int ProcessDbCommand(CommandItem p_Command, int p_NewStatus)
         {
-            // Load command row
-            int cType = 0, cRobotID = 0, cParameter = 0, cParameterB = 0;
-            int cRow = 0, cCol = 0, cDir = 0;
-
-            using (var connection = new MySqlConnection(_connectionString))
-            {
-                connection.Open();
-                using var loadCmd = new MySqlCommand(
-                    "SELECT CommandTypeID, RobotID, Parameter, ParameterB, PositionRow, PositionCol, PositionDir " +
-                    "FROM CommandList WHERE CommandID = @id", connection);
-                loadCmd.Parameters.AddWithValue("@id", p_CommandID);
-                using var reader = loadCmd.ExecuteReader();
-                if (!reader.Read())
-                {
-                    // Command not found — nothing to do
-                    return p_NewStatus == -1 ? 6 : p_NewStatus;
-                }
-                cType       = reader.GetInt32(0);
-                cRobotID    = reader.GetInt32(1);
-                cParameter  = reader.GetInt32(2);
-                cParameterB = reader.GetInt32(3);
-                cRow        = reader.GetInt32(4);
-                cCol        = reader.GetInt32(5);
-                cDir        = reader.GetInt32(6);
-            }
+            //int cType       = (int)p_Command.CommandType;
+            int cRobotID    = p_Command.RobotID;
+            int cParameter  = p_Command.Value;
+            int cParameterB = p_Command.ValueB;
+            int cRow        = p_Command.PositionRow;
+            int cCol        = p_Command.PositionCol;
+            int cDir        = p_Command.PositionDir;
+            Player robot = p_Command.Robot;
 
             if (p_NewStatus == -1)
                 p_NewStatus = 6; // command complete
 
+            using var db = CreateDbContext();
+
             // Process side-effects by CommandTypeID
-            switch ((SquareAction)cType)
+            switch (p_Command.CommandType)
             {
                 case SquareAction.PlayerLocation: // Player Location — handled below in the status==5 block
                     p_NewStatus = 5;
                     break;
 
                 case SquareAction.Damage: // Set Damage
-                    ExecuteSQL(
-                        $"UPDATE Robots SET Damage = {cParameter} WHERE RobotID = {cRobotID}");
+                    if (robot != null)
+                        robot.Damage = cParameter;
                     break;
 
                 case SquareAction.Archive: // Set Archive position
-                    ExecuteSQL(
-                        $"UPDATE Robots SET ArchivePosRow = {cRow}, ArchivePosCol = {cCol}, ArchivePosDir = 0 " +
-                        $"WHERE RobotID = {cRobotID}");
+                    if (robot != null)
+                        robot.ArchivePos = new RobotLocation((Direction)cDir, cCol, cRow);
                     break;
 
                 case SquareAction.Flag: // Set Current Flag
-                    ExecuteSQL(
-                        $"UPDATE Robots SET CurrentFlag = {cParameter} WHERE RobotID = {cRobotID}");
+                    if (robot != null)
+                        robot.LastFlag = cParameter;
                     break;
 
                 case SquareAction.Option: // Deal option card to robot
@@ -750,8 +713,9 @@ namespace MRR.Services
                 }
 
                 case SquareAction.LostLife: // Set Lives
-                    ExecuteSQL(
-                        $"UPDATE Robots SET Lives = {cParameter} WHERE RobotID = {cRobotID}");
+                    if (robot != null) robot.Lives = cParameter;
+                    db.Robots.Where(r => r.ID == cRobotID)
+                        .ExecuteUpdate(s => s.SetProperty(r => r.Lives, cParameter));
                     break;
 
                 case SquareAction.DealCard: // Deal card to player (assign card owner)
@@ -773,8 +737,9 @@ namespace MRR.Services
                     break;
 
                 case SquareAction.SetPlayerStatus: // Set robot Status
-                    ExecuteSQL(
-                        $"UPDATE Robots SET Status = {cParameter} WHERE RobotID = {cRobotID}");
+                    if (robot != null) robot.PlayerStatus = (tPlayerStatus)cParameter;
+                    db.Robots.Where(r => r.ID == cRobotID)
+                        .ExecuteUpdate(s => s.SetProperty(r => r.PlayerStatus, (tPlayerStatus)cParameter));
                     break;
 
                 case SquareAction.DeathPoints: // Set DamagePoints — column does not exist in schema; log and skip
@@ -804,8 +769,9 @@ namespace MRR.Services
                     break;
 
                 case SquareAction.SetShutDownMode: // Set ShutDown
-                    ExecuteSQL(
-                        $"UPDATE Robots SET ShutDown = {cParameter} WHERE RobotID = {cRobotID}");
+                    if (robot != null) robot.ShutDown = (tShutDown)cParameter;
+                    db.Robots.Where(r => r.ID == cRobotID)
+                        .ExecuteUpdate(s => s.SetProperty(r => r.ShutDown, (tShutDown)cParameter));
                     break;
 
                 case SquareAction.SetCurrentGameData: // Set CurrentGameData iValue by iKey
@@ -818,8 +784,7 @@ namespace MRR.Services
                     break;
 
                 case SquareAction.DeleteRobot: // Delete robot
-                    ExecuteSQL(
-                        $"DELETE FROM Robots WHERE RobotID = {cRobotID}");
+                    db.Robots.Where(r => r.ID == cRobotID).ExecuteDelete();
                     break;
 
                 case SquareAction.SetGameState: // Set GameState
@@ -839,9 +804,11 @@ namespace MRR.Services
                 case SquareAction.FireCannon:
                 case SquareAction.SetButtonText:
                     break;
+
                 case SquareAction.SetEnergy:
-                    ExecuteSQL(
-                        $"UPDATE Robots SET Energy = {cParameter} WHERE RobotID = {cRobotID}");
+                    if (robot != null) robot.Energy = cParameter;
+                    db.Robots.Where(r => r.ID == cRobotID)
+                        .ExecuteUpdate(s => s.SetProperty(r => r.Energy, cParameter));
                     break;
 
                 default:
@@ -854,19 +821,25 @@ namespace MRR.Services
             {
                 if (cCol >= 0 && cRow >= 0)
                 {
-                    ExecuteSQL(
-                        $"UPDATE Robots SET CurrentPosRow = {cRow}, CurrentPosCol = {cCol}, " +
-                        $"CurrentPosDir = {cDir}, Score = {cParameterB} WHERE RobotID = {cRobotID}");
+                    if (robot != null)
+                    {
+                        robot.CurrentPos.X = cCol;
+                        robot.CurrentPos.Y = cRow;
+                        robot.CurrentPos.Direction = (Direction)cDir;
+                    }
+                    db.Robots.Where(r => r.ID == cRobotID)
+                        .ExecuteUpdate(s => s
+                            .SetProperty(r => r.CurrentPosRow, cRow)
+                            .SetProperty(r => r.CurrentPosCol, cCol)
+                            .SetProperty(r => r.CurrentPosDir, cDir)
+                            .SetProperty(r => r.Score, cParameterB));
                 }
                 p_NewStatus = 6; // command complete
             }
 
             // Write final status back to CommandList
-            if (p_CommandID > 0)
-            {
-                ExecuteSQL(
-                    $"UPDATE CommandList SET StatusID = {p_NewStatus} WHERE CommandID = {p_CommandID}");
-            }
+            if (p_Command.CommandID > 0)
+                ExecuteSQL($"UPDATE CommandList SET StatusID = {p_NewStatus} WHERE CommandID = {p_Command.CommandID}");
 
             return p_NewStatus;
         }

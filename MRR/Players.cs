@@ -1,23 +1,19 @@
-﻿
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Collections.ObjectModel; //ObservableCollection
 using System.ComponentModel; //INotifyPropertyChanged
-//using System.IO;
 using System.IO.Ports; // serial port
-
-//using System.Windows.Media;  // brushes
-//using System.Windows.Media.Imaging;
-//using System.Windows.Controls;
 using System.Windows;
 using System.Xml.Serialization;
-//using System.Windows.Data;
 using System.Globalization;
 using MySqlConnector;
 using MRR.Services;
 using System.Data;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 // serializer
 
@@ -51,8 +47,6 @@ namespace MRR
         [Description("Connected")] Connected3,
         [Description("Connected")] Connected4,
         [Description("Move Complete")] MoveComplete,
-        //[Description("Connected")]Connected,
-
     }
 
     public enum tShutDown
@@ -96,9 +90,10 @@ namespace MRR
     }
 
 
-    #endregion 
+    #endregion
 
     #region Players
+    [Table("Robots")]
     public class Player
     {
 
@@ -107,31 +102,27 @@ namespace MRR
 
         #region Player Constructors
 
-        // main constructor
-
         public Player SetPlayer(
-            int p_ID, 
-            string p_Name, 
-            RobotLocation p_CurrentPos, 
-            RobotLocation p_NextPos, 
-            RobotLocation p_Archive, 
-            int p_StartingDamage, 
-            int p_Lives, 
-            int p_LastFlag, 
-            tShutDown p_ShutDown, 
+            int p_ID,
+            string p_Name,
+            RobotLocation p_CurrentPos,
+            RobotLocation p_NextPos,
+            RobotLocation p_Archive,
+            int p_StartingDamage,
+            int p_Lives,
+            int p_LastFlag,
+            tShutDown p_ShutDown,
             bool p_Active,
             int p_DamagePoints)
         {
-            //MainGame = mainGame;
             ID = p_ID;
             ShutDown = p_ShutDown;
 
             CurrentPos = new RobotLocation(p_CurrentPos);
             NextPos = new RobotLocation(p_NextPos);
             ArchivePos = new RobotLocation(p_Archive);
-            //NextFlag = new RobotLocation(p_CurrentPos);
             NextFlag = new RobotLocation(p_CurrentPos);
-    
+
             Damage = p_StartingDamage;
             Lives = p_Lives;
             LastFlag = p_LastFlag;
@@ -151,10 +142,6 @@ namespace MRR
             return this;
         }
 
-    /// <summary>
-    /// Initialize player
-    /// </summary>
-    /// <param name="p_ID"></param>
         public Player(int p_ID)
         {
             int currentlives = conTotalLives;
@@ -167,7 +154,6 @@ namespace MRR
         }
 
         public Player(Player p_Player)
-            //: this(p_Player.ID, p_Player.CurrentPos, p_Player.NextPos, p_Player.ArchivePos, p_Player.Damage, p_Player.Lives, p_Player.LastFlag, p_Player.TotalFlags)
         {
             CopyPlayer(p_Player);
         }
@@ -175,7 +161,6 @@ namespace MRR
         public Player CopyPlayer(Player p_Player)
         {
             SetPlayer( p_Player.ID, p_Player.Name, p_Player.CurrentPos, p_Player.NextPos, p_Player.ArchivePos, p_Player.Damage, p_Player.Lives, p_Player.LastFlag, p_Player.ShutDown, p_Player.Active,p_Player.DamagePoints);
-            //GameType = p_Player.GameType;
             NextFlag = p_Player.NextFlag;
             Operator = p_Player.Operator;
             Priority = p_Player.Priority;
@@ -187,65 +172,75 @@ namespace MRR
 
         #endregion
 
-        //        public RRGame MainGame { get; set; }
-
+        [Key]
+        [Column("RobotID")]
         public int ID { get; set; }
+
+        [NotMapped]
         public string Name { get; set; } = "";
+
+        [NotMapped]
         public string Operator { get; set; } = "";
 
+        [NotMapped]
         public int TotalFlags
         {
-            get { return 5 ; } //MainGame.TotalFlags; }
+            get { return 5 ; }
             set { }
         }
 
+        [NotMapped]
         [XmlIgnore]
         public RobotLocation NextPos { get; set; } = new RobotLocation();
 
+        [NotMapped]
         [XmlIgnore]
         public RobotLocation NextFlag { get; set; } = new RobotLocation();
 
+        [NotMapped]
         [XmlIgnore]
         public bool PositionValid { get; set; }
 
+        [NotMapped]
         public RobotLocation ArchivePos { get; set; } = new RobotLocation();
 
+        [NotMapped]
         public RobotLocation CurrentPos { get; set; } = new RobotLocation();
 
         public tShutDown ShutDown { get; set; }
 
-        // running is used for a robot that will receive cards
-        // active is a robot that's in the game, and will receive damage and be affected by the board (shut down?)
-
-        //private bool l_running = false;
+        [NotMapped]
         [XmlIgnore]
         public bool IsRunning
         {
             get
             {
                 return Active && !(ShutDown == tShutDown.Currently);
-                //return l_running;
             }
         }
 
-
-        public bool Active { get; set; } // (currently in game?)
+        [NotMapped]
+        public bool Active { get; set; }
 
         public int Priority { get; set; }
         public int Energy { get; set; }
         public int PlayerSeat { get; set; }
 
-        //[XmlIgnore]
-        //public int CardsNeeded
-        //{
-        //    get { return CardsAfterTurn - PlayerCards.Where(pc => pc.Owner == ID).Count(pc=>!pc.Locked) ; } // calc cards already in hand
-        //    //get { return CardsAfterTurn - PlayerCardCount; } // calc cards already in hand
-        //    set {  }
-        //}
+        public int? MessageCommandID { get; set; }
+        public int Score { get; set; }
 
+
+        public int CurrentPosRow { get => CurrentPos.Y; set => CurrentPos.Y = value; }
+        public int CurrentPosCol { get => CurrentPos.X; set => CurrentPos.X = value; }
+        public int CurrentPosDir { get => (int)CurrentPos.Direction; set => CurrentPos.Direction = (Direction)value; }
+
+        public int ArchivePosRow { get => ArchivePos.Y; set => ArchivePos.Y = value; }
+        public int ArchivePosCol { get => ArchivePos.X; set => ArchivePos.X = value; }
+        public int ArchivePosDir { get => (int)ArchivePos.Direction; set => ArchivePos.Direction = (Direction)value; }
 
         public int Lives { get; set; }
 
+        [NotMapped]
         public string Color { get; set; } = "333333"; // hex color string RRGGBB
 
         private int l_damage = 0;
@@ -260,7 +255,7 @@ namespace MRR
                 if (value < 0) value = 0;
                 if (value >= conTotalDamage)
                 {
-                    value = conTotalDamage; // need to make sure we can repair 1 point, and NOT return to life
+                    value = conTotalDamage;
                     Active = false;
                 }
                 l_damage = value;
@@ -269,6 +264,7 @@ namespace MRR
         }
 
 
+        [NotMapped]
         [XmlIgnore]
         public bool IsDead
         {
@@ -281,7 +277,7 @@ namespace MRR
 
         public int PlayerScore
         {
-            get 
+            get
             {
                 int pscore = 0;
                 //if (!Active) return 99;
@@ -300,12 +296,14 @@ namespace MRR
 
                 pscore += (( Math.Abs(NextPos.X - NextFlag.X) + Math.Abs(NextPos.Y - NextFlag.Y)) );
                 return pscore;
-                //return Math.Abs(CurrentPos.X - NextFlag.X) + Math.Abs(CurrentPos.Y - NextFlag.Y); 
             }
 
         }
 
+        [NotMapped]
         public int DamagePoints { get; set; }
+
+        [NotMapped]
         public int DamagedBy { get; set; }
 
         public Direction Rotate(int RotateDir)
@@ -334,10 +332,8 @@ namespace MRR
             SetLocation(NextPos);
         }
 
-        public RobotLocation CalcNewLocation(int p_distance, Direction p_direction) //RobotLocation p_CurrentLocation)
+        public RobotLocation CalcNewLocation(int p_distance, Direction p_direction)
         {
-            // check direction
-            // move p_distance based on direction
             return CurrentPos.CalcNewLocation(p_distance, p_direction);
 
         }
@@ -345,58 +341,51 @@ namespace MRR
         [XmlIgnore]
         public int CardsPlayedCount { get { return CardsPlayed.Count(); } }
 
-        /// <summary>
-        /// Cards Played is a list of only cards already played
-        /// </summary>
         [XmlIgnore]
         public CardList CardsPlayed
         {
-            //get { return (CardList)(CardsPlayer.Where(gc => gc.PhasePlayed > 0).OrderBy(pc => pc.PhasePlayed)); }
             get { return new CardList((CardsPlayer ?? new CardList()).Where(gc => gc.PhasePlayed > 0).OrderBy(pc => pc.PhasePlayed)); }
         }
 
-        private CardList? hiddenCardsPlayer;
-        //[XmlIgnore]
+        [NotMapped]
         public CardList? CardsPlayer
         {
             get
             {
                 if (hiddenCardsPlayer != null) return hiddenCardsPlayer;
-                //if (MainGame == null) return null;
-                //return new CardList(MainGame.GameCards.Where(gc => gc.Owner == ID )); }
                 return null;}
             set { hiddenCardsPlayer = value; }
         }
+        private CardList? hiddenCardsPlayer;
 
-        private OptionCardList? hiddenOptionCards;
-        //[XmlIgnore]
+        [NotMapped]
         public OptionCardList? OptionCards
         {
             get
             {
                 if (hiddenOptionCards != null) return hiddenOptionCards;
-                //if (MainGame == null) return null;
-
-                //return new OptionCardList(MainGame.OptionCards.Where(gc => gc.Owner == ID));
                 return null ;
             }
             set { hiddenOptionCards = value; }
         }
+        private OptionCardList? hiddenOptionCards;
 
         public bool HasOptionCard(tOptionCardCommandType OptionID)
         {
             if (!this.IsRunning) return false;
             return false;
-            //OptionCard thiscard = MainGame.OptionCards.GetOption(OptionID, this);
-            //return (thiscard != null);
         }
 
+        [Column("CurrentFlag")]
         public int LastFlag { get; set; }
 
+        [Column("Status")]
         public tPlayerStatus PlayerStatus { get; set; }
 
+        [NotMapped]
         public string? IPAddress { get; set; }
 
+        [NotMapped]
         public Robots.AIMRobot? RobotConnection { get; set; }
 
         public Robots.AIMRobot? Connect(string ipAddress = "")
@@ -412,14 +401,13 @@ namespace MRR
             {
                 return null;
             }
-            
+
             if (RobotConnection != null)
             {
                 //RobotConnection.DisconnectAsync().Wait();
                 //RobotConnection = null;
                 // ensure robot is connected here...
             }
-            //Console.WriteLine("Final Connect to robot ID:" + ID.ToString() + " IP:" + IPAddress);
             RobotConnection = new Robots.AIMRobot(IPAddress);
             RobotConnection.ConnectAsync().Wait();
             RobotConnection.PrintAsync(Name).Wait();
@@ -430,13 +418,11 @@ namespace MRR
         public bool SendColorStatus(int Status = 0)
         {
             if (RobotConnection == null) return false;
-            //if (!RobotConnection.IsConnected) return false;
 
-            // Convert the hex strings to integers (base 16).
             int r = int.Parse(Color.Substring(0, 2), NumberStyles.HexNumber);
             int g = int.Parse(Color.Substring(2, 2), NumberStyles.HexNumber);
             int b = int.Parse(Color.Substring(4, 2), NumberStyles.HexNumber);
-            
+
             switch (Status)
             {
                 case 1: // programming
