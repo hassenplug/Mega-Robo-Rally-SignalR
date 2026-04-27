@@ -464,7 +464,8 @@ namespace MRR.Services
                         ID = (int)row["RobotID"],
                         PlayerSeat = (int)row["PlayerSeat"],
                         Name = row["RobotName"].ToString() ?? "",
-                        Color = row["RobotColor"].ToString() ?? "FFFFFF", // default white
+                        Color = row["RobotColor"].ToString() ?? "FFFFFF",
+                        ForeColor = row["RobotColorFG"].ToString() ?? "000000",
                         IPAddress = row["MACID"].ToString(),
 
                     });

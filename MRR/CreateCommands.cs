@@ -472,7 +472,8 @@ namespace MRR
 
             LoadOptionCardsFromDatabase();
 
-            _dataService.GetAllPlayers(true); // force refresh of player list after DB changes
+            //_dataService.GetAllPlayers(true); // force refresh of player list after DB changes
+            _dataService.RefreshAllPlayers();
 
             //MasterOptionCardList = (OptionCardList)LoadFile(typeof(OptionCardList), "" + "OptionList.xml");
 
@@ -821,6 +822,25 @@ namespace MRR
             Direction targetdir = p_OnMove.CommandDirection;
             if (p_Sequence == tCommandSequence.After) targetdir = p_OnMove.EndPos.Direction;
             int newdir = RotationFunctions.RotationDifference(p_thisplayer.CurrentPos.Direction, targetdir);
+            switch (newdir)
+            {
+                case 0:
+                    return 0;
+                case -1:
+                    p_OnMove.ValueB = 4;
+                    return 0;
+                case 1:
+                    p_OnMove.ValueB = 2;
+                    return 0;
+                case 2:
+                    p_OnMove.ValueB = 3;
+                    return 0;
+            }
+
+            return 0;
+
+
+
             switch (newdir)
             {
                 case 0: // already there

@@ -243,6 +243,9 @@ namespace MRR
         [NotMapped]
         public string Color { get; set; } = "333333"; // hex color string RRGGBB
 
+        [NotMapped]
+        public string ForeColor { get; set; } = "FFFFFF"; // hex color string RRGGBB
+
         private int l_damage = 0;
         public int Damage
         {
@@ -409,8 +412,15 @@ namespace MRR
                 //RobotConnection = null;
                 // ensure robot is connected here...
             }
+            int bgR = int.Parse(Color[..2], NumberStyles.HexNumber);
+            int bgG = int.Parse(Color[2..4], NumberStyles.HexNumber);
+            int bgB = int.Parse(Color[4..6], NumberStyles.HexNumber);
+            int fgR = int.Parse(ForeColor[..2], NumberStyles.HexNumber);
+            int fgG = int.Parse(ForeColor[2..4], NumberStyles.HexNumber);
+            int fgB = int.Parse(ForeColor[4..6], NumberStyles.HexNumber);
             RobotConnection = new Robots.AIMRobot(IPAddress);
             RobotConnection.ConnectAsync().Wait();
+            //RobotConnection.ConnectAsync(bgR, bgG, bgB, fgR, fgG, fgB).Wait();
             RobotConnection.PrintAsync(Name).Wait();
             SendColorStatus();
             return RobotConnection;

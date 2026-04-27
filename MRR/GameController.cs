@@ -226,7 +226,7 @@ namespace MRR.Controller
             _dataService.GetAllPlayers(true); // force refresh of player list after DB changes
             UpdateGameState();
 //            NextState();
-//            LoadCurrentGame();
+            LoadCurrentGame();
 
             //SendGameMessage(2,"Start for " + robotCount.ToString() + " robots");
         }
