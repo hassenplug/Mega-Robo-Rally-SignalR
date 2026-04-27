@@ -8,9 +8,11 @@ public class AIMRobot // : IAsyncDisposable
     private readonly string ipAddress;
     private ClientWebSocket? wsCmd;
     private ClientWebSocket? wsStatus;
-    private bool isConnected;
+    public bool isConnected;
     public bool isMoving;
     private string robotColor { get; set; } = "";
+    private CancellationTokenSource? _statusCts;
+    private TaskCompletionSource<bool>? _motionComplete;
 
     public AIMRobot(string ipAddress = "192.168.1.150")
     {
@@ -33,6 +35,9 @@ public class AIMRobot // : IAsyncDisposable
 
             // Initialize the program
             await SendCommandAsync(new { cmd_id = "program_init" });
+
+            _statusCts = new CancellationTokenSource();
+            _ = ListenStatusAsync(_statusCts.Token);
 
         }
         catch (Exception)
@@ -99,8 +104,68 @@ public class AIMRobot // : IAsyncDisposable
         isMoving = false;
     }
 
+    private async Task ListenStatusAsync(CancellationToken ct)
+    {
+        var buffer = new byte[4096];
+        while (!ct.IsCancellationRequested && wsStatus?.State == WebSocketState.Open)
+        {
+            try
+            {
+                var result = await wsStatus.ReceiveAsync(new ArraySegment<byte>(buffer), ct);
+                if (result.MessageType == WebSocketMessageType.Close) break;
+                var json = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                Console.WriteLine("Status event: " + json);
+                ProcessStatusEvent(json);
+            }
+            catch (OperationCanceledException) { break; }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Status listener error: " + ex.Message);
+                break;
+            }
+        }
+    }
+
+    private void ProcessStatusEvent(string json)
+    {
+        try
+        {
+            var evt = JsonSerializer.Deserialize<Dictionary<string, object>>(json);
+            if (evt == null) return;
+
+            // Check known event shapes — log everything until the real field names are confirmed
+            if (evt.TryGetValue("event", out var evtType) && evtType?.ToString() == "motion_complete")
+            {
+                isMoving = false;
+                _motionComplete?.TrySetResult(true);
+            }
+            else if (evt.TryGetValue("is_moving", out var moving))
+            {
+                isMoving = moving?.ToString() is "true" or "True" or "1";
+                if (!isMoving) _motionComplete?.TrySetResult(true);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Status parse error: " + ex.Message);
+        }
+    }
+
+    public async Task WaitForMotionCompleteAsync(int timeoutMs = 5000)
+    {
+        _motionComplete = new TaskCompletionSource<bool>();
+        using var cts = new CancellationTokenSource(timeoutMs);
+        cts.Token.Register(() => _motionComplete.TrySetResult(false));
+        await _motionComplete.Task;
+        _motionComplete = null;
+    }
+
     public async ValueTask DisposeAsync()
     {
+        _statusCts?.Cancel();
+        _statusCts?.Dispose();
+        _statusCts = null;
+
         if (wsCmd != null)
         {
             await StopAsync();
@@ -128,37 +193,35 @@ public class AIMRobot // : IAsyncDisposable
         await PrintAsync("Hello from C#!");
         await SetLedAsync("all", 0, 255, 0); // Green front LED
 
-        // Move forward
-        await MoveAsync(-90, 100); // 0 degrees (forward), 100mm/s speed
-        await Task.Delay(20); // Wait 2 seconds
-        await StopAsync();
+        // Move forward 3 inches (76 mm) at 0° heading
+        await MoveAsync(76, 0);
+        await WaitForMotionCompleteAsync();
 
-        await TurnAsync(90); // Turn right 90 degrees at 100mm/s
-        await Task.Delay(20); // Wait 2 seconds
-        await StopAsync();
+        // Turn right 90 degrees
+        await TurnAsync(1);
+        await WaitForMotionCompleteAsync();
 
-    }
-
-    public async Task SendRobotCommandAsync(CommandItem cmd)
-    {
-        await SendRobotCommandAsync(cmd.CommandID, cmd.Value, cmd.ValueB, (cmd.CommandCatID == 1) ? 1 : 0);
     }
 
     // command = move, turn, lcd_print, lcd_clear_screen, light_set, show_aivision, robot_command
     // p1 = distance
     // p2 = direction 0=forward, 1=backward
 
-    public async Task SendRobotCommandAsync(int CommandID, int Param1 = 0, int Param2 = 0, int waitforcompletion = 1)
+    public async Task SendRobotCommandAsync(CommandItem cmd)
     {
-        switch (CommandID)
+        //Console.WriteLine("move --- " + cmd.ToString() + "");
+
+        var (moveType, needsReply) = cmd.CommandMoveType;
+        switch (moveType)
         {
             case 1: // Move
-                await MoveAsync(Param1, Param2); // forward
+                Console.WriteLine($"move --- Value:{cmd.Value} ValueB:{cmd.ValueB} rotation: {RotationFunctions.Degrees(cmd.ValueB)}");
+                await MoveAsync(cmd.Value, cmd.ValueB); // forward
                 break;
             case 2: // Turn
-                await TurnAsync(Param1); // right
+                await TurnAsync(cmd.Value); // right
                 break;
-            case 3: // Stop
+            case 0: // Stop
                 await StopAsync();
                 break;
             default:
@@ -166,11 +229,14 @@ public class AIMRobot // : IAsyncDisposable
                 break;
         }
 
-        if (waitforcompletion == 1)
+        if (needsReply)
         {
             // Simple wait to simulate completion
-            await Task.Delay(500);
+            await Task.Delay(1500);
+            //await WaitForMotionCompleteAsync();
         }
+        // mark command as complete
+        //cmd.StatusID = 5;
     }
 
 
@@ -446,8 +512,9 @@ public class AIMRobot // : IAsyncDisposable
         SendCommandAsync(new
         {
             cmd_id = "drive_for",
-            angle,
-            drive_speed = 100 * (distance >= 0 ? 1 : -1),
+            distance = distance * 77,
+            angle = RotationFunctions.Degrees(angle),
+            drive_speed = 100,
             turn_speed = 0,
             final_heading = 0,
             stacking_type = 0

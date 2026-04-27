@@ -341,6 +341,7 @@ namespace MRR
         [XmlIgnore]
         public int CardsPlayedCount { get { return CardsPlayed.Count(); } }
 
+        [NotMapped]
         [XmlIgnore]
         public CardList CardsPlayed
         {

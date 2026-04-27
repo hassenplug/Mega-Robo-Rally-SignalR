@@ -236,11 +236,7 @@ namespace MRR
         [NotMapped]
         public RobotLocation StartPos { get; set; }
         [NotMapped]
-        public RobotLocation EndPos
-        {
-            get => new((Direction)PositionDir, PositionCol, PositionRow);
-            set { PositionRow = value.Y; PositionCol = value.X; PositionDir = (int)value.Direction; }
-        }
+        public RobotLocation EndPos { get; set; } = new RobotLocation();
 
         public int Phase { get; set; }
         [NotMapped]
@@ -270,9 +266,9 @@ namespace MRR
         public CommandStatus Status { get => (CommandStatus)StatusID; set => StatusID = (int)value; }
         [Column("BTCommand")]
         public string BTCommand { get; set; } = "";
-        public int PositionRow { get; set; }
-        public int PositionCol { get; set; }
-        public int PositionDir { get; set; }
+        public int PositionRow { get => EndPos.Y; set => EndPos.Y = value; }
+        public int PositionCol { get => EndPos.X; set => EndPos.X = value; }
+        public int PositionDir { get => (int)EndPos.Direction; set => EndPos.Direction = (Direction)value; }
         public int CommandCatID { get; set; }
 
         private string GetOptionName()
@@ -346,6 +342,7 @@ namespace MRR
                     case SquareAction.TouchFlag:
                     case SquareAction.TouchKotHFlag:
                     case SquareAction.TouchLastManFlag:
+                        //return new SquareActionDetails(CommandCategories.DB,"tag flag: " + Value,0,"3,5");
                         return new SquareActionDetails(CommandCategories.RobotNoReply,"tag flag: " + Value,0,"3,5");
 
                     case SquareAction.GameWinner:return new SquareActionDetails(CommandCategories.RobotNoReply, "wins",0,"3,7");
@@ -425,6 +422,27 @@ namespace MRR
                         return true;
                 }
                 return false;
+            }
+        }
+        [NotMapped]
+        public (int MoveType, bool NeedsReply) CommandMoveType
+        {
+            get
+            {
+                bool needsReply = Category == CommandCategories.RobotwReply;
+                switch (CommandType)
+                {
+                    case SquareAction.BoardMove:
+                    case SquareAction.PushedMove:
+                    case SquareAction.Move:
+                        return (1, needsReply);
+                    case SquareAction.BoardMoveRotate:
+                    case SquareAction.BoardRotate:
+                    case SquareAction.Rotate:
+                        return (2, needsReply);
+                    default:
+                        return (0, needsReply);
+                }
             }
         }
 

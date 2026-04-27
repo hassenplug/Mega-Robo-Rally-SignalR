@@ -144,13 +144,16 @@ namespace MRR
 #8 - Running Phase (in process)
 
         */
+        private static void LogCommand(CommandItem command, string text)
+            => Console.WriteLine($"{text}({command.RobotID})[{command.CommandCatID}]{{{command.CommandType}}}-{command.Value},{command.ValueB}:{command.Description}");
+
 //        public async Task<bool> ExecuteCommand(CommandItem onecommand)
         public bool ProcessCommand(CommandItem onecommand)
         {
             //Console.WriteLine($"Process Command({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandType}}}{onecommand.Value},{onecommand.ValueB}");
 
-            //var robot = _dataService.AllPlayers.GetPlayer(p => p.ID == onecommand.RobotID);
-            var robot = onecommand.Robot;
+            var robot = _dataService.AllPlayers.GetPlayer(p => p.ID == onecommand.RobotID);
+            //var robot = onecommand.Robot;
             switch (onecommand.CommandCatID)
             {
                 case 1: // Robot with Reply
@@ -158,15 +161,15 @@ namespace MRR
                     //var robot = _dataService.AllPlayers.GetPlayer(p => p.ID == onecommand.RobotID);
                     if (robot == null)
                     {
-                        Console.WriteLine($"Robot not found for Command({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandType}}}-{onecommand.Value},{onecommand.ValueB}:{onecommand.Description}");
+                        LogCommand(onecommand, "Robot not found for Command");
                         onecommand.StatusID = 6; // command complete
                         Db.SaveChanges();
                         return true;
                     }
 
-                    if (robot.RobotConnection == null)
+                    if (robot.RobotConnection == null || !robot.RobotConnection.isConnected)
                     {
-                        Console.WriteLine($"Robot not connected for Command({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandType}}}-{onecommand.Value},{onecommand.ValueB}:{onecommand.Description}");
+                        LogCommand(onecommand, "Robot not connected for Command");
                         onecommand.StatusID = _dataService.ProcessDbCommand(onecommand, 5);
                         Db.SaveChanges();
                         return true;
@@ -174,7 +177,7 @@ namespace MRR
 
                     if (onecommand.StatusID == 2)
                     {
-                        Console.WriteLine($"Robot Command    ({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandType}}}-{onecommand.Value},{onecommand.ValueB}:{onecommand.Description}");
+                        LogCommand(onecommand, "Robot Command    ");
                         onecommand.StatusID = 3; // executing
                         robot.RobotConnection.SendRobotCommandAsync(onecommand).Wait();
                         if (onecommand.CommandCatID == 2)
@@ -183,7 +186,7 @@ namespace MRR
                             onecommand.StatusID = 4; // not waiting for reply
                         }
                         Db.SaveChanges();
-                        return true;
+                        //return true;
                     }
 
                     if (onecommand.StatusID == 3)
@@ -191,7 +194,7 @@ namespace MRR
                         robot.RobotConnection.CheckMovingStatus().Wait();
                         if (!robot.RobotConnection.isMoving)
                         {
-                            Console.WriteLine($"Robot Command Done({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandType}}}-{onecommand.Value},{onecommand.ValueB}:{onecommand.Description}");
+                            LogCommand(onecommand, "Robot Command Done");
                             onecommand.StatusID = 4;
                         }
                     }
@@ -206,7 +209,7 @@ namespace MRR
 
 
                 case 3: // DB
-                    Console.WriteLine($"Database Command ({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandType}}}-{onecommand.Value},{onecommand.ValueB}:{onecommand.Description}");
+                    LogCommand(onecommand, "Database Command ");
                     onecommand.StatusID = _dataService.ProcessDbCommand(onecommand, -1);
                     Db.SaveChanges();
                     return true;
@@ -214,12 +217,12 @@ namespace MRR
                 case 6: // User Input
                     if (onecommand.StatusID < 4)
                     {
-                        Console.WriteLine($"User Input       ({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandType}}}-{onecommand.Value},{onecommand.ValueB}:{onecommand.Description}");
-                        //var robot6 = Db.Robots.FirstOrDefault(r => r.ID == onecommand.RobotID);
+                        LogCommand(onecommand, "User Input       ");
+                        var robot6 = Db.Robots.FirstOrDefault(r => r.ID == onecommand.RobotID);
 
-                        if (robot != null)
+                        if (robot6 != null)
                         {
-                            robot.MessageCommandID = onecommand.CommandID;
+                            robot6.MessageCommandID = onecommand.CommandID;
                             onecommand.StatusID = 4;
                             Db.SaveChanges();
                             return false; // wait for user input
@@ -228,7 +231,7 @@ namespace MRR
                     return false;
 
                 default:
-                    Console.WriteLine($"Not processed here({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandType}}}-{onecommand.Value},{onecommand.ValueB}:{onecommand.Description}");
+                    LogCommand(onecommand, "Not processed here");
                     onecommand.StatusID = _dataService.ProcessDbCommand(onecommand, -1);
                     Db.SaveChanges();
                     break;

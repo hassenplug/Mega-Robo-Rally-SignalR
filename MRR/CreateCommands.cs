@@ -103,10 +103,10 @@ namespace MRR
                 case MoveCard.tCardType.UTurn:
                     // set new robot direction
                     ListOfCommands.AddCommand(thisplayer, SquareAction.SetPlayerStatus, 5);
-                    ListOfCommands.AddCommand(thisplayer, SquareAction.StartBotMove, 0, thisplayer.PlayerScore);
+                    ListOfCommands.AddCommand(thisplayer, SquareAction.StartBotMove, 0);
                     //RotateRobot(thisplayer, p_movecard.GetCardValue()) ; //,SquareAction.Rotate);
                     RotateRobot(thisplayer, GameCards.GetCardValue(p_movecard)); // p_movecard.GetCardValue()) ; //,SquareAction.Rotate);
-                    ListOfCommands.AddCommand(thisplayer, SquareAction.StopBotMove,0,thisplayer.PlayerScore);
+                    ListOfCommands.AddCommand(thisplayer, SquareAction.StopBotMove,0);
                     ListOfCommands.AddCommand(thisplayer, SquareAction.SetPlayerStatus, 12);
 
                     break;
@@ -117,7 +117,7 @@ namespace MRR
                     // move robot...
                     // add this robot move
                     ListOfCommands.AddCommand(thisplayer, SquareAction.SetPlayerStatus, 5);
-                    ListOfCommands.AddCommand(thisplayer, SquareAction.StartBotMove, 0, thisplayer.PlayerScore);
+                    ListOfCommands.AddCommand(thisplayer, SquareAction.StartBotMove, 0);
 
                     int l_MoveDistance = GameCards.GetCardValue(p_movecard);
                     // check for water...
@@ -165,7 +165,7 @@ namespace MRR
 
                     // before water
                     //CalcMoveDistance(thisplayer, GameCards.GetCardValue(p_movecard), thisplayer.CurrentPos.Direction, SquareAction.Move);
-                    ListOfCommands.AddCommand(thisplayer, SquareAction.StopBotMove, 0, thisplayer.PlayerScore);
+                    ListOfCommands.AddCommand(thisplayer, SquareAction.StopBotMove);
                     if (!thisplayer.IsDead)
                     {
                         ListOfCommands.AddCommand(thisplayer, SquareAction.SetPlayerStatus, 12);
@@ -347,11 +347,11 @@ namespace MRR
 
             if (p_Distance >= 0)
             {
-                ListOfCommands.AddCommand(p_Robot, p_Distance, p_Robot.PlayerScore, p_Direction, p_MoveType);
+                ListOfCommands.AddCommand(p_Robot, p_Distance, 1, p_Direction, p_MoveType);
             }
             else // move backwards
             {
-                ListOfCommands.AddCommand(p_Robot, -p_Distance, p_Robot.PlayerScore, RotationFunctions.Rotate(2, p_Direction), p_MoveType);
+                ListOfCommands.AddCommand(p_Robot, -p_Distance, 3, RotationFunctions.Rotate(2, p_Direction), p_MoveType);
             }
 
             //   check for damage on entering
@@ -739,12 +739,14 @@ namespace MRR
             {
                 thisCommand.CommandID = thisCommand.NormalSequence;
                 thisCommand.Turn = Turn;
-                thisCommand.StatusID = thisCommand.StatusID;
+                //thisCommand.StatusID = thisCommand.StatusID;
+                //thisCommand.PositionRow = thisCommand.EndPos.Y;
+                //thisCommand.PositionCol = thisCommand.EndPos.X;
+                //thisCommand.PositionDir = (int)thisCommand.EndPos.Direction;
+
                 thisCommand.BTCommand = thisCommand.StringCommand;
-                thisCommand.PositionRow = thisCommand.EndPos.Y;
-                thisCommand.PositionCol = thisCommand.EndPos.X;
-                thisCommand.PositionDir = (int)thisCommand.EndPos.Direction;
                 thisCommand.CommandCatID = (int)thisCommand.Category;
+
                 using var ctx = _dataService.CreateDbContext();
                 ctx.CommandItems.Add(thisCommand);
                 ctx.SaveChanges();

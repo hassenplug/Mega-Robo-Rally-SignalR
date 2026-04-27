@@ -688,16 +688,25 @@ namespace MRR.Services
                 case SquareAction.Damage: // Set Damage
                     if (robot != null)
                         robot.Damage = cParameter;
+                    db.Robots.Where(r => r.ID == cRobotID)
+                        .ExecuteUpdate(s => s.SetProperty(r => r.Damage, cParameter));
                     break;
 
                 case SquareAction.Archive: // Set Archive position
                     if (robot != null)
                         robot.ArchivePos = new RobotLocation((Direction)cDir, cCol, cRow);
+                    db.Robots.Where(r => r.ID == cRobotID)
+                        .ExecuteUpdate(s => s
+                            .SetProperty(r => r.ArchivePosRow, cRow)
+                            .SetProperty(r => r.ArchivePosCol, cCol)
+                            .SetProperty(r => r.ArchivePosDir, cDir));
                     break;
 
                 case SquareAction.Flag: // Set Current Flag
                     if (robot != null)
                         robot.LastFlag = cParameter;
+                    db.Robots.Where(r => r.ID == cRobotID)
+                        .ExecuteUpdate(s => s.SetProperty(r => r.LastFlag, cParameter));
                     break;
 
                 case SquareAction.Option: // Deal option card to robot
@@ -826,6 +835,7 @@ namespace MRR.Services
                         robot.CurrentPos.X = cCol;
                         robot.CurrentPos.Y = cRow;
                         robot.CurrentPos.Direction = (Direction)cDir;
+                        robot.Score = cParameterB;
                     }
                     db.Robots.Where(r => r.ID == cRobotID)
                         .ExecuteUpdate(s => s

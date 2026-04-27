@@ -19,6 +19,9 @@ namespace MRR.Data
 
             modelBuilder.HasDefaultSchema("rally");
 
+            modelBuilder.Ignore<MoveCard>();
+            modelBuilder.Ignore<CardList>();
+
             modelBuilder.Entity<CommandItem>(entity =>
             {
                 entity.ToTable("CommandList");

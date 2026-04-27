@@ -108,5 +108,23 @@ namespace MRR
             }
         }
 
+        static public int Degrees(int FacingDirection)
+        {
+            switch ((Direction)FacingDirection)
+            {
+                case Direction.Up:
+                    return 0;
+                case Direction.Right:
+                    return 90;
+                case Direction.Down:
+                    return 180;
+                case Direction.Left:
+                    return 270;
+                case Direction.None:
+                default:
+                    return 0;
+            }
+        }
+
     }
 }
