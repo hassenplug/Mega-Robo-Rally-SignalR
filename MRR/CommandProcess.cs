@@ -167,7 +167,7 @@ namespace MRR
                         return true;
                     }
 
-                    if (robot.RobotConnection == null || !robot.RobotConnection.isConnected)
+                    if (!robot.isConnected)
                     {
                         LogCommand(onecommand, "Robot not connected for Command");
                         onecommand.StatusID = _dataService.ProcessDbCommand(onecommand, 5);
@@ -179,7 +179,7 @@ namespace MRR
                     {
                         LogCommand(onecommand, "Robot Command    ");
                         onecommand.StatusID = 3; // executing
-                        robot.RobotConnection.SendRobotCommandAsync(onecommand).Wait();
+                        robot.SendRobotCommandAsync(onecommand).Wait();
                         if (onecommand.CommandCatID == 2)
                         {
                             // don't wait for reply
@@ -191,8 +191,8 @@ namespace MRR
 
                     if (onecommand.StatusID == 3)
                     {
-                        robot.RobotConnection.CheckMovingStatus().Wait();
-                        if (!robot.RobotConnection.isMoving)
+                        robot.CheckMovingStatus().Wait();
+                        if (!robot.isMoving)
                         {
                             LogCommand(onecommand, "Robot Command Done");
                             onecommand.StatusID = 4;

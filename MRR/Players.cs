@@ -14,6 +14,8 @@ using MRR.Services;
 using System.Data;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Net.WebSockets;
+using System.Text.Json;
 
 // serializer
 
@@ -246,6 +248,13 @@ namespace MRR
         [NotMapped]
         public string ForeColor { get; set; } = "FFFFFF"; // hex color string RRGGBB
 
+        private ClientWebSocket? wsCmd;
+        private ClientWebSocket? wsStatus;
+        public bool isConnected;
+        public bool isMoving;
+        private CancellationTokenSource? _statusCts;
+        private TaskCompletionSource<bool>? _motionComplete;
+
         private int l_damage = 0;
         public int Damage
         {
@@ -389,10 +398,7 @@ namespace MRR
         [NotMapped]
         public string? IPAddress { get; set; }
 
-        [NotMapped]
-        public Robots.AIMRobot? RobotConnection { get; set; }
-
-        public Robots.AIMRobot? Connect(string ipAddress = "")
+        public Player? Connect(string ipAddress = "")
         {
             if (ipAddress != "")
             {
@@ -406,29 +412,15 @@ namespace MRR
                 return null;
             }
 
-            if (RobotConnection != null)
-            {
-                //RobotConnection.DisconnectAsync().Wait();
-                //RobotConnection = null;
-                // ensure robot is connected here...
-            }
-            int bgR = int.Parse(Color[..2], NumberStyles.HexNumber);
-            int bgG = int.Parse(Color[2..4], NumberStyles.HexNumber);
-            int bgB = int.Parse(Color[4..6], NumberStyles.HexNumber);
-            int fgR = int.Parse(ForeColor[..2], NumberStyles.HexNumber);
-            int fgG = int.Parse(ForeColor[2..4], NumberStyles.HexNumber);
-            int fgB = int.Parse(ForeColor[4..6], NumberStyles.HexNumber);
-            RobotConnection = new Robots.AIMRobot(IPAddress);
-            RobotConnection.ConnectAsync().Wait();
-            //RobotConnection.ConnectAsync(bgR, bgG, bgB, fgR, fgG, fgB).Wait();
-            RobotConnection.PrintAsync(Name).Wait();
+            ConnectAsync().Wait();
+            PrintAsync(Name).Wait();
             SendColorStatus();
-            return RobotConnection;
+            return this;
         }
 
         public bool SendColorStatus(int Status = 0)
         {
-            if (RobotConnection == null) return false;
+            if (!isConnected) return false;
 
             int r = int.Parse(Color.Substring(0, 2), NumberStyles.HexNumber);
             int g = int.Parse(Color.Substring(2, 2), NumberStyles.HexNumber);
@@ -437,16 +429,16 @@ namespace MRR
             switch (Status)
             {
                 case 1: // programming
-                    RobotConnection.SetLedAsync("all", 255, 255, 0).Wait(); // yellow
+                    SetLedAsync("all", 255, 255, 0).Wait(); // yellow
                     break;
                 case 2: // running
-                    RobotConnection.SetLedAsync("all", 0, 255, 0).Wait(); // green
+                    SetLedAsync("all", 0, 255, 0).Wait(); // green
                     break;
                 case 3: // error
-                    RobotConnection.SetLedAsync("all", 255, 0, 0).Wait(); // red
+                    SetLedAsync("all", 255, 0, 0).Wait(); // red
                     break;
                 default:
-                    RobotConnection.SetLedAsync("all", r, g, b).Wait(); // robot color
+                    SetLedAsync("all", r, g, b).Wait(); // robot color
                     break;
             }
 
@@ -462,6 +454,281 @@ namespace MRR
 
             return "[" + ID.ToString() + "]" + CurrentPos;
         }
+
+        // ── AIMRobot methods (merged from AIMRobot.cs) ───────────────────────
+
+        public async Task ConnectAsync()
+        {
+            wsCmd = new ClientWebSocket();
+            wsStatus = new ClientWebSocket();
+
+            int bgR = int.Parse(Color[..2], NumberStyles.HexNumber);
+            int bgG = int.Parse(Color[2..4], NumberStyles.HexNumber);
+            int bgB = int.Parse(Color[4..6], NumberStyles.HexNumber);
+            int fgR = int.Parse(ForeColor[..2], NumberStyles.HexNumber);
+            int fgG = int.Parse(ForeColor[2..4], NumberStyles.HexNumber);
+            int fgB = int.Parse(ForeColor[4..6], NumberStyles.HexNumber);
+
+            try
+            {
+                await wsCmd.ConnectAsync(new Uri($"ws://{IPAddress!}:80/ws_cmd"), CancellationToken.None);
+                await wsStatus.ConnectAsync(new Uri($"ws://{IPAddress!}:80/ws_status"), CancellationToken.None);
+
+                isConnected = true;
+
+                await SendCommandAsync(new { cmd_id = "program_init" });
+                await SendCommandAsync(new { cmd_id = "lcd_clear_screen", r = bgR, g = bgG, b = bgB });
+                await SendCommandAsync(new { cmd_id = "lcd_set_pen_color", r = fgR, g = fgG, b = fgB });
+                await SetLedAsync("all", bgR, bgG, bgB );
+
+                _statusCts = new CancellationTokenSource();
+                _ = ListenStatusAsync(_statusCts.Token);
+            }
+            catch (Exception)
+            {
+                isConnected = false;
+            }
+        }
+
+        public async Task SendCommandAsync(object command)
+        {
+            if (!isConnected || wsCmd == null)
+            {
+                isConnected = false;
+                return;
+            }
+
+            Console.WriteLine("Sending command: " + JsonSerializer.Serialize(command));
+
+            var jsonCommand = JsonSerializer.Serialize(command);
+            var bytes = Encoding.UTF8.GetBytes(jsonCommand);
+
+            await wsCmd.SendAsync(
+                new ArraySegment<byte>(bytes),
+                WebSocketMessageType.Binary,
+                true,
+                CancellationToken.None);
+
+            var buffer = new byte[4096];
+            var result = await wsCmd.ReceiveAsync(
+                new ArraySegment<byte>(buffer),
+                CancellationToken.None);
+
+            if (result.MessageType == WebSocketMessageType.Binary)
+            {
+                var response = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                var responseObj = JsonSerializer.Deserialize<Dictionary<string, object>>(response);
+
+                Console.WriteLine("Response: " + response);
+
+                if (responseObj != null && responseObj.ContainsKey("status"))
+                {
+                    var status = responseObj["status"].ToString();
+                    if (status == "error")
+                    {
+                        var errorInfo = responseObj.ContainsKey("error_info") ? responseObj["error_info"].ToString() : "Unknown error";
+                    }
+                }
+            }
+        }
+
+        public Task CheckMovingStatus()
+        {
+            if (!isConnected || wsStatus == null)
+            {
+                isConnected = false;
+                isMoving = false;
+            }
+            return Task.CompletedTask;
+        }
+
+        private async Task ListenStatusAsync(CancellationToken ct)
+        {
+            var buffer = new byte[4096];
+            while (!ct.IsCancellationRequested && wsStatus?.State == WebSocketState.Open)
+            {
+                try
+                {
+                    var result = await wsStatus.ReceiveAsync(new ArraySegment<byte>(buffer), ct);
+                    if (result.MessageType == WebSocketMessageType.Close) break;
+                    var json = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                    Console.WriteLine("Status event: " + json);
+                    ProcessStatusEvent(json);
+                }
+                catch (OperationCanceledException) { break; }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("Status listener error: " + ex.Message);
+                    break;
+                }
+            }
+        }
+
+        private void ProcessStatusEvent(string json)
+        {
+            try
+            {
+                var evt = JsonSerializer.Deserialize<Dictionary<string, object>>(json);
+                if (evt == null) return;
+
+                if (evt.TryGetValue("event", out var evtType) && evtType?.ToString() == "motion_complete")
+                {
+                    isMoving = false;
+                    _motionComplete?.TrySetResult(true);
+                }
+                else if (evt.TryGetValue("is_moving", out var moving))
+                {
+                    isMoving = moving?.ToString() is "true" or "True" or "1";
+                    if (!isMoving) _motionComplete?.TrySetResult(true);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Status parse error: " + ex.Message);
+            }
+        }
+
+        public async Task WaitForMotionCompleteAsync(int timeoutMs = 5000)
+        {
+            _motionComplete = new TaskCompletionSource<bool>();
+            using var cts = new CancellationTokenSource(timeoutMs);
+            cts.Token.Register(() => _motionComplete.TrySetResult(false));
+            await _motionComplete.Task;
+            _motionComplete = null;
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            _statusCts?.Cancel();
+            _statusCts?.Dispose();
+            _statusCts = null;
+
+            if (wsCmd != null)
+            {
+                await StopAsync();
+                if (wsCmd.State == WebSocketState.Open)
+                    await wsCmd.CloseAsync(WebSocketCloseStatus.NormalClosure, "Disposing", CancellationToken.None);
+                wsCmd.Dispose();
+            }
+
+            if (wsStatus != null)
+            {
+                if (wsStatus.State == WebSocketState.Open)
+                    await wsStatus.CloseAsync(WebSocketCloseStatus.NormalClosure, "Disposing", CancellationToken.None);
+                wsStatus.Dispose();
+            }
+        }
+
+        public async Task RunTest()
+        {
+            await ConnectAsync();
+
+            await ClearScreenAsync();
+            await PrintAsync("Hello from C#!");
+            await SetLedAsync("all", 0, 255, 0);
+
+            await MoveAsync(76, 0);
+            await WaitForMotionCompleteAsync();
+
+            await TurnAsync(1);
+            await WaitForMotionCompleteAsync();
+        }
+
+        public async Task SendRobotCommandAsync(CommandItem cmd)
+        {
+            var (moveType, needsReply) = cmd.CommandMoveType;
+            switch (moveType)
+            {
+                case 1: // Move
+                    Console.WriteLine($"move --- Value:{cmd.Value} ValueB:{cmd.ValueB} rotation: {RotationFunctions.Degrees(cmd.ValueB)}");
+                    await MoveAsync(cmd.Value, cmd.ValueB);
+                    break;
+                case 2: // Turn
+                    await TurnAsync(cmd.Value);
+                    break;
+                case 0: // Stop
+                    await StopAsync();
+                    break;
+                default:
+                    break;
+            }
+
+            if (needsReply)
+            {
+                await Task.Delay(1500);
+            }
+        }
+
+        public Task MoveAsync(int distance, int angle) =>
+            SendCommandAsync(new
+            {
+                cmd_id = "drive_for",
+                distance = distance * 77,
+                angle = RotationFunctions.Degrees(angle),
+                drive_speed = 100,
+                turn_speed = 0,
+                final_heading = 0,
+                stacking_type = 0
+            });
+
+        public Task MoveUnlimitedAsync(double angle, double speed) =>
+            SendCommandAsync(new
+            {
+                cmd_id = "drive",
+                angle,
+                speed,
+                stacking_type = 0
+            });
+
+        public Task StopAsync() =>
+            SendCommandAsync(new
+            {
+                cmd_id = "drive",
+                angle = 0.0,
+                speed = 0.0,
+                stacking_type = 0
+            });
+
+        public Task TurnAsync(int direction) =>
+            SendCommandAsync(new
+            {
+                cmd_id = "turn_for",
+                angle = direction * 90,
+                turn_rate = 100,
+                stacking_type = 0
+            });
+
+        public Task PrintAsync(string text) =>
+            SendCommandAsync(new
+            {
+                cmd_id = "lcd_print",
+                @string = text
+            });
+
+        public Task ClearScreenAsync() =>
+            SendCommandAsync(new
+            {
+                cmd_id = "lcd_clear_screen",
+                b = 100,
+                g = 0,
+                r = 0
+            });
+
+        public Task SetLedAsync(string led, int r, int g, int b)
+        {
+            var ledData = new Dictionary<string, object>
+            {
+                { "cmd_id", "light_set" },
+                { led, new { r, g, b } }
+            };
+            return SendCommandAsync(ledData);
+        }
+
+        public Task ShowAIAsync() =>
+            SendCommandAsync(new
+            {
+                cmd_id = "show_aivision"
+            });
     }
     #endregion
 
