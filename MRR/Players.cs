@@ -636,7 +636,7 @@ namespace MRR
 
         public async Task SendRobotCommandAsync(CommandItem cmd)
         {
-            var (moveType, needsReply) = cmd.CommandMoveType;
+            int moveType = cmd.CommandMoveType;
             switch (moveType)
             {
                 case 1: // Move
@@ -653,10 +653,10 @@ namespace MRR
                     break;
             }
 
-            if (needsReply)
-            {
-                await Task.Delay(1500);
-            }
+            //if (cmd.Category == CommandCategories.RobotwReply)
+            //{
+            //    await Task.Delay(1500);
+            //}
         }
 
         public Task MoveAsync(int distance, int angle) =>

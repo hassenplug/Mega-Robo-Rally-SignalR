@@ -425,23 +425,22 @@ namespace MRR
             }
         }
         [NotMapped]
-        public (int MoveType, bool NeedsReply) CommandMoveType
+        public int CommandMoveType
         {
             get
             {
-                bool needsReply = Category == CommandCategories.RobotwReply;
                 switch (CommandType)
                 {
                     case SquareAction.BoardMove:
                     case SquareAction.PushedMove:
                     case SquareAction.Move:
-                        return (1, needsReply);
+                        return 1;
                     case SquareAction.BoardMoveRotate:
                     case SquareAction.BoardRotate:
                     case SquareAction.Rotate:
-                        return (2, needsReply);
+                        return 2;
                     default:
-                        return (0, needsReply);
+                        return 0;
                 }
             }
         }
