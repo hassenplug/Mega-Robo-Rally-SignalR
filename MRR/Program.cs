@@ -158,6 +158,37 @@ app.MapGet("/api/state/{newstate?}/{parameter1?}", async (string? newstate, stri
 });
 
 
+// Grid-alignment endpoint: download a camera frame, detect black grid lines,
+// and nudge the robot until it is centered on its board square.
+// GET /api/robot/align/{robotId}
+app.MapGet("/api/robot/align/{robotId:int}", async (int robotId, DataService dataService) =>
+{
+    var dt = dataService.GetQueryResults(
+        $"SELECT IPAddress FROM Robots WHERE RobotID={robotId};");
+    if (dt.Rows.Count == 0)
+        return Results.NotFound(new { error = $"Robot {robotId} not found" });
+
+    var ipAddress = dt.Rows[0]["IPAddress"]?.ToString();
+    if (string.IsNullOrWhiteSpace(ipAddress))
+        return Results.BadRequest(new { error = $"Robot {robotId} has no IP address configured" });
+
+    var robot = new Player { IPAddress = ipAddress };
+    await robot.ConnectAsync();
+
+    if (!robot.isConnected)
+        return Results.Problem($"Could not connect to robot {robotId} at {ipAddress}");
+
+    try
+    {
+        var result = await GridAlignmentAgent.AlignAsync(robot);
+        return Results.Ok(result);
+    }
+    finally
+    {
+        await robot.DisposeAsync();
+    }
+});
+
 app.MapGet("/api/robot/{function?}/{parameter1?}", (string? function, string? parameter1, DataService dataService, IHubContext<DataHub> hubContext, GameController gameController) =>
 {
 

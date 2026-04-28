@@ -1,45 +1,216 @@
-Things left to do to make MRR work
+Mega Robo Rally — Project TODO
+Last updated: 2026-04-28
+Legend:  [x] Done   [-] Partial / In Progress   [ ] Not started
+================================================================================
+
+────────────────────────────────────────────────────────────────────────────────
+SECTION 1 — CRITICAL PATH (game cannot start or run without these)
+────────────────────────────────────────────────────────────────────────────────
+
+[ ] Convert procResetPlayers to C#
+      - Still called as raw SQL in GameController.cs:259
+      - Advances shutdown states, respawns dead robots, resets option play records
+      - Blocks every turn start
+
+[ ] Convert procMoveCardsShuffleAndDeal to C#
+      - Shuffles and deals 9 cards to each player at turn start
+      - Blocks every turn start
+
+[ ] Convert procUpdateCardPlayed to C#
+      - Called every time a phone submits a card into a register
+      - Blocks phone card programming
+
+[ ] Convert procUpdateRobotCards + procMoveCardsCheckProgrammed to C#
+      - Rebuilds CardsDealt/CardsPlayed strings; checks when all players are ready
+      - Blocks programming phase completion
+
+[ ] Convert funcProcessCommand (DB-category commands) to C#
+      - Partial: C# handles robot/user categories; MySQL still handles DB-category
+      - Every DB-side command during execution calls back into MySQL
+      - See sql-to-csharp-conversion-list.md for details
+
+[ ] Convert funcGetNextGameState to C#
+      - Partial: DataHub still calls it directly for phone-triggered transitions
+      - State machine must be fully in C# to run without database logic
+
+[ ] Replicate Robots_BEFORE_UPDATE trigger in C#
+      - Damage cap → death; ShutDown=4 → clear damage; ShutDown=2 → status=9
+      - Silent data bug in every place that writes Robots without this
+
+[ ] Convert funcDealSpamToPlayer to C#
+      - Needed every time a robot takes damage
+      - Inserts a new Spam card into the player's discard pile
+
+[ ] Set initial starting positions for robots before creating the command list
+      - Robots need a valid board position + direction before ExecuteTurn runs
+      - Related: procVerifyPosition, procSetRobotDirection (see Section 5)
 
 
-Connect to AIM robots
+────────────────────────────────────────────────────────────────────────────────
+SECTION 2 — GAME MECHANICS (Renegade rules completeness)
+────────────────────────────────────────────────────────────────────────────────
 
-Make code run (Play game)
+[ ] Reboot mechanic
+      - Triggered when robot moves into a pit or off the board
+      - Robot placed at chosen reboot token; receives 2 Spam cards; continues this turn
+      - Needs: pit/edge detection in CreateCommands + DataService respawn logic
 
-Remove old communications
+[ ] Board element activation — conveyor belts (CreateCommands.cs)
+      - Express belts move first (2 squares), then all belts (1 square)
+      - Chained movement: robot landing on a second belt also moves
+      - Merge conveyor belts (splitting paths converge)
 
-Add Controls for player to set robot direction
+[ ] Board element activation — pushers (CreateCommands.cs)
+      - Activate only on specific phases (odd or even, marked per pusher)
+      - Push robot one square; chain-pushes if another robot is in path
 
-Ability to use merge conveyor belts
+[ ] Board element activation — gears (CreateCommands.cs)
+      - CW gear: rotate robot 90° right
+      - CCW gear: rotate robot 90° left
 
-Options
+[ ] Board element activation — board lasers (CreateCommands.cs)
+      - Fire each phase; damage any robot in line of sight
+      - Wall-blocked: walls on the far side of source/target stop the laser
 
-Two procedures still remain as raw SQL calls within the new C# code (separate migration tasks):
+[-] Board element activation — robot lasers (CreateCommands.cs)
+      - Code skeleton exists; firing logic not complete
+      - Each robot fires 1 laser forward; damages first robot in path
+      - Option cards: RearLaser (fires backward too), HighPowerLaser (2 damage)
 
-procUpdatePlayerPriority (10-Turn mode path) -- DONE: converted to UpdatePlayerPriority() in DataService.cs
-procGameFillPrograms (Classic rules, damage > 4 path)
+[ ] Flag / checkpoint detection (CreateCommands.cs + GameController.cs)
+      - End of each phase: robot on flag N (where N == LastFlag+1) touches it
+      - Touching a flag also updates the robot's archive (respawn point)
 
-Move SQL functions into c#
+[ ] Win condition (GameController.cs)
+      - After flag check: if robot.LastFlag == TotalFlags → that robot wins
+      - End the game and display winner
 
-        (port: 80, path: "ws_img"),       // Camera images
-        (port: 80, path: "ws_status"),    // Status updates
-        (port: 80, path: "ws_cmd"),       // Command endpoint
-        (port: 80, path: "ws_audio")      // Audio streaming
+[ ] Shutdown mechanic (GameController.cs + phone UI)
+      - Player announces shutdown during programming phase
+      - Shut-down robot: takes no laser damage, cannot move, may clear damage cards
 
-        /*
-VEX AIM WebSocket Commands (JSON)
-• Move: {"command":"move","direction":"forward","speed":50}
-• Turn: {"command":"turn","direction":"left","angle":90}
-• LED: {"command":"led","color":"#FF0000"}
-• Draw: {"command":"screen.draw","shape":"circle","x":100,"y":100,"radius":50,"color":"#00FF00"}
-• Text: {"command":"screen.text","text":"Hello VEX!","x":50,"y":50,"font":"medium","color":"#00FF00"}
-• Sound: {"command":"sound.play","sound":"beep"}
-• Vision: {"command":"vision.detect","target":"april_tag"}
-• Camera: {"command":"camera.stream","resolution":"640x480","fps":30}
-• Event: {"command":"event.register","event":"screen.press","callback":"onScreenPress"}
-*/
+[ ] Damage card draw mechanic
+      - When a robot takes damage, draw top card from damage stack → add to discard
+      - Spam execution: play top card from deck without choice
+      - Haywire execution: play 5 random cards from deck
+      - Trojan Horse execution: all other robots take 1 damage
 
-
-add entity framework to setup
-add reboot
+[-] Option card effects wired into phase processing (CreateCommands.cs)
+      - Partial: ReverseGears, FourthGear, RammingGear referenced
+      - Missing: Brakes, CrabLegs, Recompile, many others
 
 
+────────────────────────────────────────────────────────────────────────────────
+SECTION 3 — ROBOT HARDWARE (VEX AIM physical integration)
+────────────────────────────────────────────────────────────────────────────────
+
+[ ] Calibrate drive_for distance for one board square
+      - Currently: distance = value * 77mm (estimated, not measured)
+      - Must be measured empirically on the actual printed board
+      - See robo-rally-dev.md §4.6
+
+[ ] Determine ws_img wire format (connect to live robot and log raw bytes)
+      - GridAlignmentAgent handles raw JPEG and JSON/base64, but format unconfirmed
+      - See tools/ai_agent/ws_img_format.md for what to check and update
+
+[-] Grid alignment agent calibration (GridAlignmentAgent.cs)
+      - Code complete; constants need tuning against real board + lighting
+      - BlackLuminanceThreshold, MinBlackPixels, AlignedThreshold, NudgeDistanceMm
+
+[ ] Robot LCD display at game start
+      - Show robot name and player name on each AIM robot's screen
+      - Call PrintAsync / lcd_print_at in GameController state 0
+
+[ ] Add controls for player to manually set robot direction
+      - Admin/setup UI or API endpoint to set a robot's facing direction
+      - Needed before game start when robots are placed on the board
+      - Calls procSetRobotDirection equivalent in C#
+
+[ ] Remove old/unused communication code
+      - Audit Players.cs and Program.cs for any leftover WebSocket stubs or dead paths
+
+[ ] Investigate ws_audio endpoint (ws://{ip}:80/ws_audio)
+      - Documented in todo.txt but no C# code exists for it
+      - Determine if needed (robot sound triggers from server side)
+
+
+────────────────────────────────────────────────────────────────────────────────
+SECTION 4 — PLAYER PHONE UI (wwwroot/)
+────────────────────────────────────────────────────────────────────────────────
+
+[ ] Card programming interface
+      - Players must see their 9-card hand and drag/tap cards into 5 register slots
+      - Submit button → calls DataHub.UpdatePlayer(command=1, ...)
+      - Currently: board-editor.html and database.html exist; game UI is partial
+
+[ ] Show player hand and register state in real time
+      - SignalR AllDataUpdate already broadcasts; phone UI must render hand + registers
+
+[ ] Shutdown toggle on phone UI
+      - Player can choose to shut down during programming phase
+
+[ ] Display robot status on phone (damage, lives, energy, position)
+
+[ ] Handle Haywire / Spam / option card notifications on phone
+
+
+────────────────────────────────────────────────────────────────────────────────
+SECTION 5 — RASPBERRY PI HARDWARE (Sense HAT)
+────────────────────────────────────────────────────────────────────────────────
+
+[ ] Create MRR/Sensors/SenseHatService.cs
+      - Add Iot.Device.Bindings NuGet package to MRR.csproj
+      - Register as singleton in Program.cs
+      - 8×8 LED matrix: show current game state, active robots (by color), turn/phase
+
+[ ] Joystick input from Sense HAT
+      - Read joystick direction in SenseHatService
+      - Map to game actions (advance state, navigate menus, etc.)
+
+
+────────────────────────────────────────────────────────────────────────────────
+SECTION 6 — INFRASTRUCTURE / SETUP
+────────────────────────────────────────────────────────────────────────────────
+
+[ ] Entity Framework for game setup / initialization
+      - Use EF (MRRDbContext already exists) for initial game setup steps
+      - Currently using raw SQL for procGameNew / procResetGame
+
+[ ] Convert remaining SQL stored procedures to C# (see sql-to-csharp-conversion-list.md)
+      High priority (beyond Section 1):
+        [ ] procGameFillPrograms — auto-fill empty registers (classic rules damage > 4)
+        [ ] procCurrentPosSave / procCurrentPosLoad — state snapshot for state 16
+        [ ] procDealOptionToRobot — deal option cards to robots
+        [ ] procUpdatePlayerPriority — round-robin priority rotation
+        [ ] procVerifyPosition — validate robot position (no collision, non-zero)
+        [ ] funcGetNextCard — draw next card; reshuffle discard if deck empty
+        [ ] funcGetProgramReadyState — returns programming readiness state
+      Medium / low priority:
+        [ ] procRobotConnectionStatus, procKickstart, procSetStatus, procProcessOption
+        [ ] Robots_AFTER_UPDATE trigger (sync StatusLEDs via procSetStatus equivalent)
+        [ ] CurrentGameData_BEFORE_UPDATE, GameData_BEFORE_UPDATE triggers
+
+[ ] Recover / define missing view definitions
+      - viewRobotsInit and viewRobotsRefresh definitions are missing from SQL files
+      - Currently queried from C# but definition source is unknown
+
+
+────────────────────────────────────────────────────────────────────────────────
+DONE (reference)
+────────────────────────────────────────────────────────────────────────────────
+
+[x] CommandProcess background execution thread
+[x] Command pipeline: CreateCommands → CommandList → CommandProcess → WebSocket
+[x] WebSocket dual-channel robot communication (ws_cmd + ws_status)
+[x] SignalR DataHub broadcasts to phones
+[x] State machine GameController.NextState() (states 0–16)
+[x] Board editor API + HTML
+[x] EF Core DbContext (MRRDbContext) for CommandItems / Robots / CurrentGameData
+[x] funcMarkCommandsReady → PendingCommands.MarkCommandsReady() (C# done)
+[x] procGetReadyCommands → CommandProcess.GetActiveCommandList() (C# done)
+[x] procUpdatePlayerPriority (10-Turn mode path) → DataService.UpdatePlayerPriority()
+[x] viewRobots, viewRobotsInit, viewRobotsRefresh, viewRobotOptions (active views used)
+[x] CommandList_BEFORE_INSERT trigger → MySQL AUTO_INCREMENT
+[x] Camera image capture: Player.GetCameraImageAsync() via ws_img
+[x] Grid alignment agent: GridAlignmentAgent.cs + GET /api/robot/align/{robotId}
+[x] SixLabors.ImageSharp 3.1.12 added for image processing (Pi-compatible)

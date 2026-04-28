@@ -729,6 +729,41 @@ namespace MRR
             {
                 cmd_id = "show_aivision"
             });
+
+        // Connect to the robot's ws_img channel and receive one image frame.
+        // Returns raw bytes (typically JPEG) or null on failure/timeout.
+        public async Task<byte[]?> GetCameraImageAsync(int timeoutMs = 3000)
+        {
+            if (IPAddress == null) return null;
+            using var ws = new ClientWebSocket();
+            using var cts = new CancellationTokenSource(timeoutMs);
+            try
+            {
+                await ws.ConnectAsync(new Uri($"ws://{IPAddress}:80/ws_img"), cts.Token);
+                var segments = new List<byte[]>();
+                var buffer = new byte[65536];
+                while (ws.State == WebSocketState.Open)
+                {
+                    var result = await ws.ReceiveAsync(new ArraySegment<byte>(buffer), cts.Token);
+                    if (result.MessageType == WebSocketMessageType.Close) break;
+                    segments.Add(buffer[..result.Count]);
+                    if (result.EndOfMessage) break;
+                }
+                if (ws.State == WebSocketState.Open)
+                    await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "done", CancellationToken.None);
+                if (segments.Count == 0) return null;
+                int total = segments.Sum(s => s.Length);
+                var combined = new byte[total];
+                int pos = 0;
+                foreach (var seg in segments) { seg.CopyTo(combined, pos); pos += seg.Length; }
+                return combined;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"ws_img error for {IPAddress}: {ex.Message}");
+                return null;
+            }
+        }
     }
     #endregion
 
