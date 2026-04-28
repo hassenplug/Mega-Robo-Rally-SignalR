@@ -104,73 +104,57 @@ namespace MRR
 
         #region Player Constructors
 
-        public Player SetPlayer(
-            int p_ID,
-            string p_Name,
-            RobotLocation p_CurrentPos,
-            RobotLocation p_NextPos,
-            RobotLocation p_Archive,
-            int p_StartingDamage,
-            int p_Lives,
-            int p_LastFlag,
-            tShutDown p_ShutDown,
-            bool p_Active,
-            int p_DamagePoints)
+        public Player()
         {
-            ID = p_ID;
-            ShutDown = p_ShutDown;
-
-            CurrentPos = new RobotLocation(p_CurrentPos);
-            NextPos = new RobotLocation(p_NextPos);
-            ArchivePos = new RobotLocation(p_Archive);
-            NextFlag = new RobotLocation(p_CurrentPos);
-
-            Damage = p_StartingDamage;
-            Lives = p_Lives;
-            LastFlag = p_LastFlag;
-
-            Name = p_Name;
-
-            /// placement of this is critical
-            Active = p_Active;
-            ///
-
+            ID = -1;
+            ShutDown = tShutDown.None;
+            CurrentPos = new RobotLocation();
+            NextPos = new RobotLocation();
+            ArchivePos = new RobotLocation();
+            NextFlag = new RobotLocation();
+            Damage = 0;
+            Lives = conTotalLives;
+            LastFlag = 0;
+            Name = ToString();
+            // placement of this is critical
+            Active = true;
             PositionValid = false;
-
-            DamagePoints = p_DamagePoints;
-
+            DamagePoints = 0;
             DamagedBy = -1;
-
-            return this;
         }
 
         public Player(int p_ID)
+            : this()
         {
-            int currentlives = conTotalLives;
-            SetPlayer(p_ID, ToString(), new RobotLocation(), new RobotLocation(), new RobotLocation(), 0, currentlives, 0, tShutDown.None, true, 0);
-        }
-
-        public Player()
-            :this(-1)
-        {
+            ID = p_ID;
+            Name = ToString();
         }
 
         public Player(Player p_Player)
+            : this()
         {
-            CopyPlayer(p_Player);
-        }
-
-        public Player CopyPlayer(Player p_Player)
-        {
-            SetPlayer( p_Player.ID, p_Player.Name, p_Player.CurrentPos, p_Player.NextPos, p_Player.ArchivePos, p_Player.Damage, p_Player.Lives, p_Player.LastFlag, p_Player.ShutDown, p_Player.Active,p_Player.DamagePoints);
+            ID = p_Player.ID;
+            Name = p_Player.Name;
+            ShutDown = p_Player.ShutDown;
+            CurrentPos = new RobotLocation(p_Player.CurrentPos);
+            NextPos = new RobotLocation(p_Player.NextPos);
+            ArchivePos = new RobotLocation(p_Player.ArchivePos);
             NextFlag = p_Player.NextFlag;
+            Damage = p_Player.Damage;
+            Lives = p_Player.Lives;
+            LastFlag = p_Player.LastFlag;
+            // placement of this is critical
+            Active = p_Player.Active;
+            PositionValid = false;
+            DamagePoints = p_Player.DamagePoints;
+            DamagedBy = -1;
             Operator = p_Player.Operator;
             Priority = p_Player.Priority;
             Energy = p_Player.Energy;
             PlayerSeat = p_Player.PlayerSeat;
-
-            return this;
         }
+
+
 
         #endregion
 
