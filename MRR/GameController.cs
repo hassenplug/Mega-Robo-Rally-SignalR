@@ -220,6 +220,7 @@ namespace MRR.Controller
             }
 
             _dataService.ExecuteSQL("call procGameNewAddCards();");
+            _dataService.UpdatePlayerPriority(null, 1);
 
             // Refresh C# state so BoardID etc. reflect the new values before board load
             //_dataService.UpdateGameState();

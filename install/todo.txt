@@ -55,31 +55,29 @@ SECTION 2 — GAME MECHANICS (Renegade rules completeness)
       - Robot placed at chosen reboot token; receives 2 Spam cards; continues this turn
       - Needs: pit/edge detection in CreateCommands + DataService respawn logic
 
-[ ] Board element activation — conveyor belts (CreateCommands.cs)
-      - Express belts move first (2 squares), then all belts (1 square)
-      - Chained movement: robot landing on a second belt also moves
-      - Merge conveyor belts (splitting paths converge)
+[-] Board element activation — conveyor belts (CreateCommands.cs)
+      - [x] Express belts move first (2 squares), then all belts (1 square)
+      - [x] Chained movement: robot landing on a second belt also moves
+      - [ ] Merge conveyor belts (splitting paths converge)
 
 [ ] Board element activation — pushers (CreateCommands.cs)
       - Activate only on specific phases (odd or even, marked per pusher)
       - Push robot one square; chain-pushes if another robot is in path
 
-[ ] Board element activation — gears (CreateCommands.cs)
+[x] Board element activation — gears (CreateCommands.cs)
       - CW gear: rotate robot 90° right
       - CCW gear: rotate robot 90° left
 
-[ ] Board element activation — board lasers (CreateCommands.cs)
+[x] Board element activation — board lasers (CreateCommands.cs)
       - Fire each phase; damage any robot in line of sight
       - Wall-blocked: walls on the far side of source/target stop the laser
 
-[-] Board element activation — robot lasers (CreateCommands.cs)
-      - Code skeleton exists; firing logic not complete
+[x] Board element activation — robot lasers (CreateCommands.cs)
       - Each robot fires 1 laser forward; damages first robot in path
       - Option cards: RearLaser (fires backward too), HighPowerLaser (2 damage)
 
-[ ] Flag / checkpoint detection (CreateCommands.cs + GameController.cs)
+[x] Flag / checkpoint detection (CreateCommands.cs + GameController.cs)
       - End of each phase: robot on flag N (where N == LastFlag+1) touches it
-      - Touching a flag also updates the robot's archive (respawn point)
 
 [ ] Win condition (GameController.cs)
       - After flag check: if robot.LastFlag == TotalFlags → that robot wins
@@ -120,11 +118,19 @@ SECTION 3 — ROBOT HARDWARE (VEX AIM physical integration)
 [ ] Robot LCD display at game start
       - Show robot name and player name on each AIM robot's screen
       - Call PrintAsync / lcd_print_at in GameController state 0
+      - Draw an arrow on the LCD indicating the robot's current facing direction
+        (update arrow any time the robot's direction changes)
 
-[ ] Add controls for player to manually set robot direction
-      - Admin/setup UI or API endpoint to set a robot's facing direction
-      - Needed before game start when robots are placed on the board
-      - Calls procSetRobotDirection equivalent in C#
+[ ] LED animation during movement
+      - Add StartMoveAsync() / StopMoveAsync() commands to Player
+      - Animate LEDs (e.g. chase pattern or pulsing) when a move begins
+      - Restore robot color LEDs when movement completes
+
+[ ] Confirm isMoving is set and unset correctly (Players.cs)
+      - Set to true when a move command is sent
+      - Set to false on motion_complete event and is_moving=false status event
+      - Verify CommandProcess.cs polls it correctly for category-1 commands
+
 
 [ ] Remove old/unused communication code
       - Audit Players.cs and Program.cs for any leftover WebSocket stubs or dead paths
@@ -135,16 +141,18 @@ SECTION 3 — ROBOT HARDWARE (VEX AIM physical integration)
 
 
 ────────────────────────────────────────────────────────────────────────────────
-SECTION 4 — PLAYER PHONE UI (wwwroot/)
+SECTION 4 — UI (wwwroot/)
 ────────────────────────────────────────────────────────────────────────────────
 
-[ ] Card programming interface
-      - Players must see their 9-card hand and drag/tap cards into 5 register slots
-      - Submit button → calls DataHub.UpdatePlayer(command=1, ...)
-      - Currently: board-editor.html and database.html exist; game UI is partial
+  — PLAYER PROGRAMMING UI (index.html) —
 
-[ ] Show player hand and register state in real time
-      - SignalR AllDataUpdate already broadcasts; phone UI must render hand + registers
+[x] Card programming interface — players see hand and place cards into registers
+[x] Show player hand and register state in real time via SignalR
+
+[ ] Allow player to set facing direction after reboot
+      - When a robot reboots, the player must choose which direction it faces
+      - Need a direction-picker UI on the player's phone (index.html)
+      - Ties into the reboot mechanic (Section 2)
 
 [ ] Shutdown toggle on phone UI
       - Player can choose to shut down during programming phase
@@ -152,6 +160,21 @@ SECTION 4 — PLAYER PHONE UI (wwwroot/)
 [ ] Display robot status on phone (damage, lives, energy, position)
 
 [ ] Handle Haywire / Spam / option card notifications on phone
+
+  — GM CONTROL PAGE (new page needed) —
+
+[ ] Game selection — dropdown/list from GameData table; button to load selected game
+
+[ ] Game controls — Start, Restart, Reboot buttons (mapped to game state transitions)
+
+[ ] Dynamic button area — display any buttons/actions that appear based on game state
+      - e.g. "Advance Phase", "Skip Robot", admin overrides
+
+[ ] Link to board viewer showing current robot positions
+
+[ ] Controls to manually set a robot's facing direction
+      - Needed at game start when robots are placed on the board
+      - Calls procSetRobotDirection equivalent in C#
 
 
 ────────────────────────────────────────────────────────────────────────────────

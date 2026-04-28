@@ -150,7 +150,6 @@ There are no lives — a robot that reboots simply respawns at the reboot token 
 - Numbered 1, 2, 3… (up to the scenario max)
 - A robot must touch flag N before flag N+1
 - `LastFlag` property on a robot tracks the highest flag touched in order
-- Touching a flag also sets the robot's **Archive Mark** (respawn point if rebooted)
 - First robot to touch the final flag wins
 
 ### 1.13 Shutdown

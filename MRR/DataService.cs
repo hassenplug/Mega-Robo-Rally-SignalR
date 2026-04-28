@@ -1348,7 +1348,7 @@ namespace MRR.Services
         /// Accepts an optional open connection so it can be called within the same
         /// connection context as MoveCardsShuffleAndDeal without opening a second one.
         /// </summary>
-        public void UpdatePlayerPriority(MySqlConnection? connection = null)
+        public void UpdatePlayerPriority(MySqlConnection? connection = null, int change = -1)
         {
             bool ownConnection = connection == null;
             if (ownConnection)
@@ -1359,42 +1359,29 @@ namespace MRR.Services
 
             try
             {
-                // Step 1: Decrement all robot priorities by 1.
-                using (var cmd = new MySqlCommand(
-                    "UPDATE Robots SET Priority = Priority - 1",
-                    connection!))
-                {
-                    cmd.ExecuteNonQuery();
-                }
-
-                // Step 2: Count total robots.
+                // Step 1: Count robots first so the mod range is known.
                 int robotCount;
-                using (var cmd = new MySqlCommand(
-                    "SELECT COUNT(RobotID) FROM Robots",
-                    connection!))
+                using (var cmd = new MySqlCommand("SELECT COUNT(RobotID) FROM Robots", connection!))
                 {
                     var result = cmd.ExecuteScalar();
-                    robotCount = result == null || result == DBNull.Value
-                        ? 0
-                        : Convert.ToInt32(result);
+                    robotCount = result == null || result == DBNull.Value ? 0 : Convert.ToInt32(result);
                 }
 
-                // Step 3: Wrap the robot that hit Priority=0 back to the highest slot.
-                if (robotCount > 0)
-                {
-                    using var cmd = new MySqlCommand(
-                        "UPDATE Robots SET Priority = @count WHERE Priority = 0",
-                        connection!);
-                    cmd.Parameters.AddWithValue("@count", robotCount);
-                    cmd.ExecuteNonQuery();
-                }
+                if (robotCount == 0) return;
+
+                // Step 2: Add change and wrap with mod (priorities are 1-based: 1..robotCount).
+                // Double-mod keeps the result positive for any change value.
+                using var update = new MySqlCommand(
+                    "UPDATE Robots SET Priority = MOD(MOD(Priority - 1 + @change, @n) + @n, @n) + 1",
+                    connection!);
+                update.Parameters.AddWithValue("@change", change);
+                update.Parameters.AddWithValue("@n", robotCount);
+                update.ExecuteNonQuery();
             }
             finally
             {
                 if (ownConnection)
-                {
                     connection!.Dispose();
-                }
             }
         }
 
