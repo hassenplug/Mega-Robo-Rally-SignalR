@@ -234,6 +234,7 @@ namespace MRR
 
         private ClientWebSocket? wsCmd;
         private ClientWebSocket? wsStatus;
+        private ClientWebSocket? wsImage;
         public bool isConnected;
         public bool isMoving;
         private CancellationTokenSource? _statusCts;
@@ -445,6 +446,7 @@ namespace MRR
         {
             wsCmd = new ClientWebSocket();
             wsStatus = new ClientWebSocket();
+            wsImage = new ClientWebSocket();
 
             int bgR = int.Parse(Color[..2], NumberStyles.HexNumber);
             int bgG = int.Parse(Color[2..4], NumberStyles.HexNumber);
@@ -455,14 +457,16 @@ namespace MRR
 
             try
             {
-                await wsCmd.ConnectAsync(new Uri($"ws://{IPAddress!}:80/ws_cmd"), CancellationToken.None);
-                await wsStatus.ConnectAsync(new Uri($"ws://{IPAddress!}:80/ws_status"), CancellationToken.None);
+                await wsCmd.ConnectAsync(new Uri($"ws://{IPAddress}:80/ws_cmd"), CancellationToken.None);
+                await wsStatus.ConnectAsync(new Uri($"ws://{IPAddress}:80/ws_status"), CancellationToken.None);
+                await wsImage.ConnectAsync(new Uri($"ws://{IPAddress}:80/ws_img"), CancellationToken.None);
 
                 isConnected = true;
 
                 await SendCommandAsync(new { cmd_id = "program_init" });
                 await SendCommandAsync(new { cmd_id = "lcd_clear_screen", r = bgR, g = bgG, b = bgB });
                 await SendCommandAsync(new { cmd_id = "lcd_set_pen_color", r = fgR, g = fgG, b = fgB });
+                await SendCommandAsync(new { cmd_id = "lcd_set_fill_color", r = bgR, g = bgG, b = bgB, transparent = false });
                 await SetLedAsync("all", bgR, bgG, bgB );
 
                 _statusCts = new CancellationTokenSource();
@@ -508,9 +512,12 @@ namespace MRR
                 if (responseObj != null && responseObj.ContainsKey("status"))
                 {
                     var status = responseObj["status"].ToString();
-                    if (status == "error")
+                    if (status == "in_progress")
+                        isMoving = true;
+                    else if (status == "error")
                     {
                         var errorInfo = responseObj.ContainsKey("error_info") ? responseObj["error_info"].ToString() : "Unknown error";
+                        Console.WriteLine("Robot error: " + errorInfo);
                     }
                 }
             }
@@ -526,6 +533,8 @@ namespace MRR
             return Task.CompletedTask;
         }
 
+        private static readonly byte[] StatusPollRequest = [0x01];
+
         private async Task ListenStatusAsync(CancellationToken ct)
         {
             var buffer = new byte[4096];
@@ -533,38 +542,50 @@ namespace MRR
             {
                 try
                 {
-                    var result = await wsStatus.ReceiveAsync(new ArraySegment<byte>(buffer), ct);
+                    // Send 0x01 to request a status snapshot — never pass ct to socket ops
+                    // to avoid aborting the socket on cancellation.
+                    await wsStatus.SendAsync(new ArraySegment<byte>(StatusPollRequest),
+                        WebSocketMessageType.Binary, true, CancellationToken.None);
+
+                    var result = await wsStatus.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
                     if (result.MessageType == WebSocketMessageType.Close) break;
+
                     var json = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                    Console.WriteLine("Status event: " + json);
                     ProcessStatusEvent(json);
+
+                    await Task.Delay(100, ct); // ct only here — clean exit between polls
                 }
                 catch (OperationCanceledException) { break; }
                 catch (Exception ex)
                 {
                     Console.WriteLine("Status listener error: " + ex.Message);
-                    break;
+                    if (wsStatus?.State != WebSocketState.Open) break;
+                    try { await Task.Delay(100, ct); } catch { break; }
                 }
             }
+            Console.WriteLine("Status listener exited");
         }
 
         private void ProcessStatusEvent(string json)
         {
             try
             {
-                var evt = JsonSerializer.Deserialize<Dictionary<string, object>>(json);
-                if (evt == null) return;
+                using var doc = JsonDocument.Parse(json);
+                if (!doc.RootElement.TryGetProperty("robot", out var robot)) return;
 
-                if (evt.TryGetValue("event", out var evtType) && evtType?.ToString() == "motion_complete")
-                {
-                    isMoving = false;
-                    _motionComplete?.TrySetResult(true);
-                }
-                else if (evt.TryGetValue("is_moving", out var moving))
-                {
-                    isMoving = moving?.ToString() is "true" or "True" or "1";
-                    if (!isMoving) _motionComplete?.TrySetResult(true);
-                }
+                var flagsStr  = robot.TryGetProperty("flags",    out var fEl)  ? fEl.GetString()  ?? "0x0" : "0x0";
+                var battery   = robot.TryGetProperty("battery",  out var bEl)  ? bEl.GetInt32()   : 0;
+                var robotX    = robot.TryGetProperty("robot_x",  out var xEl)  ? xEl.GetString()  ?? "?" : "?";
+                var robotY    = robot.TryGetProperty("robot_y",  out var yEl)  ? yEl.GetString()  ?? "?" : "?";
+                var heading   = robot.TryGetProperty("heading",  out var hEl)  ? hEl.GetString()  ?? "?" : "?";
+                var rotation  = robot.TryGetProperty("rotation", out var rEl)  ? rEl.GetString()  ?? "?" : "?";
+
+                var flags = Convert.ToUInt32(flagsStr, 16);
+                isMoving = (flags & 0xFF) != 0; // 0x400 = idle baseline; any lower bits = moving or turning
+
+                Console.WriteLine($"Status [{ID}]: flags={flagsStr} moving={isMoving} bat={battery}% x={robotX} y={robotY} hdg={heading} rot={rotation}");
+
+                if (!isMoving) _motionComplete?.TrySetResult(true);
             }
             catch (Exception ex)
             {
@@ -574,11 +595,16 @@ namespace MRR
 
         public async Task WaitForMotionCompleteAsync(int timeoutMs = 5000)
         {
-            _motionComplete = new TaskCompletionSource<bool>();
+            if (!isConnected) { isMoving = false; return; }
+
+            _motionComplete = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             using var cts = new CancellationTokenSource(timeoutMs);
             cts.Token.Register(() => _motionComplete.TrySetResult(false));
-            await _motionComplete.Task;
+
+            var completed = await _motionComplete.Task;
             _motionComplete = null;
+            if (!completed) Console.WriteLine($"WaitForMotionComplete: timed out after {timeoutMs}ms");
+            isMoving = false;
         }
 
         public async ValueTask DisposeAsync()
@@ -600,6 +626,13 @@ namespace MRR
                 if (wsStatus.State == WebSocketState.Open)
                     await wsStatus.CloseAsync(WebSocketCloseStatus.NormalClosure, "Disposing", CancellationToken.None);
                 wsStatus.Dispose();
+            }
+
+            if (wsImage != null)
+            {
+                if (wsImage.State == WebSocketState.Open)
+                    await wsImage.CloseAsync(WebSocketCloseStatus.NormalClosure, "Disposing", CancellationToken.None);
+                wsImage.Dispose();
             }
         }
 
@@ -623,15 +656,17 @@ namespace MRR
             int moveType = cmd.CommandMoveType;
             switch (moveType)
             {
-                case 1: // Move
-                    Console.WriteLine($"move --- Value:{cmd.Value} ValueB:{cmd.ValueB} rotation: {RotationFunctions.Degrees(cmd.ValueB)}");
+                case 1: // Move — distance(squares)*77mm / 100mm/s + 500ms margin
+                    //Console.WriteLine($"move --- Value:{cmd.Value} ValueB:{cmd.ValueB} rotation: {RotationFunctions.Degrees(cmd.ValueB)}");
                     await MoveAsync(cmd.Value, cmd.ValueB);
+                    await WaitForMotionCompleteAsync();
                     break;
-                case 2: // Turn
+                case 2: // Turn — |direction|*90deg / 100deg/s + 500ms margin
                     await TurnAsync(cmd.Value);
+                    await WaitForMotionCompleteAsync();
                     break;
                 case 0: // Stop
-                    await StopAsync();
+                    //await StopAsync();
                     break;
                 default:
                     break;
@@ -639,7 +674,7 @@ namespace MRR
 
             //if (cmd.Category == CommandCategories.RobotwReply)
             //{
-            //    await Task.Delay(1500);
+                //await Task.Delay(1500);
             //}
         }
 
@@ -713,6 +748,9 @@ namespace MRR
             {
                 cmd_id = "show_aivision"
             });
+
+        public Task<GridLineAnalysis> AlignAsync(int maxIterations = 10) =>
+            GridAlignmentAgent.AlignAsync(this, maxIterations);
 
         // Connect to the robot's ws_img channel and receive one image frame.
         // Returns raw bytes (typically JPEG) or null on failure/timeout.

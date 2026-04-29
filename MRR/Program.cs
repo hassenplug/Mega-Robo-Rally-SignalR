@@ -161,7 +161,7 @@ app.MapGet("/api/state/{newstate?}/{parameter1?}", async (string? newstate, stri
 // Grid-alignment endpoint: download a camera frame, detect black grid lines,
 // and nudge the robot until it is centered on its board square.
 // GET /api/robot/align/{robotId}
-app.MapGet("/api/robot/align/{robotId:int}", async (int robotId, DataService dataService) =>
+app.MapGet("/api/robot/alignthis/{robotId:int}", async (int robotId, DataService dataService) =>
 {
     var dt = dataService.GetQueryResults(
         $"SELECT IPAddress FROM Robots WHERE RobotID={robotId};");
@@ -180,7 +180,7 @@ app.MapGet("/api/robot/align/{robotId:int}", async (int robotId, DataService dat
 
     try
     {
-        var result = await GridAlignmentAgent.AlignAsync(robot);
+        var result = await robot.AlignAsync();
         return Results.Ok(result);
     }
     finally
@@ -199,6 +199,10 @@ app.MapGet("/api/robot/{function?}/{parameter1?}", (string? function, string? pa
         case "test":
             var robot = new Player().Connect(parameter1 ?? "");
             robot?.RunTest().Wait();
+            break;
+        case "align":
+            var robot1 = new Player().Connect(parameter1 ?? "");
+            robot1?.AlignAsync().Wait();
             break;
         case "connect":
             if (parameter1 == "all")

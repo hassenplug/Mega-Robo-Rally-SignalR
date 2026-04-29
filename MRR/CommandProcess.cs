@@ -191,7 +191,7 @@ namespace MRR
 
                     if (onecommand.StatusID == 3)
                     {
-                        robot.CheckMovingStatus().Wait();
+                        //robot.CheckMovingStatus().Wait();
                         if (!robot.isMoving)
                         {
                             LogCommand(onecommand, "Robot Command Done");
@@ -209,7 +209,7 @@ namespace MRR
 
 
                 case 3: // DB
-                    LogCommand(onecommand, "Database Command ");
+                    //LogCommand(onecommand, "Database Command ");
                     onecommand.StatusID = _dataService.ProcessDbCommand(onecommand, -1);
                     Db.SaveChanges();
                     return true;
