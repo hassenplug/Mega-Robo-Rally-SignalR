@@ -459,7 +459,7 @@ namespace MRR
             {
                 await wsCmd.ConnectAsync(new Uri($"ws://{IPAddress}:80/ws_cmd"), CancellationToken.None);
                 await wsStatus.ConnectAsync(new Uri($"ws://{IPAddress}:80/ws_status"), CancellationToken.None);
-                await wsImage.ConnectAsync(new Uri($"ws://{IPAddress}:80/ws_img"), CancellationToken.None);
+                //await wsImage.ConnectAsync(new Uri($"ws://{IPAddress}:80/ws_img"), CancellationToken.None);
 
                 isConnected = true;
 
@@ -583,7 +583,7 @@ namespace MRR
                 var flags = Convert.ToUInt32(flagsStr, 16);
                 isMoving = (flags & 0xFF) != 0; // 0x400 = idle baseline; any lower bits = moving or turning
 
-                Console.WriteLine($"Status [{ID}]: flags={flagsStr} moving={isMoving} bat={battery}% x={robotX} y={robotY} hdg={heading} rot={rotation}");
+                //Console.WriteLine($"Status [{ID}]: flags={flagsStr} moving={isMoving} bat={battery}% x={robotX} y={robotY} hdg={heading} rot={rotation}");
 
                 if (!isMoving) _motionComplete?.TrySetResult(true);
             }
@@ -753,8 +753,9 @@ namespace MRR
             GridAlignmentAgent.AlignAsync(this, maxIterations);
 
         // Connect to the robot's ws_img channel and receive one image frame.
-        // Returns raw bytes (typically JPEG) or null on failure/timeout.
-        public async Task<byte[]?> GetCameraImageAsync(int timeoutMs = 3000)
+        // Per AIM API: send 0x01 to start streaming; first frame arrives ~300 ms later.
+        // Returns raw JPEG bytes or null on failure/timeout.
+        public async Task<byte[]?> GetCameraImageAsync(int timeoutMs = 5000)
         {
             if (IPAddress == null) return null;
             using var ws = new ClientWebSocket();
@@ -762,28 +763,67 @@ namespace MRR
             try
             {
                 await ws.ConnectAsync(new Uri($"ws://{IPAddress}:80/ws_img"), cts.Token);
+
+                // Trigger the stream — robot sends nothing until it receives 0x01.
+                await ws.SendAsync(new ArraySegment<byte>([0x01]),
+                    WebSocketMessageType.Binary, true, cts.Token);
+
                 var segments = new List<byte[]>();
                 var buffer = new byte[65536];
                 while (ws.State == WebSocketState.Open)
                 {
-                    var result = await ws.ReceiveAsync(new ArraySegment<byte>(buffer), cts.Token);
+                    WebSocketReceiveResult result;
+                    try
+                    {
+                        result = await ws.ReceiveAsync(new ArraySegment<byte>(buffer), cts.Token);
+                    }
+                    catch (WebSocketException)
+                    {
+                        // Robot closed the TCP connection without a WS close frame —
+                        // normal for a one-shot image response. Keep whatever arrived.
+                        break;
+                    }
                     if (result.MessageType == WebSocketMessageType.Close) break;
                     segments.Add(buffer[..result.Count]);
                     if (result.EndOfMessage) break;
                 }
-                if (ws.State == WebSocketState.Open)
-                    await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "done", CancellationToken.None);
-                if (segments.Count == 0) return null;
+                // Robot already closed the connection; no CloseAsync needed.
+
+                if (segments.Count == 0)
+                {
+                    Console.WriteLine($"[ws_img] {IPAddress}: no data received");
+                    return null;
+                }
                 int total = segments.Sum(s => s.Length);
                 var combined = new byte[total];
                 int pos = 0;
                 foreach (var seg in segments) { seg.CopyTo(combined, pos); pos += seg.Length; }
+
+                Console.WriteLine($"[ws_img] {IPAddress}: {total} bytes, first={BitConverter.ToString(combined[..Math.Min(4, total)])}");
+                SaveAlignImage(combined);
                 return combined;
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"ws_img error for {IPAddress}: {ex.Message}");
                 return null;
+            }
+        }
+
+        private void SaveAlignImage(byte[] imageData)
+        {
+            try
+            {
+                var dir = Path.Combine("images", "align");
+                Directory.CreateDirectory(dir);
+                var safe = (IPAddress ?? "unknown").Replace('.', '_');
+                var filename = $"align_{safe}_{DateTime.Now:yyyyMMdd_HHmmss_fff}.jpg";
+                File.WriteAllBytes(Path.Combine(dir, filename), imageData);
+                //File.WriteAllBytes(filename, imageData);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[align] Could not save image: {ex.Message}");
             }
         }
     }
