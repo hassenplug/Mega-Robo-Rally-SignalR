@@ -464,10 +464,19 @@ namespace MRR
                 isConnected = true;
 
                 await SendCommandAsync(new { cmd_id = "program_init" });
-                await SendCommandAsync(new { cmd_id = "lcd_clear_screen", r = bgR, g = bgG, b = bgB });
-                await SendCommandAsync(new { cmd_id = "lcd_set_pen_color", r = fgR, g = fgG, b = fgB });
+                await SendCommandAsync(new { cmd_id = "lcd_clear_screen", r = fgR, g = fgG, b = fgB });
+                await SendCommandAsync(new { cmd_id = "lcd_set_pen_color", r = bgR, g = bgG, b = bgB });
                 await SendCommandAsync(new { cmd_id = "lcd_set_fill_color", r = bgR, g = bgG, b = bgB, transparent = false });
-                await SetLedAsync("all", bgR, bgG, bgB );
+
+                // Draw forward-pointing arrow in robot color on forecolor background
+                for (int y = 30; y <= 99; y++)
+                {
+                    int halfWidth = (y - 30) * 60 / 70;
+                    await SendCommandAsync(new { cmd_id = "lcd_draw_line", x1 = 120 - halfWidth, y1 = y, x2 = 120 + halfWidth, y2 = y });
+                }
+                await SendCommandAsync(new { cmd_id = "lcd_draw_rectangle", x = 95, y = 100, width = 50, height = 110, r = bgR, g = bgG, b = bgB, transparent = false });
+
+                await SetLedAsync("all", bgR, bgG, bgB);
 
                 _statusCts = new CancellationTokenSource();
                 _ = ListenStatusAsync(_statusCts.Token);

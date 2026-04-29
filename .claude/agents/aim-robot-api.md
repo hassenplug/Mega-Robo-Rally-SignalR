@@ -240,8 +240,9 @@ public async Task CheckMovingStatus()
 }
 ```
 
-Status object (from `ws_status`) includes `is_move_active`, `is_turn_active`,
-`x_position`, `y_position`, and `battery_capacity` fields.
+Status object (from `ws_status`) includes a `flags` bitmask (hex string), `battery` (int),
+`robot_x` / `robot_y` (mm from odometry origin, sent as strings), `heading`, and `rotation` fields.
+`flags & 0xFF != 0` means the robot is moving or turning.
 
 ---
 
@@ -496,20 +497,20 @@ The robot rejects all other commands until `program_init` is received.
 
 ## 10. Status JSON Structure
 
-The `ws_status` socket returns a JSON object with three top-level sections:
+The `ws_status` socket returns a JSON object with three top-level sections.
+
+**Note:** field names observed from live robots differ from the Python reference library docs.
+Actual field names (from `Players.cs ProcessStatusEvent`) are shown below.
 
 ```json
 {
   "robot": {
-    "is_move_active": false,
-    "is_turn_active": false,
-    "x_position": 0.0,
-    "y_position": 0.0,
-    "battery_capacity": 85,
-    "screen_pressed": false,
-    "screen_x": 0.0,
-    "screen_y": 0.0,
-    "crashed": false
+    "flags":    "0x400",
+    "battery":  85,
+    "robot_x":  "0.0",
+    "robot_y":  "0.0",
+    "heading":  "0.0",
+    "rotation": "0.0"
   },
   "controller": { ... },
   "aivision": {
