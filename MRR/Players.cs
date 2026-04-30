@@ -596,6 +596,7 @@ namespace MRR
                 var flags = Convert.ToUInt32(flagsStr, 16);
                 isMoving = (flags & 0xFF) != 0; // 0x400 = idle baseline; any lower bits = moving or turning
 
+                //Console.WriteLine(json);
                 //Console.WriteLine($"Status [{ID}]: flags={flagsStr} moving={isMoving} bat={battery}% x={robotX} y={robotY} hdg={heading} rot={rotation}");
 
                 if (!isMoving) _motionComplete?.TrySetResult(true);

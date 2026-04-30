@@ -497,36 +497,76 @@ The robot rejects all other commands until `program_init` is received.
 
 ## 10. Status JSON Structure
 
-The `ws_status` socket returns a JSON object with three top-level sections.
+The `ws_status` socket returns a JSON object with three top-level keys: `controller`, `robot`, and `aivision`.
 
-**Note:** field names observed from live robots differ from the Python reference library docs.
-Actual field names (from `Players.cs ProcessStatusEvent`) are shown below.
+**Note:** All numeric sensor values are returned as **strings** (e.g. `"0.410"`), not JSON numbers.
+`flags` fields are hex strings (e.g. `"0x00000400"`). `battery` and touch/stick fields are plain integers.
+
+Actual response observed from a live robot:
 
 ```json
 {
-  "robot": {
-    "flags":    "0x400",
-    "battery":  85,
-    "robot_x":  "0.0",
-    "robot_y":  "0.0",
-    "heading":  "0.0",
-    "rotation": "0.0"
+  "controller": {
+    "flags":    "0x0000",
+    "stick_x":  0,
+    "stick_y":  0,
+    "battery":  0
   },
-  "controller": { ... },
+  "robot": {
+    "flags":        "0x00000400",
+    "battery":      57,
+    "touch_flags":  "0x0000",
+    "touch_x":      0,
+    "touch_y":      0,
+    "robot_x":      "0.410",
+    "robot_y":      "-0.350",
+    "roll":         "-0.733",
+    "pitch":        "-1.522",
+    "yaw":          "-1.456",
+    "heading":      "358.544",
+    "rotation":     "-1.456",
+    "acceleration": { "x": "-0.027", "y": "0.013",  "z": "-1.004" },
+    "gyro_rate":    { "x": "0.000",  "y": "0.000",  "z": "0.000"  },
+    "screen":       { "row": "6",    "column": "10" }
+  },
   "aivision": {
-    "objects": [
-      {
-        "id": 1,
-        "type": "color",
-        "x": 160, "y": 120,
-        "width": 40, "height": 30,
-        "area": 1200,
-        "cx": 160, "cy": 120
-      }
-    ]
+    "classnames": {
+      "count": 4,
+      "items": [
+        { "index": 0, "name": "SportsBall"   },
+        { "index": 1, "name": "BlueBarrel"   },
+        { "index": 2, "name": "OrangeBarrel" },
+        { "index": 3, "name": "Robot"        }
+      ]
+    },
+    "objects": {
+      "count": 0,
+      "items": []
+    }
   }
 }
 ```
+
+### Field notes
+
+| Section | Field | Type | Notes |
+|---------|-------|------|-------|
+| `controller` | `flags` | hex string | Gamepad button bitmask |
+| `controller` | `stick_x`, `stick_y` | int | Joystick axes (−100 to 100) |
+| `controller` | `battery` | int | Controller battery % |
+| `robot` | `flags` | hex string | Motion/status bitmask — `flags & 0xFF != 0` means moving |
+| `robot` | `battery` | int | Robot battery % |
+| `robot` | `touch_flags` | hex string | Touchscreen touch bitmask |
+| `robot` | `touch_x`, `touch_y` | int | Last touch coordinate on LCD |
+| `robot` | `robot_x`, `robot_y` | string (float, mm) | Odometry position from `set_pose` origin |
+| `robot` | `heading` | string (float, °) | Absolute heading 0–359.99 |
+| `robot` | `rotation` | string (float, °) | Cumulative rotation (unbounded) |
+| `robot` | `roll`, `pitch`, `yaw` | string (float, °) | IMU angles |
+| `robot` | `acceleration` x/y/z | string (float, g) | Linear acceleration |
+| `robot` | `gyro_rate` x/y/z | string (float, °/s) | Angular velocity |
+| `robot` | `screen` row/column | string (int) | Current LCD text cursor position |
+| `aivision` | `classnames` | object | ML model class list (count + items array) |
+| `aivision` | `objects` | object | Detected objects (count + items array); empty when nothing detected |
 
 ---
 

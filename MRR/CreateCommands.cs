@@ -507,6 +507,7 @@ namespace MRR
             ///
 
             //Players PlayerDirections = new Players(AllPlayers);
+            _dataService.RefreshAllPlayers();
 
             foreach (Player thisplayer in AllPlayers) // AllPlayers)
             {
@@ -558,7 +559,7 @@ namespace MRR
 
                 }
 
-                //if (!thisplayer.IsDead)
+                if (!thisplayer.IsDead)
                 {
                     TurnRobot(thisplayer, lastcommand, tCommandSequence.After);
                 }
