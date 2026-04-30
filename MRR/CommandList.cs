@@ -185,7 +185,14 @@ namespace MRR
                 Robot = p_Robot;
                 //RobotID = p_Robot.ID;
                 StartPos = new RobotLocation(p_Robot.CurrentPos);
-                EndPos = new RobotLocation(p_Robot.NextPos);
+                if (p_Robot.NextPos.X == 0 && p_Robot.NextPos.Y == 0)
+                {
+                    EndPos = new RobotLocation(p_Robot.CurrentPos);
+                }
+                else
+                {
+                    EndPos = new RobotLocation(p_Robot.NextPos);
+                }
             }
             else
             {

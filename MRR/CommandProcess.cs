@@ -197,6 +197,10 @@ namespace MRR
                             LogCommand(onecommand, "Robot Command Done");
                             onecommand.StatusID = 4;
                         }
+                        else
+                        {
+                            LogCommand(onecommand, "Robot Command in Progress");
+                        }
                     }
 
                     if (onecommand.StatusID == 4)

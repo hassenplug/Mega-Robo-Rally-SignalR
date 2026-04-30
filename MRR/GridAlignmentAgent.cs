@@ -1,5 +1,6 @@
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
+using System.IO;
 using System.Text.Json;
 
 namespace MRR;
@@ -83,7 +84,9 @@ public static class GridAlignmentAgent
                 return last;
             }
 
-            last = FindGridLines(ExtractImageBytes(bytes));
+            var imageData = ExtractImageBytes(bytes);
+            SaveDebugImages(imageData, robot.IPAddress ?? "unknown");
+            last = FindGridLines(imageData);
             Console.WriteLine(
                 $"[GridAlign] iter={i} found={last.Found} " +
                 $"hY={last.HorizontalLineY:F3} tilt={last.HorizontalLineTiltDeg:F2}° " +
@@ -173,6 +176,7 @@ public static class GridAlignmentAgent
         {
             using var img = Image.Load<Rgb24>(imageData);
             int w = img.Width, h = img.Height;
+            int halfH = h / 2;
             int bandW = w / 3;
 
             var rowCounts     = new int[h];
@@ -182,7 +186,7 @@ public static class GridAlignmentAgent
 
             img.ProcessPixelRows(accessor =>
             {
-                for (int y = 0; y < h; y++)
+                for (int y = halfH; y < h; y++)   // ignore top half
                 {
                     var row = accessor.GetRowSpan(y);
                     for (int x = 0; x < w; x++)
@@ -192,7 +196,7 @@ public static class GridAlignmentAgent
                         {
                             rowCounts[y]++;
                             colCounts[x]++;
-                            if (x < bandW)          leftBandRows[y]++;
+                            if (x < bandW)           leftBandRows[y]++;
                             else if (x >= w - bandW) rightBandRows[y]++;
                         }
                     }
@@ -200,22 +204,23 @@ public static class GridAlignmentAgent
             });
 
             // Horizontal line: row with the most dark pixels across the full width.
-            int hLineRow = PeakIndex(rowCounts, 0, h);
+            int hLineRow = PeakIndex(rowCounts, halfH, h);
             if (rowCounts[hLineRow] < w * MinHorizontalLineFraction)
                 return new GridLineAnalysis(false, 0, 0, -1, -1, false);
 
             // Tilt: compare the peak row of the left third vs the right third.
             // Positive = right peak is lower = line tilts CW.
-            int leftPeakRow  = PeakIndex(leftBandRows,  0, h);
-            int rightPeakRow = PeakIndex(rightBandRows, 0, h);
+            int leftPeakRow  = PeakIndex(leftBandRows,  halfH, h);
+            int rightPeakRow = PeakIndex(rightBandRows, halfH, h);
             double tiltDeg = Math.Atan2(rightPeakRow - leftPeakRow, 2.0 * bandW)
                              * 180.0 / Math.PI;
 
             // Vertical lines: peak column in each half of the image.
+            // Threshold uses halfH rows since the top half is excluded.
             int leftLineCol  = PeakIndex(colCounts, 0,     w / 2);
             int rightLineCol = PeakIndex(colCounts, w / 2, w);
-            bool hasLeftLine  = colCounts[leftLineCol]  >= h * MinVerticalLineFraction;
-            bool hasRightLine = colCounts[rightLineCol] >= h * MinVerticalLineFraction;
+            bool hasLeftLine  = colCounts[leftLineCol]  >= halfH * MinVerticalLineFraction;
+            bool hasRightLine = colCounts[rightLineCol] >= halfH * MinVerticalLineFraction;
 
             return new GridLineAnalysis(
                 Found:               true,
@@ -281,6 +286,49 @@ public static class GridAlignmentAgent
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    // Save original image and a red-highlighted copy (black pixels → red) to images/align/.
+    // Both files share the same timestamp so they pair up in the directory listing.
+    private static void SaveDebugImages(byte[] imageData, string ipAddress)
+    {
+        try
+        {
+            var dir = Path.Combine("images", "align");
+            Directory.CreateDirectory(dir);
+            var safe = ipAddress.Replace('.', '_');
+            var ts   = DateTime.Now.ToString("yyyyMMdd_HHmmss_fff");
+
+            File.WriteAllBytes(Path.Combine(dir, $"align_{safe}_{ts}_orig.jpg"), imageData);
+
+            using var img = Image.Load<Rgb24>(imageData);
+            int halfH = img.Height / 2;
+            img.ProcessPixelRows(accessor =>
+            {
+                for (int y = 0; y < img.Height; y++)
+                {
+                    var row = accessor.GetRowSpan(y);
+                    for (int x = 0; x < img.Width; x++)
+                    {
+                        if (y < halfH)
+                        {
+                            // Gray out ignored region so it's visually distinct.
+                            var p = row[x];
+                            row[x] = new Rgb24((byte)(p.R / 2), (byte)(p.G / 2), (byte)(p.B / 2));
+                        }
+                        else if ((row[x].R + row[x].G + row[x].B) / 3 < BlackLuminanceThreshold)
+                        {
+                            row[x] = new Rgb24(255, 0, 0);
+                        }
+                    }
+                }
+            });
+            img.Save(Path.Combine(dir, $"align_{safe}_{ts}_lines.jpg"));
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[GridAlign] SaveDebugImages error: {ex.Message}");
+        }
+    }
 
     // Index of the maximum value in arr[start..end).
     private static int PeakIndex(int[] arr, int start, int end)

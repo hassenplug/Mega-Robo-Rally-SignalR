@@ -353,11 +353,9 @@ namespace MRR.Controller
 
         public bool ConnectToAllRobots()
         {
-//            Console.WriteLine("Connecting to robots ");
-
             foreach (Player thisplayer in AllPlayers)
             {
-                thisplayer.Connect();
+                _ = thisplayer.Connect();   // fire-and-forget; robots connect concurrently
             }
             return true;
         }
@@ -365,7 +363,7 @@ namespace MRR.Controller
         public bool ConnectToRobot(int playerID)
         {
             Player? thisplayer = AllPlayers.GetPlayer(playerID);
-            thisplayer?.Connect();
+            thisplayer?.Connect().Wait();
             return true;
         }
 

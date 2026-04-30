@@ -189,20 +189,22 @@ app.MapGet("/api/robot/alignthis/{robotId:int}", async (int robotId, DataService
     }
 });
 
-app.MapGet("/api/robot/{function?}/{parameter1?}", (string? function, string? parameter1, DataService dataService, IHubContext<DataHub> hubContext, GameController gameController) =>
+app.MapGet("/api/robot/{function?}/{parameter1?}", async (string? function, string? parameter1, DataService dataService, IHubContext<DataHub> hubContext, GameController gameController) =>
 {
 
     if (function == null) function = "";
+    if (parameter1 == null) parameter1 = "all";
+    //var robot = AllPlayers.GetPlayer(parameter1); // Replace 1 with the actual player ID
 
     switch (function)
     {
         case "test":
-            var robot = new Player().Connect(parameter1 ?? "");
-            robot?.RunTest().Wait();
+            var robot = await new Player().Connect(parameter1 ?? "");
+            await (robot?.RunTest() ?? Task.CompletedTask);
             break;
         case "align":
-            var robot1 = new Player().Connect(parameter1 ?? "");
-            robot1?.AlignAsync().Wait();
+            var robot1 = await new Player().Connect(parameter1 ?? "");
+            await (robot1?.AlignAsync() ?? Task.CompletedTask);
             break;
         case "connect":
             if (parameter1 == "all")
@@ -231,7 +233,7 @@ app.MapGet("/api/robot/{function?}/{parameter1?}", (string? function, string? pa
     }   
 
     var dataout = dataService.GetQueryResultsJson($"Select * from CurrentGameData;", "State");
-    hubContext.Clients.All.SendAsync("State", dataout);
+    await hubContext.Clients.All.SendAsync("State", dataout);
     return Results.Ok(dataout);
 });
 
