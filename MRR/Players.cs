@@ -239,6 +239,8 @@ namespace MRR
         public bool isMoving;
         private CancellationTokenSource? _statusCts;
         private TaskCompletionSource<bool>? _motionComplete;
+        // Guards concurrent access to wsStatus from both ListenStatusAsync and GetStatusAsync
+        private readonly SemaphoreSlim _statusSocketSemaphore = new SemaphoreSlim(1, 1);
 
         private int l_damage = 0;
         public int Damage
@@ -344,6 +346,30 @@ namespace MRR
         {
             get { return new CardList((CardsPlayer ?? new CardList()).Where(gc => gc.PhasePlayed > 0).OrderBy(pc => pc.PhasePlayed)); }
         }
+
+        /// <summary>
+        /// Comma-separated TypeIDs of the 9 cards dealt this turn (e.g. "5,6,7,1,2,3,8,10,4").
+        /// Populated by DataService.RefreshAllPlayers() from the Robots.CardsDealt DB column.
+        /// </summary>
+        [NotMapped]
+        [XmlIgnore]
+        public string CardsDealtStr { get; set; } = "";
+
+        /// <summary>
+        /// Comma-separated TypeIDs of the 5 program registers (e.g. "5,0,6,0,0"); 0 = empty.
+        /// Populated by DataService.RefreshAllPlayers() from the Robots.CardsPlayed DB column.
+        /// </summary>
+        [NotMapped]
+        [XmlIgnore]
+        public string CardsPlayedStr { get; set; } = "0,0,0,0,0";
+
+        /// <summary>
+        /// The robot screen UI instance for this player. Only populated when
+        /// GameController.UseRobotScreen is true and the robot is connected.
+        /// </summary>
+        [NotMapped]
+        [XmlIgnore]
+        public RobotScreenUI? ScreenUI { get; set; }
 
         [NotMapped]
         public CardList? CardsPlayer
@@ -555,16 +581,24 @@ namespace MRR
             {
                 try
                 {
-                    // Send 0x01 to request a status snapshot — never pass ct to socket ops
-                    // to avoid aborting the socket on cancellation.
-                    await wsStatus.SendAsync(new ArraySegment<byte>(StatusPollRequest),
-                        WebSocketMessageType.Binary, true, CancellationToken.None);
+                    await _statusSocketSemaphore.WaitAsync(ct);
+                    try
+                    {
+                        // Send 0x01 to request a status snapshot — never pass ct to socket ops
+                        // to avoid aborting the socket on cancellation.
+                        await wsStatus.SendAsync(new ArraySegment<byte>(StatusPollRequest),
+                            WebSocketMessageType.Binary, true, CancellationToken.None);
 
-                    var result = await wsStatus.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
-                    if (result.MessageType == WebSocketMessageType.Close) break;
+                        var result = await wsStatus.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+                        if (result.MessageType == WebSocketMessageType.Close) break;
 
-                    var json = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                    ProcessStatusEvent(json);
+                        var json = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                        ProcessStatusEvent(json);
+                    }
+                    finally
+                    {
+                        _statusSocketSemaphore.Release();
+                    }
 
                     await Task.Delay(100, ct); // ct only here — clean exit between polls
                 }
@@ -577,6 +611,61 @@ namespace MRR
                 }
             }
             Console.WriteLine("Status listener exited");
+        }
+
+        /// <summary>
+        /// Polls ws_status for a single snapshot and returns the parsed RobotStatus.
+        /// Thread-safe: shares the status socket semaphore with ListenStatusAsync.
+        /// </summary>
+        public async Task<RobotStatus> GetStatusAsync()
+        {
+            if (!isConnected || wsStatus == null || wsStatus.State != WebSocketState.Open)
+                return new RobotStatus();
+
+            await _statusSocketSemaphore.WaitAsync();
+            try
+            {
+                await wsStatus.SendAsync(new ArraySegment<byte>(StatusPollRequest),
+                    WebSocketMessageType.Binary, true, CancellationToken.None);
+
+                var buffer = new byte[4096];
+                var result = await wsStatus.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+                if (result.MessageType == WebSocketMessageType.Close)
+                    return new RobotStatus();
+
+                var json = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                return JsonSerializer.Deserialize<RobotStatus>(json) ?? new RobotStatus();
+            }
+            finally
+            {
+                _statusSocketSemaphore.Release();
+            }
+        }
+
+        // ── Robot status data model ──────────────────────────────────────────
+
+        public class RobotStatus
+        {
+            [System.Text.Json.Serialization.JsonPropertyName("robot")]
+            public RobotStatusSection Robot { get; set; } = new();
+
+            public class RobotStatusSection
+            {
+                [System.Text.Json.Serialization.JsonPropertyName("touch_flags")]
+                public string TouchFlags { get; set; } = "0x0000";
+
+                [System.Text.Json.Serialization.JsonPropertyName("touch_x")]
+                public int TouchX { get; set; }
+
+                [System.Text.Json.Serialization.JsonPropertyName("touch_y")]
+                public int TouchY { get; set; }
+
+                [System.Text.Json.Serialization.JsonPropertyName("battery")]
+                public int Battery { get; set; }
+
+                [System.Text.Json.Serialization.JsonPropertyName("flags")]
+                public string Flags { get; set; } = "0x0";
+            }
         }
 
         private void ProcessStatusEvent(string json)

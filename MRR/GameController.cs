@@ -21,6 +21,15 @@ namespace MRR.Controller
         private readonly DataService _dataService;
         private readonly IHubContext<DataHub> _hubContext;
 
+        /// <summary>
+        /// When true, each robot's LCD shows the programming UI and accepts touch input.
+        /// Defaults to false; set via POST /api/settings/robot-screen.
+        /// </summary>
+        public static bool UseRobotScreen { get; set; } = false;
+
+        // CancellationTokenSources for the per-robot touch polling tasks
+        private readonly Dictionary<int, CancellationTokenSource> _screenUiCts = new();
+
         public GameController(DataService dataService, IHubContext<DataHub> hubContext)
         {
             _dataService = dataService;
@@ -262,9 +271,11 @@ namespace MRR.Controller
                             //_dataService.ExecuteSQL("call procUpdateRobotCards();");
                             //UpdateGameState(); // ensure DB changes are visible before next command
                             _dataService.ExecuteSQL("update CurrentGameData set iValue=iValue+1 where iKey=2;"); // next turn
+                            ScreenUiLoadHand(2);
                             SetGameState(3);
                             break;
                         case 3: // Verify Position
+                            ScreenUiLoadHand(3);
                             SetGameState(4);
                             break;
                         case 4: // still programming
@@ -273,30 +284,42 @@ namespace MRR.Controller
                             {
                                 SetGameState(5);
                             }
+                            else
+                            {
+                                // Show hand on robot screens during programming
+                                ScreenUiLoadHand(4);
+                            }
                             break;
                         case 5: // ready to execute turn
                             _dataService.ExecuteSQL("Update Robots set `Status` = 13;"); // don't allow player changes to programs
+                            ScreenUiLock();
                             SetGameState(6);
                             break;
                         case 6: // execute turn
+                            ScreenUiRenderIdle(6);
                             Task.Run(async () => await ExecuteTurn());
                             break;
                         case 7: // executing turn
+                            ScreenUiRenderIdle(7);
                             SetGameState(8);
                             break;
                         case 8: // running phase
+                            ScreenUiRenderIdle(8);
                             StartProcessCommandsThread();
                             break;
                         case 9: // continue (prompt)
                         case 10: // remove robot
                         case 11: // game winner
+                            ScreenUiRenderIdle(GameState);
                             SetGameState(8);
                             break;
                         case 12: // End of game
+                            ScreenUiRenderIdle(12);
                             SetGameState(2);
                             break;
                         case 13: // Exit game (disconnect all robots)
                         case 14: // Reset board
+                            ScreenUiRenderIdle(GameState);
                             SetGameState(0);
                             break;
                         case 15: // Create program
@@ -340,7 +363,7 @@ namespace MRR.Controller
             // connect to robots in current game
 
             UpdateGameState();
-            
+
             if (RobotsActive != 0)
             {
                 ConnectToAllRobots();
@@ -355,9 +378,150 @@ namespace MRR.Controller
         {
             foreach (Player thisplayer in AllPlayers)
             {
-                _ = thisplayer.Connect();   // fire-and-forget; robots connect concurrently
+                _ = ConnectPlayerWithScreen(thisplayer);
             }
             return true;
+        }
+
+        private async Task ConnectPlayerWithScreen(Player player)
+        {
+            await player.Connect();
+
+            if (UseRobotScreen && player.isConnected)
+            {
+                InitScreenUI(player);
+            }
+        }
+
+        /// <summary>
+        /// Creates a RobotScreenUI for the player and starts the touch polling loop.
+        /// Cancels any existing polling task for this player first.
+        /// </summary>
+        private void InitScreenUI(Player player)
+        {
+            // Cancel any previous polling task
+            if (_screenUiCts.TryGetValue(player.ID, out var oldCts))
+            {
+                oldCts.Cancel();
+                oldCts.Dispose();
+                _screenUiCts.Remove(player.ID);
+            }
+
+            var ui = new RobotScreenUI(player, _dataService, _hubContext);
+            player.ScreenUI = ui;
+
+            var cts = new CancellationTokenSource();
+            _screenUiCts[player.ID] = cts;
+
+            // Start polling as a background task
+            _ = Task.Run(async () =>
+            {
+                try { await ui.StartPollingAsync(cts.Token); }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[ScreenUI {player.ID}] Polling task faulted: {ex.Message}");
+                }
+            });
+        }
+
+        /// <summary>
+        /// Triggers LoadHand on all player ScreenUIs (states 2/3/4 entry).
+        /// </summary>
+        private void ScreenUiLoadHand(int gameState)
+        {
+            if (!UseRobotScreen) return;
+            foreach (var player in AllPlayers)
+            {
+                if (player.ScreenUI != null)
+                {
+                    _ = Task.Run(async () =>
+                    {
+                        try { await player.ScreenUI.LoadHand(gameState); }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"[ScreenUI {player.ID}] LoadHand error: {ex.Message}");
+                        }
+                    });
+                }
+                else if (player.isConnected && UseRobotScreen)
+                {
+                    // Robot connected but ScreenUI not yet created — create it now
+                    InitScreenUI(player);
+                    _ = Task.Run(async () =>
+                    {
+                        try { await player.ScreenUI!.LoadHand(gameState); }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"[ScreenUI {player.ID}] LoadHand error: {ex.Message}");
+                        }
+                    });
+                }
+            }
+        }
+
+        /// <summary>
+        /// Triggers LockAsync on all player ScreenUIs (state 5 entry).
+        /// </summary>
+        private void ScreenUiLock()
+        {
+            if (!UseRobotScreen) return;
+            foreach (var player in AllPlayers)
+            {
+                if (player.ScreenUI != null)
+                {
+                    _ = Task.Run(async () =>
+                    {
+                        try { await player.ScreenUI.LockAsync(); }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"[ScreenUI {player.ID}] LockAsync error: {ex.Message}");
+                        }
+                    });
+                }
+            }
+        }
+
+        /// <summary>
+        /// Triggers RenderIdleAsync on all player ScreenUIs (states 6–11 and 12–16).
+        /// </summary>
+        private void ScreenUiRenderIdle(int gameState)
+        {
+            if (!UseRobotScreen) return;
+            foreach (var player in AllPlayers)
+            {
+                if (player.ScreenUI != null)
+                {
+                    _ = Task.Run(async () =>
+                    {
+                        try { await player.ScreenUI.RenderIdleAsync(gameState); }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"[ScreenUI {player.ID}] RenderIdleAsync error: {ex.Message}");
+                        }
+                    });
+                }
+            }
+        }
+
+        /// <summary>
+        /// Refreshes and re-renders the ScreenUI for one player.
+        /// Called after procUpdateCardPlayed fires from DataHub (phone UI tap).
+        /// </summary>
+        public void RefreshPlayerScreenUI(int playerId)
+        {
+            if (!UseRobotScreen) return;
+            var player = AllPlayers.GetPlayer(playerId);
+            if (player?.ScreenUI == null) return;
+
+            _dataService.RefreshPlayerCards(playerId);
+            _ = Task.Run(async () =>
+            {
+                try { await player.ScreenUI.RenderAsync(); }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[ScreenUI {playerId}] RefreshPlayerScreenUI error: {ex.Message}");
+                }
+            });
         }
 
         public bool ConnectToRobot(int playerID)

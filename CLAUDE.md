@@ -68,9 +68,16 @@ wwwroot/             Static web assets for phone UI
 - No breaking changes to existing REST API contracts without discussion
 - Server hostname: `mrobopi3` — used in connection strings and launch URLs
 
+## Project TODO
+See [install/todo.md](install/todo.md) for the active task list.
+
 ## Active Agents
-Use the **`robo-rally-dev`** sub-agent (`.claude/agents/robo-rally-dev.md`) for all game development tasks. It contains the full Robo Rally Renegade rule set, VEX AIM robot command reference, and implementation guidance.
 
-Use the **`sql-to-csharp`** sub-agent (`.claude/agents/sql-to-csharp.md`) for converting MySQL stored procedures, triggers, and functions into C# methods in `DataService.cs`. It contains the full rally DB schema, all procedure logic, trigger behavior, and C# conversion patterns.
-
-Use the **`aim-robot-api`** sub-agent (`.claude/agents/aim-robot-api.md`) for any task involving VEX AIM robot commands from C#. It documents every WebSocket command (drive, turn, LCD, LED, sound, vision, IMU), the JSON wire format, the `AIMRobot.cs` wrapper patterns, and the game-command mapping.
+| Agent | File | When to use |
+|---|---|---|
+| `robo-rally-dev` | [.claude/agents/robo-rally-dev.md](.claude/agents/robo-rally-dev.md) | Game logic, robot movement, board simulation, player UI, hardware integration. Contains the full Robo Rally Renegade rule set and implementation guidance. |
+| `sql-to-csharp` | [.claude/agents/sql-to-csharp.md](.claude/agents/sql-to-csharp.md) | Converting MySQL stored procedures, triggers, and functions into C# methods in `DataService.cs`. Contains the full rally DB schema, all procedure logic, and trigger behavior. |
+| `aim-robot-api` | [.claude/agents/aim-robot-api.md](.claude/agents/aim-robot-api.md) | Any VEX AIM robot command from C#. Documents every WebSocket command (drive, turn, LCD, LED, sound, vision, IMU, kicker), the JSON wire format, and `AIMRobot.cs` patterns. |
+| `aim-screen-ui` | [.claude/agents/aim-screen-ui.md](.claude/agents/aim-screen-ui.md) | Robot touchscreen programming UI (`RobotScreenUI.cs`). Knows the 240×240 circular LCD layout, touch polling, the 9-card ring + 5 horizontal slot design, and GameController integration (states 4–5). |
+| `gm-ui` | [.claude/agents/gm-ui.md](.claude/agents/gm-ui.md) | GM control panel (`gmindex.html`). Knows the full REST API surface, exact AllDataUpdate payload shape, state-by-state button logic, robot status panels, game message bar (titlemsg + CurrentGameData.Message), game selection, direction setter, Use Robots toggle (simulation vs. physical), pre-game player setup (robot body / base / seat assignment), and wwwroot/ conventions. |
+| `aim-navigation` | [.claude/agents/aim-navigation.md](.claude/agents/aim-navigation.md) | Improving physical robot navigation accuracy. Knows the full IMU sensor pipeline (heading, gyro_rate, odometry via robot_x/robot_y), extending RobotStatus, IMU-guided turn correction (turn_to), odometry-based move verification (set_pose), and integrating camera grid alignment (GridAlignmentAgent) for post-move correction. |

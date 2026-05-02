@@ -31,6 +31,8 @@ namespace MRR.Hubs
             {
                 case 1:
                     _dataService.ExecuteSQL("call procUpdateCardPlayed(" + playerId + "," + data1 + "," + data2 + ");");
+                    // Refresh robot screen so the LCD stays in sync with the phone UI
+                    _gameController.RefreshPlayerScreenUI(playerId);
                     break;
                 case 2:
                     break;

@@ -84,6 +84,15 @@ app.MapPost("/api/table/{tablename}", async (string tablename, DataService dataS
     }
 });
 
+// ── Settings API ────────────────────────────────────────────────────────────
+
+app.MapGet("/api/settings/robot-screen", (bool enabled, GameController gameController) =>
+{
+    GameController.UseRobotScreen = enabled;
+    Console.WriteLine($"UseRobotScreen set to {enabled}");
+    return Results.Ok(new { UseRobotScreen = enabled });
+});
+
 app.MapGet("/api/alldata", (DataService dataService, IHubContext<DataHub> hubContext) =>
 {
     var dataout = dataService.GetAllDataJson();

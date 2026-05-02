@@ -166,6 +166,12 @@
 
 - [ ] Display robot status on phone (damage, lives, energy, position)
 
+- [ ] Show deck size on player UI
+  - Display total cards in the player's personal deck (all MoveCards owned by that robot across all locations except Played Spam / CardLocation=5)
+  - Includes accumulated Spam cards so players can see how damage bloats their deck
+  - Source: `COUNT(*) FROM MoveCards WHERE Owner=robotID AND CardLocation != 5`
+  - Expose via a new column in `viewRobots` or `viewRobotsMicro`, then surface in `CardsDealt`/`AllDataUpdate` JSON
+
 - [ ] Handle Haywire / Spam / option card notifications on phone
 
 ### GM Control Page *(new page needed)*
@@ -182,6 +188,10 @@
 - [ ] Controls to manually set a robot's facing direction
   - Needed at game start when robots are placed on the board
   - Calls `procSetRobotDirection` equivalent in C#
+
+- [ ] Show deck size per player on GM UI
+  - Same data as the player UI item above — total cards in each player's deck including Spam
+  - Display alongside Damage in each robot's status panel so GM can see deck health at a glance
 
 ---
 

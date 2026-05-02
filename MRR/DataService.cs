@@ -499,9 +499,32 @@ namespace MRR.Services
                     existingPlayer.Priority = (int)row["Priority"];
                     existingPlayer.Energy = (int)row["Energy"];
                     existingPlayer.Active = ((int)row["StatusID"] != 10);
+
+                    // Refresh card strings used by RobotScreenUI
+                    if (row.Table.Columns.Contains("CardsDealt"))
+                        existingPlayer.CardsDealtStr = row["CardsDealt"]?.ToString() ?? "";
+                    if (row.Table.Columns.Contains("CardsPlayed"))
+                        existingPlayer.CardsPlayedStr = row["CardsPlayed"]?.ToString() ?? "0,0,0,0,0";
                 };
             }
 
+        }
+
+        /// <summary>
+        /// Refreshes CardsDealtStr and CardsPlayedStr for a single player from the DB.
+        /// Call this after procUpdateCardPlayed so the in-memory state matches the DB.
+        /// </summary>
+        public void RefreshPlayerCards(int robotID)
+        {
+            var dt = GetQueryResults(
+                $"SELECT CardsDealt, CardsPlayed FROM Robots WHERE RobotID = {robotID};");
+            if (dt.Rows.Count == 0) return;
+
+            var player = _allPlayers?.FirstOrDefault(p => p.ID == robotID);
+            if (player == null) return;
+
+            player.CardsDealtStr  = dt.Rows[0]["CardsDealt"]?.ToString()  ?? "";
+            player.CardsPlayedStr = dt.Rows[0]["CardsPlayed"]?.ToString() ?? "0,0,0,0,0";
         }
 
         public int UpdateGameState()
