@@ -764,26 +764,17 @@ namespace MRR
             int moveType = cmd.CommandMoveType;
             switch (moveType)
             {
-                case 1: // Move — distance(squares)*77mm / 100mm/s + 500ms margin
-                    //Console.WriteLine($"move --- Value:{cmd.Value} ValueB:{cmd.ValueB} rotation: {RotationFunctions.Degrees(cmd.ValueB)}");
+                case 1: // Move — sends drive_for; isMoving set from ack; caller polls isMoving via StatusID==3
                     await MoveAsync(cmd.Value, cmd.ValueB);
-                    await WaitForMotionCompleteAsync();
                     break;
-                case 2: // Turn — |direction|*90deg / 100deg/s + 500ms margin
+                case 2: // Turn — sends turn_for; isMoving set from ack; caller polls isMoving via StatusID==3
                     await TurnAsync(cmd.Value);
-                    await WaitForMotionCompleteAsync();
                     break;
                 case 0: // Stop
-                    //await StopAsync();
                     break;
                 default:
                     break;
             }
-
-            //if (cmd.Category == CommandCategories.RobotwReply)
-            //{
-                //await Task.Delay(1500);
-            //}
         }
 
         public Task MoveAsync(int distance, int angle) =>
