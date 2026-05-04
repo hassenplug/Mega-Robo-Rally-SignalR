@@ -40,11 +40,6 @@ namespace MRR
         {
             _dataService = dataService;
 
-            // ensure we have a DataService instance for legacy callers
-            if (_dataService == null) {
-                try { _dataService = new DataService(); } catch { /* swallow for test builds */ }
-            }
-
             //AllPlayers = new Players(_dataService);
 
             g_BoardElements = new BoardElementCollection(0, 0);
