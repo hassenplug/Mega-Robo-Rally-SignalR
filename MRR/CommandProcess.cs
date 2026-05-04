@@ -180,6 +180,7 @@ namespace MRR
                         LogCommand(onecommand, "Robot Command    ");
                         onecommand.StatusID = 3; // executing
                         robot.SendRobotCommandAsync(onecommand).Wait();
+                        //_ = robot.SendRobotCommandAsync(onecommand);
                         if (onecommand.CommandCatID == 2)
                         {
                             // don't wait for reply

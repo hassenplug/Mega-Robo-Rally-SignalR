@@ -1,6 +1,6 @@
 # Mega Robo Rally — Project TODO
 
-**Last updated:** 2026-04-29
+**Last updated:** 2026-05-02
 **Legend:** `[x]` Done &nbsp; `[-]` Partial / In Progress &nbsp; `[ ]` Not started
 
 ---
@@ -215,44 +215,73 @@
 ---
 
 ## Section 6 — Network Setup
-*WiFi router → Raspberry Pi → robots → player phones.*
+*Topology: Home Router → Game Router (WAN) → Pi + Robots + Phones*
 
-- [ ] Configure WiFi router
-  - Set SSID and password for the game network
+```
+Home Router (192.168.1.x)
+    └── Game Router WAN port  (gets DHCP lease from home router)
+            Game Router LAN (e.g. 192.168.4.x)
+                ├── Raspberry Pi  (Ethernet, static IP)
+                ├── AIM Robots ×6 (WiFi, DHCP reservations)
+                └── Player Phones ×6 (WiFi)
+```
+
+### Game Router Setup
+
+- [ ] Configure game router
+  - Set a dedicated SSID and password (e.g. `MRR-Game`)
   - Use 2.4 GHz band (confirm AIM robots support 5 GHz before switching)
-  - Consider a dedicated router / isolated SSID to keep game traffic off the internet
+  - Set game router LAN subnet (e.g. `192.168.4.0/24`) — must not overlap home router subnet
+  - Connect game router WAN port to home router via Ethernet cable
 
-- [ ] Connect Raspberry Pi via Ethernet
-  - Wire Pi 5 to router with ethernet cable
-  - Assign Pi a static IP or create a DHCP reservation by MAC address
-  - Update connection strings / launch URLs in `appsettings.json` and `CLAUDE.md` if IP changes from `mrobopi3`
+- [ ] Enable access from home network to Pi
+  - On the game router: add a port-forward rule — external port 5000 (or 80) → Pi's game-network IP
+  - This lets dev machines on the home network reach the Pi at `http://{home-router-assigned-IP}:{port}/`
+  - Alternatively, connect your dev machine directly to the game router WiFi during testing
 
-- [ ] Connect all 6 AIM robots to the WiFi network
+### Raspberry Pi
+
+- [ ] Connect Pi via Ethernet to game router LAN
+  - Wire Pi 5 to a LAN port on the game router (not the WAN port)
+  - Assign Pi a static IP on the game subnet (e.g. `192.168.4.10`) or DHCP reservation by MAC
+  - Set hostname `mrobopi3` to resolve to this IP on the game network (via router DNS or `/etc/hosts`)
+  - Update connection strings / launch URLs in `appsettings.json` if IP differs from current config
+
+### Robots
+
+- [ ] Connect all 6 AIM robots to the game WiFi (`MRR-Game` SSID)
   - Use the VEX AIM app or built-in setup to join the game SSID
   - Note each robot's MAC address for DHCP reservation
 
 - [ ] Assign static IPs to all 6 robots
-  - Configure DHCP reservations on the router by MAC address so IPs never change
-  - Suggested scheme: e.g. 192.168.x.101–106 for robots 1–6
+  - Configure DHCP reservations on the game router by MAC address
+  - Suggested scheme: `192.168.4.101`–`192.168.4.106` for robots 1–6
 
 - [ ] Update robot IP addresses in the database
   - Enter confirmed IPs into the `Robots` table (`IPAddress` column)
   - `AIMRobot.cs` reads IP from DB at connection time — must match actual robot IPs
 
-- [ ] Connect player phones to the game WiFi
-  - All 6 player phones join the same SSID
-  - Phones open the player UI at `http://{Pi-IP}:{port}/` in the browser
+### Player Phones
+
+- [ ] Connect player phones to the game WiFi (`MRR-Game` SSID)
+  - All 6 player phones join the same SSID as the robots
+  - Phones open the player UI at `http://192.168.4.10:{port}/` (or `http://mrobopi3:{port}/`)
+
+### Verification
 
 - [ ] Verify Pi → robot connectivity
   - From the Pi, confirm WebSocket reachability: `ws://{robot-ip}:80/ws_cmd` for each robot
-  - Quick check: `curl http://{robot-ip}:80/` or ping each robot IP
+  - Quick check: `curl http://{robot-ip}:80/` or `ping {robot-ip}`
 
 - [ ] Verify phone → Pi SignalR connectivity
-  - Open player UI from a phone browser; confirm SignalR hub connects and hand is displayed
-  - Check Pi server port is reachable from the phone (default ASP.NET Core port 5000 or 80)
+  - Open player UI from a phone on the game WiFi; confirm SignalR hub connects and hand is displayed
+
+- [ ] Verify home-network → Pi connectivity
+  - From a dev machine on the home network, reach the Pi via the port-forward rule
+  - Confirm GM page and player UI load correctly over the home → game router path
 
 - [ ] Document final IP address assignments
-  - Record Pi IP, each robot IP, and router IP in `install/network.md` (or a label on the hardware)
+  - Record all IPs (Pi, each robot, game router LAN/WAN, home router) in `install/network.md`
 
 ---
 

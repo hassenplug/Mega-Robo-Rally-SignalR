@@ -489,6 +489,8 @@ namespace MRR
 
                 await SendCommandAsync(new { cmd_id = "program_init" });
                 await SendCommandAsync(new { cmd_id = "lcd_clear_screen", r = bgR, g = bgG, b = bgB });
+                await SetLedAsync("all", bgR, bgG, bgB);
+                
                 await SendCommandAsync(new { cmd_id = "lcd_set_pen_color", r = fgR, g = fgG, b = fgB });
                 await SendCommandAsync(new { cmd_id = "lcd_set_fill_color", r = bgR, g = bgG, b = bgB, transparent = false });
 
@@ -500,7 +502,10 @@ namespace MRR
                 }
                 await SendCommandAsync(new { cmd_id = "lcd_draw_rectangle", x = 95, y = 100, width = 50, height = 110, r = fgR, g = fgG, b = fgB, transparent = false });
 
-                await SetLedAsync("all", bgR, bgG, bgB);
+                // Draw forward-pointing arrow in robot color on forecolor background
+
+                //await SendCommandAsync(new { cmd_id = "lcd_draw_image_from_file", filename = $"arrow_{ForeColor}.png", x = 0, y = 0 });
+                //await SendCommandAsync(new { cmd_id = "lcd_draw_image_from_file", filename = $"arrow_{ForeColor}", x = 0, y = 0 });
 
                 //await SendCommandAsync(new { cmd_id = "lcd_set_font", fontname = "MONO60" });  //This doesn't seem to work
                 await SetCursorAsync(6, Math.Max(0, (15 - Name.Length) / 2));
