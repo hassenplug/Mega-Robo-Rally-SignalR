@@ -13,17 +13,15 @@ namespace MRR.Services
 {
     public class DataService
     {
-        private const string DbServerIp = "mrobopi3"; // e.g., "
-        private const string DatabaseName = "rally";
-        private const string UserId = "mrr";
-        private const string Password = "rallypass";
+        private readonly string _connectionString;
+        private readonly string DatabaseName;
 
-        private readonly string _connectionString =
-            $"server={DbServerIp};database={DatabaseName};uid={UserId};pwd={Password}";
-
-        public DataService()
+        public DataService(IConfiguration configuration)
         {
-            // Deferred initialization of players; loaded on first access via AllPlayers getter
+            _connectionString = configuration.GetConnectionString("Rally")
+                ?? throw new InvalidOperationException("Connection string 'Rally' not found in configuration.");
+            var builder = new MySqlConnector.MySqlConnectionStringBuilder(_connectionString);
+            DatabaseName = builder.Database;
         }
 
         public string ConnectionString { get { return _connectionString; } }
