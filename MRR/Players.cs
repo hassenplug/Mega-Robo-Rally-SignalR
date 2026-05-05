@@ -671,6 +671,19 @@ namespace MRR
 
                 [System.Text.Json.Serialization.JsonPropertyName("flags")]
                 public string Flags { get; set; } = "0x0";
+
+                [System.Text.Json.Serialization.JsonPropertyName("robot_x")]
+                public string RobotXStr { get; set; } = "0";
+
+                [System.Text.Json.Serialization.JsonPropertyName("robot_y")]
+                public string RobotYStr { get; set; } = "0";
+
+                [System.Text.Json.Serialization.JsonPropertyName("heading")]
+                public string HeadingStr { get; set; } = "0";
+
+                public double RobotX  => double.TryParse(RobotXStr,  NumberStyles.Float, CultureInfo.InvariantCulture, out var v) ? v : 0;
+                public double RobotY  => double.TryParse(RobotYStr,  NumberStyles.Float, CultureInfo.InvariantCulture, out var v) ? v : 0;
+                public double Heading => double.TryParse(HeadingStr, NumberStyles.Float, CultureInfo.InvariantCulture, out var v) ? v : 0;
             }
         }
 
@@ -789,6 +802,45 @@ namespace MRR
                 final_heading = 0,
                 stacking_type = 0
             });
+
+        public Task SetPoseAsync(int x = 0, int y = 0) =>
+            SendCommandAsync(new { cmd_id = "set_pose", x, y });
+
+        // Like MoveAsync but zeros odometry first, then verifies the robot
+        // actually traveled the expected distance after the move completes.
+        // Logs a warning if displacement is more than 10 mm short (stall/slip).
+        public async Task MoveVerifiedAsync(int distance, int angle)
+        {
+            const int mmPerSquare = 77;
+            const double stallThresholdMm = 10.0;
+
+            await SetPoseAsync();
+
+            var pre = await GetStatusAsync();
+            int preHeading = (int)Math.Round(pre.Robot.Heading);
+
+            await SendCommandAsync(new
+            {
+                cmd_id        = "drive_for",
+                distance      = distance * mmPerSquare,
+                angle         = RotationFunctions.Degrees(angle),
+                drive_speed   = 200,
+                turn_speed    = 0,
+                final_heading = preHeading,
+                stacking_type = 0
+            });
+
+            await WaitForMotionCompleteAsync();
+
+            var post = await GetStatusAsync();
+            double traveled = Math.Abs(post.Robot.RobotY);  // forward axis — verify on live robot
+            double expected = Math.Abs(distance) * mmPerSquare;
+
+            if (traveled < expected - stallThresholdMm)
+                Console.WriteLine($"[Nav] Slip/stall: expected ~{expected:F0} mm, got {traveled:F1} mm");
+            else
+                Console.WriteLine($"[Nav] Move OK: {traveled:F1} mm (target {expected:F0} mm)");
+        }
 
         public Task MoveUnlimitedAsync(double angle, double speed) =>
             SendCommandAsync(new
