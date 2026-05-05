@@ -1,3 +1,5 @@
+//How can I take an image like this, and identify the black lines.  There is a horizontal line  and two vertical lines.  I want to know how much to rotate so the line is totally horizontal, how much to move forward/back so the line is at a specific height, and how far left/right to be centered between the two vertical lines 
+
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using System.IO;
