@@ -205,7 +205,7 @@ not a table-per-key structure. The actual shape is:
       "Status": 3, "ShutDown": 0, "Damage": 0, "CurrentFlag": 0,
       "CurrentPosCol": 4, "CurrentPosRow": 7, "CurrentPosDir": 1,
       "IsConnected": 1, "RobotBodyID": 1, "RobotBaseID": 2,
-      "PlayerSeat": 1, "Color": "7338B0", "msg": null, ... },
+      "PlayerSeat": 1, "Color": "7338B0", "Battery": 87, "msg": null, ... },
     ...
   ]
 }
@@ -216,6 +216,7 @@ Key fields:
 - `gamestate` — current state machine integer (already in payload)
 - `message` — `CurrentGameData.Message` (iKey=28, sKey='Message'); **must be added** to `DataService` (see Game Message Bar section below)
 - `robots` — rows from `viewRobots`; `CurrentPosDir` 1=Up 2=Right 3=Down 4=Left
+- `robots[n].Battery` — AIM robot battery percentage (0–100), updated live from `ws_status`; only meaningful when `IsConnected == 1`
 - `robots[n].msg` — per-robot message from `CommandList.Description` via `MessageCommandID`
 
 `GameState` is `parsed.gamestate`.
@@ -405,7 +406,7 @@ Direction values match `RobotLocation.tDirection`: Up=1, Right=2, Down=3, Left=4
 Call the table API to write the direction:
 ```javascript
 function setDirection(robotId, dir) {
-    fetch(`/api/table/Robots/RobotID=${robotId}/Direction=${dir}`)
+    fetch(`/api/table/Robots/RobotID=${robotId}/CurrentPosDir=${dir}`)
         .then(() => fetch('/api/alldata'));
 }
 ```
@@ -432,12 +433,44 @@ Show a `X / 5` progress indicator per player. When all players reach 5/5, the
 
 Per-robot panel should display:
 - **Name** — `PlayerName` or `RobotName`
-- **Connection** — `isConnected` (green dot / red dot)
+- **Connection** — `IsConnected` (green dot / red dot)
 - **Position** — `(X, Y)` and direction arrow (↑↓←→)
 - **Damage** — `Damage` value
 - **Flag** — `LastFlag` (last checkpoint touched)
 - **Status** — `StatusID` mapped to `tPlayerStatus` enum label
+- **Battery** — `Battery` percentage from AIM robot `ws_status`; only show when `IsConnected == 1`; color-code: ≥50% green, 20–49% yellow, <20% red
 - **Programming** — filled register count (state 4 only)
+
+### Required server-side changes for Battery
+
+**`MRR/Players.cs`** — add a `Battery` property to `Player` (near `isMoving`):
+
+```csharp
+[NotMapped]
+public int Battery { get; set; }
+```
+
+**`MRR/Players.cs`** — store it in `ProcessStatusEvent()`:
+
+```csharp
+// existing line reads: var battery = robot.TryGetProperty("battery", ...) ? bEl.GetInt32() : 0;
+Battery = battery;  // add this line after reading battery
+```
+
+**`MRR/DataService.cs`** — include it in the `GetAllDataJson()` robots projection so it flows
+through to the `AllDataUpdate` payload. The battery value lives on the in-memory `Player`
+object (not in the DB), so it must be merged into the robot rows manually if `viewRobots`
+is used as a SQL source. One approach: after building the robots list, patch each row with
+the live `Battery` value from `AllPlayers`:
+
+```csharp
+// After fetching robot rows from viewRobots, merge in-memory Battery values:
+foreach (var row in robotRows)
+{
+    var player = AllPlayers.GetPlayer(p => p.ID == (int)row["RobotID"]);
+    if (player != null) row["Battery"] = player.Battery;
+}
+```
 
 Direction display:
 ```javascript
@@ -527,7 +560,9 @@ becomes read-only) once the game is running.
 
 **`RobotBases`** — physical hardware unit (VEX AIM robot):
 10 entries (IDs 1–10), each with a MAC address and a `DefaultBody`.
-The IP address for each base is stored in the `Robots` table (`IPAddress` column).
+**Note:** `IPAddress` is NOT a column in the `Robots` DB table. It is a `[NotMapped]`
+property on the `Player` class, populated at runtime from the `MACID` column via
+`viewRobotsInit`. Do not try to read or write it via the table API.
 
 **`Robots.PlayerSeat`** — seat number 1–8 indicating where the player sits
 around the physical board. Drives `SeatOrientation`:

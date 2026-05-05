@@ -47,7 +47,7 @@ It is organized into these sections (in order):
 -- Header: saves session variables, CREATE DATABASE IF NOT EXISTS rally, USE rally
 -- ===== TABLES =====        37 tables, FK-safe order
 -- ===== SEED DATA =====     All static lookup inserts + board data (boards 1-10)
--- ===== VIEWS =====         12 views
+-- ===== VIEWS =====         14 views
 -- ===== FUNCTIONS =====     7 functions
 -- ===== STORED PROCEDURES = 24 procedures
 -- ===== TRIGGERS =====      6 triggers
@@ -673,6 +673,8 @@ Saved by `procCurrentPosSave()` at state 5; restored by `procCurrentPosLoad()` a
 |---|---|
 | `viewRobots` | Full robot state joining Robots + RobotBodies + RobotStatus + RobotDirections + SeatOrientation + CommandList(msg). Ordered by Priority. |
 | `viewRobotsMicro` | Same as viewRobots but uses Robots.CardsDealt/CardsPlayed directly (no sub-query) |
+| `viewRobotsInit` | Robot state used by `DataService.GetAllPlayers()` on init — maps `MACID` column to `IPAddress` for robot connection. Actively queried at startup. |
+| `viewRobotsRefresh` | Robot state used by `DataService.GetAllPlayers()` on refresh — updates in-memory player list from DB mid-game. Actively queried. |
 | `viewRobotsOld` | Legacy version with separate CardsDealt sub-query |
 | `viewCommandListActive` | `SELECT … WHERE StatusID >= 2 AND StatusID <= 4` |
 | `viewCurrentGame` | `SELECT sKey, iValue, sValue, Category FROM CurrentGameData` |

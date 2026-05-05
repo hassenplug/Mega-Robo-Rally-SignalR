@@ -31,7 +31,7 @@ using the existing patterns in the codebase.
 
 - **DB**: MySQL/MariaDB, server `mrobopi3`, database `rally`, user `mrr`/`rallypass`
 - **Connection**: `MySqlConnector` NuGet package; `DataService._connectionString`
-- **EF Core**: Used for `PendingCommandEntity` only (via `MRRDbContext`); raw
+- **EF Core**: Used for `CommandItem` and `CurrentGameData` (via `MRRDbContext`); raw
   `MySqlConnection` / `MySqlCommand` / `DataTable` used everywhere else
 - **C# version**: .NET 9, nullable reference types enabled (`#nullable enable`)
 - **Key files**:

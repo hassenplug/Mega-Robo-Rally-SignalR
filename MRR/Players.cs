@@ -235,8 +235,9 @@ namespace MRR
         private ClientWebSocket? wsCmd;
         private ClientWebSocket? wsStatus;
         private ClientWebSocket? wsImage;
-        public bool isConnected;
+        public bool isConnected { get; set; }
         public bool isMoving;
+        public bool isCurrentlyMoving;
         private CancellationTokenSource? _statusCts;
         private TaskCompletionSource<bool>? _motionComplete;
         // Guards concurrent access to wsStatus from both ListenStatusAsync and GetStatusAsync
@@ -688,12 +689,12 @@ namespace MRR
                 var rotation  = robot.TryGetProperty("rotation", out var rEl)  ? rEl.GetString()  ?? "?" : "?";
 
                 var flags = Convert.ToUInt32(flagsStr, 16);
-                isMoving = (flags & 0xFF) != 0; // 0x400 = idle baseline; any lower bits = moving or turning
+                isCurrentlyMoving = (flags & 0xFF) != 0; // 0x400 = idle baseline; any lower bits = moving or turning
 
                 //Console.WriteLine(json);
-                //Console.WriteLine($"Status [{ID}]: flags={flagsStr} moving={isMoving} bat={battery}% x={robotX} y={robotY} hdg={heading} rot={rotation}");
+                Console.WriteLine($"Flags={flagsStr} moving={isCurrentlyMoving} bat={battery}% x={robotX} y={robotY} hdg={heading} rot={rotation}");
 
-                if (!isMoving) _motionComplete?.TrySetResult(true);
+                if (!isCurrentlyMoving) _motionComplete?.TrySetResult(true);
             }
             catch (Exception ex)
             {
@@ -783,7 +784,7 @@ namespace MRR
                 cmd_id = "drive_for",
                 distance = distance * 77,
                 angle = RotationFunctions.Degrees(angle),
-                drive_speed = 100,
+                drive_speed = 200,
                 turn_speed = 0,
                 final_heading = 0,
                 stacking_type = 0
@@ -812,7 +813,7 @@ namespace MRR
             {
                 cmd_id = "turn_for",
                 angle = direction * 90,
-                turn_rate = 100,
+                turn_rate = 200,
                 stacking_type = 0
             });
 

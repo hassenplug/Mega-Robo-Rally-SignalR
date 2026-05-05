@@ -1,6 +1,6 @@
 # Mega Robo Rally — Project TODO
 
-**Last updated:** 2026-05-02
+**Last updated:** 2026-05-05
 **Legend:** `[x]` Done &nbsp; `[-]` Partial / In Progress &nbsp; `[ ]` Not started
 
 ---
@@ -8,43 +8,9 @@
 ## Section 1 — Critical Path
 *Game cannot start or run without these.*
 
-- [ ] Convert `procResetPlayers` to C#
-  - Still called as raw SQL in `GameController.cs:259`
-  - Advances shutdown states, respawns dead robots, resets option play records
-  - Blocks every turn start
-
-- [ ] Convert `procMoveCardsShuffleAndDeal` to C#
-  - Shuffles and deals 9 cards to each player at turn start
-  - Blocks every turn start
-
-- [ ] Convert `procUpdateCardPlayed` to C#
-  - Called every time a phone submits a card into a register
-  - Blocks phone card programming
-
-- [ ] Convert `procUpdateRobotCards` + `procMoveCardsCheckProgrammed` to C#
-  - Rebuilds CardsDealt/CardsPlayed strings; checks when all players are ready
-  - Blocks programming phase completion
-
-- [ ] Convert `funcProcessCommand` (DB-category commands) to C#
-  - Partial: C# handles robot/user categories; MySQL still handles DB-category
-  - Every DB-side command during execution calls back into MySQL
-  - See `sql-to-csharp-conversion-list.md` for details
-
-- [ ] Convert `funcGetNextGameState` to C#
-  - Partial: DataHub still calls it directly for phone-triggered transitions
-  - State machine must be fully in C# to run without database logic
-
-- [ ] Replicate `Robots_BEFORE_UPDATE` trigger in C#
-  - Damage cap → death; ShutDown=4 → clear damage; ShutDown=2 → status=9
-  - Silent data bug in every place that writes Robots without this
-
-- [ ] Convert `funcDealSpamToPlayer` to C#
-  - Needed every time a robot takes damage
-  - Inserts a new Spam card into the player's discard pile
-
 - [ ] Set initial starting positions for robots before creating the command list
   - Robots need a valid board position + direction before ExecuteTurn runs
-  - Related: `procVerifyPosition`, `procSetRobotDirection` (see Section 5)
+  - Related: `procVerifyPosition`, `procSetRobotDirection` (see Section 7)
 
 ---
 
@@ -123,15 +89,18 @@
   - Draw an arrow on the LCD indicating the robot's current facing direction
   - Update arrow any time the robot's direction changes
 
-- [ ] LED animation during movement
-  - Add `StartMoveAsync()` / `StopMoveAsync()` commands to `Player`
-  - Animate LEDs (e.g. chase pattern or pulsing) when a move begins
-  - Restore robot color LEDs when movement completes
+- [ ] LED state machine across game phases (`Players.cs`, `CommandProcess.cs`, `GameController.cs`)
+  - **Connected / waiting for program** → LEDs ON (robot color) — `SendColorStatus()` already does this at connect time
+  - **Program complete** (all 5 registers filled / programs locked, state 5) → LEDs OFF
+  - **Executing move** (between `SendRobotCommandAsync` start and `isMoving` → false) → LEDs ON
+  - **Move complete, waiting for next program** (state 12 → 2) → LEDs ON again
+  - Implementation: call `SetLedAsync` at each transition point in `CommandProcess.ProcessCommand` (before/after move) and in `GameController` state transitions (state 5 = off, state 2 = on)
 
-- [ ] Confirm `isMoving` is set and unset correctly (`Players.cs`)
-  - Set to `true` when a move command is sent
-  - Set to `false` on `motion_complete` event and `is_moving=false` status event
-  - Verify `CommandProcess.cs` polls it correctly for category-1 commands
+- [-] Confirm `isMoving` is set and unset correctly (`Players.cs`)
+  - Set to `true` when a move command is sent (ack response `status == "in_progress"`)
+  - Set to `false` by `ListenStatusAsync` → `ProcessStatusEvent` when motion flags clear
+  - [x] `CommandProcess.cs` polling wired: `SendRobotCommandAsync` no longer blocks on `WaitForMotionCompleteAsync`; StatusID 2→3→4 flow now polls `isMoving` live
+  - [ ] Verify on hardware: confirm `isMoving` goes `true` on ack and `false` on motion complete under real robot conditions
 
 - [ ] Remove old/unused communication code
   - Audit `Players.cs` and `Program.cs` for any leftover WebSocket stubs or dead paths
@@ -192,6 +161,12 @@
 - [ ] Show deck size per player on GM UI
   - Same data as the player UI item above — total cards in each player's deck including Spam
   - Display alongside Damage in each robot's status panel so GM can see deck health at a glance
+
+- [ ] Show AIM robot battery level on GM UI
+  - `ws_status` already delivers `battery` (0–100%); `ProcessStatusEvent` reads it but discards it
+  - Server: add `Player.Battery` property; store in `ProcessStatusEvent`; merge into `GetAllDataJson` robots payload
+  - GM UI: show in each robot status panel when `IsConnected == 1`; color-code ≥50% green, 20–49% yellow, <20% red
+  - Design spec in `.claude/agents/gm-ui.md` § Robot Status Panel
 
 ---
 
@@ -293,16 +268,24 @@ Home Router (192.168.1.x)
 
 - [ ] Convert remaining SQL stored procedures to C# (see `sql-to-csharp-conversion-list.md`)
 
-  **High priority (beyond Section 1):**
+  **High priority:**
+  - [ ] `procResetPlayers` — advances shutdown states, respawns dead robots, resets option play records; called each turn start (`GameController.cs:259`)
+  - [ ] `procMoveCardsShuffleAndDeal` — shuffles and deals 9 cards to each player at turn start
+  - [ ] `procUpdateCardPlayed` — called every time a phone submits a card into a register
+  - [ ] `procUpdateRobotCards` + `procMoveCardsCheckProgrammed` — rebuilds CardsDealt/CardsPlayed strings; checks when all players are ready
+  - [ ] `funcProcessCommand` (DB-category commands) — C# handles robot/user categories; MySQL still handles DB-category; see `sql-to-csharp-conversion-list.md`
+  - [ ] `funcGetNextGameState` — DataHub still calls it directly for phone-triggered transitions
+  - [ ] `Robots_BEFORE_UPDATE` trigger — damage cap → death; ShutDown=4 → clear damage; ShutDown=2 → status=9; silent data bug without this
+  - [ ] `funcDealSpamToPlayer` — inserts a Spam card into the player's discard pile when a robot takes damage
   - [ ] `procGameFillPrograms` — auto-fill empty registers (classic rules damage > 4)
   - [ ] `procCurrentPosSave` / `procCurrentPosLoad` — state snapshot for state 16
   - [ ] `procDealOptionToRobot` — deal option cards to robots
-  - [ ] `procUpdatePlayerPriority` — round-robin priority rotation
   - [ ] `procVerifyPosition` — validate robot position (no collision, non-zero)
   - [ ] `funcGetNextCard` — draw next card; reshuffle discard if deck empty
   - [ ] `funcGetProgramReadyState` — returns programming readiness state
 
   **Medium / low priority:**
+  - [ ] `procUpdatePlayerPriority` — round-robin priority rotation
   - [ ] `procRobotConnectionStatus`, `procKickstart`, `procSetStatus`, `procProcessOption`
   - [ ] `Robots_AFTER_UPDATE` trigger (sync StatusLEDs via `procSetStatus` equivalent)
   - [ ] `CurrentGameData_BEFORE_UPDATE`, `GameData_BEFORE_UPDATE` triggers

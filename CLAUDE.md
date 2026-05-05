@@ -21,15 +21,17 @@ DataService.cs       MySQL data layer (server: mrobopi3, db: rally)
 DataHub.cs           SignalR hub for real-time phone/client updates
 CreateCommands.cs    Converts move cards → PendingCommand rows
 CommandProcess.cs    Background thread: executes PendingCommands in order
-AIMRobot.cs          WebSocket client for each VEX AIM robot
-Players.cs           Player / Robot data model
+Players.cs           Player / Robot data model + AIM robot WebSocket methods
 CardList.cs          MoveCard types + deck management
 OptionCards.cs       Upgrade card definitions
 BoardElement.cs      Board square / tile model
 RobotLocations.cs    Position + direction tracking
 RotationFunctions.cs Direction math helpers
 PhaseFunctions.cs    Per-phase helpers
-Data/                Entity Framework models + DbContext
+RobotScreenUI.cs     AIM robot touchscreen programming UI
+GridAlignmentAgent.cs Camera-based grid alignment for navigation
+Data/
+  MRRDbContext.cs    Entity Framework DbContext
 Sensors/             (empty — future Sense HAT integration)
 Services/            (empty — future service classes)
 wwwroot/             Static web assets for phone UI
@@ -59,6 +61,13 @@ wwwroot/             Static web assets for phone UI
 | 13–14 | Exit / reset → state 0 |
 | 15 | Recreate program → state 4 |
 | 16 | Reload positions → state 3 |
+
+## Working Principles
+
+- Don't assume. Don't hide confusion. Surface tradeoffs.
+- Minimum code that solves the problem. Nothing speculative.
+- Touch only what you must. Clean up only your own mess.
+- Define success criteria. Loop until verified.
 
 ## Coding Conventions
 - All new code in C#, .NET 9, nullable-enabled

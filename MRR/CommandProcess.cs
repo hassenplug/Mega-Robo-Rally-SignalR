@@ -177,8 +177,10 @@ namespace MRR
 
                     if (onecommand.StatusID == 2)
                     {
-                        LogCommand(onecommand, "Robot Command    ");
+                        if (onecommand.CommandCatID != 2)LogCommand(onecommand, "Robot Command    ");
+                        
                         onecommand.StatusID = 3; // executing
+                        //robot.isMoving = true;
                         robot.SendRobotCommandAsync(onecommand).Wait();
                         //_ = robot.SendRobotCommandAsync(onecommand);
                         if (onecommand.CommandCatID == 2)
@@ -187,13 +189,14 @@ namespace MRR
                             onecommand.StatusID = 4; // not waiting for reply
                         }
                         Db.SaveChanges();
-                        //return true;
+                        return true;
                     }
 
                     if (onecommand.StatusID == 3)
                     {
                         //robot.CheckMovingStatus().Wait();
-                        if (!robot.isMoving)
+                        // check if the robot is currently moving
+                        if (!robot.isCurrentlyMoving)
                         {
                             LogCommand(onecommand, "Robot Command Done");
                             onecommand.StatusID = 4;

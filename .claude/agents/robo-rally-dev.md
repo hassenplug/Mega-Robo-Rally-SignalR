@@ -175,11 +175,12 @@ Players may gain upgrade cards during the game. Key examples:
 ## PART 2 — VEX AIM ROBOT COMMAND REFERENCE
 
 ### 2.1 Connection
-Each robot exposes three WebSocket endpoints:
+Each robot exposes four WebSocket endpoints:
 ```
 ws://{ipAddress}:80/ws_cmd     — command channel (send commands, receive ack)
 ws://{ipAddress}:80/ws_status  — status channel (robot telemetry)
 ws://{ipAddress}:80/ws_img     — image channel (camera feed, optional)
+ws://{ipAddress}:80/ws_audio   — audio upload channel (optional)
 ```
 
 After connecting, send `program_init` to initialize:
@@ -365,42 +366,40 @@ LED targets: `all`, `light1`, `light2`, `light3`, `light4`, `light5`, `light6`
 
 **color_detection** — Enable color detection
 ```json
-{ "cmd_id": "color_detection", "b_enable": true, "b_merge": true }
+{ "cmd_id": "color_detection", "enable": true, "merge": true }
 ```
 
 **tag_detection** — Enable AprilTag detection
 ```json
-{ "cmd_id": "tag_detection", "b_enable": true }
+{ "cmd_id": "tag_detection", "enable": true }
 ```
 
 **model_detection** — Enable ML model object detection
 ```json
-{ "cmd_id": "model_detection", "b_enable": true }
+{ "cmd_id": "model_detection", "enable": true }
 ```
 
-### 2.8 Existing C# Helper Methods in AIMRobot.cs
+### 2.8 Existing C# Helper Methods in `Players.cs`
+
+All robot WebSocket methods are on the `Player` class (AIMRobot.cs no longer exists).
 
 | Method | Description |
 |---|---|
 | `ConnectAsync()` | Connect both WebSockets + send program_init |
-| `MoveAsync(distance, angle)` | drive_for with given angle and auto-signed speed |
+| `MoveAsync(distance, angle)` | drive_for: `distance * 77 mm`, `drive_speed = 200` |
 | `MoveUnlimitedAsync(angle, speed)` | Continuous drive |
-| `TurnAsync(direction)` | turn_for: direction×90 degrees |
+| `TurnAsync(direction)` | turn_for: `direction × 90°`, `turn_rate = 200` |
 | `StopAsync()` | drive with speed=0 |
 | `PrintAsync(text)` | lcd_print |
 | `ClearScreenAsync()` | lcd_clear_screen |
 | `SetLedAsync(led, r, g, b)` | light_set |
 | `ShowAIAsync()` | show_aivision |
-| `CheckMovingStatus()` | get_motion_status |
-| `SendRobotCommandAsync(cmd, p1, p2, wait)` | Execute by CommandID (1=Move, 2=Turn, 3=Stop) |
+| `CheckMovingStatus()` | **No-op stub** — returns Task.CompletedTask immediately; do not rely on it |
+| `GetStatusAsync()` | Poll ws_status once; returns typed `RobotStatus` |
+| `WaitForMotionCompleteAsync(timeoutMs)` | Block until `isMoving` false (set by ListenStatusAsync) |
+| `SendRobotCommandAsync(cmd)` | Dispatch by `cmd.CommandMoveType` (1=Move, 2=Turn, 0=Stop) |
 
-**Note on MoveAsync:** Current implementation uses `angle` parameter but hardcodes `drive_speed = 100 * (distance >= 0 ? 1 : -1)`. The `distance` parameter is not used to limit the actual travel distance in the current code — this needs to be calibrated to real board square measurements.
-
-### 2.9 Movement Calibration (TODO)
-For the physical game board, the robot needs to know how far to drive per board square. This must be calibrated empirically:
-- Measure robot travel distance per 100ms at speed 100
-- Calculate `distance` (in mm or encoder ticks) for one board square
-- The `drive_for` command takes a distance parameter that should be set based on board square size
+**Motion tracking:** `isMoving` is set by `ListenStatusAsync` (background loop, 100 ms poll on ws_status). `CommandProcess` StatusID 3 polls `isMoving` to know when a move completes.
 
 ---
 
@@ -448,7 +447,6 @@ hat.Joystick.Read();   // returns JoystickDirection enum
 ### 4.1 File Organization
 ```
 MRR/
-  AIMRobot.cs          -- Robot WebSocket client (one instance per robot)
   BoardElement.cs      -- Board square model
   CardList.cs          -- Move cards
   CommandList.cs       -- Command collection
@@ -457,16 +455,16 @@ MRR/
   DataHub.cs           -- SignalR hub
   DataService.cs       -- MySQL data layer
   GameController.cs    -- State machine + orchestration
+  GridAlignmentAgent.cs -- Camera-based grid alignment
   OptionCards.cs       -- Upgrade cards
   PhaseFunctions.cs    -- Phase helpers
-  Players.cs           -- Player/Robot model
+  Players.cs           -- Player/Robot model + all AIM robot WebSocket methods
   Program.cs           -- Startup + REST endpoints
   RobotLocations.cs    -- Position model
+  RobotScreenUI.cs     -- AIM touchscreen programming UI
   RotationFunctions.cs -- Direction math
   Data/
-    MRRDbContext.cs    -- EF Core context
-    PendingCommand.cs  -- Command entity
-    Robot.cs           -- Robot entity
+    MRRDbContext.cs    -- EF Core context (CommandItem, CurrentGameData)
   Sensors/             -- EMPTY: add SenseHatService.cs here
   Services/            -- EMPTY: add additional services here
   wwwroot/             -- Phone browser UI assets
@@ -488,10 +486,10 @@ States in `GameController.NextState()`:
 - **16** → Reload positions → **3**
 
 ### 4.3 Command Execution Pipeline
-1. `CreateCommands.ExecuteTurn()` writes `PendingCommandEntity` rows to the `CommandList` table
-2. Each row has: `Turn`, `Phase`, `CommandSequence`, `CommandSubSequence`, `RobotID`, `CommandTypeID`, `Parameter`, `ParameterB`
-3. `CommandProcess.ProcessCommands()` reads rows in sequence order, calls `AIMRobot.SendRobotCommandAsync()`
-4. Status codes: 1=Waiting, 2=Ready, 3=ScriptCmd, 4=InProgress, 5=ScriptComplete, 6=Done
+1. `CreateCommands.ExecuteTurn()` writes `CommandItem` rows to the `CommandList` table
+2. Each row has: `Turn`, `NormalSequence`, `RobotID`, `CommandCatID`, `CommandMoveType`, `Value`, `ValueB`
+3. `PendingCommands.ProcessCommands()` reads rows in sequence order, calls `Player.SendRobotCommandAsync()`
+4. Status codes: 1=Waiting, 2=Ready, 3=Executing (polling isMoving), 4=InProgress, 5=ScriptComplete, 6=Done
 
 ### 4.4 Board Element Types (BoardElement.cs)
 Board squares can have types like: Normal, Wall, Pit, Flag, Start, Repair, ConveyorBelt, ExpressConveyor, Gear, Laser, PusherOdd, PusherEven

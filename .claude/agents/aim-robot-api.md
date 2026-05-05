@@ -20,8 +20,9 @@ tools:
 # VEX AIM Robot API — C# Reference Agent
 
 You are an expert on controlling VEX AIM robots from C# in the **Mega Robo Rally
-(MRR)** project.  The authoritative C# wrapper is `MRR/AIMRobot.cs`.  All new
-robot commands must follow the patterns documented here.
+(MRR)** project.  The authoritative C# wrapper is `MRR/Players.cs` (all AIM robot
+WebSocket methods live on the `Player` class).  All new robot commands must follow
+the patterns documented here.
 
 Source of truth: [VEX AIM WebSocket Library v1.0.1](https://github.com/VEX-Robotics/AIM_Websocket_Library)
 (Python reference client — MIT licensed).
@@ -120,25 +121,25 @@ public async Task SendCommandAsync(object command)
 | `final_heading` | int | 0 | Absolute heading to correct to after move (0 = don't correct) |
 | `stacking_type` | int | 0 | See stacking_type table above |
 
-C# wrapper:
+C# wrapper (actual implementation in `Players.cs`):
 ```csharp
 public Task MoveAsync(int distance, int angle) =>
     SendCommandAsync(new
     {
         cmd_id = "drive_for",
-        distance = Math.Abs(distance),
-        angle,
-        drive_speed = 100.0 * (distance >= 0 ? 1 : -1),
-        turn_speed = 0.0,
+        distance = distance * 77,   // 77 mm per board square
+        angle = RotationFunctions.Degrees(angle),
+        drive_speed = 200,
+        turn_speed = 0,
         final_heading = 0,
         stacking_type = 0
     });
 ```
 
-Usage for Robo Rally moves (one grid square ≈ measured in mm):
+Usage for Robo Rally moves:
 ```csharp
-await robot.MoveAsync(300, 0);    // forward one square
-await robot.MoveAsync(-300, 0);   // backward one square
+await robot.MoveAsync(1, 0);    // forward one square (77 mm)
+await robot.MoveAsync(-1, 0);   // backward one square
 ```
 
 ### 2.2 `drive` — continuous drive (also used to stop)
@@ -189,7 +190,7 @@ public Task TurnAsync(int direction) =>
     {
         cmd_id = "turn_for",
         angle = direction * 90,
-        turn_rate = 100.0,
+        turn_rate = 200,
         stacking_type = 0
     });
 ```
@@ -232,13 +233,11 @@ public Task TurnAsync(int direction) =>
 
 Send on `ws_cmd`; response contains motion state flags.
 
-```csharp
-public async Task CheckMovingStatus()
-{
-    await SendCommandAsync(new { cmd_id = "get_motion_status" });
-    isMoving = false;   // parse actual response to set this correctly
-}
-```
+**Note:** `CheckMovingStatus()` in `Players.cs` is currently a no-op stub (returns
+`Task.CompletedTask` immediately without polling). Motion state is tracked instead
+via `ListenStatusAsync` — a background loop on `ws_status` that sets `isMoving`
+from the `flags` bitmask every 100 ms. Do not call `CheckMovingStatus()` expecting
+real data; rely on `isMoving` being updated by the status listener.
 
 Status object (from `ws_status`) includes a `flags` bitmask (hex string), `battery` (int),
 `robot_x` / `robot_y` (mm from odometry origin, sent as strings), `heading`, and `rotation` fields.
@@ -572,7 +571,7 @@ Actual response observed from a live robot:
 
 ## 11. Adding a New Command — Checklist
 
-1. Add a public `Task XxxAsync(...)` method to `AIMRobot.cs`.
+1. Add a public `Task XxxAsync(...)` method to `Players.cs` (on the `Player` class).
 2. Call `SendCommandAsync(new { cmd_id = "...", ... })` or build a `Dictionary<string,object>` when the key must be dynamic (like LED names).
 3. If the command is a game action, add a `case` to `SendRobotCommandAsync(int CommandID, ...)` and map it to a `CommandItem.CommandID`.
 4. For moves that take time: either rely on the ACK round-trip (status `"complete"`) or poll `get_motion_status` via `CheckMovingStatus()`.
@@ -582,15 +581,16 @@ Actual response observed from a live robot:
 
 ## 12. Robo Rally Game-Command Mapping
 
-`SendRobotCommandAsync(CommandItem cmd)` dispatches based on `CommandID`:
+`SendRobotCommandAsync(CommandItem cmd)` in `Players.cs` dispatches on `cmd.CommandMoveType`:
 
-| CommandID | MRR Action | AIMRobot call |
-|-----------|------------|---------------|
-| 1 | Move | `MoveAsync(Param1, Param2)` |
-| 2 | Turn | `TurnAsync(Param1)` — +1 right, −1 left |
-| 3 | Stop | `StopAsync()` |
+| CommandMoveType | MRR Action | Player method |
+|-----------------|------------|---------------|
+| 1 | Move | `MoveAsync(cmd.Value, cmd.ValueB)` |
+| 2 | Turn | `TurnAsync(cmd.Value)` — +1 right, −1 left |
+| 0 | Stop | _(no-op currently)_ |
 
-`CommandCatID == 1` → `waitforcompletion = 1` (blocks until move is done).
+`CommandCatID == 1` → wait for `isMoving` to clear (polled via `CommandProcess` StatusID 3 loop).
+`CommandCatID == 2` → fire and forget; advances to StatusID 4 immediately after send.
 
 ---
 

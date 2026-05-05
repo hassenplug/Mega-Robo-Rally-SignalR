@@ -26,7 +26,7 @@ can program their robot's 5-register sequence by tapping the robot's own screen
 instead of (or in addition to) their phone.
 
 **Always read these files before making changes:**
-- `MRR/AIMRobot.cs` — robot WebSocket wrapper
+- `MRR/Players.cs` — `Player` class; all AIM robot WebSocket methods live here
 - `MRR/GameController.cs` — state machine
 - `MRR/Players.cs` — player/robot data model
 - `MRR/DataHub.cs` — SignalR hub (`UpdatePlayer`)
@@ -70,12 +70,13 @@ instead of (or in addition to) their phone.
 
 Both fields are **comma-separated strings of integer TypeIDs**:
 
-- `CardsDealt` — the 9 cards dealt to the player, e.g. `"5,6,7,1,2,3,8,10,4"`
-  - TypeID matches `(int)MoveCard.tCardType`
-  - Parse: `rbt.CardsDealt.Split(',')` → up to 9 TypeID strings
+- `CardsDealtStr` — the 9 cards dealt to the player, e.g. `"5,6,7,1,2,3,8,10,4"`
+  - `[NotMapped]` string property on `Player`; populated from the `CardsDealt` DB column
+  - Parse: `player.CardsDealtStr.Split(',')` → up to 9 TypeID strings
   - Index 0 = first dealt card, displayed on ring button H1
 
-- `CardsPlayed` — the 5 program registers, e.g. `"5,0,6,0,0"`
+- `CardsPlayedStr` — the 5 program registers, e.g. `"5,0,6,0,0"`
+  - `[NotMapped]` string property on `Player`; populated from the `CardsPlayed` DB column
   - 5 comma-separated values; `0` means the register is empty
   - Index 0 = Register 1 (first to execute), index 4 = Register 5
   - Reset to `"0,0,0,0,0"` at the start of each turn
@@ -141,17 +142,17 @@ The 240×240 circle is divided into two zones.
 ### Zone 1 — Hand Card Ring (9 buttons)
 
 9 circular tap targets on a ring of radius **95 px** from center (120, 120).
-Each button is a filled circle of radius **20 px**.
+Each button is a filled circle of radius **24 px** (`BtnRadius = 24` in `RobotScreenUI.cs`).
 
 **Distribution: 4 buttons on the top arc, 5 buttons on the bottom arc.**
-Angles measured clockwise from 12 o'clock (0° = top):
+Angles measured clockwise from 12 o'clock (0° = top) — from `RobotScreenUI.cs`:
 
 | Hand slot | Arc | Angle (°) | Center (x, y) |
 |-----------|-----|-----------|---------------|
-| H1 | top | 300 | (38, 73) |
-| H2 | top | 330 | (73, 38) |
-| H3 | top | 30 | (167, 38) |
-| H4 | top | 60 | (202, 73) |
+| H1 | top | 315 | (53, 53) |
+| H2 | top | 345 | (95, 28) |
+| H3 | top | 15 | (145, 28) |
+| H4 | top | 45 | (187, 53) |
 | H5 | bottom | 120 | (202, 167) |
 | H6 | bottom | 150 | (167, 202) |
 | H7 | bottom | 180 | (120, 215) |
@@ -164,7 +165,7 @@ Angles measured clockwise from 12 o'clock (0° = top):
 > int cy = 120 - (int)(95 * Math.Cos(angleDeg * Math.PI / 180));
 > ```
 
-The 9 cards from `CardsDealt.Split(',')` map to H1–H9 in order (index 0 → H1).
+The 9 cards from `CardsDealtStr.Split(',')` map to H1–H9 in order (index 0 → H1).
 If fewer than 9 cards are dealt, the remaining button positions are not drawn.
 
 **Visual states per button:**
@@ -180,10 +181,10 @@ Display the single-letter abbreviation centered inside the button circle using `
 ### Zone 2 — Program Slots (5 horizontal rectangles)
 
 5 register slots arranged **horizontally** across the vertical center of the screen.
-Each slot is **38 px wide × 26 px tall**, with 3 px gaps between slots.
+Each slot is **40 px wide × 46 px tall** (`SlotW=40`, `SlotH=46`), with 3 px gaps between slots.
 
-Total row width = 5 × 38 + 4 × 3 = 202 px.
-Row start x = (240 − 202) / 2 = 19 px.
+Total row width = 5 × 40 + 4 × 3 = 212 px.
+Row start x = (240 − 212) / 2 = 14 px.
 
 | Register | Slot | Center (x, y) |
 |----------|------|---------------|
@@ -193,7 +194,7 @@ Row start x = (240 − 202) / 2 = 19 px.
 | 4 | P4 | (161, 120) |
 | 5 | P5 | (202, 120) |
 
-Parse `CardsPlayed.Split(',')` to populate slots: index 0 → P1, index 4 → P5.
+Parse `CardsPlayedStr.Split(',')` to populate slots: index 0 → P1, index 4 → P5.
 A slot is **empty** if its value is `"0"` or empty string.
 
 **Visual states per slot:**
@@ -343,17 +344,16 @@ Manages the UI state and touch loop for one robot's screen.
 ```csharp
 public class RobotScreenUI
 {
-    private readonly AIMRobot _robot;
-    private readonly Player _player;
+    private readonly Player _player;               // Player class holds all robot WebSocket methods
     private readonly DataService _dataService;
     private readonly IHubContext<DataHub> _hubContext;
 
     // Cached state (refreshed from player before each render)
-    private int[] _dealtTypeIds  = Array.Empty<int>();   // from CardsDealt
-    private int[] _playedTypeIds = new int[5];           // from CardsPlayed (0=empty)
+    private int[] _dealtTypeIds  = Array.Empty<int>();   // from CardsDealtStr
+    private int[] _playedTypeIds = new int[5];           // from CardsPlayedStr (0=empty)
     private bool _isLocked;
 
-    public RobotScreenUI(AIMRobot robot, Player player,
+    public RobotScreenUI(Player player,
                          DataService dataService, IHubContext<DataHub> hubContext);
 
     // Refresh cached state from player.CardsDealt / player.CardsPlayed strings
@@ -378,13 +378,13 @@ public class RobotScreenUI
 ```csharp
 void RefreshFromPlayer()
 {
-    _dealtTypeIds = (_player.CardsDealt ?? "")
+    _dealtTypeIds = (_player.CardsDealtStr ?? "")
         .Split(',', StringSplitOptions.RemoveEmptyEntries)
         .Select(s => int.TryParse(s, out var v) ? v : 0)
         .Take(9)
         .ToArray();
 
-    var played = (_player.CardsPlayed ?? "0,0,0,0,0")
+    var played = (_player.CardsPlayedStr ?? "0,0,0,0,0")
         .Split(',', StringSplitOptions.RemoveEmptyEntries)
         .Select(s => int.TryParse(s, out var v) ? v : 0)
         .ToArray();
@@ -432,54 +432,24 @@ POST /api/settings/robot-screen?enabled=true|false
 
 This flag is checked at state 2/3/4 entry to decide whether to activate `RobotScreenUI`.
 
-### GetStatusAsync on AIMRobot
+### GetStatusAsync
 
-Add a method to `AIMRobot.cs` that polls `ws_status` and returns a typed object
-containing `TouchFlags`, `TouchX`, `TouchY`:
-
-```csharp
-public async Task<RobotStatus> GetStatusAsync()
-{
-    var bytes = new byte[] { 0x01 };
-    await wsStatus.SendAsync(new ArraySegment<byte>(bytes),
-        WebSocketMessageType.Binary, true, CancellationToken.None);
-
-    var buffer = new byte[4096];
-    var result = await wsStatus.ReceiveAsync(
-        new ArraySegment<byte>(buffer), CancellationToken.None);
-    var json = Encoding.UTF8.GetString(buffer, 0, result.Count);
-    return JsonSerializer.Deserialize<RobotStatus>(json)!;
-}
-
-public class RobotStatus
-{
-    [JsonPropertyName("robot")]
-    public RobotSection Robot { get; set; } = new();
-
-    public class RobotSection
-    {
-        [JsonPropertyName("touch_flags")] public string TouchFlags { get; set; } = "0x0000";
-        [JsonPropertyName("touch_x")]     public int TouchX { get; set; }
-        [JsonPropertyName("touch_y")]     public int TouchY { get; set; }
-        [JsonPropertyName("battery")]     public int Battery { get; set; }
-        [JsonPropertyName("flags")]       public string Flags { get; set; } = "0x0";
-    }
-}
-```
+`GetStatusAsync()` and `RobotStatus` (with `TouchFlags`, `TouchX`, `TouchY`,
+`Battery`, `Flags`) already exist in `Players.cs`. Do not re-implement them.
 
 ---
 
 ## Implementation Checklist
 
-- [ ] Add `GetStatusAsync()` + `RobotStatus` to `AIMRobot.cs`
-- [ ] Create `MRR/RobotScreenUI.cs` with:
+- [x] `GetStatusAsync()` + `RobotStatus` already exist in `Players.cs` — do not re-add
+- [x] `MRR/RobotScreenUI.cs` exists with:
   - Layout constants (ring angles → cx/cy, slot positions)
   - `RefreshFromPlayer()` parsing CardsDealt/CardsPlayed
   - `RenderAsync()` full redraw
   - `RenderIdleAsync()` emoji states
   - `StartPollingAsync()` touch loop with debounce
   - `HandleTapAsync()` hit-test + procUpdateCardPlayed + broadcast + re-render
-- [ ] Add `UseRobotScreen` flag + `POST /api/settings/robot-screen` endpoint
+- [x] `UseRobotScreen` flag + `GET /api/settings/robot-screen` endpoint already exist
 - [ ] Wire `RobotScreenUI` lifecycle into `GameController` at states 2/3/4, 5, 6–11
 - [ ] Re-render robot screen when phone UI tap updates CardsPlayed
 - [ ] Test: toggle ON, deal cards, tap ring → slot fills; tap filled slot → clears
@@ -490,7 +460,7 @@ public class RobotStatus
 
 ## Key Rules
 
-1. All LCD commands go through `AIMRobot.SendCommandAsync` — never bypass it.
+1. All LCD commands go through `Player.SendCommandAsync` — never bypass it.
 2. Read the ACK for every LCD command before sending the next one.
 3. Touch polling runs on its own `Task` using `ws_status` — completely separate
    from the `ws_cmd` socket used for rendering.
