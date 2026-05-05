@@ -12,7 +12,7 @@ description: >
   Use for any task involving the GM control panel (gmindex.html and any supporting
   JS/CSS), game selection UI, context-sensitive action buttons, robot status display,
   board viewer integration, pre-game player configuration, or the game message bar.
-model: claude-sonnet-4-6
+model: sonnet
 tools:
   - Read
   - Write
@@ -562,7 +562,7 @@ becomes read-only) once the game is running.
 10 entries (IDs 1–10), each with a MAC address and a `DefaultBody`.
 **Note:** `IPAddress` is NOT a column in the `Robots` DB table. It is a `[NotMapped]`
 property on the `Player` class, populated at runtime from the `MACID` column via
-`viewRobotsInit`. Do not try to read or write it via the table API.
+inline SQL in `DataService.GetAllPlayers()`. Do not try to read or write it via the table API.
 
 **`Robots.PlayerSeat`** — seat number 1–8 indicating where the player sits
 around the physical board. Drives `SeatOrientation`:

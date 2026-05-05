@@ -8,7 +8,7 @@ description: >
   (set_pose + robot_x/robot_y), and how to integrate camera grid alignment
   (GridAlignmentAgent) with IMU feedback for robust post-move correction.
   Use for any task involving improving how accurately robots traverse the board.
-model: claude-sonnet-4-6
+model: sonnet
 tools:
   - Read
   - Write

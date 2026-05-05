@@ -6,7 +6,7 @@ description: >
   the JSON wire format, the C# AIMRobot wrapper patterns, and how they fit into
   the MRR command pipeline. Use whenever adding or debugging robot movement,
   display, lighting, sensor, or kicker commands.
-model: claude-sonnet-4-6
+model: sonnet
 tools:
   - Read
   - Write

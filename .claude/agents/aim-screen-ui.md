@@ -7,7 +7,7 @@ description: >
   AIMRobot LCD commands, GameController integration points (states 4–5), and the
   toggle flag pattern. Use for any task involving the robot screen programming
   interface.
-model: claude-sonnet-4-6
+model: sonnet
 tools:
   - Read
   - Write

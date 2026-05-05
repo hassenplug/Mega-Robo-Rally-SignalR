@@ -148,7 +148,33 @@ namespace MRR.Services
             UpdateGameState();
             //string strSQLcgd = "Select iKey, sKey, iValue, sValue from CurrentGameData;";
 
-            string strSQL = "select * from viewRobots;";
+            string strSQL = @"
+                SELECT r.RobotID, rb.Name AS RobotName, rb.Color AS RobotColor, rb.ColorFG AS RobotColorFG,
+                       r.CurrentFlag, rs.StatusColor, rs.LEDColor, rs.ShortDescription AS PlayerStatus,
+                       r.Status AS StatusID, r.CurrentPosCol AS X, r.CurrentPosRow AS Y, r.CurrentPosDir AS Dir,
+                       rd.ShortDirDesc AS sDir, r.ArchivePosCol AS AX, r.ArchivePosRow AS AY, r.Score,
+                       r.OperatorName, r.PositionValid, r.Priority, r.ShutDown, r.Password, r.PlayerSeat,
+                       r.Energy, CONCAT(r.CurrentFlag,'/',r.Energy) AS FlagEnergy,
+                       so.Direction AS PlayerViewDirection, so.Direction AS DirectionAdjustment,
+                       r.CardsDealt, r.CardsPlayed,
+                       IF(played.ShowCardsPlayed IS NULL OR rs.Active = 0, rs.ShortDescription, played.ShowCardsPlayed) AS StatusToShow,
+                       IFNULL(cl.Description,'') AS msg
+                FROM Robots r
+                JOIN RobotBodies rb ON r.RobotBodyID = rb.RobotBodyID
+                JOIN RobotStatus rs ON IF(r.IsConnected = 1, r.Status, 10) = rs.RobotStatusID
+                JOIN RobotDirections rd ON r.CurrentPosDir = rd.DirID
+                JOIN SeatOrientation so ON r.PlayerSeat = so.SeatID
+                LEFT JOIN (
+                    SELECT mc.Owner,
+                           GROUP_CONCAT(IF(mc.CardID IS NULL, '-', IF(mc.Executed, mct.ShortDescription, 'X'))
+                                        ORDER BY mc.PhasePlayed ASC) AS ShowCardsPlayed
+                    FROM MoveCards mc
+                    JOIN MoveCardTypes mct ON mc.CardTypeID = mct.CardTypeID
+                    WHERE mc.PhasePlayed > 0
+                    GROUP BY mc.Owner ORDER BY mc.Owner
+                ) played ON r.RobotID = played.Owner
+                LEFT JOIN CommandList cl ON r.MessageCommandID = cl.CommandID
+                ORDER BY r.Priority";
             //string titlemessage = "Turn " + GetIntFromDB("Select iValue from CurrentGameData where iKey=2;");
             string titlemessage = "Turn " + Turn;
             if (Phase > 0)
@@ -452,7 +478,14 @@ namespace MRR.Services
             {
                 var players = new Players();
 
-                string strSQL = "Select * from viewRobotsInit;";
+                string strSQL = @"SELECT r.RobotID, rb.Name AS RobotName, rb.Color AS RobotColor, rb.ColorFG AS RobotColorFG,
+                       r.OperatorName, r.Password, r.PlayerSeat, rbase.MACID
+                FROM Robots r
+                JOIN RobotBodies rb ON r.RobotBodyID = rb.RobotBodyID
+                JOIN RobotDirections rd ON r.CurrentPosDir = rd.DirID
+                JOIN SeatOrientation so ON r.PlayerSeat = so.SeatID
+                JOIN RobotBases rbase ON r.RobotBaseID = rbase.RobotBaseID
+                ORDER BY r.RobotID";
 
                 var loadplayers = this.GetQueryResults(strSQL);
                 foreach (DataRow row in loadplayers.Rows)
@@ -480,7 +513,28 @@ namespace MRR.Services
 
         public void RefreshAllPlayers()
         {
-            string strSQL = "Select * from viewRobotsRefresh;";
+            string strSQL = @"SELECT r.RobotID, r.CurrentFlag, rs.StatusColor, rs.LEDColor, rs.ShortDescription AS PlayerStatus,
+                   r.Status AS StatusID, r.CurrentPosCol AS X, r.CurrentPosRow AS Y, r.CurrentPosDir AS Dir,
+                   rd.ShortDirDesc AS sDir, r.ArchivePosCol AS AX, r.ArchivePosRow AS AY, r.Score,
+                   r.PositionValid, r.Priority, r.ShutDown, r.Energy,
+                   CONCAT(r.CurrentFlag,'/',r.Energy) AS FlagEnergy,
+                   r.CardsDealt, r.CardsPlayed,
+                   IF(played.ShowCardsPlayed IS NULL OR rs.Active = 0, rs.ShortDescription, played.ShowCardsPlayed) AS StatusToShow,
+                   cl.Description AS msg
+            FROM Robots r
+            JOIN RobotStatus rs ON IF(r.IsConnected = 1, r.Status, 10) = rs.RobotStatusID
+            JOIN RobotDirections rd ON r.CurrentPosDir = rd.DirID
+            LEFT JOIN (
+                SELECT mc.Owner,
+                       GROUP_CONCAT(IF(mc.CardID IS NULL, '-', IF(mc.Executed, mct.ShortDescription, 'X'))
+                                    ORDER BY mc.PhasePlayed) AS ShowCardsPlayed
+                FROM MoveCards mc
+                JOIN MoveCardTypes mct ON mc.CardTypeID = mct.CardTypeID
+                WHERE mc.PhasePlayed > 0
+                GROUP BY mc.Owner ORDER BY mc.Owner
+            ) played ON r.RobotID = played.Owner
+            LEFT JOIN CommandList cl ON r.MessageCommandID = cl.CommandID
+            ORDER BY r.Priority";
 
             var loadplayers = this.GetQueryResults(strSQL);
             foreach (DataRow row in loadplayers.Rows)

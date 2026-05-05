@@ -173,11 +173,11 @@ app.MapGet("/api/state/{newstate?}/{parameter1?}", async (string? newstate, stri
 app.MapGet("/api/robot/alignthis/{robotId:int}", async (int robotId, DataService dataService) =>
 {
     var dt = dataService.GetQueryResults(
-        $"SELECT IPAddress FROM Robots WHERE RobotID={robotId};");
+        $"SELECT rb.MACID FROM Robots r JOIN RobotBases rb ON r.RobotBaseID = rb.RobotBaseID WHERE r.RobotID={robotId};");
     if (dt.Rows.Count == 0)
         return Results.NotFound(new { error = $"Robot {robotId} not found" });
 
-    var ipAddress = dt.Rows[0]["IPAddress"]?.ToString();
+    var ipAddress = dt.Rows[0]["MACID"]?.ToString();
     if (string.IsNullOrWhiteSpace(ipAddress))
         return Results.BadRequest(new { error = $"Robot {robotId} has no IP address configured" });
 

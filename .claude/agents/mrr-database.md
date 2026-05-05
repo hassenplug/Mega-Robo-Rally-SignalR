@@ -6,7 +6,7 @@ description: >
   views, stored procedures, functions, triggers, and seed data. Use whenever
   adding or modifying the DB schema, writing new queries, or syncing the
   install script.
-model: claude-sonnet-4-6
+model: sonnet
 tools:
   - Read
   - Write
@@ -671,10 +671,8 @@ Saved by `procCurrentPosSave()` at state 5; restored by `procCurrentPosLoad()` a
 
 | View | Purpose |
 |---|---|
-| `viewRobots` | Full robot state joining Robots + RobotBodies + RobotStatus + RobotDirections + SeatOrientation + CommandList(msg). Ordered by Priority. |
+| `viewRobots` | Full robot state joining Robots + RobotBodies + RobotStatus + RobotDirections + SeatOrientation + CommandList(msg). Ordered by Priority. Still used by stored procedures; C# (`GetAllDataJson`) uses inline SQL instead. |
 | `viewRobotsMicro` | Same as viewRobots but uses Robots.CardsDealt/CardsPlayed directly (no sub-query) |
-| `viewRobotsInit` | Robot state used by `DataService.GetAllPlayers()` on init — maps `MACID` column to `IPAddress` for robot connection. Actively queried at startup. |
-| `viewRobotsRefresh` | Robot state used by `DataService.GetAllPlayers()` on refresh — updates in-memory player list from DB mid-game. Actively queried. |
 | `viewRobotsOld` | Legacy version with separate CardsDealt sub-query |
 | `viewCommandListActive` | `SELECT … WHERE StatusID >= 2 AND StatusID <= 4` |
 | `viewCurrentGame` | `SELECT sKey, iValue, sValue, Category FROM CurrentGameData` |

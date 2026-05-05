@@ -67,9 +67,9 @@ Generated: 2026-03-24
 
 | Name | Status | Priority | Description |
 |---|---|---|---|
-| `viewRobots` | **Done** | High | Full robot display view — used by `GetAllDataJson()` for every SignalR update |
-| `viewRobotsInit` | **Done** | High | Player load view including MAC/IP — *definition missing from SQL file* |
-| `viewRobotsRefresh` | **Done** | High | Lightweight refresh view — *definition missing from SQL file* |
+| `viewRobots` | **Done** | High | Inlined into `GetAllDataJson()` — view kept in schema (still used by stored procedures) |
+| `viewRobotsInit` | **Done** | High | Replaced with inline SQL in `DataService.GetAllPlayers()` — view removed from schema |
+| `viewRobotsRefresh` | **Done** | High | Replaced with inline SQL in `DataService.RefreshAllPlayers()` — view removed from schema |
 | `viewRobotOptions` | **Done** | High | Robot option cards — used by `LoadOptionCardsFromDatabase()` |
 | `viewMoveCards` | Not Started | **Medium** | Human-readable card view — not yet queried from C# |
 | `viewCommandList` | Not Started | Low | Admin/debug annotated command view |
@@ -91,7 +91,6 @@ Must be converted before the game can run without MySQL:
 4. `procUpdateCardPlayed` + `procUpdateRobotCards` — block phone card programming
 5. `funcGetNextGameState` — DataHub still calls it directly for phone-triggered transitions
 6. `procCommandUpdateStatus` — blocks `procRobotConnectionStatus` (missing from SQL file)
-7. `viewRobotsInit` + `viewRobotsRefresh` — view definitions are missing from SQL files
 
 ---
 

@@ -5,7 +5,7 @@ description: >
   database into equivalent C# code within the MRR project (DataService.cs or
   appropriate service class). Knows the full rally DB schema, all stored
   procedures, and the existing C# data layer patterns.
-model: claude-sonnet-4-6
+model: sonnet
 tools:
   - Read
   - Write

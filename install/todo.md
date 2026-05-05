@@ -5,42 +5,42 @@
 
 ---
 
-## Section 1 — Critical Path
-*Game cannot start or run without these.*
-
-- [ ] Set initial starting positions for robots before creating the command list
-  - Robots need a valid board position + direction before ExecuteTurn runs
-  - Related: `procVerifyPosition`, `procSetRobotDirection` (see Section 7)
-
----
-
-## Section 2 — Game Mechanics
+## Section 1 — Game Mechanics
 *Renegade rules completeness.*
+
+- [ ] Shutdown mechanic (`GameController.cs` + phone UI)
+  - Player announces shutdown during programming phase
+  - Shut-down robot: takes no laser damage, cannot move, may clear damage cards
 
 - [ ] Reboot mechanic
   - Triggered when robot moves into a pit or off the board
   - Robot placed at chosen reboot token; receives 2 Spam cards; continues this turn
-  - Needs: pit/edge detection in `CreateCommands` + `DataService` respawn logic
+  - Player must choose the direction the robot faces when placed at the reboot token
+  - Needs: pit/edge detection in `CreateCommands` + `DataService` respawn logic; direction picker on phone UI; `procSetRobotDirection` equivalent (see Section 6)
 
-- [-] Board element activation — conveyor belts (`CreateCommands.cs`)
+### Board Element Activation
+
+- [-] Conveyor belts (`CreateCommands.cs`)
   - [x] Express belts move first (2 squares), then all belts (1 square)
   - [x] Chained movement: robot landing on a second belt also moves
   - [ ] Merge conveyor belts (splitting paths converge)
 
-- [ ] Board element activation — pushers (`CreateCommands.cs`)
+- [ ] Pushers (`CreateCommands.cs`)
   - Activate only on specific phases (odd or even, marked per pusher)
   - Push robot one square; chain-pushes if another robot is in path
 
-- [x] Board element activation — gears (`CreateCommands.cs`)
+- [x] Gears (`CreateCommands.cs`)
   - CW gear: rotate robot 90° right; CCW gear: rotate robot 90° left
 
-- [x] Board element activation — board lasers (`CreateCommands.cs`)
+- [x] Board lasers (`CreateCommands.cs`)
   - Fire each phase; damage any robot in line of sight
   - Wall-blocked: walls on the far side of source/target stop the laser
 
-- [x] Board element activation — robot lasers (`CreateCommands.cs`)
+- [x] Robot lasers (`CreateCommands.cs`)
   - Each robot fires 1 laser forward; damages first robot in path
   - Option cards: RearLaser (fires backward too), HighPowerLaser (2 damage)
+
+---
 
 - [x] Flag / checkpoint detection (`CreateCommands.cs` + `GameController.cs`)
   - End of each phase: robot on flag N (where N == LastFlag+1) touches it
@@ -48,10 +48,6 @@
 - [ ] Win condition (`GameController.cs`)
   - After flag check: if `robot.LastFlag == TotalFlags` → that robot wins
   - End the game and display winner
-
-- [ ] Shutdown mechanic (`GameController.cs` + phone UI)
-  - Player announces shutdown during programming phase
-  - Shut-down robot: takes no laser damage, cannot move, may clear damage cards
 
 - [ ] Damage card draw mechanic
   - When a robot takes damage, draw top card from damage stack → add to discard
@@ -65,7 +61,7 @@
 
 ---
 
-## Section 3 — Robot Hardware
+## Section 2 — Robot Hardware
 *VEX AIM physical integration.*
 
 - [ ] Calibrate `drive_for` distance for one board square
@@ -87,7 +83,7 @@
   - Show robot name and player name on each AIM robot's screen
   - Call `PrintAsync` / `lcd_print_at` in `GameController` state 0
   - Draw an arrow on the LCD indicating the robot's current facing direction
-  - Update arrow any time the robot's direction changes
+    - Update from drawing an arrow to loading an arrow image
 
 - [ ] LED state machine across game phases (`Players.cs`, `CommandProcess.cs`, `GameController.cs`)
   - **Connected / waiting for program** → LEDs ON (robot color) — `SendColorStatus()` already does this at connect time
@@ -96,7 +92,12 @@
   - **Move complete, waiting for next program** (state 12 → 2) → LEDs ON again
   - Implementation: call `SetLedAsync` at each transition point in `CommandProcess.ProcessCommand` (before/after move) and in `GameController` state transitions (state 5 = off, state 2 = on)
 
-- [-] Confirm `isMoving` is set and unset correctly (`Players.cs`)
+- [-] Update isMoving to multiple states
+  - 0 when not moving
+  - 1 when starting a move (sending move command)
+  - 2 when robot comfirms move is in progress
+  - back to 0 when move is complete (or move to state 3 when move complete but unchecked)
+  - Confirm `isMoving` is set and unset correctly (`Players.cs`)
   - Set to `true` when a move command is sent (ack response `status == "in_progress"`)
   - Set to `false` by `ListenStatusAsync` → `ProcessStatusEvent` when motion flags clear
   - [x] `CommandProcess.cs` polling wired: `SendRobotCommandAsync` no longer blocks on `WaitForMotionCompleteAsync`; StatusID 2→3→4 flow now polls `isMoving` live
@@ -104,6 +105,8 @@
 
 - [ ] Remove old/unused communication code
   - Audit `Players.cs` and `Program.cs` for any leftover WebSocket stubs or dead paths
+  - Remove all bluetooth communication and support
+  - Make sure to keep a place to store the robot's IP address
 
 - [ ] Implement ws_audio upload if server-side audio needed (`ws://{ip}:80/ws_audio`)
   - Wire format is documented (AIM WebSocket Library v1.0.1):
@@ -117,7 +120,7 @@
 
 ---
 
-## Section 4 — UI
+## Section 3 — UI
 *`wwwroot/`*
 
 ### Player Programming UI (`index.html`)
@@ -128,7 +131,7 @@
 - [ ] Allow player to set facing direction after reboot
   - When a robot reboots, the player must choose which direction it faces
   - Need a direction-picker UI on the player's phone (`index.html`)
-  - Ties into the reboot mechanic (Section 2)
+  - Ties into the reboot mechanic (Section 1)
 
 - [ ] Shutdown toggle on phone UI
   - Player can choose to shut down during programming phase
@@ -170,7 +173,7 @@
 
 ---
 
-## Section 5 — Raspberry Pi Hardware
+## Section 4 — Raspberry Pi Hardware
 *Sense HAT.*
 
 - [ ] Create `MRR/Sensors/SenseHatService.cs`
@@ -189,7 +192,7 @@
 
 ---
 
-## Section 6 — Network Setup
+## Section 5 — Network Setup
 *Topology: Home Router → Game Router (WAN) → Pi + Robots + Phones*
 
 ```
@@ -228,13 +231,12 @@ Home Router (192.168.1.x)
   - Use the VEX AIM app or built-in setup to join the game SSID
   - Note each robot's MAC address for DHCP reservation
 
-- [ ] Assign static IPs to all 6 robots
+- [ ] Assign static IPs to all 6 robots and update the database
   - Configure DHCP reservations on the game router by MAC address
   - Suggested scheme: `192.168.4.101`–`192.168.4.106` for robots 1–6
-
-- [ ] Update robot IP addresses in the database
-  - Enter confirmed IPs into the `Robots` table (`IPAddress` column)
-  - `AIMRobot.cs` reads IP from DB at connection time — must match actual robot IPs
+  - Enter confirmed IPs into the `RobotBases` table (`MACID` column — used as IP address)
+  - `RobotBases` also holds `DefaultBody` — verify each base is mapped to the correct robot body
+  - `DataService.GetAllPlayers()` reads `MACID` into `Player.IPAddress`; `Player.Connect()` in `Players.cs` uses it to open the WebSocket
 
 ### Player Phones
 
@@ -260,7 +262,7 @@ Home Router (192.168.1.x)
 
 ---
 
-## Section 7 — Infrastructure / Setup
+## Section 6 — Infrastructure / Setup
 
 - [ ] Entity Framework for game setup / initialization
   - Use EF (`MRRDbContext` already exists) for initial game setup steps
@@ -290,10 +292,6 @@ Home Router (192.168.1.x)
   - [ ] `Robots_AFTER_UPDATE` trigger (sync StatusLEDs via `procSetStatus` equivalent)
   - [ ] `CurrentGameData_BEFORE_UPDATE`, `GameData_BEFORE_UPDATE` triggers
 
-- [ ] Recover / define missing view definitions
-  - `viewRobotsInit` and `viewRobotsRefresh` definitions are missing from SQL files
-  - Currently queried from C# but definition source is unknown
-
 ---
 
 ## Done *(reference)*
@@ -308,7 +306,8 @@ Home Router (192.168.1.x)
 - [x] `funcMarkCommandsReady` → `PendingCommands.MarkCommandsReady()` (C# done)
 - [x] `procGetReadyCommands` → `CommandProcess.GetActiveCommandList()` (C# done)
 - [x] `procUpdatePlayerPriority` (10-Turn mode path) → `DataService.UpdatePlayerPriority()`
-- [x] `viewRobots`, `viewRobotsInit`, `viewRobotsRefresh`, `viewRobotOptions` (active views used)
+- [x] `viewRobots`, `viewRobotOptions` (active views used)
+- [x] `viewRobotsInit`, `viewRobotsRefresh` replaced with inline SQL in `DataService.cs` — views removed from schema
 - [x] `CommandList_BEFORE_INSERT` trigger → MySQL AUTO_INCREMENT
 - [x] Camera image capture: `Player.GetCameraImageAsync()` via ws_img
 - [x] Grid alignment agent: `GridAlignmentAgent.cs` + `GET /api/robot/align/{robotId}`

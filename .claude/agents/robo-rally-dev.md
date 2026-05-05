@@ -6,7 +6,7 @@ description: >
   Sense HAT integration, and the existing C# ASP.NET Core codebase. Use for any
   task involving game logic, robot movement, board simulation, player UI, or
   hardware integration.
-model: claude-sonnet-4-6
+model: sonnet
 tools:
   - Read
   - Write
