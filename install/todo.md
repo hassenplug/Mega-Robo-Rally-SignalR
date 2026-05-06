@@ -98,10 +98,7 @@
   - 2 when robot comfirms move is in progress
   - back to 0 when move is complete (or move to state 3 when move complete but unchecked)
   - Confirm `isMoving` is set and unset correctly (`Players.cs`)
-  - Set to `true` when a move command is sent (ack response `status == "in_progress"`)
-  - Set to `false` by `ListenStatusAsync` → `ProcessStatusEvent` when motion flags clear
-  - [x] `CommandProcess.cs` polling wired: `SendRobotCommandAsync` no longer blocks on `WaitForMotionCompleteAsync`; StatusID 2→3→4 flow now polls `isMoving` live
-  - [ ] Verify on hardware: confirm `isMoving` goes `true` on ack and `false` on motion complete under real robot conditions
+
 
 - [ ] Remove old/unused communication code
   - Audit `Players.cs` and `Program.cs` for any leftover WebSocket stubs or dead paths

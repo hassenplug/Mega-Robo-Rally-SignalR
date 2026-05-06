@@ -180,7 +180,6 @@ namespace MRR
                         if (onecommand.CommandCatID != 2)LogCommand(onecommand, "Robot Command    ");
                         
                         onecommand.StatusID = 3; // executing
-                        //robot.isMoving = true;
                         robot.SendRobotCommandAsync(onecommand).Wait();
                         //_ = robot.SendRobotCommandAsync(onecommand);
                         if (onecommand.CommandCatID == 2)
@@ -194,10 +193,9 @@ namespace MRR
 
                     if (onecommand.StatusID == 3)
                     {
-                        //robot.CheckMovingStatus().Wait();
-                        // check if the robot is currently moving
-                        if (!robot.isCurrentlyMoving)
+                        if (robot.isMoving == 3)
                         {
+                            robot.isMoving = 0;
                             LogCommand(onecommand, "Robot Command Done");
                             onecommand.StatusID = 4;
                         }

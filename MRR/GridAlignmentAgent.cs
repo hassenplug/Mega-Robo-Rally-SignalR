@@ -1,5 +1,4 @@
-//How can I take an image like this, and identify the black lines.  There is a horizontal line  and two vertical lines.  I want to know how much to rotate so the line is totally horizontal, how much to move forward/back so the line is at a specific height, and how far left/right to be centered between the two vertical lines 
-
+// Given an image, find the black grid lines and determine how to align the robot.
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using System.IO;
@@ -115,7 +114,8 @@ public static class GridAlignmentAgent
                     turn_rate = 50,
                     stacking_type = 0
                 });
-                await robot.WaitForMotionCompleteAsync(MotionTimeoutMs);
+                while (robot.isMoving is > 0 and < 3) await Task.Delay(50);
+                robot.isMoving = 0;
                 continue;
             }
 
@@ -135,7 +135,8 @@ public static class GridAlignmentAgent
                     final_heading = 0,
                     stacking_type = 0
                 });
-                await robot.WaitForMotionCompleteAsync(MotionTimeoutMs);
+                while (robot.isMoving is > 0 and < 3) await Task.Delay(50);
+                robot.isMoving = 0;
                 continue;
             }
 
@@ -156,7 +157,8 @@ public static class GridAlignmentAgent
                     final_heading = 0,
                     stacking_type = 0
                 });
-                await robot.WaitForMotionCompleteAsync(MotionTimeoutMs);
+                while (robot.isMoving is > 0 and < 3) await Task.Delay(50);
+                robot.isMoving = 0;
             }
         }
 
@@ -167,11 +169,8 @@ public static class GridAlignmentAgent
 
     // Detect the horizontal grid line and the vertical grid lines on each side.
     //
-    // Single pixel pass builds four histograms simultaneously:
-    //   rowCounts     — dark pixels per row (full width)   → horizontal line position
-    //   leftBandRows  — dark pixels per row in left third  ┐ → horizontal line tilt
-    //   rightBandRows — dark pixels per row in right third ┘
-    //   colCounts     — dark pixels per column             → vertical line positions
+    // Pass 1 — row/column histograms → horizontal line position + vertical line positions.
+    // Pass 2 — narrow band around the detected row → centroid-per-slice regression → tilt.
     public static GridLineAnalysis FindGridLines(byte[] imageData)
     {
         try
@@ -179,16 +178,14 @@ public static class GridAlignmentAgent
             using var img = Image.Load<Rgb24>(imageData);
             int w = img.Width, h = img.Height;
             int halfH = h / 2;
-            int bandW = w / 3;
 
-            var rowCounts     = new int[h];
-            var leftBandRows  = new int[h];
-            var rightBandRows = new int[h];
-            var colCounts     = new int[w];
+            var rowCounts = new int[h];
+            var colCounts = new int[w];
 
+            // Pass 1: row and column histograms across the bottom half.
             img.ProcessPixelRows(accessor =>
             {
-                for (int y = halfH; y < h; y++)   // ignore top half
+                for (int y = halfH; y < h; y++)
                 {
                     var row = accessor.GetRowSpan(y);
                     for (int x = 0; x < w; x++)
@@ -198,8 +195,6 @@ public static class GridAlignmentAgent
                         {
                             rowCounts[y]++;
                             colCounts[x]++;
-                            if (x < bandW)           leftBandRows[y]++;
-                            else if (x >= w - bandW) rightBandRows[y]++;
                         }
                     }
                 }
@@ -210,26 +205,49 @@ public static class GridAlignmentAgent
             if (rowCounts[hLineRow] < w * MinHorizontalLineFraction)
                 return new GridLineAnalysis(false, 0, 0, -1, -1, false);
 
-            // Tilt: compare the peak row of the left third vs the right third.
-            // Positive = right peak is lower = line tilts CW.
-            int leftPeakRow  = PeakIndex(leftBandRows,  halfH, h);
-            int rightPeakRow = PeakIndex(rightBandRows, halfH, h);
-            double tiltDeg = Math.Atan2(rightPeakRow - leftPeakRow, 2.0 * bandW)
-                             * 180.0 / Math.PI;
+            // Pass 2: within a narrow band around hLineRow, accumulate dark-pixel
+            // centroid Y per vertical slice, then fit a least-squares line through
+            // (sliceCenterX, centroidY) to get a precise tilt angle.
+            const int numSlices  = 16;
+            const int bandRadius = 14;
+            int sliceW     = Math.Max(1, w / numSlices);
+            int yMin       = Math.Max(halfH,  hLineRow - bandRadius);
+            int yMax       = Math.Min(h - 1,  hLineRow + bandRadius);
+            var sliceSumY  = new double[numSlices];
+            var sliceCount = new int[numSlices];
+
+            img.ProcessPixelRows(accessor =>
+            {
+                for (int y = yMin; y <= yMax; y++)
+                {
+                    var row = accessor.GetRowSpan(y);
+                    for (int x = 0; x < w; x++)
+                    {
+                        var p = row[x];
+                        if ((p.R + p.G + p.B) / 3 < BlackLuminanceThreshold)
+                        {
+                            int s = Math.Min(x / sliceW, numSlices - 1);
+                            sliceSumY[s]  += y;
+                            sliceCount[s]++;
+                        }
+                    }
+                }
+            });
+
+            double tiltDeg = TiltFromSliceCentroids(sliceSumY, sliceCount, sliceW, numSlices);
 
             // Vertical lines: peak column in each half of the image.
-            // Threshold uses halfH rows since the top half is excluded.
             int leftLineCol  = PeakIndex(colCounts, 0,     w / 2);
             int rightLineCol = PeakIndex(colCounts, w / 2, w);
             bool hasLeftLine  = colCounts[leftLineCol]  >= halfH * MinVerticalLineFraction;
             bool hasRightLine = colCounts[rightLineCol] >= halfH * MinVerticalLineFraction;
 
             return new GridLineAnalysis(
-                Found:               true,
-                HorizontalLineY:     (double)hLineRow    / h,
+                Found:                true,
+                HorizontalLineY:      (double)hLineRow / h,
                 HorizontalLineTiltDeg: tiltDeg,
-                LeftLineX:           hasLeftLine  ? (double)leftLineCol  / w : -1,
-                RightLineX:          hasRightLine ? (double)rightLineCol / w : -1,
+                LeftLineX:            hasLeftLine  ? (double)leftLineCol  / w : -1,
+                RightLineX:           hasRightLine ? (double)rightLineCol / w : -1,
                 HasBothVerticalLines: hasLeftLine && hasRightLine
             );
         }
@@ -339,6 +357,32 @@ public static class GridAlignmentAgent
         for (int i = start + 1; i < end; i++)
             if (arr[i] > arr[best]) best = i;
         return best;
+    }
+
+    // Least-squares linear regression on per-slice centroid Y values.
+    // slope = (n·ΣxY - Σx·ΣY) / (n·Σx² - (Σx)²)
+    // Returns tilt in degrees: positive = right side lower = CW rotation.
+    // Returns 0 if fewer than 3 slices have usable data.
+    private static double TiltFromSliceCentroids(double[] sliceSumY, int[] sliceCount, int sliceW, int numSlices)
+    {
+        double sumX = 0, sumY = 0, sumXX = 0, sumXY = 0;
+        int n = 0;
+        for (int s = 0; s < numSlices; s++)
+        {
+            if (sliceCount[s] < 2) continue;
+            double cx = (s + 0.5) * sliceW;
+            double cy = sliceSumY[s] / sliceCount[s];
+            sumX  += cx;
+            sumY  += cy;
+            sumXX += cx * cx;
+            sumXY += cx * cy;
+            n++;
+        }
+        if (n < 3) return 0;
+        double denom = n * sumXX - sumX * sumX;
+        if (Math.Abs(denom) < 1e-10) return 0;
+        double slope = (n * sumXY - sumX * sumY) / denom;
+        return Math.Atan(slope) * 180.0 / Math.PI;
     }
 
     // If the payload is a JSON object with a base64 image field, extract and decode it.

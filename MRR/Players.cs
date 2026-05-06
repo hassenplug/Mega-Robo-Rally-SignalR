@@ -236,10 +236,8 @@ namespace MRR
         private ClientWebSocket? wsStatus;
         private ClientWebSocket? wsImage;
         public bool isConnected { get; set; }
-        public bool isMoving;
-        public bool isCurrentlyMoving;
+        public int isMoving;
         private CancellationTokenSource? _statusCts;
-        private TaskCompletionSource<bool>? _motionComplete;
         // Guards concurrent access to wsStatus from both ListenStatusAsync and GetStatusAsync
         private readonly SemaphoreSlim _statusSocketSemaphore = new SemaphoreSlim(1, 1);
 
@@ -489,6 +487,8 @@ namespace MRR
                 isConnected = true;
 
                 await SendCommandAsync(new { cmd_id = "program_init" });
+                await SendCommandAsync(new { cmd_id = "imu_calibrate" });
+                await SendCommandAsync(new { cmd_id = "set_pose", x = 0, y = 0 });
                 await SendCommandAsync(new { cmd_id = "lcd_clear_screen", r = bgR, g = bgG, b = bgB });
                 await SetLedAsync("all", bgR, bgG, bgB);
                 
@@ -557,8 +557,8 @@ namespace MRR
                 if (responseObj != null && responseObj.ContainsKey("status"))
                 {
                     var status = responseObj["status"].ToString();
-                    if (status == "in_progress")
-                        isMoving = true;
+                    if (status == "in_progress" && isMoving == 1)
+                        isMoving = 2;
                     else if (status == "error")
                     {
                         var errorInfo = responseObj.ContainsKey("error_info") ? responseObj["error_info"].ToString() : "Unknown error";
@@ -566,16 +566,6 @@ namespace MRR
                     }
                 }
             }
-        }
-
-        public Task CheckMovingStatus()
-        {
-            if (!isConnected || wsStatus == null)
-            {
-                isConnected = false;
-                isMoving = false;
-            }
-            return Task.CompletedTask;
         }
 
         private static readonly byte[] StatusPollRequest = [0x01];
@@ -702,31 +692,26 @@ namespace MRR
                 var rotation  = robot.TryGetProperty("rotation", out var rEl)  ? rEl.GetString()  ?? "?" : "?";
 
                 var flags = Convert.ToUInt32(flagsStr, 16);
-                isCurrentlyMoving = (flags & 0xFF) != 0; // 0x400 = idle baseline; any lower bits = moving or turning
 
                 //Console.WriteLine(json);
-                Console.WriteLine($"Flags={flagsStr} moving={isCurrentlyMoving} bat={battery}% x={robotX} y={robotY} hdg={heading} rot={rotation}");
+                if(ID == 1)
+                    Console.WriteLine($"Flags={flagsStr} moving={isMoving} bat={battery}% x={robotX} y={robotY} hdg={heading} rot={rotation}");
 
-                if (!isCurrentlyMoving) _motionComplete?.TrySetResult(true);
+                if ((flags & 0xFF) != 0)
+                {
+                    // robot is physically moving
+                    if (isMoving == 1) isMoving = 2;
+                }
+                else
+                {
+                    // robot is physically idle
+                    if (isMoving == 2) isMoving = 3;
+                }
             }
             catch (Exception ex)
             {
                 Console.WriteLine("Status parse error: " + ex.Message);
             }
-        }
-
-        public async Task WaitForMotionCompleteAsync(int timeoutMs = 5000)
-        {
-            if (!isConnected) { isMoving = false; return; }
-
-            _motionComplete = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-            using var cts = new CancellationTokenSource(timeoutMs);
-            cts.Token.Register(() => _motionComplete.TrySetResult(false));
-
-            var completed = await _motionComplete.Task;
-            _motionComplete = null;
-            if (!completed) Console.WriteLine($"WaitForMotionComplete: timed out after {timeoutMs}ms");
-            isMoving = false;
         }
 
         public async ValueTask DisposeAsync()
@@ -767,19 +752,22 @@ namespace MRR
             await SetLedAsync("all", 0, 255, 0);
 
             await MoveAsync(76, 0);
-            await WaitForMotionCompleteAsync();
+            while (isMoving is > 0 and < 3) await Task.Delay(50);
+            isMoving = 0;
 
             await TurnAsync(1);
-            await WaitForMotionCompleteAsync();
+            while (isMoving is > 0 and < 3) await Task.Delay(50);
+            isMoving = 0;
         }
 
         public async Task SendRobotCommandAsync(CommandItem cmd)
         {
+            isMoving = 1;
             int moveType = cmd.CommandMoveType;
             switch (moveType)
             {
                 case 1: // Move — sends drive_for; isMoving set from ack; caller polls isMoving via StatusID==3
-                    await MoveAsync(cmd.Value, cmd.ValueB);
+                    await MoveVerifiedAsync(cmd.Value, cmd.ValueB);
                     break;
                 case 2: // Turn — sends turn_for; isMoving set from ack; caller polls isMoving via StatusID==3
                     await TurnAsync(cmd.Value);
@@ -830,7 +818,10 @@ namespace MRR
                 stacking_type = 0
             });
 
-            await WaitForMotionCompleteAsync();
+            return;
+
+            while (isMoving is > 0 and < 3) await Task.Delay(50);
+            //isMoving = 0;
 
             var post = await GetStatusAsync();
             double traveled = Math.Abs(post.Robot.RobotY);  // forward axis — verify on live robot
