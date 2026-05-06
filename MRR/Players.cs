@@ -610,7 +610,7 @@ namespace MRR
 
                 var json = Encoding.UTF8.GetString(buffer, 0, result.Count);
                 var status = JsonSerializer.Deserialize<RobotStatus>(json) ?? new RobotStatus();
-                //Console.WriteLine($"[Status] flags:{status.Robot.Flags} battery:{status.Robot.Battery} x:{status.Robot.RobotX} y:{status.Robot.RobotY} isMoving:{status.Robot.isMoving}");
+                Console.WriteLine($"[Status] flags:{status.Robot.Flags} battery:{status.Robot.Battery} x:{status.Robot.RobotX} y:{status.Robot.RobotY} isMoving:{status.Robot.isMoving}");
                 return status;
             }
             finally
@@ -767,28 +767,38 @@ namespace MRR
         public async Task MoveAndWaitAsync(int distance, int angle)
         {
             const int mmPerSquare = 77;
+            const int mmShortMove = mmPerSquare-1;
             //const double stallThresholdMm = 10.0;
 
             // set this to the target pose (not 0, 0)
             // then adjust to the actual target after the move
-            var (startingX, startingY) = RotationFunctions.MovementOffset((Direction)angle);
-
-            await SetPoseAsync(-startingX, -startingY);
-
             var pre = await GetStatusAsync();
             int preHeading = (int)Math.Round(pre.Robot.Heading);
 
+            //var (startingX, startingY) = RotationFunctions.MovementOffset((Direction)angle);
+
+            //await SetPoseAsync(startingX * distance * mmPerSquare,
+            //                   startingY * distance * mmPerSquare);
+            var newDir = (RotationFunctions.Degrees(angle) + preHeading) * Math.PI / 180.0;
+            int newX_mm = (int)(distance * mmPerSquare * Math.Sin(newDir));
+            int newY_mm = (int)(distance * mmPerSquare * Math.Cos(newDir));
+            //Console.WriteLine($"[MoveAndWait] newDir: {newDir}, newX_mm: {newX_mm}, newY_mm: {newY_mm}");
+            await SetPoseAsync(-newX_mm, -newY_mm);
+
             // main move
-            await MoveAsync(distance * mmPerSquare, RotationFunctions.Degrees(angle), preHeading);
+            await MoveAsync(distance * mmShortMove, RotationFunctions.Degrees(angle), preHeading);
 
             // wait for the move to complete
             var post = await WaitForStopAsync();
-            
-            // second move
-            //await MoveAsync((int)post.Robot.DistToOrigin, (int)post.Robot.DirToOrigin, preHeading);
+
+            // second move — angle is robot-relative, so subtract preHeading from world angle
+            int correctionAngle = (int)post.Robot.DirToOrigin - preHeading;
+            //Console.WriteLine($"[MoveAndWait] correctionAngle: {correctionAngle} distance: {post.Robot.DistToOrigin}, dir: {post.Robot.DirToOrigin}");
+            //await MoveAsync((int)post.Robot.DistToOrigin, correctionAngle, preHeading);
 
             // wait for the second move to complete
             //await WaitForStopAsync();
+            //Console.WriteLine($"[MoveAndWait] Final: {correctionAngle} distance: {post.Robot.DistToOrigin}, dir: {post.Robot.DirToOrigin}");
 
         }
 

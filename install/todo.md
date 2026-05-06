@@ -291,6 +291,15 @@ Home Router (192.168.1.x)
 
 ---
 
+## Section 7 — Dead Code Removal
+
+- [ ] `SetArchiveToCurrent` (`Players.cs:87`) — no callers; updates archive pos from current pos
+- [ ] `HasOptionCard` (`Players.cs`) — no callers; stub that always returns false
+- [ ] `MoveUnlimitedAsync` (`Players.cs`) — no callers; sends continuous drive command
+- [ ] `ShowAIAsync` (`Players.cs`) — no callers; triggers AI vision overlay on robot LCD
+
+---
+
 ## Done *(reference)*
 
 - [x] CommandProcess background execution thread

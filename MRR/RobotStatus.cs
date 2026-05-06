@@ -94,7 +94,7 @@ namespace MRR
             public double Rotation => Parse(RotationStr);
 
             public double DistToOrigin => Math.Sqrt(RobotX * RobotX + RobotY * RobotY);
-            public double DirToOrigin  => Math.Atan2(-RobotY, -RobotX) * 180.0 / Math.PI;
+            public double DirToOrigin  => 90.0 - Math.Atan2(-RobotY, -RobotX) * 180.0 / Math.PI;
             public bool   isMoving     => (Convert.ToUInt32(Flags, 16) & 0xFF) != 0;
         }
 
