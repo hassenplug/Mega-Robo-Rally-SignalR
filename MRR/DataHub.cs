@@ -31,6 +31,11 @@ namespace MRR.Hubs
             {
                 case 1:
                     _dataService.ExecuteSQL("call procUpdateCardPlayed(" + playerId + "," + data1 + "," + data2 + ");");
+                    var player = _dataService.AllPlayers.GetPlayer(playerId);
+                    _dataService.RefreshPlayerCards(playerId);
+                    //player?.RefreshCards();
+                    player?.UpdateStatusLEDs();
+
                     // Refresh robot screen so the LCD stays in sync with the phone UI
                     _gameController.RefreshPlayerScreenUI(playerId);
                     break;
@@ -67,13 +72,6 @@ namespace MRR.Hubs
         {
             var dataout = _dataService.GetAllDataJson();
             await Clients.All.SendAsync("AllDataUpdate", dataout);
-
-        }
-
-        public async Task SendActiveCommands()
-        {
-            var dataout = _dataService.GetAllDataJson();
-            await Clients.All.SendAsync("ActiveCommandsUpdate", dataout);
 
         }
 

@@ -446,6 +446,9 @@ namespace MRR
                     case SquareAction.BoardRotate:
                     case SquareAction.Rotate:
                         return 2;
+                    case SquareAction.StartBotMove:
+                    case SquareAction.StopBotMove:
+                        return 3;
                     default:
                         return 0;
                 }

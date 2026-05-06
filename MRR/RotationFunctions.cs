@@ -75,38 +75,14 @@ namespace MRR
             return Rotate(2,DirectionIN);
         }
 
-        static public int MovementOffsetX(Direction FacingDirection)
+        static public (int X, int Y) MovementOffset(Direction FacingDirection) => FacingDirection switch
         {
-            switch (FacingDirection)
-            {
-                case Direction.Up:
-                case Direction.Down:
-                    return 0;
-                case Direction.Right:
-                    return 1;
-                case Direction.Left:
-                    return -1;
-                case Direction.None:
-                default:
-                    return 0;
-            }
-        }
-
-        static public int MovementOffsetY(Direction FacingDirection)
-        {
-            switch (FacingDirection)
-            {
-                case Direction.Up:
-                    return -1;
-                case Direction.Down:
-                    return 1;
-                case Direction.Right:
-                case Direction.Left:
-                case Direction.None:
-                default:
-                    return 0;
-            }
-        }
+            Direction.Up    => ( 0, -1),
+            Direction.Down  => ( 0,  1),
+            Direction.Right => ( 1,  0),
+            Direction.Left  => (-1,  0),
+            _               => ( 0,  0),
+        };
 
         static public int Degrees(int FacingDirection)
         {

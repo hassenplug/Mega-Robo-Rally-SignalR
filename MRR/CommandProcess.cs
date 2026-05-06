@@ -75,12 +75,12 @@ namespace MRR
                 var active = GetActiveCommandList();
                 while (active.Count > 0 && stillRunning)
                 {
-                    //Console.WriteLine("Active Commands:" + active.Count);
                     stillRunning = false;
                     foreach (CommandItem onecommand in active)
                     {
-                        //Console.WriteLine("Processing Command ID: " + onecommand.ToString());
-                        stillRunning = stillRunning || ProcessCommand(onecommand);
+                        //Console.WriteLine($"{active.Count} Active Command: {onecommand.CommandID}, Robot: {onecommand.RobotID}, Type: {onecommand.CommandType}");
+
+                        stillRunning = ProcessCommand(onecommand) || stillRunning;
                     }
                     // refresh active set for the next inner loop iteration
                     active = GetActiveCommandList();
@@ -180,8 +180,8 @@ namespace MRR
                         if (onecommand.CommandCatID != 2)LogCommand(onecommand, "Robot Command    ");
                         
                         onecommand.StatusID = 3; // executing
-                        robot.SendRobotCommandAsync(onecommand).Wait();
-                        //_ = robot.SendRobotCommandAsync(onecommand);
+                        //robot.SendRobotCommandAsync(onecommand).Wait();
+                        _ = robot.SendRobotCommandAsync(onecommand);
                         if (onecommand.CommandCatID == 2)
                         {
                             // don't wait for reply
@@ -193,7 +193,7 @@ namespace MRR
 
                     if (onecommand.StatusID == 3)
                     {
-                        if (robot.isMoving == 3)
+                        /*if (robot.isMoving == 3)
                         {
                             robot.isMoving = 0;
                             LogCommand(onecommand, "Robot Command Done");
@@ -203,6 +203,7 @@ namespace MRR
                         {
                             LogCommand(onecommand, "Robot Command in Progress");
                         }
+                        */
                     }
 
                     if (onecommand.StatusID == 4)

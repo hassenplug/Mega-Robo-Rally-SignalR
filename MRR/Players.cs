@@ -371,27 +371,10 @@ namespace MRR
         public RobotScreenUI? ScreenUI { get; set; }
 
         [NotMapped]
-        public CardList? CardsPlayer
-        {
-            get
-            {
-                if (hiddenCardsPlayer != null) return hiddenCardsPlayer;
-                return null;}
-            set { hiddenCardsPlayer = value; }
-        }
-        private CardList? hiddenCardsPlayer;
+        public CardList? CardsPlayer { get; set; }
 
         [NotMapped]
-        public OptionCardList? OptionCards
-        {
-            get
-            {
-                if (hiddenOptionCards != null) return hiddenOptionCards;
-                return null ;
-            }
-            set { hiddenOptionCards = value; }
-        }
-        private OptionCardList? hiddenOptionCards;
+        public OptionCardList? OptionCards { get; set; }
 
         public bool HasOptionCard(tOptionCardCommandType OptionID)
         {
@@ -426,18 +409,18 @@ namespace MRR
             return this;
         }
 
-        public bool SendColorStatus(int Status = 0)
+        public bool SendColorStatus(int Status = 1)
         {
             if (!isConnected) return false;
 
-            int r = int.Parse(Color.Substring(0, 2), NumberStyles.HexNumber);
-            int g = int.Parse(Color.Substring(2, 2), NumberStyles.HexNumber);
-            int b = int.Parse(Color.Substring(4, 2), NumberStyles.HexNumber);
-
             switch (Status)
             {
-                case 1: // programming
-                    SetLedAsync("all", 255, 255, 0).Wait(); // yellow
+                case 0: // off
+                    SetLedAsync("all", 0,0,0).Wait(); // off
+                    break;
+                case 1: // Normal
+                    var (r, g, b) = ColorHelper.ParseHex(Color);
+                    SetLedAsync("all", r, g, b).Wait(); // robot color
                     break;
                 case 2: // running
                     SetLedAsync("all", 0, 255, 0).Wait(); // green
@@ -446,7 +429,7 @@ namespace MRR
                     SetLedAsync("all", 255, 0, 0).Wait(); // red
                     break;
                 default:
-                    SetLedAsync("all", r, g, b).Wait(); // robot color
+                    SetLedAsync("all", 255, 255, 0).Wait(); // yellow
                     break;
             }
 
@@ -471,12 +454,8 @@ namespace MRR
             wsStatus = new ClientWebSocket();
             wsImage = new ClientWebSocket();
 
-            int bgR = int.Parse(Color[..2], NumberStyles.HexNumber);
-            int bgG = int.Parse(Color[2..4], NumberStyles.HexNumber);
-            int bgB = int.Parse(Color[4..6], NumberStyles.HexNumber);
-            int fgR = int.Parse(ForeColor[..2], NumberStyles.HexNumber);
-            int fgG = int.Parse(ForeColor[2..4], NumberStyles.HexNumber);
-            int fgB = int.Parse(ForeColor[4..6], NumberStyles.HexNumber);
+            var (bgR, bgG, bgB) = ColorHelper.ParseHex(Color);
+            var (fgR, fgG, fgB) = ColorHelper.ParseHex(ForeColor, 255, 255, 255);
 
             try
             {
@@ -514,7 +493,7 @@ namespace MRR
                 SendColorStatus();
 
                 _statusCts = new CancellationTokenSource();
-                _ = ListenStatusAsync(_statusCts.Token);
+                //_ = ListenStatusAsync(_statusCts.Token);
 
             }
             catch (Exception)
@@ -531,7 +510,7 @@ namespace MRR
                 return;
             }
 
-            Console.WriteLine("Sending command: " + JsonSerializer.Serialize(command));
+            //Console.WriteLine("Sending command: " + JsonSerializer.Serialize(command));
 
             var jsonCommand = JsonSerializer.Serialize(command);
             var bytes = Encoding.UTF8.GetBytes(jsonCommand);
@@ -552,7 +531,7 @@ namespace MRR
                 var response = Encoding.UTF8.GetString(buffer, 0, result.Count);
                 var responseObj = JsonSerializer.Deserialize<Dictionary<string, object>>(response);
 
-                Console.WriteLine("Response: " + response);
+                //Console.WriteLine("Response: " + response);
 
                 if (responseObj != null && responseObj.ContainsKey("status"))
                 {
@@ -630,7 +609,9 @@ namespace MRR
                     return new RobotStatus();
 
                 var json = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                return JsonSerializer.Deserialize<RobotStatus>(json) ?? new RobotStatus();
+                var status = JsonSerializer.Deserialize<RobotStatus>(json) ?? new RobotStatus();
+                //Console.WriteLine($"[Status] flags:{status.Robot.Flags} battery:{status.Robot.Battery} x:{status.Robot.RobotX} y:{status.Robot.RobotY} isMoving:{status.Robot.isMoving}");
+                return status;
             }
             finally
             {
@@ -638,44 +619,19 @@ namespace MRR
             }
         }
 
-        // ── Robot status data model ──────────────────────────────────────────
-
-        public class RobotStatus
+        public async Task<RobotStatus> WaitForStopAsync()
         {
-            [System.Text.Json.Serialization.JsonPropertyName("robot")]
-            public RobotStatusSection Robot { get; set; } = new();
-
-            public class RobotStatusSection
+            await Task.Delay(50);
+            var status = await GetStatusAsync();
+            while (status.Robot.isMoving)
             {
-                [System.Text.Json.Serialization.JsonPropertyName("touch_flags")]
-                public string TouchFlags { get; set; } = "0x0000";
-
-                [System.Text.Json.Serialization.JsonPropertyName("touch_x")]
-                public int TouchX { get; set; }
-
-                [System.Text.Json.Serialization.JsonPropertyName("touch_y")]
-                public int TouchY { get; set; }
-
-                [System.Text.Json.Serialization.JsonPropertyName("battery")]
-                public int Battery { get; set; }
-
-                [System.Text.Json.Serialization.JsonPropertyName("flags")]
-                public string Flags { get; set; } = "0x0";
-
-                [System.Text.Json.Serialization.JsonPropertyName("robot_x")]
-                public string RobotXStr { get; set; } = "0";
-
-                [System.Text.Json.Serialization.JsonPropertyName("robot_y")]
-                public string RobotYStr { get; set; } = "0";
-
-                [System.Text.Json.Serialization.JsonPropertyName("heading")]
-                public string HeadingStr { get; set; } = "0";
-
-                public double RobotX  => double.TryParse(RobotXStr,  NumberStyles.Float, CultureInfo.InvariantCulture, out var v) ? v : 0;
-                public double RobotY  => double.TryParse(RobotYStr,  NumberStyles.Float, CultureInfo.InvariantCulture, out var v) ? v : 0;
-                public double Heading => double.TryParse(HeadingStr, NumberStyles.Float, CultureInfo.InvariantCulture, out var v) ? v : 0;
+                await Task.Delay(50);
+                status = await GetStatusAsync();
             }
+            return status;
         }
+
+
 
         private void ProcessStatusEvent(string json)
         {
@@ -686,16 +642,21 @@ namespace MRR
 
                 var flagsStr  = robot.TryGetProperty("flags",    out var fEl)  ? fEl.GetString()  ?? "0x0" : "0x0";
                 var battery   = robot.TryGetProperty("battery",  out var bEl)  ? bEl.GetInt32()   : 0;
-                var robotX    = robot.TryGetProperty("robot_x",  out var xEl)  ? xEl.GetString()  ?? "?" : "?";
-                var robotY    = robot.TryGetProperty("robot_y",  out var yEl)  ? yEl.GetString()  ?? "?" : "?";
+                var robotXStr = robot.TryGetProperty("robot_x",  out var xEl)  ? xEl.GetString()  ?? "0" : "0";
+                var robotYStr = robot.TryGetProperty("robot_y",  out var yEl)  ? yEl.GetString()  ?? "0" : "0";
                 var heading   = robot.TryGetProperty("heading",  out var hEl)  ? hEl.GetString()  ?? "?" : "?";
                 var rotation  = robot.TryGetProperty("rotation", out var rEl)  ? rEl.GetString()  ?? "?" : "?";
+
+                var PosX = double.TryParse(robotXStr, NumberStyles.Float, CultureInfo.InvariantCulture, out var px) ? px : 0;
+                var PosY = double.TryParse(robotYStr, NumberStyles.Float, CultureInfo.InvariantCulture, out var py) ? py : 0;
+                var DistToOrigin = Math.Sqrt(PosX * PosX + PosY * PosY);
+                var DirToOrigin  = Math.Atan2(-PosY, -PosX) * 180.0 / Math.PI;
 
                 var flags = Convert.ToUInt32(flagsStr, 16);
 
                 //Console.WriteLine(json);
                 if(ID == 1)
-                    Console.WriteLine($"Flags={flagsStr} moving={isMoving} bat={battery}% x={robotX} y={robotY} hdg={heading} rot={rotation}");
+                    Console.WriteLine($"Flags={flagsStr} moving={isMoving} bat={battery}% x={PosX:F2} y={PosY:F2} dist={DistToOrigin:F2}mm dir={DirToOrigin:F1}° hdg={heading} rot={rotation}");
 
                 if ((flags & 0xFF) != 0)
                 {
@@ -762,32 +723,36 @@ namespace MRR
 
         public async Task SendRobotCommandAsync(CommandItem cmd)
         {
-            isMoving = 1;
+            //isMoving = 1;
             int moveType = cmd.CommandMoveType;
             switch (moveType)
             {
                 case 1: // Move — sends drive_for; isMoving set from ack; caller polls isMoving via StatusID==3
-                    await MoveVerifiedAsync(cmd.Value, cmd.ValueB);
+                    await MoveAndWaitAsync(cmd.Value, cmd.ValueB);
                     break;
                 case 2: // Turn — sends turn_for; isMoving set from ack; caller polls isMoving via StatusID==3
-                    await TurnAsync(cmd.Value);
+                    await TurnAndWaitAsync(cmd.Value);
+                    break;
+                case 3: // Set Color    
+                    SendColorStatus(cmd.Value);
                     break;
                 case 0: // Stop
                     break;
                 default:
                     break;
             }
+            cmd.StatusID = 4;
         }
 
-        public Task MoveAsync(int distance, int angle) =>
+        public Task MoveAsync(int distance, int angle, int final_heading = 0, int drive_speed = 200) =>
             SendCommandAsync(new
             {
                 cmd_id = "drive_for",
-                distance = distance * 77,
-                angle = RotationFunctions.Degrees(angle),
-                drive_speed = 200,
+                distance = distance,
+                angle = angle,
+                drive_speed = drive_speed,
                 turn_speed = 0,
-                final_heading = 0,
+                final_heading = final_heading,
                 stacking_type = 0
             });
 
@@ -797,40 +762,42 @@ namespace MRR
         // Like MoveAsync but zeros odometry first, then verifies the robot
         // actually traveled the expected distance after the move completes.
         // Logs a warning if displacement is more than 10 mm short (stall/slip).
-        public async Task MoveVerifiedAsync(int distance, int angle)
+
+        // distance is in squares, angle is direction
+        public async Task MoveAndWaitAsync(int distance, int angle)
         {
             const int mmPerSquare = 77;
-            const double stallThresholdMm = 10.0;
+            //const double stallThresholdMm = 10.0;
 
-            await SetPoseAsync();
+            // set this to the target pose (not 0, 0)
+            // then adjust to the actual target after the move
+            var (startingX, startingY) = RotationFunctions.MovementOffset((Direction)angle);
+
+            await SetPoseAsync(-startingX, -startingY);
 
             var pre = await GetStatusAsync();
             int preHeading = (int)Math.Round(pre.Robot.Heading);
 
-            await SendCommandAsync(new
-            {
-                cmd_id        = "drive_for",
-                distance      = distance * mmPerSquare,
-                angle         = RotationFunctions.Degrees(angle),
-                drive_speed   = 200,
-                turn_speed    = 0,
-                final_heading = preHeading,
-                stacking_type = 0
-            });
+            // main move
+            await MoveAsync(distance * mmPerSquare, RotationFunctions.Degrees(angle), preHeading);
 
-            return;
+            // wait for the move to complete
+            var post = await WaitForStopAsync();
+            
+            // second move
+            //await MoveAsync((int)post.Robot.DistToOrigin, (int)post.Robot.DirToOrigin, preHeading);
 
-            while (isMoving is > 0 and < 3) await Task.Delay(50);
-            //isMoving = 0;
+            // wait for the second move to complete
+            //await WaitForStopAsync();
 
-            var post = await GetStatusAsync();
-            double traveled = Math.Abs(post.Robot.RobotY);  // forward axis — verify on live robot
-            double expected = Math.Abs(distance) * mmPerSquare;
+        }
 
-            if (traveled < expected - stallThresholdMm)
-                Console.WriteLine($"[Nav] Slip/stall: expected ~{expected:F0} mm, got {traveled:F1} mm");
-            else
-                Console.WriteLine($"[Nav] Move OK: {traveled:F1} mm (target {expected:F0} mm)");
+        public async Task TurnAndWaitAsync(int direction)
+        {
+            await TurnAsync(direction);
+
+            // wait for the turn to complete
+            await WaitForStopAsync();
         }
 
         public Task MoveUnlimitedAsync(double angle, double speed) =>
@@ -971,6 +938,25 @@ namespace MRR
             {
                 Console.WriteLine($"[align] Could not save image: {ex.Message}");
             }
+        }
+
+        internal void RefreshCards()
+        {
+            /*
+            var dt = GetQueryResults(
+                $"SELECT CardsDealt, CardsPlayed FROM Robots WHERE RobotID = {ID};");
+            if (dt.Rows.Count == 0) return;
+
+            CardsDealtStr  = dt.Rows[0]["CardsDealt"]?.ToString()  ?? "";
+            CardsPlayedStr = dt.Rows[0]["CardsPlayed"]?.ToString() ?? "0,0,0,0,0";
+            */
+        }
+
+        internal void UpdateStatusLEDs()
+        {
+            int CPCount = CardsPlayedStr.Split(',').Count(s => s != "0" && s != "") ;
+            SendColorStatus(CPCount==5?0:1);
+            //SendColorStatus(CPCount==5?0:1);
         }
     }
     #endregion

@@ -63,27 +63,9 @@ namespace MRR
             // move p_distance based on direction
 
             RobotLocation NewLocation = new RobotLocation(Direction, X, Y);
-
-            switch (p_direction)
-            {
-                case Direction.Right: // +X
-                    NewLocation.X += p_distance;
-                    break;
-                case Direction.Down: // + y
-                    NewLocation.Y += p_distance;
-                    break;
-                case Direction.Left: // - X
-                    NewLocation.X -= p_distance;
-                    if (NewLocation.X < 0) NewLocation.X = 0;
-                    break;
-                case Direction.Up:   // -Y
-                    NewLocation.Y -= p_distance;
-                    if (NewLocation.Y < 0) NewLocation.Y = 0;
-                    break;
-                case Direction.None:
-                default:
-                    break;
-            }
+            var (AddX, AddY) = RotationFunctions.MovementOffset(p_direction);
+            NewLocation.X += AddX * p_distance;
+            NewLocation.Y += AddY * p_distance;
 
             return NewLocation;
         }

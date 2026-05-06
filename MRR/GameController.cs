@@ -271,6 +271,7 @@ namespace MRR.Controller
                             //_dataService.ExecuteSQL("call procUpdateRobotCards();");
                             //UpdateGameState(); // ensure DB changes are visible before next command
                             _dataService.ExecuteSQL("update CurrentGameData set iValue=iValue+1 where iKey=2;"); // next turn
+                            foreach (var p in AllPlayers) p.UpdateStatusLEDs();
                             ScreenUiLoadHand(2);
                             SetGameState(3);
                             break;

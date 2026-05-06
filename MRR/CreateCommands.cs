@@ -98,7 +98,7 @@ namespace MRR
                 case MoveCard.tCardType.UTurn:
                     // set new robot direction
                     ListOfCommands.AddCommand(thisplayer, SquareAction.SetPlayerStatus, 5);
-                    ListOfCommands.AddCommand(thisplayer, SquareAction.StartBotMove, 0);
+                    ListOfCommands.AddCommand(thisplayer, SquareAction.StartBotMove, 1);
                     //RotateRobot(thisplayer, p_movecard.GetCardValue()) ; //,SquareAction.Rotate);
                     RotateRobot(thisplayer, GameCards.GetCardValue(p_movecard)); // p_movecard.GetCardValue()) ; //,SquareAction.Rotate);
                     ListOfCommands.AddCommand(thisplayer, SquareAction.StopBotMove,0);
@@ -112,7 +112,7 @@ namespace MRR
                     // move robot...
                     // add this robot move
                     ListOfCommands.AddCommand(thisplayer, SquareAction.SetPlayerStatus, 5);
-                    ListOfCommands.AddCommand(thisplayer, SquareAction.StartBotMove, 0);
+                    ListOfCommands.AddCommand(thisplayer, SquareAction.StartBotMove, 1);
 
                     int l_MoveDistance = GameCards.GetCardValue(p_movecard);
                     // check for water...
@@ -1268,8 +1268,7 @@ namespace MRR
                             //ListOfCommands.AddCommand(thisplayer, Turret);
                         }
                         Direction canndir2 = RotationFunctions.Rotate(2, canndir);
-                        int AddX = RotationFunctions.MovementOffsetX(canndir);
-                        int AddY = RotationFunctions.MovementOffsetY(canndir);
+                        var (AddX, AddY) = RotationFunctions.MovementOffset(canndir);
                         //Func<Player, bool> playerFilter = null;
 
                         int CheckX = thisplayer.CurrentPos.X;

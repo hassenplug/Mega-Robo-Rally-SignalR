@@ -97,21 +97,6 @@ namespace MRR
         private static string Abbrev(int typeId) =>
             CardAbbrev.TryGetValue(typeId, out var s) ? s : "?";
 
-        // ── Color helpers ─────────────────────────────────────────────────────
-
-        private static (int r, int g, int b) ParseHex(string hex, int dr, int dg, int db)
-        {
-            try
-            {
-                if (hex.Length >= 6)
-                    return (int.Parse(hex[..2], NumberStyles.HexNumber),
-                            int.Parse(hex[2..4], NumberStyles.HexNumber),
-                            int.Parse(hex[4..6], NumberStyles.HexNumber));
-            }
-            catch { }
-            return (dr, dg, db);
-        }
-
         // ── Constructor ───────────────────────────────────────────────────────
 
         public RobotScreenUI(Player player, DataService dataService, IHubContext<DataHub> hubContext)
@@ -156,8 +141,8 @@ namespace MRR
 
             RefreshFromPlayer();
 
-            var (bgR, bgG, bgB) = ParseHex(_player.Color,     50,  50, 150);
-            var (fgR, fgG, fgB) = ParseHex(_player.ForeColor, 255, 255, 255);
+            var (bgR, bgG, bgB) = ColorHelper.ParseHex(_player.Color,     50,  50, 150);
+            var (fgR, fgG, fgB) = ColorHelper.ParseHex(_player.ForeColor, 255, 255, 255);
 
             // 1. Clear screen only on the first render after a new deal
             if (_clearOnNextRender)
