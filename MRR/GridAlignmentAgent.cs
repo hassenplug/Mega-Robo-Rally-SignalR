@@ -114,8 +114,7 @@ public static class GridAlignmentAgent
                     turn_rate = 50,
                     stacking_type = 0
                 });
-                while (robot.isMoving is > 0 and < 3) await Task.Delay(50);
-                robot.isMoving = 0;
+                await robot.WaitForStopAsync();
                 continue;
             }
 
@@ -135,8 +134,7 @@ public static class GridAlignmentAgent
                     final_heading = 0,
                     stacking_type = 0
                 });
-                while (robot.isMoving is > 0 and < 3) await Task.Delay(50);
-                robot.isMoving = 0;
+                await robot.WaitForStopAsync();
                 continue;
             }
 
@@ -157,8 +155,7 @@ public static class GridAlignmentAgent
                     final_heading = 0,
                     stacking_type = 0
                 });
-                while (robot.isMoving is > 0 and < 3) await Task.Delay(50);
-                robot.isMoving = 0;
+                await robot.WaitForStopAsync();
             }
         }
 

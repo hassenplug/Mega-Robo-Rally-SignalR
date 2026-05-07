@@ -207,10 +207,6 @@ app.MapGet("/api/robot/{function?}/{parameter1?}", async (string? function, stri
 
     switch (function)
     {
-        case "test":
-            var robot = await new Player().Connect(parameter1 ?? "");
-            await (robot?.RunTest() ?? Task.CompletedTask);
-            break;
         case "align":
             var robot1 = await new Player().Connect(parameter1 ?? "");
             await (robot1?.AlignAsync() ?? Task.CompletedTask);

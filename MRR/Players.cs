@@ -123,12 +123,6 @@ namespace MRR
             DamagedBy = -1;
         }
 
-        public Player(int p_ID)
-            : this()
-        {
-            ID = p_ID;
-            Name = ToString();
-        }
 
         public Player(Player p_Player)
             : this()
@@ -536,7 +530,7 @@ namespace MRR
                 if (responseObj != null && responseObj.ContainsKey("status"))
                 {
                     var status = responseObj["status"].ToString();
-                    if (status == "in_progress" && isMoving == 1)
+                    if (status == "in_progress")
                         isMoving = 2;
                     else if (status == "error")
                     {
@@ -548,45 +542,6 @@ namespace MRR
         }
 
         private static readonly byte[] StatusPollRequest = [0x01];
-
-        private async Task ListenStatusAsync(CancellationToken ct)
-        {
-            var buffer = new byte[4096];
-            while (!ct.IsCancellationRequested && wsStatus?.State == WebSocketState.Open)
-            {
-                try
-                {
-                    await _statusSocketSemaphore.WaitAsync(ct);
-                    try
-                    {
-                        // Send 0x01 to request a status snapshot — never pass ct to socket ops
-                        // to avoid aborting the socket on cancellation.
-                        await wsStatus.SendAsync(new ArraySegment<byte>(StatusPollRequest),
-                            WebSocketMessageType.Binary, true, CancellationToken.None);
-
-                        var result = await wsStatus.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
-                        if (result.MessageType == WebSocketMessageType.Close) break;
-
-                        var json = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                        ProcessStatusEvent(json);
-                    }
-                    finally
-                    {
-                        _statusSocketSemaphore.Release();
-                    }
-
-                    await Task.Delay(100, ct); // ct only here — clean exit between polls
-                }
-                catch (OperationCanceledException) { break; }
-                catch (Exception ex)
-                {
-                    Console.WriteLine("Status listener error: " + ex.Message);
-                    if (wsStatus?.State != WebSocketState.Open) break;
-                    try { await Task.Delay(100, ct); } catch { break; }
-                }
-            }
-            Console.WriteLine("Status listener exited");
-        }
 
         /// <summary>
         /// Polls ws_status for a single snapshot and returns the parsed RobotStatus.
@@ -632,49 +587,6 @@ namespace MRR
         }
 
 
-
-        private void ProcessStatusEvent(string json)
-        {
-            try
-            {
-                using var doc = JsonDocument.Parse(json);
-                if (!doc.RootElement.TryGetProperty("robot", out var robot)) return;
-
-                var flagsStr  = robot.TryGetProperty("flags",    out var fEl)  ? fEl.GetString()  ?? "0x0" : "0x0";
-                var battery   = robot.TryGetProperty("battery",  out var bEl)  ? bEl.GetInt32()   : 0;
-                var robotXStr = robot.TryGetProperty("robot_x",  out var xEl)  ? xEl.GetString()  ?? "0" : "0";
-                var robotYStr = robot.TryGetProperty("robot_y",  out var yEl)  ? yEl.GetString()  ?? "0" : "0";
-                var heading   = robot.TryGetProperty("heading",  out var hEl)  ? hEl.GetString()  ?? "?" : "?";
-                var rotation  = robot.TryGetProperty("rotation", out var rEl)  ? rEl.GetString()  ?? "?" : "?";
-
-                var PosX = double.TryParse(robotXStr, NumberStyles.Float, CultureInfo.InvariantCulture, out var px) ? px : 0;
-                var PosY = double.TryParse(robotYStr, NumberStyles.Float, CultureInfo.InvariantCulture, out var py) ? py : 0;
-                var DistToOrigin = Math.Sqrt(PosX * PosX + PosY * PosY);
-                var DirToOrigin  = Math.Atan2(-PosY, -PosX) * 180.0 / Math.PI;
-
-                var flags = Convert.ToUInt32(flagsStr, 16);
-
-                //Console.WriteLine(json);
-                if(ID == 1)
-                    Console.WriteLine($"Flags={flagsStr} moving={isMoving} bat={battery}% x={PosX:F2} y={PosY:F2} dist={DistToOrigin:F2}mm dir={DirToOrigin:F1}° hdg={heading} rot={rotation}");
-
-                if ((flags & 0xFF) != 0)
-                {
-                    // robot is physically moving
-                    if (isMoving == 1) isMoving = 2;
-                }
-                else
-                {
-                    // robot is physically idle
-                    if (isMoving == 2) isMoving = 3;
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Status parse error: " + ex.Message);
-            }
-        }
-
         public async ValueTask DisposeAsync()
         {
             _statusCts?.Cancel();
@@ -704,22 +616,6 @@ namespace MRR
             }
         }
 
-        public async Task RunTest()
-        {
-            await ConnectAsync();
-
-            await ClearScreenAsync();
-            await PrintAsync("Hello from C#!");
-            await SetLedAsync("all", 0, 255, 0);
-
-            await MoveAsync(76, 0);
-            while (isMoving is > 0 and < 3) await Task.Delay(50);
-            isMoving = 0;
-
-            await TurnAsync(1);
-            while (isMoving is > 0 and < 3) await Task.Delay(50);
-            isMoving = 0;
-        }
 
         public async Task SendRobotCommandAsync(CommandItem cmd)
         {

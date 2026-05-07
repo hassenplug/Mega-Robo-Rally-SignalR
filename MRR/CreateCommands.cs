@@ -836,52 +836,6 @@ namespace MRR
             return 0;
 
 
-
-            switch (newdir)
-            {
-                case 0: // already there
-                    return 0;
-
-                case -1: // must turn right or left...
-                case 1:
-                    //if (!p_thisplayer.Active)
-                    //    return 0;
-
-                    p_thisplayer.Rotate(newdir);
-
-                    CommandItem startingmove;
-                    if (p_Sequence == tCommandSequence.Before)
-                    {
-                        startingmove = ListOfCommands.First(loc => ((loc.Phase == p_OnMove.Phase) && (loc.PhaseStep == p_OnMove.PhaseStep) && (loc.IsRobotCommand()) && (loc.CommandType != SquareAction.StartBotMove)));
-                    }
-                    else
-                    {
-                        startingmove = ListOfCommands.Last(loc => ((loc.Phase == p_OnMove.Phase) && (loc.PhaseStep == p_OnMove.PhaseStep) && (loc.IsRobotCommand()) && (loc.CommandType != SquareAction.StopBotMove)));
-                    }
-
-                    //CommandItem turncommand = ListOfCommands.AddCommand(p_OnMove, p_thisplayer, SquareAction.Rotate, p_Sequence);
-                    CommandItem turncommand = ListOfCommands.AddCommand(startingmove, p_thisplayer, SquareAction.Rotate, p_Sequence);
-                    turncommand.Value = newdir;
-
-                    p_thisplayer.SetLocation();
-
-                    return 1;
-
-                case 2:
-                    // if direction is off 180, reverse move, and do not turn
-                    // reverse direction of move command
-                    // ONLY reverse direction on turn moves, not Unturn moves
-                    if (p_OnMove.Value > 0)
-                    {
-                        p_OnMove.Value = -p_OnMove.Value;
-                    }
-                    //if ((p_Sequence == tCommandSequence.Before) && (p_OnMove.Value > 0))
-                    //{
-                    //    p_OnMove.Value = -p_OnMove.Value;
-                    //}
-                    return 0;
-            }
-            return 0;
         }
 
 

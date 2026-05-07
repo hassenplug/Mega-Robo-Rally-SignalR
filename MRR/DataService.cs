@@ -109,6 +109,8 @@ namespace MRR.Services
 
         public int TotalFlags { get; set; } = 4;
 
+        public AllDataPayload AllData { get; set; } = new AllDataPayload();
+
         public bool IsOptionsEnabled
         {
             get
