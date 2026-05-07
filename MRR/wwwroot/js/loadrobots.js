@@ -2,6 +2,34 @@
 var CurrentPlayer = 0;
 var CurrentLine = 0;
 var datapacket = null;
+var lastPlayerCount = 0;
+
+function buildPlayerRows(robots) {
+    if (robots.length === lastPlayerCount) return;
+    lastPlayerCount = robots.length;
+
+    var showProgramContent = document.getElementById('showProgramTemplate').innerHTML;
+    var html = '';
+    for (var i = 0; i < robots.length; i++) {
+        var rid = i + 1;
+        var flagCells = '';
+        for (var f = 0; f < 5; f++)
+            flagCells += "<td id='flag" + rid + f + "' colspan='2' height='10' bgcolor='ffffff'> </td>";
+        var energyCells = '';
+        for (var e = 0; e < 10; e++)
+            energyCells += "<td id='energy" + rid + e + "' bgcolor='#ffffff'> </td>";
+        var showProgramTd = i === 0
+            ? "<td align=center rowspan='" + robots.length + "' bgcolor='#e0e0e0' id='showprogram'>" + showProgramContent + "</td>"
+            : '';
+        html += "<tr id='tr" + rid + "'>" +
+            "<td align=center><button class='button' id='button" + rid + "' style='background-color:e0e0e0; color:000000' onclick='showplayerprogram(" + rid + ");'>--</button></td>" +
+            "<td align=center id='flags" + rid + "' bgcolor='#e0e0e0'><table width='100%'><tr height='10'>" + flagCells + "</tr><tr height='10'>" + energyCells + "</tr></table></td>" +
+            "<td align=center id='playerstatus" + rid + "'>--</td>" +
+            showProgramTd +
+            "</tr>";
+    }
+    document.getElementById('playerRows').innerHTML = html;
+}
 
 function showplayerprogram(pl) // show program for this line
 {
@@ -79,6 +107,7 @@ function showplayerprogram(pl) // show program for this line
 function showall()
 {
     robots = datapacket.robots
+    buildPlayerRows(robots);
 
     //robotjson = robots;
     document.getElementById("title").innerText = datapacket.titlemsg;
