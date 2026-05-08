@@ -144,11 +144,9 @@ namespace MRR.Services
             return JsonConvert.SerializeObject(payload);
         }
 
-        // Convenience: return the same payload as GetAllData but as a JSON string
-        public string GetAllDataJson()
+        public AllDataPayload GetAllData()
         {
             UpdateGameState();
-            //string strSQLcgd = "Select iKey, sKey, iValue, sValue from CurrentGameData;";
 
             string strSQL = @"
                 SELECT r.RobotID, rb.Name AS RobotName, rb.Color AS RobotColor, rb.ColorFG AS RobotColorFG,
@@ -177,16 +175,56 @@ namespace MRR.Services
                 ) played ON r.RobotID = played.Owner
                 LEFT JOIN CommandList cl ON r.MessageCommandID = cl.CommandID
                 ORDER BY r.Priority";
-            //string titlemessage = "Turn " + GetIntFromDB("Select iValue from CurrentGameData where iKey=2;");
+
             string titlemessage = "Turn " + Turn;
             if (Phase > 0)
-            {
                 titlemessage += " Phase " + Phase;
-            }
-            //            var payload = new { robots = GetQueryResults(strSQL), currentgamedata = GetQueryResults(strSQLcgd), ServerTime = DateTime.Now.ToLongTimeString() };
-            var payload = new { titlemsg = titlemessage, gamestate = GameState, robots = GetQueryResults(strSQL) };
-            return JsonConvert.SerializeObject(payload);
+
+            var dt = GetQueryResults(strSQL);
+            var robots = dt.Rows.Cast<DataRow>().Select(row => new RobotData
+            {
+                RobotID             = Convert.ToInt32(row["RobotID"]),
+                RobotName           = row["RobotName"]?.ToString()    ?? "",
+                RobotColor          = row["RobotColor"]?.ToString()   ?? "",
+                RobotColorFG        = row["RobotColorFG"]?.ToString() ?? "",
+                CurrentFlag         = Convert.ToInt32(row["CurrentFlag"]),
+                StatusColor         = row["StatusColor"]?.ToString()  ?? "",
+                LEDColor            = row["LEDColor"]?.ToString()     ?? "",
+                PlayerStatus        = row["PlayerStatus"]?.ToString() ?? "",
+                StatusID            = Convert.ToInt32(row["StatusID"]),
+                X                   = Convert.ToInt32(row["X"]),
+                Y                   = Convert.ToInt32(row["Y"]),
+                Dir                 = Convert.ToInt32(row["Dir"]),
+                sDir                = row["sDir"]?.ToString()         ?? "",
+                AX                  = Convert.ToInt32(row["AX"]),
+                AY                  = Convert.ToInt32(row["AY"]),
+                Score               = Convert.ToInt32(row["Score"]),
+                OperatorName        = row["OperatorName"]?.ToString() ?? "",
+                PositionValid       = Convert.ToInt32(row["PositionValid"]),
+                Priority            = Convert.ToInt32(row["Priority"]),
+                ShutDown            = Convert.ToInt32(row["ShutDown"]),
+                Password            = row["Password"]?.ToString()     ?? "",
+                PlayerSeat          = Convert.ToInt32(row["PlayerSeat"]),
+                Energy              = Convert.ToInt32(row["Energy"]),
+                FlagEnergy          = row["FlagEnergy"]?.ToString()   ?? "",
+                PlayerViewDirection = Convert.ToInt32(row["PlayerViewDirection"]),
+                DirectionAdjustment = Convert.ToInt32(row["DirectionAdjustment"]),
+                CardsDealt          = row["CardsDealt"]?.ToString()   ?? "",
+                CardsPlayed         = row["CardsPlayed"]?.ToString()  ?? "0,0,0,0,0",
+                StatusToShow        = row["StatusToShow"]?.ToString() ?? "",
+                msg                 = row["msg"]?.ToString()          ?? "",
+            }).ToList();
+
+            return new AllDataPayload
+            {
+                titlemsg  = titlemessage,
+                gamestate = GameState,
+                robots    = robots,
+            };
         }
+
+        // Convenience: return the same payload as GetAllData but as a JSON string
+        public string GetAllDataJson() => JsonConvert.SerializeObject(GetAllData());
 
         public int GetIntFromDB(string strSQL)
         {

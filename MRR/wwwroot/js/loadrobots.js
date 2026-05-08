@@ -12,18 +12,12 @@ function buildPlayerRows(robots) {
     var html = '';
     for (var i = 0; i < robots.length; i++) {
         var rid = i + 1;
-        var flagCells = '';
-        for (var f = 0; f < 5; f++)
-            flagCells += "<td id='flag" + rid + f + "' colspan='2' height='10' bgcolor='ffffff'> </td>";
-        var energyCells = '';
-        for (var e = 0; e < 10; e++)
-            energyCells += "<td id='energy" + rid + e + "' bgcolor='#ffffff'> </td>";
         var showProgramTd = i === 0
             ? "<td align=center rowspan='" + robots.length + "' bgcolor='#e0e0e0' id='showprogram'>" + showProgramContent + "</td>"
             : '';
         html += "<tr id='tr" + rid + "'>" +
             "<td align=center><button class='button' id='button" + rid + "' style='background-color:e0e0e0; color:000000' onclick='showplayerprogram(" + rid + ");'>--</button></td>" +
-            "<td align=center id='flags" + rid + "' bgcolor='#e0e0e0'><table width='100%'><tr height='10'>" + flagCells + "</tr><tr height='10'>" + energyCells + "</tr></table></td>" +
+            "<td align=center id='flags" + rid + "' bgcolor='#e0e0e0'>--</td>" +
             "<td align=center id='playerstatus" + rid + "'>--</td>" +
             showProgramTd +
             "</tr>";
@@ -118,22 +112,7 @@ function showall()
         var btn = document.getElementById("button" + rid);
         btn.style = "background-color:" + robots[i].RobotColor + "; color:" + robots[i].RobotColorFG;
         btn.textContent = robots[i].RobotName;
-        //document.getElementById("flags" + rid).innerText = robots[i].FlagEnergy;
-        for(var j=0;j<5;j++)
-        {
-            var color1 = "ffffff";
-            if(j<robots[i].CurrentFlag) color1 = "0000ff";
-            document.getElementById("flag" + rid + j).style.backgroundColor = color1;
-            
-        }
-        for(var j=0;j<5;j++)
-        {
-            var color1 = "ffffff";
-            if(j<robots[i].Energy) color1 = "00ff00";
-            document.getElementById("energy" + rid + j).style.backgroundColor = color1;
-            
-        }
-        //$("#flags" + rid).innerText = robots[i].FlagEnergy;
+        document.getElementById("flags" + rid).innerText = robots[i].FlagEnergy;
         var statusbox = document.getElementById("playerstatus" + rid);
         statusbox.innerText = robots[i].StatusToShow;
         statusbox.style.backgroundColor = robots[i].StatusColor;
