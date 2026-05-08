@@ -29,8 +29,8 @@ function showplayerprogram(pl) // show program for this line
 {
     robots = datapacket.robots;
     CurrentLine = pl;
-    if (pl<1 || pl>robots.length) return;
-    var rbt = robots[pl-1];
+    var rbt = robots.find(r => r.Priority === pl);
+    if (!rbt) return;
     CurrentPlayer = rbt.RobotID;
     var dealt = rbt.CardsDealt.split(",");
     var played = rbt.CardsPlayed.split(",");
