@@ -230,7 +230,6 @@ namespace MRR
         private ClientWebSocket? wsStatus;
         private ClientWebSocket? wsImage;
         public bool isConnected { get; set; }
-        public int isMoving;
         private CancellationTokenSource? _statusCts;
         // Guards concurrent access to wsStatus from both ListenStatusAsync and GetStatusAsync
         private readonly SemaphoreSlim _statusSocketSemaphore = new SemaphoreSlim(1, 1);
@@ -531,7 +530,7 @@ namespace MRR
                 {
                     var status = responseObj["status"].ToString();
                     if (status == "in_progress")
-                        isMoving = 2;
+                    {}
                     else if (status == "error")
                     {
                         var errorInfo = responseObj.ContainsKey("error_info") ? responseObj["error_info"].ToString() : "Unknown error";
@@ -619,7 +618,6 @@ namespace MRR
 
         public async Task SendRobotCommandAsync(CommandItem cmd)
         {
-            //isMoving = 1;
             int moveType = cmd.CommandMoveType;
             switch (moveType)
             {
