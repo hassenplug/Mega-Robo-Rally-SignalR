@@ -15,6 +15,7 @@ using System.Data;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Net.WebSockets;
+using System.Reflection;
 using System.Text.Json;
 
 // serializer
@@ -23,32 +24,42 @@ namespace MRR
 {
 
     #region Player Enums
-    //public enum tRobotStatus
-    //{
-    //    Stationary = 0,
-    //    Moving = 1,
-    //    OffCenter = 2,
-    //    Turning = 3,
-    //    CommandSent = 4,
-    //    ReceivedReply = 5,
-    //    Unknown = 6
-    //}
+
+    [AttributeUsage(AttributeTargets.Field)]
+    public sealed class StatusInfoAttribute(string statusColor, string ledColor, string shortDescription) : Attribute
+    {
+        public string StatusColor      { get; } = statusColor;
+        public string LEDColor         { get; } = ledColor;
+        public string ShortDescription { get; } = shortDescription;
+    }
 
     public enum tPlayerStatus
     {
-        [Description("Unknown")]Unknown,
-        [Description("Waiting For Cards")]WaitingForCards,
-        [Description("Programming")]Programming,
-        [Description("Ready To Run")]ReadyToRun,
-        [Description("Move In Progress")]MoveInProgress,
-        [Description("Moving")]Moving,
-        [Description("Connection Failing")]ConnectionFailing,
-        [Description("Connected")] Connected,
-        [Description("Connected")] Connected1,
-        [Description("Connected")] Connected2,
-        [Description("Connected")] Connected3,
-        [Description("Connected")] Connected4,
-        [Description("Move Complete")] MoveComplete,
+        [StatusInfo("FFFFFF", "FFFFFF", "Unknown")]   Unknown          = 0,
+        [StatusInfo("FFFFFF", "FFFFFF", "Wait")]      WaitingForCards  = 1,
+        [StatusInfo("CCFFCC", "003333", "Program")]   ReadyToProgram   = 2,
+        [StatusInfo("AAFFAA", "008888", "Program")]   Programming      = 3,
+        [StatusInfo("00FF00", "00FF00", "Ready")]      ReadyToRun       = 4,
+        [StatusInfo("0000FF", "0000FF", "Moving")]     MoveInProgress   = 5,
+        [StatusInfo("0000FF", "0000FF", "Moving")]     Moving           = 6,
+        [StatusInfo("FFA500", "FFA500", "Connect")]    ConnectionFailing = 7,
+        [StatusInfo("AAAAFF", "000088", "Connect")]    Connected        = 8,
+        [StatusInfo("FFFF00", "FFFF00", "Shut Down")] ShutDown         = 9,
+        [StatusInfo("FF0000", "FF0000", "Inactive")]   NotActive        = 10,
+        [StatusInfo("FF0000", "FF0000", "Dead")]        Dead             = 11,
+        [StatusInfo("88FF88", "88FF88", "Done")]        MoveComplete     = 12,
+        [StatusInfo("55FF55", "55FF55", "Locked In")]  ProgramLocked    = 13,
+        [StatusInfo("FFFF00", "FFFF00", "Laser")]       LaserFired       = 14,
+    }
+
+    public static class PlayerStatusExtensions
+    {
+        public static StatusInfoAttribute Info(this tPlayerStatus status)
+        {
+            var field = typeof(tPlayerStatus).GetField(status.ToString());
+            return field?.GetCustomAttribute<StatusInfoAttribute>()
+                ?? new StatusInfoAttribute("FFFFFF", "FFFFFF", status.ToString());
+        }
     }
 
     public enum tShutDown
@@ -230,7 +241,6 @@ namespace MRR
         private ClientWebSocket? wsStatus;
         private ClientWebSocket? wsImage;
         public bool isConnected { get; set; }
-        public int isMoving;
         private CancellationTokenSource? _statusCts;
         // Guards concurrent access to wsStatus from both ListenStatusAsync and GetStatusAsync
         private readonly SemaphoreSlim _statusSocketSemaphore = new SemaphoreSlim(1, 1);
@@ -382,8 +392,54 @@ namespace MRR
         [Column("Status")]
         public tPlayerStatus PlayerStatus { get; set; }
 
+
+        [NotMapped]
+        public int PlayerViewDirection { get; set; }
+
+        [NotMapped]
+        public string StatusToShow { get; set; } = "";
+
+        [NotMapped]
+        public string PlayerMsg { get; set; } = "";
+
+        public string Password { get; set; } = "";
+
         [NotMapped]
         public string? IPAddress { get; set; }
+
+        public RobotData ToRobotData() => new()
+        {
+            RobotID             = ID,
+            RobotName           = Name,
+            RobotColor          = Color,
+            RobotColorFG        = ForeColor,
+            CurrentFlag         = LastFlag,
+            StatusColor         = (isConnected ? PlayerStatus : tPlayerStatus.NotActive).Info().StatusColor,
+            LEDColor            = (isConnected ? PlayerStatus : tPlayerStatus.NotActive).Info().LEDColor,
+            PlayerStatus        = (isConnected ? PlayerStatus : tPlayerStatus.NotActive).Info().ShortDescription,
+            StatusID            = (int)PlayerStatus,
+            X                   = CurrentPos.X,
+            Y                   = CurrentPos.Y,
+            Dir                 = (int)CurrentPos.Direction,
+            sDir                = CurrentPos.Direction.ToString(),
+            AX                  = ArchivePos.X,
+            AY                  = ArchivePos.Y,
+            Score               = Score,
+            OperatorName        = Operator,
+            PositionValid       = PositionValid ? 1 : 0,
+            Priority            = Priority,
+            ShutDown            = (int)ShutDown,
+            Password            = Password,
+            PlayerSeat          = PlayerSeat,
+            Energy              = Energy,
+            FlagEnergy          = $"{LastFlag}/{Energy}",
+            PlayerViewDirection = PlayerViewDirection,
+            DirectionAdjustment = PlayerViewDirection,
+            CardsDealt          = CardsDealtStr,
+            CardsPlayed         = CardsPlayedStr,
+            StatusToShow        = StatusToShow,
+            msg                 = PlayerMsg,
+        };
 
         public async Task<Player?> Connect(string ipAddress = "")
         {
@@ -531,7 +587,7 @@ namespace MRR
                 {
                     var status = responseObj["status"].ToString();
                     if (status == "in_progress")
-                        isMoving = 2;
+                    {}
                     else if (status == "error")
                     {
                         var errorInfo = responseObj.ContainsKey("error_info") ? responseObj["error_info"].ToString() : "Unknown error";

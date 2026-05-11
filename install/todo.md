@@ -92,7 +92,7 @@
   - **Move complete, waiting for next program** (state 12 → 2) → LEDs ON again
   - Implementation: call `SetLedAsync` at each transition point in `CommandProcess.ProcessCommand` (before/after move) and in `GameController` state transitions (state 5 = off, state 2 = on)
 
-- [-] Update isMoving to multiple states
+- [X] Update isMoving to multiple states
   - 0 when not moving
   - 1 when starting a move (sending move command)
   - 2 when robot comfirms move is in progress

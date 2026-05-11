@@ -226,6 +226,19 @@ namespace MRR.Services
         // Convenience: return the same payload as GetAllData but as a JSON string
         public string GetAllDataJson() => JsonConvert.SerializeObject(GetAllData());
 
+        public AllDataPayload GetAllDataFromPlayers()
+        {
+            string titlemessage = "Turn " + Turn;
+            if (Phase > 0) titlemessage += " Phase " + Phase;
+
+            return new AllDataPayload
+            {
+                titlemsg  = titlemessage,
+                gamestate = GameState,
+                robots    = [.. AllPlayers.OrderBy(p => p.Priority).Select(p => p.ToRobotData())],
+            };
+        }
+
         public int GetIntFromDB(string strSQL)
         {
             var dt = GetQueryResults(strSQL);
@@ -519,7 +532,8 @@ namespace MRR.Services
                 var players = new Players();
 
                 string strSQL = @"SELECT r.RobotID, rb.Name AS RobotName, rb.Color AS RobotColor, rb.ColorFG AS RobotColorFG,
-                       r.OperatorName, r.Password, r.PlayerSeat, rbase.MACID
+                       r.OperatorName, r.Password, r.PlayerSeat, rbase.MACID,
+                       so.Direction AS PlayerViewDirection
                 FROM Robots r
                 JOIN RobotBodies rb ON r.RobotBodyID = rb.RobotBodyID
                 JOIN RobotDirections rd ON r.CurrentPosDir = rd.DirID
@@ -532,13 +546,14 @@ namespace MRR.Services
                 {
                     players.Add(new Player()
                     {
-                        ID = (int)row["RobotID"],
-                        PlayerSeat = (int)row["PlayerSeat"],
-                        Name = row["RobotName"].ToString() ?? "",
-                        Color = row["RobotColor"].ToString() ?? "FFFFFF",
-                        ForeColor = row["RobotColorFG"].ToString() ?? "000000",
-                        IPAddress = row["MACID"].ToString(),
-
+                        ID                  = (int)row["RobotID"],
+                        PlayerSeat          = (int)row["PlayerSeat"],
+                        Name                = row["RobotName"].ToString() ?? "",
+                        Color               = row["RobotColor"].ToString() ?? "FFFFFF",
+                        ForeColor           = row["RobotColorFG"].ToString() ?? "000000",
+                        Password            = row["Password"]?.ToString() ?? "",
+                        IPAddress           = row["MACID"].ToString(),
+                        PlayerViewDirection = Convert.ToInt32(row["PlayerViewDirection"]),
                     });
                     //Console.WriteLine("Loaded player ID:" + row["RobotID"].ToString() + " Name:" + row["RobotName"].ToString() + " IP:" + IPAddress);
                 }
@@ -582,21 +597,21 @@ namespace MRR.Services
                 var existingPlayer = _allPlayers?.FirstOrDefault(p => p.ID == (int)row["RobotID"]);
                 if (existingPlayer != null)
                 {
-                    existingPlayer.LastFlag = (int)row["CurrentFlag"];
-                    //existingPlayer.Lives = (int)row["Lives"];
-                    //existingPlayer.Damage = (int)row["Damage"];
-                    existingPlayer.ShutDown = (tShutDown)((int)row["ShutDown"]);
-                    existingPlayer.PlayerStatus = (tPlayerStatus)((int)row["StatusID"]);
-                    existingPlayer.CurrentPos = new RobotLocation((Direction)(int)row["Dir"], (int)row["X"], (int)row["Y"]);
-                    existingPlayer.Priority = (int)row["Priority"];
-                    existingPlayer.Energy = (int)row["Energy"];
-                    existingPlayer.Active = ((int)row["StatusID"] != 10);
-
-                    // Refresh card strings used by RobotScreenUI
-                    if (row.Table.Columns.Contains("CardsDealt"))
-                        existingPlayer.CardsDealtStr = row["CardsDealt"]?.ToString() ?? "";
-                    if (row.Table.Columns.Contains("CardsPlayed"))
-                        existingPlayer.CardsPlayedStr = row["CardsPlayed"]?.ToString() ?? "0,0,0,0,0";
+                    existingPlayer.LastFlag          = (int)row["CurrentFlag"];
+                    existingPlayer.ShutDown          = (tShutDown)(int)row["ShutDown"];
+                    existingPlayer.PlayerStatus      = (tPlayerStatus)(int)row["StatusID"];
+                    existingPlayer.CurrentPos        = new RobotLocation((Direction)(int)row["Dir"], (int)row["X"], (int)row["Y"]);
+                    existingPlayer.ArchivePosCol     = (int)row["AX"];
+                    existingPlayer.ArchivePosRow     = (int)row["AY"];
+                    existingPlayer.Priority          = (int)row["Priority"];
+                    existingPlayer.Energy            = (int)row["Energy"];
+                    existingPlayer.Score             = (int)row["Score"];
+                    existingPlayer.PositionValid     = (int)row["PositionValid"] != 0;
+                    existingPlayer.Active            = (int)row["StatusID"] != 10;
+                    existingPlayer.StatusToShow      = row["StatusToShow"]?.ToString() ?? "";
+                    existingPlayer.PlayerMsg         = row["msg"]?.ToString()          ?? "";
+                    existingPlayer.CardsDealtStr     = row["CardsDealt"]?.ToString()   ?? "";
+                    existingPlayer.CardsPlayedStr    = row["CardsPlayed"]?.ToString()  ?? "0,0,0,0,0";
                 };
             }
 
