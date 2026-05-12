@@ -234,7 +234,7 @@ namespace MRR.Controller
             // Refresh C# state so BoardID etc. reflect the new values before board load
             //_dataService.UpdateGameState();
             _dataService.GetAllPlayers(true); // force refresh of player list after DB changes
-            UpdateGameState();
+            //_dataService.UpdateGameState();
 //            NextState();
             LoadCurrentGame();
 
@@ -363,7 +363,8 @@ namespace MRR.Controller
             // load current game data from database
             // connect to robots in current game
 
-            UpdateGameState();
+            //UpdateGameState();
+            _dataService.UpdateGameState(); // ensure C# state reflects any DB changes from UpdateGameState logic
 
             if (RobotsActive != 0)
             {

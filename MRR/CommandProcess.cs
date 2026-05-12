@@ -193,17 +193,6 @@ namespace MRR
 
                     if (onecommand.StatusID == 3)
                     {
-                        /*if (robot.isMoving == 3)
-                        {
-                            robot.isMoving = 0;
-                            LogCommand(onecommand, "Robot Command Done");
-                            onecommand.StatusID = 4;
-                        }
-                        else
-                        {
-                            LogCommand(onecommand, "Robot Command in Progress");
-                        }
-                        */
                     }
 
                     if (onecommand.StatusID == 4)

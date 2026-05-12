@@ -345,10 +345,8 @@ namespace MRR
 
         [NotMapped]
         [XmlIgnore]
-        public CardList CardsPlayed
-        {
-            get { return new CardList((CardsPlayer ?? new CardList()).Where(gc => gc.PhasePlayed > 0).OrderBy(pc => pc.PhasePlayed)); }
-        }
+        public CardList CardsPlayed =>
+            [.. (CardsPlayer ?? []).Where(gc => gc.PhasePlayed > 0).OrderBy(pc => pc.PhasePlayed)];
 
         /// <summary>
         /// Comma-separated TypeIDs of the 9 cards dealt this turn (e.g. "5,6,7,1,2,3,8,10,4").

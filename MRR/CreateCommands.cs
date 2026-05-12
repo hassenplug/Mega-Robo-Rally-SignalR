@@ -884,7 +884,7 @@ namespace MRR
             // get list of cards to execute
             //foreach (MoveCard thiscard in GameCards.Where(gc => gc.PhasePlayed == p_PhaseNumber).OrderByDescending(gc => gc.Priority))
 
-            List<MoveCard> FullList = [];
+            //List<MoveCard> FullList = [];
 
             /*
              * this code should be ready for randomizer
