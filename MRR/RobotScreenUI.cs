@@ -352,8 +352,7 @@ namespace MRR
                 if (typeId == 0) return; // no card here
 
                 // Play the card into the next empty slot
-                _dataService.ExecuteSQL(
-                    $"call procUpdateCardPlayed({_player.ID},{typeId},-1);");
+                _dataService.UpdateCardPlayed(_player.ID, typeId, -1);
 
                 // Broadcast update so phones stay in sync
                 _dataService.RefreshPlayerCards(_player.ID);
@@ -375,8 +374,7 @@ namespace MRR
                 if (_playedTypeIds[i] == 0) return;
 
                 // Remove the card from this register slot (1-based)
-                _dataService.ExecuteSQL(
-                    $"call procUpdateCardPlayed({_player.ID},-1,{i + 1});");
+                _dataService.UpdateCardPlayed(_player.ID, -1, i + 1);
 
                 // Broadcast update
                 _dataService.RefreshPlayerCards(_player.ID);

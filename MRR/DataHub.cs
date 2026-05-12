@@ -30,7 +30,7 @@ namespace MRR.Hubs
             switch (command)
             {
                 case 1:
-                    _dataService.ExecuteSQL("call procUpdateCardPlayed(" + playerId + "," + data1 + "," + data2 + ");");
+                    _dataService.UpdateCardPlayed(playerId, data1, data2);
                     var player = _dataService.AllPlayers.GetPlayer(playerId);
                     _dataService.RefreshPlayerCards(playerId);
                     //player?.RefreshCards();
