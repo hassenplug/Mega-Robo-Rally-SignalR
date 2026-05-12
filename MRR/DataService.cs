@@ -619,7 +619,7 @@ namespace MRR.Services
 
         /// <summary>
         /// Refreshes CardsDealtStr and CardsPlayedStr for a single player from the DB.
-        /// Call this after procUpdateCardPlayed so the in-memory state matches the DB.
+        /// Call this after UpdateCardPlayed so the in-memory state matches the DB.
         /// </summary>
         public void RefreshPlayerCards(int robotID)
         {
@@ -632,6 +632,178 @@ namespace MRR.Services
 
             player.CardsDealtStr  = dt.Rows[0]["CardsDealt"]?.ToString()  ?? "";
             player.CardsPlayedStr = dt.Rows[0]["CardsPlayed"]?.ToString() ?? "0,0,0,0,0";
+        }
+
+        /// <summary>
+        /// C# equivalent of procUpdateCardPlayed + procUpdateRobotCards.
+        /// Phone/robot UI programming endpoint: places a card from hand into a register,
+        /// or removes a card from a register back to hand.
+        ///
+        /// Parameters match the stored procedure signature:
+        ///   p_Player      — RobotID of the player programming
+        ///   p_CardTypeID  — CardTypeID to play (>0 = play that type; -1 = only clear the slot)
+        ///   p_PhasePlayed — Register slot 1-5 to target (-1 = first empty slot)
+        ///
+        /// Behaviour:
+        ///   1. Does nothing if the robot is not in a Programming-eligible status.
+        ///   2. If p_PhasePlayed=-1, finds the lowest empty register (up to PhaseCount).
+        ///      If none exists, clears both parameters and exits without moving any card.
+        ///   3. If p_CardTypeID>0, selects the lowest CardID in the player's hand (CardLocation=1)
+        ///      with that type.
+        ///   4. Moves any card currently in the target slot back to hand (CardLocation=1).
+        ///   5. Moves the selected card from hand to the target slot (CardLocation=2).
+        ///   6. Sets robot Status=4 (Ready) if all PhaseCount slots are filled, else Status=3 (Programming).
+        ///   7. Rebuilds Robots.CardsDealt and Robots.CardsPlayed CSV strings (procUpdateRobotCards).
+        ///   8. Updates in-memory player state to match.
+        /// </summary>
+        public void UpdateCardPlayed(int p_Player, int p_CardTypeID, int p_PhasePlayed)
+        {
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+
+            // 1. Check that the robot is in a programming-eligible status.
+            int inProgramming;
+            using (var cmd = new MySqlCommand(
+                "SELECT rs.Programming " +
+                "FROM Robots r " +
+                "INNER JOIN RobotStatus rs ON r.`Status` = rs.RobotStatusID " +
+                "WHERE r.RobotID = @player",
+                connection))
+            {
+                cmd.Parameters.AddWithValue("@player", p_Player);
+                var result = cmd.ExecuteScalar();
+                inProgramming = (result == null || result == DBNull.Value) ? 0 : Convert.ToInt32(result);
+            }
+
+            if (inProgramming != 1) return;
+
+            int vCardID = -1;
+            int phaseCount = PhaseCount;
+
+            // 2. If no target slot specified, find the first empty register.
+            if (p_PhasePlayed == -1)
+            {
+                using var cmd = new MySqlCommand(
+                    "SELECT MIN(pc.ID) " +
+                    "FROM PhaseCounter pc " +
+                    "LEFT JOIN MoveCards mc ON pc.ID = mc.PhasePlayed AND mc.`Owner` = @player " +
+                    "WHERE mc.CardTypeID IS NULL",
+                    connection);
+                cmd.Parameters.AddWithValue("@player", p_Player);
+                var result = cmd.ExecuteScalar();
+                if (result == null || result == DBNull.Value)
+                {
+                    // All slots are full — nothing to do.
+                    return;
+                }
+                p_PhasePlayed = Convert.ToInt32(result);
+                if (p_PhasePlayed > phaseCount)
+                {
+                    // No valid empty slot within the current phase count.
+                    return;
+                }
+            }
+
+            // 3. If a card type is requested, find the lowest CardID of that type in hand.
+            if (p_CardTypeID > 0)
+            {
+                using var cmd = new MySqlCommand(
+                    "SELECT MIN(CardID) FROM MoveCards " +
+                    "WHERE `Owner` = @player AND CardLocation = 1 AND CardTypeID = @typeId",
+                    connection);
+                cmd.Parameters.AddWithValue("@player", p_Player);
+                cmd.Parameters.AddWithValue("@typeId", p_CardTypeID);
+                var result = cmd.ExecuteScalar();
+                vCardID = (result == null || result == DBNull.Value) ? -1 : Convert.ToInt32(result);
+            }
+
+            // 4. Return any card already in the target slot back to hand.
+            using (var cmd = new MySqlCommand(
+                "UPDATE MoveCards SET PhasePlayed = -1, CardLocation = 1 " +
+                "WHERE `Owner` = @player AND PhasePlayed = @phase AND CardLocation = 2",
+                connection))
+            {
+                cmd.Parameters.AddWithValue("@player", p_Player);
+                cmd.Parameters.AddWithValue("@phase", p_PhasePlayed);
+                cmd.ExecuteNonQuery();
+            }
+
+            // 5. Move the selected card from hand into the target slot.
+            if (vCardID >= 0)
+            {
+                using var cmd = new MySqlCommand(
+                    "UPDATE MoveCards SET PhasePlayed = @phase, CardLocation = 2 " +
+                    "WHERE `Owner` = @player AND CardID = @cardId AND CardLocation = 1",
+                    connection);
+                cmd.Parameters.AddWithValue("@phase", p_PhasePlayed);
+                cmd.Parameters.AddWithValue("@player", p_Player);
+                cmd.Parameters.AddWithValue("@cardId", vCardID);
+                cmd.ExecuteNonQuery();
+            }
+
+            // 6. Determine new robot status: 4=Ready if all registers filled, else 3=Programming.
+            int programCount;
+            using (var cmd = new MySqlCommand(
+                "SELECT COUNT(*) FROM MoveCards WHERE `Owner` = @player AND CardLocation = 2",
+                connection))
+            {
+                cmd.Parameters.AddWithValue("@player", p_Player);
+                programCount = Convert.ToInt32(cmd.ExecuteScalar() ?? 0);
+            }
+            int newStatus = (programCount == phaseCount) ? 4 : 3;
+
+            // 7. Rebuild CardsDealt and CardsPlayed CSV strings (procUpdateRobotCards).
+            string? cardsDealt;
+            using (var cmd = new MySqlCommand(
+                "SELECT GROUP_CONCAT(CardTypeID ORDER BY CardTypeID DESC) " +
+                "FROM MoveCards WHERE CardLocation = 1 AND `Owner` = @player " +
+                "GROUP BY `Owner`",
+                connection))
+            {
+                cmd.Parameters.AddWithValue("@player", p_Player);
+                var result = cmd.ExecuteScalar();
+                cardsDealt = (result == null || result == DBNull.Value) ? null : result.ToString();
+            }
+
+            string? cardsPlayed;
+            using (var cmd = new MySqlCommand(
+                "SELECT GROUP_CONCAT(IFNULL(mc.CardTypeID, 0) ORDER BY pc.ID) " +
+                "FROM PhaseCounter pc " +
+                "LEFT JOIN MoveCards mc ON pc.ID = mc.PhasePlayed AND mc.`Owner` = @player",
+                connection))
+            {
+                cmd.Parameters.AddWithValue("@player", p_Player);
+                var result = cmd.ExecuteScalar();
+                cardsPlayed = (result == null || result == DBNull.Value) ? null : result.ToString();
+            }
+
+            using (var cmd = new MySqlCommand(
+                "UPDATE Robots SET CardsDealt = @dealt, CardsPlayed = @played WHERE RobotID = @player",
+                connection))
+            {
+                cmd.Parameters.AddWithValue("@dealt", (object?)cardsDealt ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@played", (object?)cardsPlayed ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@player", p_Player);
+                cmd.ExecuteNonQuery();
+            }
+
+            // Update robot Status.
+            using (var cmd = new MySqlCommand(
+                "UPDATE Robots SET `Status` = @status WHERE RobotID = @player",
+                connection))
+            {
+                cmd.Parameters.AddWithValue("@status", newStatus);
+                cmd.Parameters.AddWithValue("@player", p_Player);
+                cmd.ExecuteNonQuery();
+            }
+
+            // 8. Sync in-memory player state.
+            var player = _allPlayers?.FirstOrDefault(p => p.ID == p_Player);
+            if (player != null)
+            {
+                player.CardsDealtStr  = cardsDealt  ?? "";
+                player.CardsPlayedStr = cardsPlayed ?? "0,0,0,0,0";
+            }
         }
 
         public int UpdateGameState()
