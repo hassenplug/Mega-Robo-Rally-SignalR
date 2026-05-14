@@ -490,6 +490,8 @@ States in `GameController.NextState()`:
 2. Each row has: `Turn`, `NormalSequence`, `RobotID`, `CommandCatID`, `CommandMoveType`, `Value`, `ValueB`
 3. `PendingCommands.ProcessCommands()` reads rows in sequence order, calls `Player.SendRobotCommandAsync()`
 4. Status codes: 1=Waiting, 2=Ready, 3=Executing (polling isMoving), 4=InProgress, 5=ScriptComplete, 6=Done
+5. **Pause commands**: `CommandTypeID=92` with `StatusID=4` are pause points requiring GM acknowledgment.
+   The GM clicks "Clear Pause" (`GET /api/state/clearpause`) or presses the Sense HAT joystick to set `StatusID=6` and release the hold.
 
 ### 4.4 Board Element Types (BoardElement.cs)
 Board squares can have types like: Normal, Wall, Pit, Flag, Start, Repair, ConveyorBelt, ExpressConveyor, Gear, Laser, PusherOdd, PusherEven
@@ -560,12 +562,24 @@ public enum PlayerStatus { Unknown, WaitingForCards, Programming, ReadyToRun, Mo
 ### 4.8 SignalR Protocol
 Phone clients connect to `/datahub`. Key hub methods:
 - `UpdatePlayer(command, playerId, data1, data2)` — client → server
-  - command 1: card played (data1=cardId, data2=position)
+  - command 1: card played → calls `DataService.UpdateCardPlayed(playerId, data1, data2)`
   - command 2: position validation
   - command 3: command complete
 - `SendMessage(user, message)` — general broadcast
 - `GetCurrentDatabaseData()` — client requests full state
 - `NextState()` — client advances state machine
+
+### 4.9 Card Data (in-memory)
+`DataService.GameCards` (`CardList`) is the in-memory deck for the current game,
+loaded by `LoadGameCardsFromDatabase()`. Each `Player` has `AllGameCards` pointing
+to this shared list. Computed properties derived from it:
+- `CardsPlayer` — `AllGameCards.Where(c => c.Owner == ID)` (this player's cards)
+- `CardsDealtStr` — TypeIDs of cards in hand (`CardLocation == 1`), comma-separated
+- `CardsPlayedStr` — 5-slot register string; 0 = empty slot
+- `StatusToShow` — shows register contents (e.g. "X,1,X,X,X") or status label
+
+`UpdateCardPlayed` writes to DB and syncs `GameCards` in-memory.
+`RefreshPlayerCards(robotID)` reloads a player's card fields from DB into `GameCards`.
 
 ### 4.9 Development Approach
 When implementing new features:

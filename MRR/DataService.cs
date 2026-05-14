@@ -151,10 +151,10 @@ namespace MRR.Services
             string titlemessage = "Turn " + Turn;
             if (Turn == 0) titlemessage = "Game Setup";
             if (Phase > 0) titlemessage += " Phase " + Phase;
-            foreach (var player in AllPlayers)
-            {
-                Console.WriteLine(player.ToRobotData().ToString());
-            }
+            //foreach (var player in AllPlayers)
+            //{
+            //    Console.WriteLine(player.ToRobotData().ToString());
+            //}
 
             return new AllDataPayload
             {
@@ -547,13 +547,14 @@ namespace MRR.Services
         public void RefreshPlayerCards(int robotID)
         {
             var dt = GetQueryResults(
-                $"SELECT CardID, PhasePlayed, CardLocation FROM MoveCards WHERE Owner = {robotID};");
+                $"SELECT CardID, PhasePlayed, CardLocation, Executed FROM MoveCards WHERE Owner = {robotID};");
             foreach (DataRow row in dt.Rows)
             {
                 var card = GameCards.FirstOrDefault(c => c.Owner == robotID && c.ID == (int)row["CardID"]);
                 if (card == null) continue;
                 card.PhasePlayed  = (int)row["PhasePlayed"];
                 card.CardLocation = (int)row["CardLocation"];
+                card.Executed     = (int)row["Executed"] == 1;
             }
         }
 
@@ -561,7 +562,7 @@ namespace MRR.Services
         {
             GameCards.Clear();
 
-            string strSQL = "Select CardID, CardTypeID, Owner, PhasePlayed, CardLocation from MoveCards;";
+            string strSQL = "Select CardID, CardTypeID, Owner, PhasePlayed, CardLocation, Executed from MoveCards;";
             var reader = GetQueryResults(strSQL);
 
             foreach (DataRow row in reader.Rows)
@@ -570,7 +571,8 @@ namespace MRR.Services
                 {
                     Owner = (int)row["Owner"],
                     PhasePlayed = (int)row["PhasePlayed"],
-                    CardLocation = (int)row["CardLocation"]
+                    CardLocation = (int)row["CardLocation"],
+                    Executed = (int)row["Executed"] == 1
                 };
 
                 GameCards.Add(newCard);

@@ -148,6 +148,10 @@ app.MapGet("/api/state/{newstate?}/{parameter1?}", async (string? newstate, stri
         case "loadboard":
             gameController.LoadBoard();
             break;
+        case "clearpause":
+            dataService.ExecuteSQL("UPDATE CommandList SET StatusID = 6 WHERE CommandTypeID = 92 AND StatusID = 4");
+            gameController.NextState();
+            break;
         default:
             Console.WriteLine("State change requested: " + newstate + " Param: " + parameter1);
         //        var setStatement = "Update " + tablename + " set " + setvalue + whereClause + ";";

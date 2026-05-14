@@ -161,19 +161,36 @@ Batch A: `Energy`, `ShutDown`, `Priority`, `Score`
 Batch B: `PlayerStatus`, `LastFlag`, `MessageCommandID`, `Damage`
 Batch C: `CurrentPos` (wrap the RobotLocation setter or expose col/row/dir
          individually), `ArchivePos`
-Batch D: `CardsDealtStr`, `CardsPlayedStr`
+Batch D: ~~`CardsDealtStr`, `CardsPlayedStr`~~ — **already done differently**: both
+are now computed read-only properties on `Player` derived from in-memory `GameCards`
+(`AllGameCards.Where(c => c.Owner == ID)`). No write-through setter is needed.
+`StatusToShow` is also now a computed property (no setter).
 
 Write-through SQL for each property must match exactly what the current
 `ExecuteSQL` calls in `GameController` and `CreateCommands` write (same column
 names, same WHERE clause).
 
-### Phase 3 — Add MoveCards in-memory collection
+### Phase 3 — Add MoveCards in-memory collection — **PARTIALLY DONE**
 
-1. Define `MoveCardRecord` (or reuse an existing model) matching `MoveCards` columns.
-2. Add `List<MoveCardRecord> _allCards` to `DataService`.
-3. Add `LoadAllCards()` called once at startup (e.g., from the `AllPlayers` lazy-load block, or from a dedicated startup method called in `Program.cs`).
-4. Replace the direct `GetQueryResults` / `ExecuteSQL` calls that read/write `MoveCards`
-   in hot paths with in-memory lookups + write-through saves.
+The `MoveCard` class already has all DB columns as properties: `ID`, `Type`,
+`Owner`, `PhasePlayed`, `CardLocation`, `Executed`, `Locked`, `CurrentOrder`.
+
+`DataService.GameCards` (`CardList`, a `List<MoveCard>`) is the in-memory collection.
+It is populated by `DataService.LoadGameCardsFromDatabase()` which selects all
+`MoveCards` columns including `CardLocation` and `Executed`.
+
+`CardsPlayer` on each `Player` is a computed property:
+`[.. (AllGameCards ?? []).Where(c => c.Owner == ID)]`
+where `AllGameCards` is a reference to `DataService.GameCards`.
+
+**Still needed:**
+- Ensure `AllGameCards` is wired onto each `Player` when `GetAllPlayers()` builds
+  the player list (so `CardsPlayer` resolves against the shared collection).
+- Replace remaining direct `GetQueryResults("SELECT ... FROM MoveCards")` calls in
+  hot paths with in-memory `GameCards` lookups.
+- `UpdateCardPlayed` already syncs `GameCards` in-memory after each DB write.
+- `RefreshPlayerCards(robotID)` reloads that player's card fields from DB into
+  `GameCards` (PhasePlayed, CardLocation, Executed).
 
 ### Phase 4 — Add CurrentGameData in-memory object
 

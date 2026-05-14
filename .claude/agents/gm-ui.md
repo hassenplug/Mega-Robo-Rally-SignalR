@@ -92,6 +92,7 @@ GET /api/state/executeturn            → ExecuteTurn() (async, then NextState)
 GET /api/state/processcommands        → StartProcessCommandsThread()
 GET /api/state/gametables            → HTML of CurrentGameData/Robots/CommandList tables
 GET /api/state/loadboard              → GameController.LoadBoard()
+GET /api/state/clearpause             → SET StatusID=6 WHERE CommandTypeID=92 AND StatusID=4
 GET /api/alldata                      → GetAllDataJson() + broadcast AllDataUpdate
 ```
 
@@ -661,6 +662,76 @@ function applyBodyColor(robotId, bodyId) {
 Show the Player Setup section when `GameState == 0` or `GameState` is absent
 (no game loaded yet). Once `GameState >= 2`, collapse the section to a small
 "Edit Setup" toggle so it's accessible but out of the way during play.
+
+---
+
+## Pause Commands (CommandTypeID 92)
+
+Some commands in the `CommandList` table are **pause points** that require GM
+acknowledgment before the command processor continues. These are identified by:
+
+- `CommandTypeID == 92` — pause/wait command type
+- `StatusID == 4` — command is waiting for GM acknowledgment
+
+When such a command exists, the GM page must surface a **Continue** button so the GM
+can release the hold. Clicking Continue sets `StatusID = 6` on that command row, which
+allows the command processor to proceed.
+
+### Detecting a pending pause
+
+On every `AllDataUpdate`, check the `CommandList` for any waiting pause command:
+
+```javascript
+function findPauseCommand(commandList) {
+    return (commandList ?? []).find(c => c.CommandTypeID == 92 && c.StatusID == 4);
+}
+```
+
+`commandList` comes from `parsed.robots` — actually from the full `AllDataUpdate`
+payload; query it via `GET /api/table/CommandList` or include it in the payload
+(see Table API). The pause command row will have at minimum: `ID`, `CommandTypeID`,
+`StatusID`, and optionally a `Description`.
+
+### Rendering the Continue button
+
+Show a prominent **Continue** button whenever a pause command is waiting. Place it in
+the Context Actions section (always visible when present, regardless of game state):
+
+```html
+<div id="pause-section" style="display:none; background:#440; padding:8px; margin:4px 0;">
+    <strong>⏸ Waiting for GM:</strong>
+    <span id="pause-description"></span>
+    <button onclick="releasePause()" style="margin-left:16px;">Continue →</button>
+</div>
+```
+
+```javascript
+function updatePauseSection(commandList) {
+    const cmd = findPauseCommand(commandList);
+    const section = document.getElementById('pause-section');
+    if (cmd) {
+        section.style.display = '';
+        document.getElementById('pause-description').textContent = cmd.Description ?? '';
+        section._pendingId = cmd.ID;
+    } else {
+        section.style.display = 'none';
+    }
+}
+
+function releasePause() {
+    fetch('/api/state/clearpause')
+        .then(() => fetch('/api/alldata'));
+}
+```
+
+### Raspberry Pi LED panel + joystick
+
+The same pause command is also displayed on the **Raspberry Pi Sense HAT 8×8 LED
+panel** as a visual indicator. Pressing the **Sense HAT joystick** (center press)
+has the same effect as clicking the GM Continue button — it sets `StatusID = 6` on
+the waiting pause command. No GM-page changes are needed to support this; the
+joystick handler runs server-side. The GM Continue button and the joystick press are
+equivalent and either one releases the hold.
 
 ---
 

@@ -88,6 +88,12 @@ using the existing patterns in the codebase.
 
 CardLocation values: 0=Deck, 1=Hand, 2=Played, 3=Discard, 4=Locked, 5=Played Spam
 
+The C# `MoveCard` class mirrors these columns: `ID`, `Type` (as `tCardType` enum),
+`Owner`, `PhasePlayed`, `CardLocation`, `Executed`, `Locked`, `CurrentOrder`.
+All MoveCards are loaded into `DataService.GameCards` at game start via
+`LoadGameCardsFromDatabase()` and kept in sync by `UpdateCardPlayed` and
+`RefreshPlayerCards`.
+
 ### Key CurrentGameData iKeys
 | iKey | sKey | Meaning |
 |---|---|---|
@@ -203,14 +209,20 @@ Returns viewCommandListActive (StatusID 2–4).
 ### procDealOptionToRobot(p_RobotID)
 Deals the next option from shuffled Options deck to a robot.
 
-### procUpdateCardPlayed(p_Player, p_CardTypeID, p_PhasePlayed)
-Phone client programming endpoint:
+### procUpdateCardPlayed(p_Player, p_CardTypeID, p_PhasePlayed) — **MIGRATED TO C#**
+Fully implemented as `DataService.UpdateCardPlayed(int p_Player, int p_CardTypeID, int p_PhasePlayed)`.
 - Validates robot is Programming status
 - Moves card Hand→Played, removes old card from slot
-- Updates Robot.Status
+- Updates Robot.Status in DB
+- Syncs in-memory `GameCards` entries (PhasePlayed + CardLocation)
+Do **not** call the stored procedure — call the C# method directly.
 
-### procUpdateRobotCards(p_Player)
-Rebuilds Robots.CardsDealt and Robots.CardsPlayed CSV strings.
+### procUpdateRobotCards(p_Player) — **OBSOLETE**
+Previously rebuilt `Robots.CardsDealt` and `Robots.CardsPlayed` CSV strings.
+`CardsDealtStr` and `CardsPlayedStr` are now computed properties on `Player`
+derived from in-memory `GameCards`. The DB columns `Robots.CardsDealt` and
+`Robots.CardsPlayed` are still updated by `UpdateCardPlayed` for compatibility,
+but the in-memory computed values are the authoritative source for the game UI.
 
 ### procSetStatus()
 Updates StatusLEDs from viewRobots.LEDColor.

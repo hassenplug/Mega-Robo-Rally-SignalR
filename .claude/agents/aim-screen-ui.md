@@ -66,20 +66,25 @@ instead of (or in addition to) their phone.
 
 ## Card Data Model
 
-### CardsDealt and CardsPlayed (from `Players.cs` / Robots table)
+### CardsDealt and CardsPlayed (from `Players.cs`)
 
-Both fields are **comma-separated strings of integer TypeIDs**:
+Both fields are **computed, read-only** string properties on `Player` — they derive
+their values from `AllGameCards` (the shared in-memory `CardList` on each player) and
+are never set directly or read from the DB.
 
-- `CardsDealtStr` — the 9 cards dealt to the player, e.g. `"5,6,7,1,2,3,8,10,4"`
-  - `[NotMapped]` string property on `Player`; populated from the `CardsDealt` DB column
-  - Parse: `player.CardsDealtStr.Split(',')` → up to 9 TypeID strings
-  - Index 0 = first dealt card, displayed on ring button H1
+- `CardsDealtStr` — comma-separated TypeIDs of cards in hand (`CardLocation == 1`), e.g. `"5,6,7,1,2,3,8,10,4"`
+  - Computed: `string.Join(",", CardsPlayer.Where(c => c.CardLocation == 1).Select(c => (int)c.Type))`
+  - Parse: `player.CardsDealtStr.Split(',')` → TypeID strings for cards currently in hand
+  - Order is not guaranteed; index 0 = displayed on ring button H1
 
-- `CardsPlayedStr` — the 5 program registers, e.g. `"5,0,6,0,0"`
-  - `[NotMapped]` string property on `Player`; populated from the `CardsPlayed` DB column
-  - 5 comma-separated values; `0` means the register is empty
+- `CardsPlayedStr` — comma-separated TypeIDs of the 5 registers (phases 1–5), e.g. `"5,0,6,0,0"`
+  - Computed: `Enumerable.Range(1, 5)` → find card with `PhasePlayed == phase`, return `(int)Type` or `0`
+  - 5 values; `0` means the register is empty
   - Index 0 = Register 1 (first to execute), index 4 = Register 5
-  - Reset to `"0,0,0,0,0"` at the start of each turn
+  - Reset to `"0,0,0,0,0"` at the start of each turn (when GameCards are reloaded)
+
+`CardsPlayer` itself is also computed: `[.. (AllGameCards ?? []).Where(c => c.Owner == ID)]`.
+`AllGameCards` is a reference to `DataService.GameCards` injected onto each `Player` when players are loaded.
 
 ### Card TypeIDs and single-letter abbreviations
 
@@ -106,7 +111,7 @@ When working directly with TypeID integers, use the table above.
 
 ---
 
-## UpdatePlayer / procUpdateCardPlayed Mechanics
+## UpdatePlayer / UpdateCardPlayed Mechanics
 
 The phone UI calls (from `loadrobots.js` → `DataHub.UpdatePlayer`):
 
@@ -122,13 +127,18 @@ SendUpdate(1, CurrentPlayer, -1, slotNumber)
 
 `DataHub.UpdatePlayer` command 1 calls:
 ```csharp
-_dataService.ExecuteSQL("call procUpdateCardPlayed(" + playerId + "," + data1 + "," + data2 + ");");
+_dataService.UpdateCardPlayed(playerId, data1, data2);
 ```
 
+`procUpdateCardPlayed` no longer exists as a stored procedure — it is fully
+implemented as `DataService.UpdateCardPlayed(int p_Player, int p_CardTypeID, int p_PhasePlayed)`.
+It writes to both the DB and the in-memory `GameCards`, keeping computed
+properties (`CardsDealtStr`, `CardsPlayedStr`, `StatusToShow`) immediately current.
+
 The robot screen must replicate this exact behavior when a touch is detected:
-- Tap a hand card (H1–H9): invoke `procUpdateCardPlayed(playerId, cardTypeID, -1)` via `DataService`
-- Tap a filled program slot (P1–P5): invoke `procUpdateCardPlayed(playerId, -1, slotNumber)` where slotNumber is 1–5
-- After calling the procedure, trigger a `DataHub` broadcast so the phone UI stays in sync
+- Tap a hand card (H1–H9): call `_dataService.UpdateCardPlayed(playerId, cardTypeID, -1)`
+- Tap a filled program slot (P1–P5): call `_dataService.UpdateCardPlayed(playerId, -1, slotNumber)` where slotNumber is 1–5
+- After calling, broadcast `AllDataUpdate` so the phone UI stays in sync
 
 There is **no explicit "Done" button** — the game auto-detects when all registers
 are filled (same logic as the phone UI).
@@ -394,22 +404,27 @@ void RefreshFromPlayer()
 }
 ```
 
-### Calling procUpdateCardPlayed from the robot
+### Calling UpdateCardPlayed from the robot
 
-The robot touch handler must call the same stored procedure as the phone UI:
+The robot touch handler must call the same C# method as the phone UI
+(`procUpdateCardPlayed` has been migrated to `DataService.UpdateCardPlayed`):
 
 ```csharp
 // Play a dealt card (tap on hand button hi with TypeID typeId):
-_dataService.ExecuteSQL(
-    $"call procUpdateCardPlayed({_player.RobotID},{typeId},-1);");
+_dataService.UpdateCardPlayed(_player.ID, typeId, -1);
 
 // Remove a card from register slot (1-based):
-_dataService.ExecuteSQL(
-    $"call procUpdateCardPlayed({_player.RobotID},-1,{slot});");
+_dataService.UpdateCardPlayed(_player.ID, -1, slot);
 
 // After either call, broadcast update so phone stays in sync:
-await _hubContext.Clients.All.SendAsync("AllDataUpdate", ...);
+await _hubContext.Clients.All.SendAsync("AllDataUpdate",
+    _dataService.GetAllDataJson());
 ```
+
+`UpdateCardPlayed` writes to both the DB and the in-memory `GameCards`, so
+`CardsDealtStr` and `CardsPlayedStr` update immediately without a separate
+`RefreshPlayerCards` call. However, `RefreshPlayerCards(robotID)` is still
+safe to call; it reloads `GameCards` fields from DB for that player.
 
 ### Integration in `GameController.cs`
 

@@ -351,7 +351,7 @@ namespace MRR
         [NotMapped]
         [XmlIgnore]
         public string CardsDealtStr =>
-            string.Join(",", CardsPlayer.Where(c => c.CardLocation == 1).Select(c => (int)c.Type));
+            string.Join(",", CardsPlayer.Where(c => c.CardLocation == 1).OrderByDescending(c => c.Type).Select(c => (int)c.Type));
 
         [NotMapped]
         [XmlIgnore]
