@@ -149,7 +149,12 @@ namespace MRR.Services
         public AllDataPayload GetAllDataFromPlayers()
         {
             string titlemessage = "Turn " + Turn;
+            if (Turn == 0) titlemessage = "Game Setup";
             if (Phase > 0) titlemessage += " Phase " + Phase;
+            foreach (var player in AllPlayers)
+            {
+                Console.WriteLine(player.ToRobotData().ToString());
+            }
 
             return new AllDataPayload
             {
@@ -474,6 +479,7 @@ namespace MRR.Services
                         Password            = row["Password"]?.ToString() ?? "",
                         IPAddress           = row["MACID"].ToString(),
                         PlayerViewDirection = Convert.ToInt32(row["PlayerViewDirection"]),
+                        AllGameCards        = GameCards
                     });
                     //Console.WriteLine("Loaded player ID:" + row["RobotID"].ToString() + " Name:" + row["RobotName"].ToString() + " IP:" + IPAddress);
                 }
@@ -528,30 +534,84 @@ namespace MRR.Services
                     existingPlayer.Score             = (int)row["Score"];
                     existingPlayer.PositionValid     = (int)row["PositionValid"] != 0;
                     existingPlayer.Active            = (int)row["StatusID"] != 10;
-                    existingPlayer.StatusToShow      = row["StatusToShow"]?.ToString() ?? "";
                     existingPlayer.PlayerMsg         = row["msg"]?.ToString()          ?? "";
-                    existingPlayer.CardsDealtStr     = row["CardsDealt"]?.ToString()   ?? "";
-                    existingPlayer.CardsPlayedStr    = row["CardsPlayed"]?.ToString()  ?? "0,0,0,0,0";
                 };
             }
 
         }
 
         /// <summary>
-        /// Refreshes CardsDealtStr and CardsPlayedStr for a single player from the DB.
-        /// Call this after UpdateCardPlayed so the in-memory state matches the DB.
+        /// Reloads MoveCard state for a single player from the DB into in-memory GameCards.
+        /// CardsDealtStr and CardsPlayedStr are computed from GameCards, so this keeps them fresh.
         /// </summary>
         public void RefreshPlayerCards(int robotID)
         {
             var dt = GetQueryResults(
-                $"SELECT CardsDealt, CardsPlayed FROM Robots WHERE RobotID = {robotID};");
-            if (dt.Rows.Count == 0) return;
+                $"SELECT CardID, PhasePlayed, CardLocation FROM MoveCards WHERE Owner = {robotID};");
+            foreach (DataRow row in dt.Rows)
+            {
+                var card = GameCards.FirstOrDefault(c => c.Owner == robotID && c.ID == (int)row["CardID"]);
+                if (card == null) continue;
+                card.PhasePlayed  = (int)row["PhasePlayed"];
+                card.CardLocation = (int)row["CardLocation"];
+            }
+        }
 
-            var player = _allPlayers?.FirstOrDefault(p => p.ID == robotID);
-            if (player == null) return;
+        public void LoadGameCardsFromDatabase()
+        {
+            GameCards.Clear();
 
-            player.CardsDealtStr  = dt.Rows[0]["CardsDealt"]?.ToString()  ?? "";
-            player.CardsPlayedStr = dt.Rows[0]["CardsPlayed"]?.ToString() ?? "0,0,0,0,0";
+            string strSQL = "Select CardID, CardTypeID, Owner, PhasePlayed, CardLocation from MoveCards;";
+            var reader = GetQueryResults(strSQL);
+
+            foreach (DataRow row in reader.Rows)
+            {
+                MoveCard newCard = new((int)row["CardID"], (int)row["CardTypeID"])
+                {
+                    Owner = (int)row["Owner"],
+                    PhasePlayed = (int)row["PhasePlayed"],
+                    CardLocation = (int)row["CardLocation"]
+                };
+
+                GameCards.Add(newCard);
+            }
+        }
+
+        public void LoadOptionCardsFromDatabase()
+        {
+            OptionCards.Clear();
+            string strSQL = "Select RobotID, OptionID, DestroyWhenDamaged, Quantity, IsActive,PhasePlayed, DataValue, Damage, Name,EditorType from viewRobotOptions;";
+            var reader = GetQueryResults(strSQL);
+            foreach (DataRow row in reader.Rows)
+            {
+                OptionCard newCard = new OptionCard()
+                {
+                    Owner = (int)row["RobotID"],
+                    ID = (int)row["OptionID"],
+                    DestroyWhenDamaged = ((int)row["DestroyWhenDamaged"] == 1),
+                    Quantity = (int)row["Quantity"],
+                    PhasePlayed = (int)row["PhasePlayed"],
+                    DataValue = (int)row["DataValue"],
+                    Damage = (int)row["Damage"],
+                    Name = (string)row["Name"],
+                    EditorType = (tOptionEditorType)row["EditorType"]
+                };
+
+                OptionCards.Add(newCard);
+
+                if (!OptionCardNames.ContainsKey(newCard.ID))
+                {
+                    OptionCardNames.Add(newCard.ID, newCard.Name);
+                }
+            }
+
+        }        
+
+        public void ReloadAllData()
+        {
+            GetAllPlayers(forceRefresh: true);
+            LoadGameCardsFromDatabase();
+            LoadOptionCardsFromDatabase();
         }
 
         /// <summary>
@@ -717,12 +777,21 @@ namespace MRR.Services
                 cmd.ExecuteNonQuery();
             }
 
-            // 8. Sync in-memory player state.
-            var player = _allPlayers?.FirstOrDefault(p => p.ID == p_Player);
-            if (player != null)
+            // 8. Sync in-memory GameCards to match the DB moves above.
+            var returnedCard = GameCards.FirstOrDefault(c => c.Owner == p_Player && c.PhasePlayed == p_PhasePlayed && c.CardLocation == 2);
+            if (returnedCard != null)
             {
-                player.CardsDealtStr  = cardsDealt  ?? "";
-                player.CardsPlayedStr = cardsPlayed ?? "0,0,0,0,0";
+                returnedCard.PhasePlayed = -1;
+                returnedCard.CardLocation = 1;
+            }
+            if (vCardID >= 0)
+            {
+                var movedCard = GameCards.FirstOrDefault(c => c.Owner == p_Player && c.ID == vCardID && c.CardLocation == 1);
+                if (movedCard != null)
+                {
+                    movedCard.PhasePlayed = p_PhasePlayed;
+                    movedCard.CardLocation = 2;
+                }
             }
         }
 

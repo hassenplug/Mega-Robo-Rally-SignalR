@@ -346,23 +346,18 @@ namespace MRR
         [NotMapped]
         [XmlIgnore]
         public CardList CardsPlayed =>
-            [.. (CardsPlayer ?? []).Where(gc => gc.PhasePlayed > 0).OrderBy(pc => pc.PhasePlayed)];
+            [.. CardsPlayer.Where(gc => gc.PhasePlayed > 0).OrderBy(pc => pc.PhasePlayed)];
 
-        /// <summary>
-        /// Comma-separated TypeIDs of the 9 cards dealt this turn (e.g. "5,6,7,1,2,3,8,10,4").
-        /// Populated by DataService.RefreshAllPlayers() from the Robots.CardsDealt DB column.
-        /// </summary>
         [NotMapped]
         [XmlIgnore]
-        public string CardsDealtStr { get; set; } = "";
+        public string CardsDealtStr =>
+            string.Join(",", CardsPlayer.Where(c => c.CardLocation == 1).Select(c => (int)c.Type));
 
-        /// <summary>
-        /// Comma-separated TypeIDs of the 5 program registers (e.g. "5,0,6,0,0"); 0 = empty.
-        /// Populated by DataService.RefreshAllPlayers() from the Robots.CardsPlayed DB column.
-        /// </summary>
         [NotMapped]
         [XmlIgnore]
-        public string CardsPlayedStr { get; set; } = "0,0,0,0,0";
+        public string CardsPlayedStr =>
+            string.Join(",", Enumerable.Range(1, 5).Select(phase =>
+                (int)(CardsPlayer.FirstOrDefault(c => c.PhasePlayed == phase)?.Type ?? MoveCard.tCardType.Unknown)));
 
         /// <summary>
         /// The robot screen UI instance for this player. Only populated when
@@ -373,7 +368,10 @@ namespace MRR
         public RobotScreenUI? ScreenUI { get; set; }
 
         [NotMapped]
-        public CardList? CardsPlayer { get; set; }
+        public CardList? AllGameCards { get; set; }
+
+        [NotMapped]
+        public CardList CardsPlayer => [.. (AllGameCards ?? []).Where(c => c.Owner == ID)];
 
         [NotMapped]
         public OptionCardList? OptionCards { get; set; }
@@ -395,7 +393,18 @@ namespace MRR
         public int PlayerViewDirection { get; set; }
 
         [NotMapped]
-        public string StatusToShow { get; set; } = "";
+        public string StatusToShow
+        {
+            get
+            {
+                var cards = CardsPlayed;
+                string? showCardsPlayed = cards.Count == 0 ? null
+                    : string.Join(",", cards.Select(c => c.Executed ? cards.GetCardText(c) : "X"));
+                return (showCardsPlayed == null || !Active)
+                    ? PlayerStatus.Info().ShortDescription
+                    : showCardsPlayed;
+            }
+        }
 
         [NotMapped]
         public string PlayerMsg { get; set; } = "";
@@ -437,6 +446,7 @@ namespace MRR
             CardsPlayed         = CardsPlayedStr,
             StatusToShow        = StatusToShow,
             msg                 = PlayerMsg,
+            CardCount           = CardsPlayer.Count,
         };
 
         public async Task<Player?> Connect(string ipAddress = "")

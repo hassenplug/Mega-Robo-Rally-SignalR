@@ -13,14 +13,6 @@ namespace MRR
 
         }
 
-        public CardList(IEnumerable<MoveCard> ExistingList):this()
-        {
-            foreach (MoveCard thiscard in ExistingList)
-            {
-                this.Add(thiscard);
-            }
-        }
-
     private Dictionary<MoveCard.tCardType, Tuple<int, string, string, int>> cardDictionary = new Dictionary<MoveCard.tCardType, Tuple<int, string, string, int>>();
 
         /// <summary>
@@ -153,6 +145,8 @@ namespace MRR
         public int Owner { get; set; }
 
         public int PhasePlayed { get; set; }
+
+        public int CardLocation { get; set; }
 
         public int CurrentOrder { get; set; }
 

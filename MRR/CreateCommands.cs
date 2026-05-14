@@ -59,7 +59,7 @@ namespace MRR
 
         public CommandList ListOfCommands { get; set; } = [];
 
-        public CardList GameCards { get; set; } = [];
+        public CardList GameCards => _dataService.GameCards;
 
         public OptionCardList OptionCards { get; set; } = [];
 
@@ -460,19 +460,7 @@ namespace MRR
 
             g_BoardElements = _dataService.BoardLoadFromDB(BoardID);
 
-            //AllPlayers = [];
-
-            //GameCards.LoadCardList();
-            LoadGameCardsFromDatabase();
-
-            LoadOptionCardsFromDatabase();
-
-            //_dataService.GetAllPlayers(true); // force refresh of player list after DB changes
-            _dataService.RefreshAllPlayers();
-
-            //MasterOptionCardList = (OptionCardList)LoadFile(typeof(OptionCardList), "" + "OptionList.xml");
-
-            //LoadRobots();
+            _dataService.ReloadAllData();
 
             ListOfCommands.Clear(); // = new CommandList();
 
@@ -748,64 +736,6 @@ namespace MRR
                 ctx.CommandItems.Add(thisCommand);
                 ctx.SaveChanges();
             }
-        }
-
-        public void LoadGameCardsFromDatabase()
-        {
-            GameCards.Clear();
-
-            string strSQL = "Select CardID, CardTypeID, Owner, PhasePlayed from MoveCards;";
-            var reader = _dataService.GetQueryResults(strSQL);
-            // foreach (DataRow row in reader.Rows)
-            // {
-            //     if (!MoveCardNames.ContainsKey((int)row["CardTypeID"]))
-            //     {
-            //         MoveCardNames.Add((int)row["CardTypeID"], "Unknown");
-            //     }
-            // }
-
-
-            foreach (DataRow row in reader.Rows)
-            {
-                MoveCard newCard = new MoveCard((int)row["CardID"], (int)row["CardTypeID"])
-                {
-                    Owner = (int)row["Owner"],
-                    PhasePlayed = (int)row["PhasePlayed"]
-                };
-
-                GameCards.Add(newCard);
-            }
-
-        }
-
-        public void LoadOptionCardsFromDatabase()
-        {
-            OptionCards.Clear();
-            string strSQL = "Select RobotID, OptionID, DestroyWhenDamaged, Quantity, IsActive,PhasePlayed, DataValue, Damage, Name,EditorType from viewRobotOptions;";
-            var reader = _dataService.GetQueryResults(strSQL);
-            foreach (DataRow row in reader.Rows)
-            {
-                OptionCard newCard = new OptionCard()
-                {
-                    Owner = (int)row["RobotID"],
-                    ID = (int)row["OptionID"],
-                    DestroyWhenDamaged = ((int)row["DestroyWhenDamaged"] == 1),
-                    Quantity = (int)row["Quantity"],
-                    PhasePlayed = (int)row["PhasePlayed"],
-                    DataValue = (int)row["DataValue"],
-                    Damage = (int)row["Damage"],
-                    Name = (string)row["Name"],
-                    EditorType = (tOptionEditorType)row["EditorType"]
-                };
-
-                OptionCards.Add(newCard);
-
-                if (!OptionCardNames.ContainsKey(newCard.ID))
-                {
-                    OptionCardNames.Add(newCard.ID, newCard.Name);
-                }
-            }
-
         }
 
 

@@ -365,7 +365,8 @@ namespace MRR.Controller
 
             //UpdateGameState();
             _dataService.UpdateGameState(); // ensure C# state reflects any DB changes from UpdateGameState logic
-
+            _dataService.ReloadAllData();
+            
             if (RobotsActive != 0)
             {
                 ConnectToAllRobots();

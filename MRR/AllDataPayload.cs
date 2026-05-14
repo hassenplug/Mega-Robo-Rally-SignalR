@@ -39,5 +39,9 @@ namespace MRR
         public string CardsPlayed { get; set; } = "";
         public string StatusToShow { get; set; } = "";
         public string msg { get; set; } = "";
+        public int CardCount { get; set; } = 0;
+
+        public override string ToString() =>
+            $"[{RobotID}] {RobotName} ({PlayerStatus}) X={X} Y={Y} Cards={CardsDealt} Played={CardsPlayed} Status={StatusToShow}";
     }
 }
