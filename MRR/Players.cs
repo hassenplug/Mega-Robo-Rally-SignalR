@@ -589,7 +589,7 @@ namespace MRR
                 var response = Encoding.UTF8.GetString(buffer, 0, result.Count);
                 var responseObj = JsonSerializer.Deserialize<Dictionary<string, object>>(response);
 
-                //Console.WriteLine("Response: " + response);
+                Console.WriteLine($"[{Name}] cmd ACK: {response}");
 
                 if (responseObj != null && responseObj.ContainsKey("status"))
                 {
@@ -628,8 +628,9 @@ namespace MRR
                     return new RobotStatus();
 
                 var json = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                Console.WriteLine($"[{Name}] status: {json}");
                 var status = JsonSerializer.Deserialize<RobotStatus>(json) ?? new RobotStatus();
-                Console.WriteLine($"[Status] flags:{status.Robot.Flags} battery:{status.Robot.Battery} x:{status.Robot.RobotX} y:{status.Robot.RobotY} isMoving:{status.Robot.isMoving}");
+                //Console.WriteLine($"[Status] flags:{status.Robot.Flags} battery:{status.Robot.Battery} x:{status.Robot.RobotX} y:{status.Robot.RobotY} isMoving:{status.Robot.isMoving}");
                 return status;
             }
             finally

@@ -162,23 +162,40 @@ namespace MRR
 
         public class VisionObject
         {
-            [JsonPropertyName("index")]
-            public int Index { get; set; }
+            [JsonPropertyName("type")]
+            public int Type { get; set; }
 
-            [JsonPropertyName("classname")]
-            public string Classname { get; set; } = "";
+            [JsonPropertyName("id")]
+            public int Id { get; set; }
 
-            [JsonPropertyName("x")]
-            public int X { get; set; }
+            [JsonPropertyName("originx")]
+            public int OriginX { get; set; }
 
-            [JsonPropertyName("y")]
-            public int Y { get; set; }
+            [JsonPropertyName("originy")]
+            public int OriginY { get; set; }
 
             [JsonPropertyName("width")]
             public int Width { get; set; }
 
             [JsonPropertyName("height")]
             public int Height { get; set; }
+
+            [JsonPropertyName("score")]
+            public int Score { get; set; }
+
+            // angle: present for Color/Code objects
+            [JsonPropertyName("angle")]
+            public int Angle { get; set; }
+
+            // x0–x3, y0–y3: corner coordinates for AprilTag objects
+            [JsonPropertyName("x0")] public int X0 { get; set; }
+            [JsonPropertyName("x1")] public int X1 { get; set; }
+            [JsonPropertyName("x2")] public int X2 { get; set; }
+            [JsonPropertyName("x3")] public int X3 { get; set; }
+            [JsonPropertyName("y0")] public int Y0 { get; set; }
+            [JsonPropertyName("y1")] public int Y1 { get; set; }
+            [JsonPropertyName("y2")] public int Y2 { get; set; }
+            [JsonPropertyName("y3")] public int Y3 { get; set; }
         }
     }
 }

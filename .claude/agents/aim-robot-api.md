@@ -229,15 +229,14 @@ public Task TurnAsync(int direction) =>
 | `x` | int | 0 | X coordinate |
 | `y` | int | 0 | Y coordinate |
 
-### 2.9 `get_motion_status` — poll whether robot is moving
+### 2.9 Motion state polling
 
-Send on `ws_cmd`; response contains motion state flags.
+There is **no `get_motion_status` command**. Motion state is determined by polling
+`ws_status` and checking `robot.flags`: `flags & 0xFF != 0` means the robot is
+moving or turning. This is exposed as `RobotStatus.Robot.isMoving`.
 
-**Note:** `CheckMovingStatus()` in `Players.cs` is currently a no-op stub (returns
-`Task.CompletedTask` immediately without polling). Motion state is tracked instead
-via `ListenStatusAsync` — a background loop on `ws_status` that sets `isMoving`
-from the `flags` bitmask every 100 ms. Do not call `CheckMovingStatus()` expecting
-real data; rely on `isMoving` being updated by the status listener.
+`CheckMovingStatus()` in `Players.cs` is a no-op stub. Rely on `isMoving` being
+updated from the `ws_status` stream.
 
 Status object (from `ws_status`) includes a `flags` bitmask (hex string), `battery` (int),
 `robot_x` / `robot_y` (mm from odometry origin, sent as strings), `heading`, and `rotation` fields.
@@ -564,8 +563,8 @@ Actual response observed from a live robot:
 | `robot` | `acceleration` x/y/z | string (float, g) | Linear acceleration |
 | `robot` | `gyro_rate` x/y/z | string (float, °/s) | Angular velocity |
 | `robot` | `screen` row/column | string (int) | Current LCD text cursor position |
-| `aivision` | `classnames` | object | ML model class list (count + items array) |
-| `aivision` | `objects` | object | Detected objects (count + items array); empty when nothing detected |
+| `aivision` | `classnames` | object | ML model class list (count + items[]); each item: `index` (int), `name` (string) |
+| `aivision` | `objects` | object | Detected objects (count + items[]); each item: `type` (int), `id` (int), `originx`, `originy`, `width`, `height`, `score` (int), `angle` (color/code only), `x0–x3`/`y0–y3` (tag corners only) |
 
 ---
 
