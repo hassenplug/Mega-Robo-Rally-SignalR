@@ -37,10 +37,13 @@ using the existing patterns in the codebase.
 - **Key files**:
   - `MRR/DataService.cs` — all DB access; use this for new methods
   - `MRR/Players.cs` — in-memory player list (`PlayerList`)
+  - `MRR/CardList.cs` — `MoveCard` class and `CardList` collection
   - `MRR/CommandList.cs` — in-memory command queue
   - `MRR/CreateCommands.cs` — game logic that calls DataService
   - `MRR/GameController.cs` — state machine (states 0–16)
   - `MRR/CommandProcess.cs` — command execution loop
+  - `MRR/Program.cs` — REST API endpoints; all player/game actions go here
+  - `MRR/DataHub.cs` — **broadcast-only** SignalR hub; no invokable methods
 
 ---
 
@@ -90,9 +93,14 @@ CardLocation values: 0=Deck, 1=Hand, 2=Played, 3=Discard, 4=Locked, 5=Played Spa
 
 The C# `MoveCard` class mirrors these columns: `ID`, `Type` (as `tCardType` enum),
 `Owner`, `PhasePlayed`, `CardLocation`, `Executed`, `Locked`, `CurrentOrder`.
-All MoveCards are loaded into `DataService.GameCards` at game start via
-`LoadGameCardsFromDatabase()` and kept in sync by `UpdateCardPlayed` and
-`RefreshPlayerCards`.
+All MoveCards are loaded into `DataService.GameCards` (`CardList`) at game start via
+`DataService.LoadGameCardsFromDatabase()` and kept in sync by `DataService.UpdateCardPlayed`
+and `DataService.RefreshPlayerCards`.
+
+`Player.CardsDealtStr` and `Player.CardsPlayedStr` are **computed properties** derived from
+the in-memory `GameCards` collection — they are not read from `Robots.CardsDealt/CardsPlayed`
+DB columns at runtime. The DB columns are still written for compatibility but are not the
+authoritative source.
 
 ### Key CurrentGameData iKeys
 | iKey | sKey | Meaning |
@@ -144,7 +152,7 @@ Main card dealing procedure (called at state 2):
 3. Shuffle with RAND() + DealPriority weighting (locked cards stay)
 4. If robot has < 9 cards, move discards back to deck
 5. Deal 9 cards (CardLocation=1) to each robot
-6. Update Robots.CardsDealt and CardsPlayed strings
+6. Update Robots.CardsDealt and CardsPlayed strings (DB only; UI reads from in-memory `GameCards`)
 
 **Classic (RulesVersion=0):**
 - Cursor over active robots
@@ -215,17 +223,27 @@ Fully implemented as `DataService.UpdateCardPlayed(int p_Player, int p_CardTypeI
 - Moves card Hand→Played, removes old card from slot
 - Updates Robot.Status in DB
 - Syncs in-memory `GameCards` entries (PhasePlayed + CardLocation)
+
+Called by the REST endpoint `GET /api/player/1/{playerId}/{cardTypeId}/{phasePlayed}` in `Program.cs`.
+After the call, `RefreshPlayerCards(playerId)` re-syncs from DB, `UpdateStatusLEDs()` updates the
+physical LEDs, and `RefreshPlayerScreenUI(playerId)` updates the robot LCD.
 Do **not** call the stored procedure — call the C# method directly.
 
 ### procUpdateRobotCards(p_Player) — **OBSOLETE**
 Previously rebuilt `Robots.CardsDealt` and `Robots.CardsPlayed` CSV strings.
-`CardsDealtStr` and `CardsPlayedStr` are now computed properties on `Player`
-derived from in-memory `GameCards`. The DB columns `Robots.CardsDealt` and
-`Robots.CardsPlayed` are still updated by `UpdateCardPlayed` for compatibility,
-but the in-memory computed values are the authoritative source for the game UI.
+`CardsDealtStr` and `CardsPlayedStr` are now **computed properties** on `Player`
+derived from in-memory `GameCards`. Do not call this procedure.
 
 ### procSetStatus()
 Updates StatusLEDs from viewRobots.LEDColor.
+
+### Pause commands (CommandTypeID=92)
+When `CommandList` contains a row with `CommandTypeID=92` and `StatusID=4`, the game
+is paused waiting for GM confirmation. Release by setting `StatusID=6`:
+```csharp
+dataService.ExecuteSQL("UPDATE CommandList SET StatusID=6 WHERE CommandTypeID=92 AND StatusID=4");
+```
+REST endpoint: `GET /api/state/clearpause` in `Program.cs`.
 
 ---
 
@@ -323,5 +341,10 @@ When converting a procedure to C#:
 - Do not use EF Core for new methods (only `PendingCommandEntity` uses EF)
 - Do not use `dynamic` types
 - Do not call stored procedures that no longer exist after migration
-- Do not change the REST API endpoints in Program.cs
+- Do not change the REST API endpoints in Program.cs without discussion
 - Do not break the state machine flow in GameController.cs
+- Do not add invokable methods to `DataHub` — it is broadcast-only; all player/game
+  actions go through REST endpoints in `Program.cs`
+- Do not read `Robots.CardsDealt` or `Robots.CardsPlayed` DB columns for game logic —
+  use `Player.CardsDealtStr` / `Player.CardsPlayedStr` (computed from in-memory `GameCards`)
+- Do not call `procUpdateRobotCards` — it is obsolete

@@ -214,13 +214,16 @@ namespace MRR
                     if (onecommand.StatusID < 4)
                     {
                         LogCommand(onecommand, "User Input       ");
-                        var robot6 = Db.Robots.FirstOrDefault(r => r.ID == onecommand.RobotID);
+                        //var robot6 = Db.Robots.FirstOrDefault(r => r.ID == onecommand.RobotID);
+                        var robotPlayer = _dataService.AllPlayers.GetPlayer(p => p.ID == onecommand.RobotID);
 
-                        if (robot6 != null)
+                        if (robotPlayer != null)
                         {
-                            robot6.MessageCommandID = onecommand.CommandID;
+                            //robot6.MessageCommandID = onecommand.CommandID;
+                            //robotPlayer.MessageCommandID = onecommand.CommandID;
+                            robotPlayer.PlayerMsg = onecommand.Description;
                             onecommand.StatusID = 4;
-                            Db.SaveChanges();
+                            //Db.SaveChanges();
                             return false; // wait for user input
                         }
                     }

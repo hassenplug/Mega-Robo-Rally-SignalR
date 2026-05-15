@@ -138,11 +138,10 @@ function confirmMessage()
     SendUpdate( 3, CurrentPlayer);
 }
 
-function SendUpdate( command,  playerid=0,  data1=0,  data2=0)
+function SendUpdate(command, playerid=0, data1=0, data2=0)
 {
-    connection.invoke("UpdatePlayer", command, playerid, data1, data2)
+    fetch(`/api/player/${command}/${playerid}/${data1}/${data2}`)
         .catch(err => console.error(err.toString()));
-    //const response = fetch('/api/state/nextstate');
 }
 
 // signalR part with automatic reconnect

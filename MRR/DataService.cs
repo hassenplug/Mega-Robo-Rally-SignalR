@@ -534,7 +534,7 @@ namespace MRR.Services
                     existingPlayer.Score             = (int)row["Score"];
                     existingPlayer.PositionValid     = (int)row["PositionValid"] != 0;
                     existingPlayer.Active            = (int)row["StatusID"] != 10;
-                    existingPlayer.PlayerMsg         = row["msg"]?.ToString()          ?? "";
+                    //existingPlayer.PlayerMsg         = row["msg"]?.ToString()          ?? "";
                 };
             }
 

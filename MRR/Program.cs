@@ -171,6 +171,38 @@ app.MapGet("/api/state/{newstate?}/{parameter1?}", async (string? newstate, stri
 });
 
 
+// Player update API — replaces DataHub.UpdatePlayer SignalR method
+app.MapGet("/api/player/{command:int}/{playerId:int?}/{data1:int?}/{data2:int?}",
+    async (int command, int? playerId, int? data1, int? data2,
+           DataService dataService, IHubContext<DataHub> hubContext, GameController gameController) =>
+{
+    int pid  = playerId ?? 0;
+    int d1   = data1   ?? 0;
+    int d2   = data2   ?? 0;
+
+    switch (command)
+    {
+        case 1:
+            dataService.UpdateCardPlayed(pid, d1, d2);
+            dataService.RefreshPlayerCards(pid);
+            dataService.AllPlayers.GetPlayer(pid)?.UpdateStatusLEDs();
+            gameController.RefreshPlayerScreenUI(pid);
+            break;
+        case 3:
+            int markCommand = dataService.GetIntFromDB(
+                $"SELECT MessageCommandID FROM Robots WHERE RobotID={pid}");
+            dataService.ExecuteSQL($"UPDATE Robots SET MessageCommandID=NULL WHERE RobotID={pid}");
+            dataService.ExecuteSQL($"UPDATE CommandList SET StatusID=6 WHERE CommandID={markCommand}");
+            break;
+    }
+
+    gameController.NextState();
+
+    var dataout = dataService.GetAllDataJson();
+    await hubContext.Clients.All.SendAsync("AllDataUpdate", dataout);
+    return Results.Content(dataout, "application/json");
+});
+
 // Grid-alignment endpoint: download a camera frame, detect black grid lines,
 // and nudge the robot until it is centered on its board square.
 // GET /api/robot/align/{robotId}
