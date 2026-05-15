@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/hasse/OneDrive/Documents/MRR_Repo/Mega-Robo-Rally-SignalR/MRR/**)",
+      "WebFetch(domain:api.vex.com)"
+    ]
+  }
+}
