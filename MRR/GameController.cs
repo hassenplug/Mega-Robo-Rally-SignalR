@@ -214,7 +214,7 @@ namespace MRR.Controller
                     {
                         for (int opt = 0; opt < _dataService.OptionsOnStartup; opt++)
                         {
-                            _dataService.ExecuteSQL("call procDealOptionToRobot(" + pid + ");");
+                            _dataService.DealOptionToRobot(pid);
                         }
                     }
 
@@ -228,7 +228,7 @@ namespace MRR.Controller
 
             }
 
-            _dataService.ExecuteSQL("call procGameNewAddCards();");
+            _dataService.GameNewAddCards();
             _dataService.UpdatePlayerPriority(null, 1);
 
             // Refresh C# state so BoardID etc. reflect the new values before board load
@@ -266,7 +266,7 @@ namespace MRR.Controller
                             SetGameState(2);
                             break;
                         case 2: // Next Turn
-                            _dataService.ExecuteSQL("call procResetPlayers();");
+                            _dataService.ResetPlayers();
                             _dataService.MoveCardsShuffleAndDeal();
                             //_dataService.ExecuteSQL("call procUpdateRobotCards();");
                             //UpdateGameState(); // ensure DB changes are visible before next command
@@ -293,6 +293,7 @@ namespace MRR.Controller
                             break;
                         case 5: // ready to execute turn
                             _dataService.ExecuteSQL("Update Robots set `Status` = 13;"); // don't allow player changes to programs
+                            _dataService.CurrentPosSave();
                             ScreenUiLock();
                             SetGameState(6);
                             break;
@@ -327,7 +328,8 @@ namespace MRR.Controller
                             SetGameState(4);
                             break;
                         case 16: // Reload Position
-                            // load current positions
+                            // restore saved positions from previous turn
+                            _dataService.CurrentPosLoad();
                             SetGameState(3);
                             break;
                         default:

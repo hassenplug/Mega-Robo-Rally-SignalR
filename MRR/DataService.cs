@@ -582,7 +582,13 @@ namespace MRR.Services
         public void LoadOptionCardsFromDatabase()
         {
             OptionCards.Clear();
-            string strSQL = "Select RobotID, OptionID, DestroyWhenDamaged, Quantity, IsActive,PhasePlayed, DataValue, Damage, Name,EditorType from viewRobotOptions;";
+            string strSQL =
+                "SELECT ro.RobotID, ro.OptionID, ro.DestroyWhenDamaged, ro.Quantity, ro.IsActive, " +
+                "ro.PhasePlayed, ro.DataValue, o.Damage, o.Name, o.EditorType " +
+                "FROM RobotOptions ro " +
+                "JOIN Options o ON ro.OptionID = o.OptionID " +
+                "WHERE o.Functional > 7 " +
+                "ORDER BY o.Name;";
             var reader = GetQueryResults(strSQL);
             foreach (DataRow row in reader.Rows)
             {
@@ -1217,9 +1223,8 @@ namespace MRR.Services
                 int affected = cmd.ExecuteNonQuery();
                 if (affected == 0)
                 {
-                    // No cards exist yet — create the deck via the stored procedure.
-                    using var addCards = new MySqlCommand("CALL procGameNewAddCards()", connection);
-                    addCards.ExecuteNonQuery();
+                    // No cards exist yet — create the deck.
+                    GameNewAddCards();
                 }
             }
 
@@ -1376,8 +1381,7 @@ namespace MRR.Services
                             fillCmd.ExecuteNonQuery();
 
                             // Auto-fill empty program registers.
-                            using var fillProgs = new MySqlCommand("CALL procGameFillPrograms()", connection);
-                            fillProgs.ExecuteNonQuery();
+                            GameFillPrograms(connection);
                         }
                     }
                     else
@@ -1428,6 +1432,63 @@ namespace MRR.Services
                 // Update robot Status values based on programming state.
                 MoveCardsCheckProgrammed(connection);
             }
+        }
+
+        /// <summary>
+        /// C# equivalent of procGameFillPrograms.
+        /// Auto-fills empty program registers for all robots using their unplayed cards.
+        /// Used only in classic (RulesVersion=0) mode when a robot has too few cards.
+        /// Accepts an existing open connection.
+        /// </summary>
+        private void GameFillPrograms(MySqlConnection connection)
+        {
+            // Iterate until no more empty robot/phase slots exist
+            int counter = 0;
+            while (counter < 300)
+            {
+                counter++;
+                int tRobot = 0, tPhase = 0;
+                using (var cmd = new MySqlCommand(
+                    "SELECT AllRobotPhases.RobotID, AllRobotPhases.PhaseID " +
+                    "FROM MoveCards RIGHT JOIN " +
+                    "  (SELECT Robots.RobotID, PhaseCounter.ID AS PhaseID " +
+                    "   FROM PhaseCounter, Robots) AS AllRobotPhases " +
+                    "ON MoveCards.PhasePlayed = AllRobotPhases.PhaseID " +
+                    "   AND MoveCards.Owner = AllRobotPhases.RobotID " +
+                    "WHERE MoveCards.CardID IS NULL LIMIT 1",
+                    connection))
+                using (var reader = cmd.ExecuteReader())
+                {
+                    if (!reader.Read()) break;
+                    tRobot = reader.GetInt32(0);
+                    tPhase = reader.GetInt32(1);
+                }
+
+                // Find next available card for this robot
+                int tCard = 0;
+                using (var cmd = new MySqlCommand(
+                    "SELECT CardID FROM MoveCards WHERE Owner = @robot AND PhasePlayed = -1 " +
+                    "ORDER BY CurrentOrder, CardID LIMIT 1",
+                    connection))
+                {
+                    cmd.Parameters.AddWithValue("@robot", tRobot);
+                    var res = cmd.ExecuteScalar();
+                    if (res == null || res == DBNull.Value) break;
+                    tCard = Convert.ToInt32(res);
+                }
+
+                using (var cmd = new MySqlCommand(
+                    "UPDATE MoveCards SET PhasePlayed = @phase, Random = 1 WHERE CardID = @card",
+                    connection))
+                {
+                    cmd.Parameters.AddWithValue("@phase", tPhase);
+                    cmd.Parameters.AddWithValue("@card", tCard);
+                    int rows = cmd.ExecuteNonQuery();
+                    if (rows == 0) break;
+                }
+            }
+
+            MoveCardsCheckProgrammed(connection);
         }
 
         /// <summary>
@@ -1676,6 +1737,552 @@ namespace MRR.Services
                 if (ownConnection)
                     connection!.Dispose();
             }
+        }
+
+        // =====================================================================
+        // procGameNewAddCards — C# equivalent
+        // Creates the MoveCards deck for a new game based on player count,
+        // PhaseCount, and RulesVersion.
+        // =====================================================================
+        public void GameNewAddCards()
+        {
+            int playerCount = GetIntFromDB("SELECT COUNT(*) FROM Robots");
+            int phaseCount  = GetIntFromDB("SELECT iValue FROM CurrentGameData WHERE sKey='PhaseCount'");
+            int rulesVersion = GetIntFromDB("SELECT iValue FROM CurrentGameData WHERE sKey='RulesVersion'");
+
+            int setID;
+            if (phaseCount == 1)
+                setID = 3;
+            else if (playerCount > 8)
+                setID = 2;
+            else
+                setID = 1;
+
+            ExecuteSQL("DELETE FROM MoveCards");
+
+            if (rulesVersion == 1)
+            {
+                setID = 4;
+                // Each robot gets its own copy of the deck (Owner = RobotID)
+                ExecuteSQL(
+                    $"INSERT INTO MoveCards (CardID, CardTypeID, `Owner`, CardLocation) " +
+                    $"SELECT CardID, CardTypeID, Robots.RobotID, 0 " +
+                    $"FROM MoveCardsCompleteList, Robots WHERE SetID = {setID}");
+            }
+            else
+            {
+                // Classic: unowned pool (Owner = -1 default)
+                ExecuteSQL(
+                    $"INSERT INTO MoveCards (CardID, CardTypeID) " +
+                    $"SELECT CardID, CardTypeID FROM MoveCardsCompleteList WHERE SetID = {setID}");
+            }
+        }
+
+        // =====================================================================
+        // procDealOptionToRobot — C# equivalent
+        // Deals the next option from the shuffled Options deck to a robot.
+        // =====================================================================
+        public void DealOptionToRobot(int robotID)
+        {
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+
+            // Find first option not already owned by this robot, Functional > 7
+            int optionID = 0;
+            using (var cmd = new MySqlCommand(
+                "SELECT o.OptionID FROM `Options` o " +
+                "LEFT JOIN (SELECT OptionID FROM RobotOptions WHERE RobotID = @robot) AS ro " +
+                "ON o.OptionID = ro.OptionID " +
+                "WHERE ro.OptionID IS NULL AND o.Functional > 7 " +
+                "ORDER BY o.CurrentOrder LIMIT 1",
+                connection))
+            {
+                cmd.Parameters.AddWithValue("@robot", robotID);
+                var res = cmd.ExecuteScalar();
+                if (res != null && res != DBNull.Value)
+                    optionID = Convert.ToInt32(res);
+            }
+
+            if (optionID > 0)
+            {
+                // Insert option using column values from Options table
+                using var cmd = new MySqlCommand(
+                    "INSERT INTO RobotOptions (RobotID, OptionID, DestroyWhenDamaged, Quantity, IsActive, PhasePlayed, DataValue) " +
+                    "SELECT @robot, OptionID, false, Quantity, false, 0, IF(EditorType=6, 1, 0) " +
+                    "FROM `Options` WHERE OptionID = @opt",
+                    connection);
+                cmd.Parameters.AddWithValue("@robot", robotID);
+                cmd.Parameters.AddWithValue("@opt", optionID);
+                cmd.ExecuteNonQuery();
+            }
+            else
+            {
+                // No unique option left — find any option with Quantity > -1 and add quantity
+                int fallbackID = 0;
+                int fallbackQty = 0;
+                using (var cmd = new MySqlCommand(
+                    "SELECT OptionID, Quantity FROM `Options` " +
+                    "WHERE Quantity > -1 AND Functional > 7 ORDER BY CurrentOrder LIMIT 1",
+                    connection))
+                {
+                    using var reader = cmd.ExecuteReader();
+                    if (reader.Read())
+                    {
+                        fallbackID  = reader.GetInt32(0);
+                        fallbackQty = reader.GetInt32(1);
+                    }
+                }
+
+                if (fallbackID > 0)
+                {
+                    if (fallbackQty > 0)
+                    {
+                        using var cmd = new MySqlCommand(
+                            "UPDATE RobotOptions SET Quantity = Quantity + @qty " +
+                            "WHERE RobotID = @robot AND OptionID = @opt",
+                            connection);
+                        cmd.Parameters.AddWithValue("@qty", fallbackQty);
+                        cmd.Parameters.AddWithValue("@robot", robotID);
+                        cmd.Parameters.AddWithValue("@opt", fallbackID);
+                        cmd.ExecuteNonQuery();
+                    }
+                    else
+                    {
+                        using var cmd = new MySqlCommand(
+                            "INSERT INTO RobotOptions (RobotID, OptionID, DestroyWhenDamaged, Quantity, IsActive, PhasePlayed, DataValue) " +
+                            "SELECT @robot, OptionID, false, Quantity, false, 0, IF(EditorType=6, 1, 0) " +
+                            "FROM `Options` WHERE OptionID = @opt",
+                            connection);
+                        cmd.Parameters.AddWithValue("@robot", robotID);
+                        cmd.Parameters.AddWithValue("@opt", fallbackID);
+                        cmd.ExecuteNonQuery();
+                    }
+                    optionID = fallbackID;
+                }
+            }
+
+            if (optionID > 0)
+            {
+                using var cmd = new MySqlCommand(
+                    "UPDATE `Options` SET CurrentOrder = CurrentOrder + 100 WHERE OptionID = @opt",
+                    connection);
+                cmd.Parameters.AddWithValue("@opt", optionID);
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        // =====================================================================
+        // procSetStatus — C# equivalent
+        // Syncs StatusLEDs from Robots joined to RobotStatus (LEDColor).
+        // Also applies the trigger logic for StatusLEDs_BEFORE_UPDATE:
+        //   converts the hex Color string to R/G/B integers in the same UPDATE.
+        // =====================================================================
+        public void SetStatus()
+        {
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+
+            // Step 1: set Color from LEDColor via Robots+RobotStatus join
+            using (var cmd = new MySqlCommand(
+                "UPDATE StatusLEDs " +
+                "INNER JOIN Robots vr ON StatusLEDs.LEDID = vr.RobotID " +
+                "INNER JOIN RobotStatus rs ON IF(vr.IsConnected=1, vr.Status, 10) = rs.RobotStatusID " +
+                "SET StatusLEDs.Color = rs.LEDColor, " +
+                "    StatusLEDs.R = CONV(SUBSTRING(rs.LEDColor,1,2),16,10), " +
+                "    StatusLEDs.G = CONV(SUBSTRING(rs.LEDColor,3,2),16,10), " +
+                "    StatusLEDs.B = CONV(SUBSTRING(rs.LEDColor,5,2),16,10)",
+                connection))
+            {
+                cmd.ExecuteNonQuery();
+            }
+
+            // Step 2: override with red for robots with invalid position
+            using (var cmd = new MySqlCommand(
+                "UPDATE StatusLEDs " +
+                "INNER JOIN Robots vr ON StatusLEDs.LEDID = vr.RobotID " +
+                "SET StatusLEDs.Color = 'FF0000', " +
+                "    StatusLEDs.R = 255, StatusLEDs.G = 0, StatusLEDs.B = 0 " +
+                "WHERE vr.PositionValid = 0",
+                connection))
+            {
+                cmd.ExecuteNonQuery();
+            }
+
+            // Step 3: override with orange for robots with an active BT-connect command (CommandTypeID=70, StatusID=7)
+            using (var cmd = new MySqlCommand(
+                "UPDATE StatusLEDs " +
+                "INNER JOIN CommandList cl ON StatusLEDs.LEDID = cl.RobotID " +
+                "SET StatusLEDs.Color = 'FF8800', " +
+                "    StatusLEDs.R = 255, StatusLEDs.G = 136, StatusLEDs.B = 0 " +
+                "WHERE cl.CommandTypeID = 70 AND cl.StatusID = 7",
+                connection))
+            {
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        // =====================================================================
+        // procResetPlayers — C# equivalent
+        // Called at the start of each turn. Advances ShutDown state machine,
+        // applies Circuit Breaker, resets Status, handles death/respawn.
+        // =====================================================================
+        public void ResetPlayers()
+        {
+            // Read LaserDamage (respawn damage = LaserDamage * 2)
+            int laserDamage  = GetIntFromDB("SELECT iValue FROM CurrentGameData WHERE sKey='LaserDamage'");
+            int useDamage    = laserDamage * 2;
+
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+
+            // 1. Advance ShutDown state machine for all robots with ShutDown > 0
+            //    (join RobotShutDown to get NextState)
+            using (var cmd = new MySqlCommand(
+                "UPDATE Robots " +
+                "INNER JOIN RobotShutDown ON Robots.`ShutDown` = RobotShutDown.ShutDownID " +
+                "SET `ShutDown` = NextState " +
+                "WHERE Robots.`ShutDown` > 0",
+                connection))
+            {
+                cmd.ExecuteNonQuery();
+            }
+
+            // 2. Circuit Breaker (OptionID=9): auto-shutdown at Damage >= 3
+            using (var cmd = new MySqlCommand(
+                "UPDATE Robots " +
+                "INNER JOIN RobotOptions ON Robots.RobotID = RobotOptions.RobotID AND RobotOptions.OptionID = 9 " +
+                "SET ShutDown = 4 " +
+                "WHERE Damage >= 3",
+                connection))
+            {
+                cmd.ExecuteNonQuery();
+            }
+
+            // 3. Set Status=2 (Ready to Program) for non-shutdown robots
+            //    Robots_BEFORE_UPDATE trigger logic: ShutDown=4 → Damage=0, ShutDown=2; ShutDown=2 → Status=9
+            //    We apply the ShutDown=4 transition inline here.
+            using (var cmd = new MySqlCommand(
+                "UPDATE Robots SET Status = 2 WHERE ShutDown = 0",
+                connection))
+            {
+                cmd.ExecuteNonQuery();
+            }
+
+            // Apply trigger logic for ShutDown state transitions before writing
+            // ShutDown=4 → Damage=0, ShutDown=2; ShutDown=2 → Status=9
+            // We do this inline since triggers are being removed.
+            using (var cmd = new MySqlCommand(
+                "UPDATE Robots SET Damage = 0, ShutDown = 2 WHERE ShutDown = 4",
+                connection))
+            {
+                cmd.ExecuteNonQuery();
+            }
+            using (var cmd = new MySqlCommand(
+                "UPDATE Robots SET `Status` = 9 WHERE ShutDown = 2",
+                connection))
+            {
+                cmd.ExecuteNonQuery();
+            }
+
+            // 4. Mark robots with Damage > 9 or already Dead as Dead (Status=11)
+            using (var cmd = new MySqlCommand(
+                "UPDATE Robots SET Damage = 10, ShutDown = 0, Lives = Lives - 1, Status = 11 " +
+                "WHERE Damage > 9 OR Status = 11",
+                connection))
+            {
+                cmd.ExecuteNonQuery();
+            }
+
+            // Discard played cards for dead/shutdown robots
+            using (var cmd = new MySqlCommand(
+                "UPDATE MoveCards " +
+                "INNER JOIN Robots ON MoveCards.Owner = Robots.RobotID " +
+                "SET PhasePlayed = 0, Owner = -1 " +
+                "WHERE PhasePlayed > 5 AND (Robots.Status = 11 OR Robots.ShutDown > 0)",
+                connection))
+            {
+                cmd.ExecuteNonQuery();
+            }
+
+            // 5. Superior Archive Copy (OptionID=49): dead robots with lives > 0 respawn undamaged
+            using (var cmd = new MySqlCommand(
+                "UPDATE Robots " +
+                "INNER JOIN RobotOptions ON Robots.RobotID = RobotOptions.RobotID AND RobotOptions.OptionID = 49 " +
+                "SET Damage = 0, ShutDown = 0, " +
+                "    CurrentPosRow = ArchivePosRow, CurrentPosCol = ArchivePosCol, CurrentPosDir = ArchivePosDir, " +
+                "    Status = 1, PositionValid = 0 " +
+                "WHERE Status = 11 AND Lives > 0",
+                connection))
+            {
+                cmd.ExecuteNonQuery();
+            }
+
+            // 6. Standard respawn: dead robots with lives > 0 respawn with laser damage penalty
+            using (var cmd = new MySqlCommand(
+                $"UPDATE Robots " +
+                $"SET Damage = {useDamage}, ShutDown = 0, " +
+                $"    CurrentPosRow = ArchivePosRow, CurrentPosCol = ArchivePosCol, CurrentPosDir = ArchivePosDir, " +
+                $"    Status = 1, PositionValid = 0 " +
+                $"WHERE Status = 11 AND Lives > 0",
+                connection))
+            {
+                cmd.ExecuteNonQuery();
+            }
+
+            // 7. Reset RobotOptions.PhasePlayed
+            using (var cmd = new MySqlCommand(
+                "UPDATE RobotOptions SET PhasePlayed = 0",
+                connection))
+            {
+                cmd.ExecuteNonQuery();
+            }
+
+            // Sync status LEDs
+            SetStatus();
+        }
+
+        // =====================================================================
+        // procCurrentPosSave — C# equivalent
+        // Snapshots current Robots, MoveCards, and RobotOptions into History tables.
+        // =====================================================================
+        public void CurrentPosSave()
+        {
+            int gameID = GetIntFromDB("SELECT iValue FROM CurrentGameData WHERE sKey='GameDataID'");
+            int turn   = GetIntFromDB("SELECT iValue FROM CurrentGameData WHERE sKey='Turn'");
+
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+            using var tx = connection.BeginTransaction();
+            try
+            {
+                // HistoryRobots
+                using (var cmd = new MySqlCommand(
+                    $"DELETE FROM HistoryRobots WHERE GameID = {gameID} AND Turn = {turn}",
+                    connection, tx))
+                {
+                    cmd.ExecuteNonQuery();
+                }
+
+                using (var cmd = new MySqlCommand(
+                    $"INSERT INTO HistoryRobots " +
+                    $"(GameID, Turn, RobotID, OperatorName, RobotBaseID, RobotBodyID, " +
+                    $" CurrentFlag, Lives, Damage, ShutDown, Computer, Score, Status, " +
+                    $" CurrentPosRow, CurrentPosCol, CurrentPosDir, " +
+                    $" ArchivePosRow, ArchivePosCol, ArchivePosDir, Priority) " +
+                    $"SELECT {gameID}, {turn}, RobotID, OperatorName, RobotBaseID, RobotBodyID, " +
+                    $"       CurrentFlag, Lives, Damage, ShutDown, Computer, Score, Status, " +
+                    $"       CurrentPosRow, CurrentPosCol, CurrentPosDir, " +
+                    $"       ArchivePosRow, ArchivePosCol, ArchivePosDir, Priority " +
+                    $"FROM Robots",
+                    connection, tx))
+                {
+                    cmd.ExecuteNonQuery();
+                }
+
+                // HistoryMoveCards
+                using (var cmd = new MySqlCommand(
+                    $"DELETE FROM HistoryMoveCards WHERE GameID = {gameID} AND Turn = {turn}",
+                    connection, tx))
+                {
+                    cmd.ExecuteNonQuery();
+                }
+
+                using (var cmd = new MySqlCommand(
+                    $"INSERT INTO HistoryMoveCards (GameID, Turn, CardID, Owner, PhasePlayed, Locked) " +
+                    $"SELECT {gameID}, {turn}, CardID, Owner, PhasePlayed, Locked " +
+                    $"FROM MoveCards WHERE Owner > 0",
+                    connection, tx))
+                {
+                    cmd.ExecuteNonQuery();
+                }
+
+                // HistoryRobotOptions
+                using (var cmd = new MySqlCommand(
+                    $"DELETE FROM HistoryRobotOptions WHERE GameID = {gameID} AND Turn = {turn}",
+                    connection, tx))
+                {
+                    cmd.ExecuteNonQuery();
+                }
+
+                using (var cmd = new MySqlCommand(
+                    $"INSERT INTO HistoryRobotOptions " +
+                    $"(GameID, Turn, RobotID, OptionID, DestroyWhenDamaged, Quantity, IsActive, PhasePlayed, DataValue) " +
+                    $"SELECT {gameID}, {turn}, RobotID, OptionID, DestroyWhenDamaged, Quantity, IsActive, PhasePlayed, DataValue " +
+                    $"FROM RobotOptions",
+                    connection, tx))
+                {
+                    cmd.ExecuteNonQuery();
+                }
+
+                tx.Commit();
+            }
+            catch
+            {
+                tx.Rollback();
+                throw;
+            }
+        }
+
+        // =====================================================================
+        // procCurrentPosLoad — C# equivalent
+        // Restores Robots, MoveCards, and RobotOptions from History tables.
+        // =====================================================================
+        public void CurrentPosLoad()
+        {
+            int gameID = GetIntFromDB("SELECT iValue FROM CurrentGameData WHERE sKey='GameDataID'");
+            int turn   = GetIntFromDB("SELECT iValue FROM CurrentGameData WHERE sKey='Turn'");
+
+            // Clear live tables (mirrors procResetGame minus CurrentGameData copy)
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+            using var tx = connection.BeginTransaction();
+            try
+            {
+                foreach (var tbl in new[] { "MoveCards", "CommandList", "RobotOptions", "StatusLEDs", "Robots" })
+                {
+                    using var del = new MySqlCommand($"DELETE FROM {tbl}", connection, tx);
+                    del.ExecuteNonQuery();
+                }
+
+                // Restore Robots
+                using (var cmd = new MySqlCommand(
+                    $"INSERT INTO Robots " +
+                    $"(RobotID, OperatorName, RobotBaseID, RobotBodyID, " +
+                    $" CurrentFlag, Lives, Damage, ShutDown, Computer, Score, Status, " +
+                    $" CurrentPosRow, CurrentPosCol, CurrentPosDir, " +
+                    $" ArchivePosRow, ArchivePosCol, ArchivePosDir, Priority, PositionValid) " +
+                    $"SELECT RobotID, OperatorName, RobotBaseID, RobotBodyID, " +
+                    $"       CurrentFlag, Lives, Damage, ShutDown, Computer, Score, Status, " +
+                    $"       CurrentPosRow, CurrentPosCol, CurrentPosDir, " +
+                    $"       ArchivePosRow, ArchivePosCol, ArchivePosDir, Priority, 0 " +
+                    $"FROM HistoryRobots WHERE GameID = {gameID} AND Turn = {turn}",
+                    connection, tx))
+                {
+                    cmd.ExecuteNonQuery();
+                }
+
+                tx.Commit();
+            }
+            catch
+            {
+                tx.Rollback();
+                throw;
+            }
+
+            // Rebuild card deck and restore card state
+            GameNewAddCards();
+
+            using var connection2 = new MySqlConnection(_connectionString);
+            connection2.Open();
+            using var tx2 = connection2.BeginTransaction();
+            try
+            {
+                using (var cmd = new MySqlCommand(
+                    $"UPDATE MoveCards " +
+                    $"INNER JOIN HistoryMoveCards ON MoveCards.CardID = HistoryMoveCards.CardID " +
+                    $"SET MoveCards.Owner = HistoryMoveCards.Owner, " +
+                    $"    MoveCards.PhasePlayed = HistoryMoveCards.PhasePlayed, " +
+                    $"    MoveCards.Locked = HistoryMoveCards.Locked " +
+                    $"WHERE HistoryMoveCards.GameID = {gameID} AND HistoryMoveCards.Turn = {turn}",
+                    connection2, tx2))
+                {
+                    cmd.ExecuteNonQuery();
+                }
+
+                using (var cmd = new MySqlCommand(
+                    $"INSERT INTO RobotOptions " +
+                    $"(RobotID, OptionID, DestroyWhenDamaged, Quantity, IsActive, PhasePlayed, DataValue) " +
+                    $"SELECT RobotID, OptionID, DestroyWhenDamaged, Quantity, IsActive, PhasePlayed, DataValue " +
+                    $"FROM HistoryRobotOptions WHERE GameID = {gameID} AND Turn = {turn}",
+                    connection2, tx2))
+                {
+                    cmd.ExecuteNonQuery();
+                }
+
+                tx2.Commit();
+            }
+            catch
+            {
+                tx2.Rollback();
+                throw;
+            }
+        }
+
+        // =====================================================================
+        // procVerifyPosition — C# equivalent
+        // Sets PositionValid=1 if direction != 0, row != 0, col != 0,
+        // and no duplicate robot positions exist.
+        // =====================================================================
+        public void VerifyPosition(int robotID)
+        {
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+
+            int posRow = 0, posCol = 0, posDir = 0;
+            using (var cmd = new MySqlCommand(
+                "SELECT CurrentPosRow, CurrentPosCol, CurrentPosDir FROM Robots WHERE RobotID = @id",
+                connection))
+            {
+                cmd.Parameters.AddWithValue("@id", robotID);
+                using var reader = cmd.ExecuteReader();
+                if (reader.Read())
+                {
+                    posRow = reader.GetInt32(0);
+                    posCol = reader.GetInt32(1);
+                    posDir = reader.GetInt32(2);
+                }
+            }
+
+            int duplicates = 0;
+            using (var cmd = new MySqlCommand(
+                "SELECT COUNT(RobotID) FROM Robots WHERE CurrentPosRow = @row AND CurrentPosCol = @col",
+                connection))
+            {
+                cmd.Parameters.AddWithValue("@row", posRow);
+                cmd.Parameters.AddWithValue("@col", posCol);
+                duplicates = Convert.ToInt32(cmd.ExecuteScalar() ?? 0);
+            }
+
+            int passed = (posDir == 0 || posRow == 0 || posCol == 0 || duplicates > 1) ? 0 : 1;
+
+            using (var cmd = new MySqlCommand(
+                "UPDATE Robots SET PositionValid = @passed WHERE RobotID = @id",
+                connection))
+            {
+                cmd.Parameters.AddWithValue("@passed", passed);
+                cmd.Parameters.AddWithValue("@id", robotID);
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        // =====================================================================
+        // Robots_BEFORE_UPDATE trigger logic — applied inline before any
+        // UPDATE Robots SET ... that touches Damage, ShutDown, or Status.
+        // Call this on a Player object before writing to DB to get corrected values.
+        // =====================================================================
+        /// <summary>
+        /// Applies Robots_BEFORE_UPDATE trigger rules to a player's pending values.
+        /// Call before issuing an UPDATE Robots SET Damage/ShutDown/Status.
+        /// Returns (damage, shutDown, status) after trigger rules are applied.
+        /// </summary>
+        public static (int damage, int shutDown, int status) ApplyRobotBeforeUpdateRules(
+            int damage, int shutDown, int status)
+        {
+            if (damage > 9)
+            {
+                status   = 11; // Dead
+                shutDown = 0;
+            }
+            if (shutDown == 4)
+            {
+                damage   = 0;
+                shutDown = 2;
+            }
+            if (shutDown == 2)
+            {
+                status = 9; // Shut Down
+            }
+            return (damage, shutDown, status);
         }
 
         public void BoardFileRead(string p_Filename)
