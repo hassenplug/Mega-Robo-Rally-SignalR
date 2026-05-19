@@ -22,11 +22,11 @@ namespace MRR
         public int Y { get; set; }
         public int Dir { get; set; }
         public string sDir { get; set; } = "";
-        public int AX { get; set; }
-        public int AY { get; set; }
-        public int Score { get; set; }
+//        public int AX { get; set; }
+//        public int AY { get; set; }
+//        public int Score { get; set; }
         public string OperatorName { get; set; } = "";
-        public int PositionValid { get; set; }
+//        public int PositionValid { get; set; }
         public int Priority { get; set; }
         public int ShutDown { get; set; }
         public string Password { get; set; } = "";

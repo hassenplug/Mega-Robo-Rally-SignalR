@@ -546,6 +546,7 @@ namespace MRR.Services
         /// </summary>
         public void RefreshPlayerCards(int robotID)
         {
+            return;
             var dt = GetQueryResults(
                 $"SELECT CardID, PhasePlayed, CardLocation, Executed FROM MoveCards WHERE Owner = {robotID};");
             foreach (DataRow row in dt.Rows)
@@ -617,6 +618,7 @@ namespace MRR.Services
 
         public void ReloadAllData()
         {
+            UpdateGameState(); // ensure C# state reflects any DB changes from UpdateGameState logic
             GetAllPlayers(forceRefresh: true);
             LoadGameCardsFromDatabase();
             LoadOptionCardsFromDatabase();
@@ -648,6 +650,7 @@ namespace MRR.Services
         {
             using var connection = new MySqlConnection(_connectionString);
             connection.Open();
+            Player? player = AllPlayers.GetPlayer(p => p.ID == p_Player);
 
             // 1. Check that the robot is in a programming-eligible status.
             int inProgramming;
@@ -784,6 +787,8 @@ namespace MRR.Services
                 cmd.Parameters.AddWithValue("@player", p_Player);
                 cmd.ExecuteNonQuery();
             }
+
+            player.PlayerStatus = (tPlayerStatus)newStatus;
 
             // 8. Sync in-memory GameCards to match the DB moves above.
             var returnedCard = GameCards.FirstOrDefault(c => c.Owner == p_Player && c.PhasePlayed == p_PhasePlayed && c.CardLocation == 2);
@@ -955,6 +960,16 @@ namespace MRR.Services
             return System.Text.RegularExpressions.Regex.IsMatch(tableName, @"^[a-zA-Z0-9_]+$");
         }
 
+        public int ProcessDbCommand(int p_CommandID, int p_NewStatus)
+        {
+            var command = ListOfCommands.FirstOrDefault(c => c.CommandID == p_CommandID);
+            if (command == null)
+                return -1; // or throw an exception if preferred
+
+            var statusid = ProcessDbCommand(command, p_NewStatus);
+            command.StatusID = statusid; // update in-memory status to match DB changes
+            return statusid;
+        }
         /// <summary>
         /// C# equivalent of funcProcessCommand(p_CommandID, p_NewStatus).
         /// Loads the command row, performs any DB-side effect based on CommandTypeID,
@@ -1111,7 +1126,13 @@ namespace MRR.Services
                 case SquareAction.Water:
                 case SquareAction.DeletedMove:
                 case SquareAction.FireCannon:
+                    break;
                 case SquareAction.SetButtonText:
+//                            onecommand.StatusID = _dataService.ProcessDbCommand(onecommand, -1);
+//                            Db.SaveChanges();
+                    if (robot != null) robot.PlayerMsg = "";
+                    db.Robots.Where(r => r.ID == cRobotID)
+                        .ExecuteUpdate(s => s.SetProperty(r => r.PlayerMsg, ""));
                     break;
 
                 case SquareAction.SetEnergy:

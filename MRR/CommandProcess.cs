@@ -148,6 +148,7 @@ namespace MRR
             => Console.WriteLine($"{text}({command.RobotID})[{command.CommandCatID}]{{{command.CommandType}}}-{command.Value},{command.ValueB}:{command.Description}");
 
 //        public async Task<bool> ExecuteCommand(CommandItem onecommand)
+
         public bool ProcessCommand(CommandItem onecommand)
         {
             //Console.WriteLine($"Process Command({onecommand.CommandID})[{onecommand.CommandCatID}]{{{onecommand.CommandType}}}{onecommand.Value},{onecommand.ValueB}");
@@ -211,19 +212,17 @@ namespace MRR
                     return true;
 
                 case 6: // User Input
+                    var robotPlayer = _dataService.AllPlayers.GetPlayer(p => p.ID == onecommand.RobotID);
                     if (onecommand.StatusID < 4)
                     {
                         LogCommand(onecommand, "User Input       ");
                         //var robot6 = Db.Robots.FirstOrDefault(r => r.ID == onecommand.RobotID);
-                        var robotPlayer = _dataService.AllPlayers.GetPlayer(p => p.ID == onecommand.RobotID);
 
                         if (robotPlayer != null)
                         {
-                            //robot6.MessageCommandID = onecommand.CommandID;
-                            //robotPlayer.MessageCommandID = onecommand.CommandID;
                             robotPlayer.PlayerMsg = onecommand.Description;
                             onecommand.StatusID = 4;
-                            //Db.SaveChanges();
+                            Db.SaveChanges();
                             return false; // wait for user input
                         }
                     }

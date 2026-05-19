@@ -432,11 +432,11 @@ namespace MRR
             Y                   = CurrentPos.Y,
             Dir                 = (int)CurrentPos.Direction,
             sDir                = CurrentPos.Direction.ToString(),
-            AX                  = ArchivePos.X,
-            AY                  = ArchivePos.Y,
-            Score               = Score,
+//            AX                  = ArchivePos.X,
+//            AY                  = ArchivePos.Y,
+//            Score               = Score,
             OperatorName        = Operator,
-            PositionValid       = PositionValid ? 1 : 0,
+//            PositionValid       = PositionValid ? 1 : 0,
             Priority            = Priority,
             ShutDown            = (int)ShutDown,
             Password            = Password,
@@ -557,9 +557,10 @@ namespace MRR
                 //_ = ListenStatusAsync(_statusCts.Token);
 
             }
-            catch (Exception)
+            catch (Exception ex)
             {
                 isConnected = false;
+                Console.WriteLine($"[{Name}] Connection failed: {ex.Message}");
             }
         }
 

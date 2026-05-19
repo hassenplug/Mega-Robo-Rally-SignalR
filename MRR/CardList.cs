@@ -156,6 +156,7 @@ namespace MRR
             if (Owner > -1) output += " Player:" + Owner.ToString();
             if (PhasePlayed > 0) output += " Phase:" + PhasePlayed.ToString();
             if (Locked) output += " [Locked]";
+            output += " Location:" + CardLocation.ToString();
 
             return output;
         }

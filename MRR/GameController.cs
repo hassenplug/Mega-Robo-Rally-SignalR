@@ -366,7 +366,7 @@ namespace MRR.Controller
             // connect to robots in current game
 
             //UpdateGameState();
-            _dataService.UpdateGameState(); // ensure C# state reflects any DB changes from UpdateGameState logic
+            //_dataService.UpdateGameState(); // ensure C# state reflects any DB changes from UpdateGameState logic
             _dataService.ReloadAllData();
             
             if (RobotsActive != 0)
@@ -375,7 +375,7 @@ namespace MRR.Controller
             }
 
             // reset commands in process
-            _dataService.ExecuteSQL("Update CommandList set StatusID = 1 where StatusID=4 or StatusID=3;");
+            _dataService.ExecuteSQL("Update CommandList set StatusID = 2 where StatusID=4 or StatusID=3;");
             return "";
         }
 

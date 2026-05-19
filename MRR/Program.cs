@@ -32,8 +32,9 @@ builder.Services.AddSingleton<GameController>();
 
 var app = builder.Build();
 
-//var seedDataService = app.Services.GetRequiredService<DataService>();
-//SeedBoardTemplate(seedDataService);
+// Force GameController singleton construction at startup so LoadCurrentGame
+// runs immediately (connects to robots, reloads game data).
+app.Services.GetRequiredService<GameController>();
 
 app.UseStaticFiles();
 app.UseDefaultFiles();
@@ -191,8 +192,8 @@ app.MapGet("/api/player/{command:int}/{playerId:int?}/{data1:int?}/{data2:int?}"
         case 3:
             int markCommand = dataService.GetIntFromDB(
                 $"SELECT MessageCommandID FROM Robots WHERE RobotID={pid}");
-            dataService.ExecuteSQL($"UPDATE Robots SET MessageCommandID=NULL WHERE RobotID={pid}");
-            dataService.ExecuteSQL($"UPDATE CommandList SET StatusID=6 WHERE CommandID={markCommand}");
+            
+            dataService.ProcessDbCommand(markCommand,-1);
             break;
     }
 
