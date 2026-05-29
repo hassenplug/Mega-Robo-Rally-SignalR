@@ -100,6 +100,21 @@ namespace MRR
             this.Select(ts => { ts.ArchivePos.SetLocation(ts.CurrentPos); return ts; }).ToList();
         }
 
+        /// <summary>
+        /// Creates a deep copy of all players for turn simulation.
+        /// The copy is used for physics/collision checks during turn planning.
+        /// Working copy is discarded after turn execution (not saved back).
+        /// </summary>
+        public Players DeepCopy()
+        {
+            var copy = new Players();
+            foreach (var player in this)
+            {
+                copy.Add(new Player(player));  // Player already has copy constructor
+            }
+            return copy;
+        }
+
     }
 
 
