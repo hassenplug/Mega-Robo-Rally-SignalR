@@ -219,7 +219,7 @@ Home Router (192.168.1.x)
 - [ ] Connect Pi via Ethernet to game router LAN
   - Wire Pi 5 to a LAN port on the game router (not the WAN port)
   - Assign Pi a static IP on the game subnet (e.g. `192.168.4.10`) or DHCP reservation by MAC
-  - Set hostname `mrobopi3` to resolve to this IP on the game network (via router DNS or `/etc/hosts`)
+  - Set hostname `mrobopi` to resolve to this IP on the game network (via router DNS or `/etc/hosts`)
   - Update connection strings / launch URLs in `appsettings.json` if IP differs from current config
 
 ### Robots
@@ -239,7 +239,7 @@ Home Router (192.168.1.x)
 
 - [ ] Connect player phones to the game WiFi (`MRR-Game` SSID)
   - All 6 player phones join the same SSID as the robots
-  - Phones open the player UI at `http://192.168.4.10:{port}/` (or `http://mrobopi3:{port}/`)
+  - Phones open the player UI at `http://192.168.4.10:{port}/` (or `http://mrobopi:{port}/`)
 
 ### Verification
 

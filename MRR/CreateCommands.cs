@@ -32,6 +32,12 @@ namespace MRR
 
         private DataService _dataService = null!;
 
+        /// <summary>
+        /// Deep copy of AllPlayers used for turn simulation. Rebuilt at the top of
+        /// ExecuteTurn and discarded when the next turn is calculated; never saved back.
+        /// </summary>
+        private Players workingPlayers = new Players();
+
         #region Game Parameters & Configuration
 
         const int DamageSequence = 7; // number to use for damage & cannons within sequence
@@ -82,7 +88,8 @@ namespace MRR
 
         #region Process Move
 
-        public void ProcessMove(MoveCard? p_movecard, Players workingPlayers)  //MoveCard.tCardType p_card, int p_player )
+        //public void ProcessMove(MoveCard? p_movecard, Players workingPlayers)  //MoveCard.tCardType p_card, int p_player )
+        public void ProcessMove(MoveCard? p_movecard)  //MoveCard.tCardType p_card, int p_player )
         {
             if (p_movecard == null) return;
             Player? thisplayer = workingPlayers.GetPlayer(p_movecard.Owner);
@@ -155,7 +162,7 @@ namespace MRR
 
                     if (l_MoveDistance != 0)
                     {
-                        CalcMoveDistance(thisplayer, l_MoveDistance, thisplayer.CurrentPos.Direction, SquareAction.Move, workingPlayers);
+                        CalcMoveDistance(thisplayer, l_MoveDistance, thisplayer.CurrentPos.Direction, SquareAction.Move);
                     }
 
                     // before water
@@ -180,7 +187,7 @@ namespace MRR
             }
         }
 
-        public int CalcMoveDistance(Player p_Player, int p_Distance, Direction p_Direction, SquareAction p_MoveType, Players workingPlayers)
+        public int CalcMoveDistance(Player p_Player, int p_Distance, Direction p_Direction, SquareAction p_MoveType)
         {
             // check to see if this robot can move 1 square
             //   check for walls (2 checks)
@@ -247,7 +254,7 @@ namespace MRR
                     return 0;
                 }
 
-                int l_pushdistance = CalcMoveDistance(l_PushPlayer, l_MoveDistance, p_Direction, SquareAction.PushedMove, workingPlayers);
+                int l_pushdistance = CalcMoveDistance(l_PushPlayer, l_MoveDistance, p_Direction, SquareAction.PushedMove);
                 if (l_pushdistance == 0) // do not move
                 {
                     return 0; // do not move
@@ -283,13 +290,13 @@ namespace MRR
                 }
 
                 // move
-                ClearThisSpot(l_newsquare.X, l_newsquare.Y, xChange, yChange, dChange, workingPlayers);
+                ClearThisSpot(l_newsquare.X, l_newsquare.Y, xChange, yChange, dChange);
 
             }
 
 
             // move robot...  (make actual move)
-            if (!MoveRobot(thisplayer, l_newsquare, l_MoveDistance, p_Direction, p_MoveType, workingPlayers))
+            if (!MoveRobot(thisplayer, l_newsquare, l_MoveDistance, p_Direction, p_MoveType))
             {
                 // robot died
                 return l_MoveDistance;
@@ -317,7 +324,7 @@ namespace MRR
             if (remainingDistance != 0) // and this move is OK
             {
                 // check again
-                remainingDistance = CalcMoveDistance(p_Player, remainingDistance, p_Direction, p_MoveType, workingPlayers); // next sub step
+                remainingDistance = CalcMoveDistance(p_Player, remainingDistance, p_Direction, p_MoveType); // next sub step
             }
 
             return remainingDistance + l_MoveDistance;
@@ -333,7 +340,7 @@ namespace MRR
 
         }
 
-        public bool MoveRobot(Player p_Robot, RobotLocation p_NewLocation, int p_Distance, Direction p_Direction, SquareAction p_MoveType, Players workingPlayers)
+        public bool MoveRobot(Player p_Robot, RobotLocation p_NewLocation, int p_Distance, Direction p_Direction, SquareAction p_MoveType)
         {
             bool StillAlive = true;
 
@@ -424,9 +431,9 @@ namespace MRR
                     rotated = true;
                 }
                 // check where this player will move to
-                ClearThisSpot(currentX + changeX, currentY + changeY, changeX, changeY, changeD, workingPlayers);
+                ClearThisSpot(currentX + changeX, currentY + changeY, changeX, changeY, changeD);
                 // move one
-                MoveRobot(blockingPlayer, new RobotLocation(changeD, currentX + changeX, currentY + changeY), 1, changeD, SquareAction.PushedMove, workingPlayers);
+                MoveRobot(blockingPlayer, new RobotLocation(changeD, currentX + changeX, currentY + changeY), 1, changeD, SquareAction.PushedMove);
                 if (rotated)
                 {
                     // insert step
@@ -465,7 +472,7 @@ namespace MRR
             ListOfCommands.Clear(); // = new CommandList();
 
             // ✅ Create working copy for simulation (will be discarded)
-            Players workingPlayers = _dataService.AllPlayers.DeepCopy();
+            workingPlayers = _dataService.AllPlayers.DeepCopy();
 
             //Console.WriteLine("Check Rules Version");
 
@@ -483,7 +490,7 @@ namespace MRR
             // begin moves
             for (int RunningPhase = 1; RunningPhase < PhaseCount + 1; RunningPhase++)
             {
-                ExecutePhase(RunningPhase, workingPlayers);
+                ExecutePhase(RunningPhase);
             }
 
 
@@ -793,7 +800,7 @@ namespace MRR
 
         #region Run Phase
 
-        public void ExecutePhase(int p_PhaseNumber, Players workingPlayers, bool AllowOptions = true)
+        public void ExecutePhase(int p_PhaseNumber, bool AllowOptions = true)
         {
 
             //ListOfCommands.AddCommand("Execute Phase" + p_PhaseNumber.ToString());

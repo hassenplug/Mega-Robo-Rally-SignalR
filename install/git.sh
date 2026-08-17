@@ -12,9 +12,9 @@
 # run these commands
 ######
 # sudo apt install git
-# git clone https://github.com/hassenplug/Mega-Robo-Rally.git
+# git clone https://github.com/hassenplug/Mega-Robo-Rally-SignalR.git
 #
-# /home/mrr/Mega-Robo-Rally/install/git.sh
+# /home/mrr/Mega-Robo-Rally-SignalR/install/git.sh
 #######
 #
 #D) sudo raspi-config => enable auto  log to command line
@@ -54,8 +54,8 @@ dotnet add package MySqlConnector --version 2.2.7
 # configure database
 ######################
 # run sql file
-sudo mysql < /home/Mega-Robo-Rally/install/SRRDatabase.sql
-sudo mysql rally < /home/Mega-Robo-Rally/install/rallyBoards.sql
+sudo mysql < /home/mrr/Mega-Robo-Rally-SignalR/install/MRRDatabase.sql
+sudo mysql rally < /home/mrr/Mega-Robo-Rally-SignalR/install/rallyBoards.sql
 
 ######################
 # create startup file

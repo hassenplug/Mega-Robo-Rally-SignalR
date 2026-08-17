@@ -29,12 +29,20 @@ as the **single source of truth** for the entire `rally` database.
 
 | Property | Value |
 |---|---|
-| Server | `mrobopi3` |
+| Server | `mrobopi` |
 | Database | `rally` |
 | User | `mrr` / `rallypass` |
 | Engine | MySQL 8 / MariaDB 10.x |
 
-Connection string pattern: `Server=mrobopi3;Database=rally;User=mrr;Password=rallypass;`
+The application never hardcodes these. `DataService` reads `ConnectionStrings:Rally`
+from `MRR/appsettings.json`, which is the single source of truth:
+
+```json
+"Rally": "server=mrobopi;database=rally;uid=mrr;pwd=rallypass"
+```
+
+Change the host there (or via the `ConnectionStrings__Rally` environment variable) —
+do not add a connection string to any `.cs` file.
 
 ---
 
@@ -67,7 +75,7 @@ It is organized into these sections (in order):
 
 **Running the script:**
 ```bash
-mysql -h mrobopi3 -u root -p < install/MRRDatabase.sql
+mysql -h mrobopi -u root -p < install/MRRDatabase.sql
 ```
 
 ---

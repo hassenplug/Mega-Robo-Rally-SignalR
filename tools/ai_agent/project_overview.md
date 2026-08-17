@@ -11,7 +11,7 @@ Mega Robo Rally (MRR) is a physical/digital hybrid Robo Rally (Renegade edition)
 - 6 × VEX AIM robots — physical playing pieces on a printed game board, controlled via WebSocket
 - 6 × phones (browser/SignalR) — player programming UI
 
-**Tech stack:** C# / ASP.NET Core 9, MySQL (server: mrobopi3, db: rally), SignalR for real-time
+**Tech stack:** C# / ASP.NET Core 9, MySQL (server: mrobopi, db: rally), SignalR for real-time
 
 **Key files:** GameController.cs (state machine 0–16), CreateCommands.cs (cards→commands), CommandProcess.cs (command executor), AIMRobot.cs (robot WebSocket client), DataService.cs (MySQL), DataHub.cs (SignalR hub)
 

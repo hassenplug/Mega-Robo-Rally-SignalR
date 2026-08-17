@@ -600,7 +600,8 @@ app.MapPut("/api/boardeditor/gamedata/{gameDataId:int}", async (int gameDataId, 
 
 // ────────────────────────────────────────────────────────────────────────────
 
-app.Urls.Add("http://mrobopi3:5000");
+// Listen URL comes from configuration ("Urls" in appsettings.json, overridable by
+// the ASPNETCORE_URLS environment variable) so the host is not baked into the build.
 
 app.Run();
 

@@ -1,6 +1,6 @@
 -- MRRDatabase.sql -- Mega Robo Rally complete database creation script
 -- Generated from SRRDatabase20260429.sql
--- Database: rally | Server: mrobopi3 | User: mrr/rallypass
+-- Database: rally | Server: mrobopi | User: mrr/rallypass
 --
 -- Run as root or privileged user to create DB and grant access.
 -- Safe to run on a clean install or to reset an existing rally DB.

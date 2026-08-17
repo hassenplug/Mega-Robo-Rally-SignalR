@@ -29,7 +29,7 @@ using the existing patterns in the codebase.
 
 ## Project Context
 
-- **DB**: MySQL/MariaDB, server `mrobopi3`, database `rally`, user `mrr`/`rallypass`
+- **DB**: MySQL/MariaDB, server `mrobopi`, database `rally`, user `mrr`/`rallypass`
 - **Connection**: `MySqlConnector` NuGet package; `DataService._connectionString`
 - **EF Core**: Used for `PendingCommandEntity` only (via `MRRDbContext`); raw
   `MySqlConnection` / `MySqlCommand` / `DataTable` used everywhere else

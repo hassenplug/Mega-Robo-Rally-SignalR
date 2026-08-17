@@ -17,7 +17,7 @@ Six phones connect to the Pi via SignalR and show each player's hand / programmi
 ```
 Program.cs           REST API endpoints + startup
 GameController.cs    State machine (states 0–16), orchestrates turns
-DataService.cs       MySQL data layer (server: mrobopi3, db: rally)
+DataService.cs       MySQL data layer (db: rally; conn string from appsettings.json)
 DataHub.cs           SignalR hub for real-time phone/client updates
 CreateCommands.cs    Converts move cards → PendingCommand rows
 CommandProcess.cs    Background thread: executes PendingCommands in order
@@ -75,7 +75,9 @@ wwwroot/             Static web assets for phone UI
 - Agents and agent-related files go in `.claude/agents/`
 - Follow existing patterns (partial classes, singleton services, async/await throughout)
 - No breaking changes to existing REST API contracts without discussion
-- Server hostname: `mrobopi3` — used in connection strings and launch URLs
+- Server hostname: `mrobopi`. Never hardcode it — the DB connection string and the
+  HTTP listen URL both come from [MRR/appsettings.json](MRR/appsettings.json)
+  (`ConnectionStrings:Rally` and `Urls`), so the app can run on a host separate from the DB.
 
 ## Project TODO
 See [install/todo.md](install/todo.md) for the active task list.
