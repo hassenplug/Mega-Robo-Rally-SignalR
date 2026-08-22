@@ -1,0 +1,13 @@
+[Unit]
+Description=Retry MRR units that hit the start limit, every 2 minutes
+Documentation=file:/home/mrr/Mega-Robo-Rally-SignalR/install/PROCESS_MANAGER.md
+PartOf=mrr.target
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=2min
+AccuracySec=15s
+Unit=mrr-recover.service
+
+[Install]
+WantedBy=mrr.target

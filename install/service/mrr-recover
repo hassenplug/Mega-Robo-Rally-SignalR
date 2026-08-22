@@ -1,0 +1,21 @@
+#!/bin/bash
+# mrr-recover - run by mrr-recover.timer.
+#
+# A unit that exceeds StartLimitBurst latches into "failed" and stays down forever.
+# This clears that state and tries again, so a transient cause (DB slow to come up,
+# a robot router rebooting) heals itself without anyone logging in.
+#
+# It acts ONLY on "failed" units. A unit stopped by the operator is "inactive",
+# so 'mrrctl stop' is never overridden.
+set -uo pipefail
+
+UNITS=(mrr-server.service)
+
+for unit in "${UNITS[@]}"; do
+    if systemctl is-failed --quiet "$unit"; then
+        echo "$unit is failed - resetting and retrying"
+        systemctl reset-failed "$unit"
+        systemctl start "$unit"
+    fi
+done
+exit 0

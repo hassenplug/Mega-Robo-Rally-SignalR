@@ -1,0 +1,219 @@
+#!/bin/bash
+# mrrctl - operator CLI for the Mega Robo Rally process manager.
+# Thin, opinionated wrapper over systemctl. See install/PROCESS_MANAGER.md.
+set -uo pipefail
+
+[ -r /etc/default/mrr ] && . /etc/default/mrr
+
+TARGET=mrr.target
+MAIN=mrr-server.service
+BOOT_UNITS=(mrr-server.service mrr-health.timer mrr-recover.timer)
+
+REPO="${MRR_REPO:-/home/mrr/Mega-Robo-Rally-SignalR}"
+APP_DIR="${MRR_APP_DIR:-/srv/mrr/app}"
+PREV_DIR="$(dirname "$APP_DIR")/previous"
+STAGE_DIR="$(dirname "$APP_DIR")/staging"
+DOTNET="${MRR_DOTNET:-/home/mrr/.dotnet/dotnet}"
+RUN_USER="${MRR_USER:-mrr}"
+SYSTEMCTL=/usr/bin/systemctl
+
+die()  { echo "mrrctl: $*" >&2; exit 1; }
+info() { echo "==> $*"; }
+
+sc() {
+    if [ "$(id -u)" -eq 0 ]; then "$SYSTEMCTL" "$@"; else sudo "$SYSTEMCTL" "$@"; fi
+}
+
+# "server" -> mrr-server.service, "health" -> mrr-health.timer, "" -> mrr.target
+resolve() {
+    local name="${1:-}"
+    case "$name" in
+        ""|all|target)  echo "$TARGET" ;;
+        *.service|*.timer|*.target) echo "$name" ;;
+        health)         echo "mrr-health.timer" ;;
+        recover)        echo "mrr-recover.timer" ;;
+        mrr-*)          echo "${name}.service" ;;
+        *)              echo "mrr-${name}.service" ;;
+    esac
+}
+
+# pause/resume operate on a service, never on the target
+resolve_service() {
+    local u; u=$(resolve "${1:-}")
+    [ "$u" = "$TARGET" ] && u="$MAIN"
+    echo "$u"
+}
+
+cmd_status() {
+    local unit; unit=$(resolve_service "${1:-}")
+    local state sub freezer pid mem since
+    state=$("$SYSTEMCTL" show -p ActiveState  --value "$unit")
+    sub=$("$SYSTEMCTL"   show -p SubState     --value "$unit")
+    freezer=$("$SYSTEMCTL" show -p FreezerState --value "$unit")
+    pid=$("$SYSTEMCTL"   show -p MainPID      --value "$unit")
+    mem=$("$SYSTEMCTL"   show -p MemoryCurrent --value "$unit")
+    since=$("$SYSTEMCTL" show -p ActiveEnterTimestamp --value "$unit")
+
+    echo "unit      : $unit"
+    echo "state     : $state ($sub)"
+    [ "$freezer" = "running" ] || echo "PAUSED    : freezer=$freezer   (mrrctl resume)"
+    echo "boot      : $("$SYSTEMCTL" is-enabled "$TARGET" 2>/dev/null) ($TARGET)"
+    [ "$pid" != "0" ] && echo "pid       : $pid"
+    [ -n "$since" ]   && echo "since     : $since"
+    if [[ "$mem" =~ ^[0-9]+$ ]]; then
+        echo "memory    : $(( mem / 1024 / 1024 )) MB"
+    fi
+    local url="${MRR_HEALTH_URL:-http://127.0.0.1:5000/index.html}"
+    echo "health    : $url"
+    if curl -fsS -o /dev/null --max-time 3 "$url" 2>/dev/null; then
+        echo "probe     : OK"
+    else
+        echo "probe     : NOT RESPONDING"
+    fi
+    if [ -f /run/mrr/health.strikes ]; then
+        echo "strikes   : $(cat /run/mrr/health.strikes)"
+    fi
+    if [ -f "$APP_DIR/MRR.dll" ]; then
+        echo "deployed  : $APP_DIR  ($(date -r "$APP_DIR/MRR.dll" '+%Y-%m-%d %H:%M'))"
+    else
+        echo "deployed  : MISSING - run 'mrrctl deploy'"
+    fi
+}
+
+cmd_start()   { local u; u=$(resolve "${1:-}"); info "starting $u";   sc start "$u"; }
+cmd_stop()    { local u; u=$(resolve "${1:-}"); info "stopping $u (stays down until 'mrrctl start')"; sc stop "$u"; }
+cmd_restart() { local u; u=$(resolve "${1:-}"); info "restarting $u"; sc restart "$u"; }
+
+cmd_pause() {
+    local u; u=$(resolve_service "${1:-}")
+    [ "$("$SYSTEMCTL" is-active "$u")" = "active" ] || die "$u is not running"
+    info "freezing $u - connected phones will show 'reconnecting' until resume"
+    sc freeze "$u"
+}
+
+cmd_resume() {
+    local u; u=$(resolve_service "${1:-}")
+    info "thawing $u"
+    sc thaw "$u"
+}
+
+cmd_logs() {
+    local follow=()
+    [ "${1:-}" = "-f" ] && { follow=(-f); shift; }
+    journalctl "${follow[@]}" -u 'mrr-*' -n "${1:-200}" --no-pager
+}
+
+cmd_enable() {
+    for u in "$TARGET" "${BOOT_UNITS[@]}"; do sc enable "$u"; done
+    info "MRR will start at boot"
+}
+
+cmd_disable() {
+    for u in "${BOOT_UNITS[@]}" "$TARGET"; do sc disable "$u"; done
+    info "MRR will NOT start at boot"
+}
+
+cmd_list() {
+    "$SYSTEMCTL" list-units --all 'mrr*' --no-pager
+    echo
+    "$SYSTEMCTL" list-timers 'mrr-*' --no-pager
+}
+
+cmd_deploy() {
+    [ -x "$DOTNET" ] || die "dotnet not found at $DOTNET"
+    [ -d "$REPO/MRR" ] || die "repo not found at $REPO"
+    [ -w "$(dirname "$APP_DIR")" ] || die "$(dirname "$APP_DIR") not writable by $(id -un)"
+
+    local was_active=no
+    [ "$("$SYSTEMCTL" is-active "$MAIN")" = "active" ] && was_active=yes
+
+    info "publishing (Release) -> $STAGE_DIR"
+    rm -rf "$STAGE_DIR"
+    "$DOTNET" publish "$REPO/MRR/MRR.csproj" -c Release -o "$STAGE_DIR" --nologo || die "publish failed - nothing was changed"
+    [ -f "$STAGE_DIR/MRR.dll" ] || die "publish produced no MRR.dll - nothing was changed"
+
+    if [ "$was_active" = yes ]; then
+        info "stopping $MAIN for swap"
+        sc stop "$MAIN"
+    fi
+
+    if [ -d "$APP_DIR" ] && [ -f "$APP_DIR/MRR.dll" ]; then
+        info "keeping previous build in $PREV_DIR"
+        rm -rf "$PREV_DIR"
+        cp -a "$APP_DIR" "$PREV_DIR"
+    fi
+
+    info "installing -> $APP_DIR"
+    mkdir -p "$APP_DIR"
+    rsync -a --delete --exclude 'images/' "$STAGE_DIR/" "$APP_DIR/"
+    mkdir -p "$APP_DIR/images/align"
+    rm -rf "$STAGE_DIR"
+    [ "$(id -u)" -eq 0 ] && chown -R "$RUN_USER":"$RUN_USER" "$APP_DIR" "$PREV_DIR" 2>/dev/null
+
+    if [ "$was_active" = yes ]; then
+        info "starting $MAIN"
+        sc start "$MAIN"
+    fi
+    info "deployed. 'mrrctl rollback' reverts to the previous build."
+}
+
+cmd_update() {
+    info "git pull in $REPO"
+    git -C "$REPO" pull --ff-only || die "git pull failed"
+    cmd_deploy
+}
+
+cmd_rollback() {
+    [ -f "$PREV_DIR/MRR.dll" ] || die "no previous build in $PREV_DIR"
+    local was_active=no
+    [ "$("$SYSTEMCTL" is-active "$MAIN")" = "active" ] && was_active=yes
+    [ "$was_active" = yes ] && sc stop "$MAIN"
+    info "restoring $PREV_DIR -> $APP_DIR"
+    rm -rf "$APP_DIR.rollback-tmp"
+    mv "$APP_DIR" "$APP_DIR.rollback-tmp"
+    mv "$PREV_DIR" "$APP_DIR"
+    mv "$APP_DIR.rollback-tmp" "$PREV_DIR"
+    [ "$was_active" = yes ] && sc start "$MAIN"
+    info "rolled back (the build you just left is now in $PREV_DIR)"
+}
+
+usage() {
+    cat <<'EOF'
+mrrctl - Mega Robo Rally process manager
+
+  mrrctl status  [unit]     state, freezer, pid, memory, live health probe
+  mrrctl start   [unit]     start the game group (or one unit)
+  mrrctl stop    [unit]     stop it; stays down until started again
+  mrrctl restart [unit]     restart it
+  mrrctl pause   [unit]     freeze the server in place (short interruptions)
+  mrrctl resume  [unit]     thaw it
+  mrrctl logs [-f] [N]      journal for all mrr-* units
+  mrrctl enable | disable   start at boot, or not
+  mrrctl list               all MRR units and timers
+  mrrctl deploy             publish Release -> /srv/mrr/app, restart if running
+  mrrctl update             git pull, then deploy
+  mrrctl rollback           restore the previous deploy
+
+  [unit] defaults to the whole group. Shorthands: server, health, recover, spi.
+  Tunables live in /etc/default/mrr.
+EOF
+}
+
+cmd="${1:-status}"; shift || true
+case "$cmd" in
+    status)   cmd_status  "$@" ;;
+    start)    cmd_start   "$@" ;;
+    stop)     cmd_stop    "$@" ;;
+    restart)  cmd_restart "$@" ;;
+    pause)    cmd_pause   "$@" ;;
+    resume|unpause|thaw) cmd_resume "$@" ;;
+    logs|log) cmd_logs    "$@" ;;
+    enable)   cmd_enable  "$@" ;;
+    disable)  cmd_disable "$@" ;;
+    list|ls)  cmd_list    "$@" ;;
+    deploy)   cmd_deploy  "$@" ;;
+    update)   cmd_update  "$@" ;;
+    rollback) cmd_rollback "$@" ;;
+    -h|--help|help) usage ;;
+    *) echo "mrrctl: unknown command '$cmd'" >&2; echo; usage; exit 2 ;;
+esac

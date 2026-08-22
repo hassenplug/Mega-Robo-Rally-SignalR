@@ -1,0 +1,8 @@
+[Unit]
+Description=Mega Robo Rally - all game services
+Documentation=file:/home/mrr/Mega-Robo-Rally-SignalR/install/PROCESS_MANAGER.md
+# Members declare "PartOf=mrr.target" so stop/restart of this target
+# propagates to them, and "WantedBy=mrr.target" so enabling adds them here.
+
+[Install]
+WantedBy=multi-user.target

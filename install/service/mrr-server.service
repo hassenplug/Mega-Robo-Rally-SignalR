@@ -1,0 +1,48 @@
+[Unit]
+Description=Mega Robo Rally game server (ASP.NET Core)
+Documentation=file:/home/mrr/Mega-Robo-Rally-SignalR/install/PROCESS_MANAGER.md
+PartOf=mrr.target
+
+# MariaDB must be up; the app dies with a NullReferenceException if the DB is absent.
+Requires=mariadb.service
+After=mariadb.service
+
+Wants=network-online.target
+After=network-online.target
+
+# Loads the SPI overlay if /dev/spidev0.0 is missing (LED init crashes without it).
+Wants=mrr-spi.service
+After=mrr-spi.service
+
+# Back off after a sustained crash loop instead of hammering the DB and the journal.
+# mrr-recover.timer un-latches the resulting "failed" state within 2 minutes.
+StartLimitIntervalSec=300
+StartLimitBurst=10
+
+[Service]
+Type=exec
+User=mrr
+Group=mrr
+WorkingDirectory=/srv/mrr/app
+EnvironmentFile=/etc/default/mrr
+
+# Refuses to start (with a specific reason in the journal) if the DB is unreachable,
+# spidev is missing, the app is not deployed, or TCP 5000 is already taken.
+ExecStartPre=/usr/local/bin/mrr-preflight
+ExecStart=/home/mrr/.dotnet/dotnet /srv/mrr/app/MRR.dll
+
+# always, not on-failure: a clean exit must also come back up.
+Restart=always
+RestartSec=5
+TimeoutStopSec=20
+
+SyslogIdentifier=mrr-server
+StandardOutput=journal
+StandardError=journal
+
+NoNewPrivileges=yes
+# Deliberately no PrivateDevices/ProtectSystem=strict: the app needs /dev/spidev0.0
+# and writes camera captures under WorkingDirectory.
+
+[Install]
+WantedBy=mrr.target

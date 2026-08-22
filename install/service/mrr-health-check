@@ -1,0 +1,63 @@
+#!/bin/bash
+# mrr-health-check - liveness probe for mrr-server.service, run by mrr-health.timer.
+#
+# Covers the case systemd cannot see: the process is alive but no longer serving.
+# Restarts only after MRR_HEALTH_STRIKES consecutive failures, and never touches a
+# unit that is stopped, paused (frozen), or still inside its startup grace period.
+set -uo pipefail
+
+[ -r /etc/default/mrr ] && . /etc/default/mrr
+
+UNIT=mrr-server.service
+URL="${MRR_HEALTH_URL:-http://127.0.0.1:5000/index.html}"
+TIMEOUT="${MRR_HEALTH_TIMEOUT:-5}"
+MAX_STRIKES="${MRR_HEALTH_STRIKES:-3}"
+GRACE="${MRR_HEALTH_GRACE:-60}"
+STRIKE_FILE=/run/mrr/health.strikes
+
+mkdir -p /run/mrr
+
+# Only supervise a unit that is meant to be running right now.
+state=$(systemctl show -p ActiveState --value "$UNIT" 2>/dev/null)
+if [ "$state" != "active" ]; then
+    rm -f "$STRIKE_FILE"
+    exit 0
+fi
+
+# 'mrrctl pause' freezes the cgroup; a frozen server cannot answer and must not be
+# restarted out from under the operator.
+freezer=$(systemctl show -p FreezerState --value "$UNIT" 2>/dev/null)
+if [ -n "$freezer" ] && [ "$freezer" != "running" ]; then
+    echo "skip: $UNIT is $freezer (paused)"
+    rm -f "$STRIKE_FILE"
+    exit 0
+fi
+
+# Startup grace: connecting to six robots can take a while.
+entered=$(systemctl show -p ActiveEnterTimestampMonotonic --value "$UNIT" 2>/dev/null)
+if [[ "$entered" =~ ^[0-9]+$ ]] && [ "$entered" -gt 0 ]; then
+    now=$(awk '{printf "%d", $1 * 1000000}' /proc/uptime)
+    age=$(( (now - entered) / 1000000 ))
+    if [ "$age" -lt "$GRACE" ]; then
+        echo "skip: only ${age}s since start (grace ${GRACE}s)"
+        exit 0
+    fi
+fi
+
+if curl -fsS -o /dev/null --max-time "$TIMEOUT" "$URL"; then
+    rm -f "$STRIKE_FILE"
+    exit 0
+fi
+
+strikes=$(cat "$STRIKE_FILE" 2>/dev/null || echo 0)
+[[ "$strikes" =~ ^[0-9]+$ ]] || strikes=0
+strikes=$(( strikes + 1 ))
+echo "$strikes" > "$STRIKE_FILE"
+echo "health probe failed (${strikes}/${MAX_STRIKES}): $URL"
+
+if [ "$strikes" -ge "$MAX_STRIKES" ]; then
+    echo "restarting $UNIT after ${strikes} consecutive failed probes"
+    rm -f "$STRIKE_FILE"
+    systemctl restart "$UNIT"
+fi
+exit 0

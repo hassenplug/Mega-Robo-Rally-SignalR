@@ -1,0 +1,12 @@
+[Unit]
+Description=Load SPI overlay for MRR LED output
+Documentation=file:/home/mrr/Mega-Robo-Rally-SignalR/install/PROCESS_MANAGER.md
+# Skipped (and treated as successful) when SPI is already available, which is the
+# normal case with dtparam=spi=on in /boot/firmware/config.txt.
+ConditionPathExists=!/dev/spidev0.0
+PartOf=mrr.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/dtoverlay spi0-2cs

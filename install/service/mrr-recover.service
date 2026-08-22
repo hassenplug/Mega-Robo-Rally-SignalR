@@ -1,0 +1,8 @@
+[Unit]
+Description=Clear latched failures on MRR units and retry
+Documentation=file:/home/mrr/Mega-Robo-Rally-SignalR/install/PROCESS_MANAGER.md
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/mrr-recover
+SyslogIdentifier=mrr-recover

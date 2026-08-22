@@ -1,0 +1,9 @@
+[Unit]
+Description=MRR game server health probe
+Documentation=file:/home/mrr/Mega-Robo-Rally-SignalR/install/PROCESS_MANAGER.md
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/default/mrr
+ExecStart=/usr/local/bin/mrr-health-check
+SyslogIdentifier=mrr-health

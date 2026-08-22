@@ -1,0 +1,13 @@
+[Unit]
+Description=Probe the MRR game server every 30s and restart it if wedged
+Documentation=file:/home/mrr/Mega-Robo-Rally-SignalR/install/PROCESS_MANAGER.md
+PartOf=mrr.target
+
+[Timer]
+OnBootSec=90s
+OnUnitActiveSec=30s
+AccuracySec=5s
+Unit=mrr-health.service
+
+[Install]
+WantedBy=mrr.target
