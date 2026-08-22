@@ -15,3 +15,11 @@ VEX AIM WebSocket Commands (JSON)
 • Camera: {"command":"camera.stream","resolution":"640x480","fps":30}
 • Event: {"command":"event.register","event":"screen.press","callback":"onScreenPress"}
 */
+
+
+AIM-426E8118	192.168.1.206	f4:12:fa:a5:d9:94	Active
+AIM-3A8A8B18	192.168.1.215	f4:12:fa:a5:db:38	Active
+AIM-1AA57518	192.168.1.107	f4:12:fa:a6:27:74	Active
+AIM-328D8418	192.168.1.149	f4:12:fa:a7:1a:f0	Active
+AIM-1A5E7918	192.168.1.106	f4:12:fa:a7:4b:c4	Active
+AIM-12598D18	192.168.1.160	f4:12:fa:a7:68:1c	Active
