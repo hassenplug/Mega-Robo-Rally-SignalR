@@ -1,6 +1,6 @@
 # MRR API Decomposition Design
 
-**Status:** In progress — steps 0 and 1 implemented (see §9)
+**Status:** In progress — steps 0, 1 and 2 implemented (see §9)
 **Date:** 2026-08-22 (decisions 1–8 resolved)
 **Related:** [install/PROCESS_MANAGER.md](install/PROCESS_MANAGER.md) — supervision, and the
 implemented units in [install/service/](install/service/). §9 of this document specifies the
@@ -519,7 +519,7 @@ open at a time.
 |---|---|---|
 | **0. Contracts** | `MRR.Contracts` (4-project layout, §3.2); move the `Player`-free models; delete `static CommandItem.AllPlayers`; add `/api/health`. Remove `RulesVersion` (§8) | **Done** — `4560eb3`, `6e7969d` |
 | **1. Split `Player`** | `PlayerState` (Contracts) + `Player : PlayerState` (host transport). Unblocks `CommandItem`, `CommandList`, `OptionCardList` into Contracts | **Done** — `0bba5bb`. Moved up from step 5; see below |
-| **2. Config out** | Move board / gamedata / operator / hardware routes, `BoardElement`, load/save, `LoadXMLBoards` into `mrr-config`; transaction + `/validate` fixes; new systemd unit (§10) | **Two processes.** Authoring cannot disturb a live game |
+| **2. Config out** | Board / gamedata routes, load/save and `.srx` import into `MRR.Config`; transaction + `/validate` fixes; `mrr-config.service` and role-aware `mrrctl` (§10) | **Done** — `0bc7b79`, `bdd4e49`. **Two processes.** Authoring cannot disturb a live game |
 | **3. Purify Rules** | Retarget `CreateCommands` from `Players`/`Player` to `PlayerState`; sever the writes in §5.3; pre-drawn deck; `Plan()` returns a `TurnPlan`; Master persists. Extract `MRR.Rules` | Deterministic planner; `CreateCommands` no longer references `DataService` |
 | **4. Split `DataService`** | Extract `RuleEffects`, repositories, `IGameStateStore`. **Riskiest step — do it alone, on a branch** | Internal seams exist |
 | **5. Admin** | Replace `/api/table` with `MRR.Admin`: reload-after-write, audit log, loopback binding, `POST` for mutations | A safe way to hand-edit game state mid-session |
