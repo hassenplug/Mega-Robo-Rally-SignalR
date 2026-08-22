@@ -57,9 +57,9 @@ namespace MRR
 
         public int GameState => _dataService.GameState;
 
-        public int RulesVersion => _dataService.RulesVersion;
-
         public int PhaseCount => _dataService.PhaseCount;
+
+        public int TotalFlags => _dataService.TotalFlags;
 
         public Players AllPlayers => _dataService.AllPlayers;
 
@@ -1630,23 +1630,18 @@ namespace MRR
             return true;
         }
 
+        /// <summary>
+        /// Advances the player's flag count. Returns true if that wins the game.
+        /// </summary>
         public bool AddFlag(Player p_thisplayer, int AddCount)
         {
             p_thisplayer.LastFlag += AddCount;
             ListOfCommands.AddCommand(p_thisplayer, SquareAction.Flag, p_thisplayer.LastFlag);
             AddDeathPoints(p_thisplayer, p_thisplayer.LastFlag * 5);
 
-            if (p_thisplayer.LastFlag > p_thisplayer.TotalFlags)
-            {
-                _dataService.TotalFlags = p_thisplayer.LastFlag;
-
-            }
-            else if (p_thisplayer.LastFlag == p_thisplayer.TotalFlags)
-            {
-                return true;
-            }
-
-            return false;
+            // TotalFlags is game-wide (CurrentGameData iKey 7), set from the board at game
+            // start. >= rather than == so an overshoot still wins instead of being missed.
+            return p_thisplayer.LastFlag >= TotalFlags;
         }
 
         public bool AddDamage(Player p_thisrobot, int p_Damage, Player? p_DamagingRobot = null)
@@ -1852,7 +1847,8 @@ namespace MRR
 
             if (g_BoardElements != null)
             {
-                _dataService.TotalFlags = g_BoardElements.BoardElements.Count(be => be.ActionList.Count(al => al.SquareAction == SquareAction.Flag) > 0);
+                // Board metadata, not game state — see DataService.BoardFileRead.
+                g_BoardElements.TotalFlags = g_BoardElements.CalcTotalFlags();
                 _dataService.LaserDamage = g_BoardElements.LaserDamage;
                 //GameType = g_BoardElements.BoardType;
             }

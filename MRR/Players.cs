@@ -188,12 +188,8 @@ namespace MRR
         [NotMapped]
         public string Operator { get; set; } = "";
 
-        [NotMapped]
-        public int TotalFlags
-        {
-            get { return 5 ; }
-            set { }
-        }
+        // TotalFlags is deliberately not a Player property — there is one flag count for the
+        // whole game, held in CurrentGameData (iKey 7) and exposed as DataService.TotalFlags.
 
         [NotMapped]
         [XmlIgnore]

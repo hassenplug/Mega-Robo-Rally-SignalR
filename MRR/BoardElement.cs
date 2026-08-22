@@ -42,6 +42,21 @@ namespace MRR
 
         public int TotalFlags { get; set; }
 
+        /// <summary>
+        /// The number of flags on this board, derived from the flag squares themselves.
+        /// Flags are numbered checkpoints (BoardAction.Parameter) and the win test is
+        /// LastFlag == TotalFlags, so this is the highest flag number, not the count of
+        /// flag squares: a board numbered 1,2,4 needs 4, and a duplicated flag square
+        /// must not inflate the total. Matches how the board editor computes it.
+        /// </summary>
+        public int CalcTotalFlags() =>
+            BoardElements
+                .SelectMany(be => be.ActionList)
+                .Where(al => al.SquareAction == SquareAction.Flag)
+                .Select(al => al.Parameter)
+                .DefaultIfEmpty(0)
+                .Max();
+
         public int GameType { get; set; }
 
         public List<BoardElement> BoardElements { get; set; }

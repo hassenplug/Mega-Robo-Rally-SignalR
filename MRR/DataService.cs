@@ -107,7 +107,28 @@ namespace MRR.Services
 
         public int LaserDamage { get; set; } = 1;
 
-        public int TotalFlags { get; set; } = 4;
+        private int _totalFlags = 5;
+        /// <summary>
+        /// Number of flags in the current game — one value for the whole game, not per player.
+        /// CurrentGameData (iKey 7) is the source of truth: set from the board in
+        /// GameController.StartGame(), reloaded by UpdateGameState(), and written through here
+        /// so a mid-game restart restores it.
+        /// </summary>
+        public int TotalFlags
+        {
+            get => _totalFlags;
+            set
+            {
+                _totalFlags = value;
+                using var ctx = CreateDbContext();
+                var row = ctx.CurrentGameData.Find(7);
+                if (row != null)
+                {
+                    row.IValue = value;
+                    ctx.SaveChanges();
+                }
+            }
+        }
 
         public AllDataPayload AllData { get; set; } = new AllDataPayload();
 
@@ -826,6 +847,9 @@ namespace MRR.Services
                         case 2: Turn = value; break;
                         case 3: Phase = value; break;
                         case 6: LaserDamage = value; break;
+                        // Backing field, not the property: this is a read from CurrentGameData,
+                        // so writing back through the setter would be a redundant round trip.
+                        case 7: _totalFlags = value; break;
                         case 8: RobotsActive = value; break;
                         case 10: _gameState = value; break;
                         case 16: PhaseCount = value; break;
@@ -2317,7 +2341,9 @@ namespace MRR.Services
 
             if (g_BoardElements != null)
             {
-                TotalFlags = g_BoardElements.BoardElements.Count(be => be.ActionList.Count(al => al.SquareAction == SquareAction.Flag) > 0);
+                // Board metadata, not game state — reading a board file must not change the
+                // running game's flag count. BoardSaveToDB persists this into Boards.TotalFlags.
+                g_BoardElements.TotalFlags = g_BoardElements.CalcTotalFlags();
                 LaserDamage = g_BoardElements.LaserDamage;
                 //GameType = g_BoardElements.BoardType;
             }

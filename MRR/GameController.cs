@@ -185,6 +185,11 @@ namespace MRR.Controller
 
             BoardElementCollection g_BoardElements = _dataService.BoardLoadFromDB(_dataService.BoardID);
 
+            // One TotalFlags for the whole game, taken from the board being played.
+            // The setter writes through to CurrentGameData (iKey 7), which is the source of
+            // truth from here on — UpdateGameState() reloads it after a restart.
+            _dataService.TotalFlags = g_BoardElements.CalcTotalFlags();
+
             IEnumerable<BoardElement> StartList = g_BoardElements.BoardElements.Where(be => be.ActionList.Count(al => al.SquareAction == SquareAction.PlayerStart) > 0);
 
             int robotCount = 0;
