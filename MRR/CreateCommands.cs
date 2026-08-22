@@ -9,7 +9,6 @@ using System.Xml.Serialization;  // serializer
 using System.Reflection;
 using System.IO;
 using System.Collections.ObjectModel; // needed for enum?
-using MRR.Services;
 using System.Data;
 
 
@@ -18,19 +17,12 @@ namespace MRR
 
     #region Enums
 
-    public enum GameTypes
-    {
-        Standard = 0,
-        KingOfTheHill = 1,
-        StandardV2 = 2,
-    }
-
     #endregion Enums
 
     public class CreateCommands 
     {
 
-        private DataService _dataService = null!;
+        private readonly TurnRequest _request;
 
         /// <summary>
         /// Deep copy of AllPlayers used for turn simulation. Rebuilt at the top of
@@ -42,49 +34,68 @@ namespace MRR
 
         const int DamageSequence = 7; // number to use for damage & cannons within sequence
 
-        public CreateCommands(DataService dataService)
+        public CreateCommands(TurnRequest request)
         {
-            _dataService = dataService;
-
-            //AllPlayers = new PlayerStates(_dataService);
-
-            g_BoardElements = new BoardElementCollection(0, 0);
+            _request = request;
+            g_BoardElements = request.Board;
         }
 
-        public string BoardFileName => _dataService.BoardFileName;
+        // Every value the planner reads comes from the request. Keeping the property names
+        // unchanged means the many uses of Turn / PhaseCount / AllPlayers and friends
+        // throughout this file did not have to change.
 
-        public int BoardID => _dataService.BoardID;
+        public string BoardFileName => _request.BoardFileName;
 
-        public int GameState => _dataService.GameState;
+        public int BoardID => _request.BoardID;
 
-        public int PhaseCount => _dataService.PhaseCount;
+        public int GameState => _request.GameState;
 
-        public int TotalFlags => _dataService.TotalFlags;
+        public int PhaseCount => _request.PhaseCount;
 
-        // Transitional: presents the host's live Players as PlayerStates over the same
-        // objects. Disappears in the next step, when the planner takes its players as a
-        // TurnRequest field instead of reaching for them.
-        private PlayerStates? _allPlayersView;
-        public PlayerStates AllPlayers => _allPlayersView ??= new PlayerStates(_dataService.AllPlayers);
+        public int TotalFlags => _request.TotalFlags;
+
+        public int LaserDamage => _request.LaserDamage;
+
+        public PlayerStates AllPlayers => _request.Players;
 
         public CommandList ListOfCommands { get; set; } = [];
 
-        public CardList GameCards => _dataService.GameCards;
+        public CardList GameCards => _request.GameCards;
 
-        public OptionCardList OptionCards { get; set; } = [];
+        public OptionCardList OptionCards => _request.OptionCards;
 
         public Dictionary<int,string> OptionCardNames = [];
 
-        public BoardElementCollection g_BoardElements { get; set; } // = new BoardElementCollection(0, 0);
+        public BoardElementCollection g_BoardElements { get; set; }
 
-        public int Turn => _dataService.Turn;
-        public int Phase => _dataService.Phase;
+        public int Turn => _request.Turn;
+        public int Phase => _request.Phase;
 
-        public GameTypes GameType => _dataService.GameType;
+        public GameTypes GameType => _request.GameType;
 
-        public int OptionsOnStartup => _dataService.OptionsOnStartup;
-        
-        public bool IsOptionsEnabled => _dataService.IsOptionsEnabled;
+        public int OptionsOnStartup => _request.OptionsOnStartup;
+
+        public bool IsOptionsEnabled => _request.IsOptionsEnabled;
+
+        /// <summary>Non-fatal problems noticed while planning; surfaced on the TurnPlan.</summary>
+        private readonly List<string> _warnings = [];
+
+        /// <summary>Spam cards consumed while planning, for the caller to retire.</summary>
+        private readonly List<SpamCardUse> _spamConsumed = [];
+
+        /// <summary>
+        /// Next pre-drawn card for a robot, used when resolving Spam. Returns null when the
+        /// pile is exhausted, which the caller reports rather than silently planning a
+        /// shorter turn.
+        /// </summary>
+        private MoveCard? DrawNext(int robotID)
+        {
+            if (!_request.DrawPiles.TryGetValue(robotID, out var pile) || pile.Count == 0)
+                return null;
+            var card = pile[0];
+            pile.RemoveAt(0);
+            return card;
+        }
 
         
         #endregion Game Parameters & Configuration
@@ -469,10 +480,9 @@ namespace MRR
             
             //Console.WriteLine("PlayerStates: " + AllPlayers.Count.ToString());
 
-            g_BoardElements = _dataService.BoardLoadFromDB(BoardID);
-
-            _dataService.ReloadAllData();
-            _allPlayersView = null;   // ReloadAllData replaces the Player objects
+            // The board and the player states arrive in the request; Master refreshes them
+            // before asking for a plan.
+            g_BoardElements = _request.Board;
 
             ListOfCommands.Clear(); // = new CommandList();
 
@@ -651,6 +661,8 @@ namespace MRR
                 Commands      = ListOfCommands,
                 NextGameState = 7,
                 Summary       = "Added " + ListOfCommands.Count + " commands",
+                Warnings      = _warnings,
+                SpamConsumed  = _spamConsumed,
             };
 
  
@@ -1014,7 +1026,7 @@ namespace MRR
                 {
                     if (thisplayer.IsRunning) // player not dead
                     {
-                        MoveCard newcard = thiscard;
+                        MoveCard? newcard = thiscard;   // null once a draw pile runs dry
                         if(thiscard.Type==MoveCard.tCardType.Again)
                         {
                             if(p_PhaseNumber>1)
@@ -1031,13 +1043,20 @@ namespace MRR
                                 
                             }
                         }
-                        while(newcard != null && newcard.Type==MoveCard.tCardType.Spam)
+                        // Spam resolves by drawing replacements until a non-Spam card turns up,
+                        // and Spam can chain. Cards come from the pre-drawn pile in the request:
+                        // drawing from the database here would mutate mid-plan and reshuffle the
+                        // discard pile, so the same turn would not replan the same way.
+                        while (newcard != null && newcard.Type == MoveCard.tCardType.Spam)
                         {
                             ListOfCommands.AddCommand(thisplayer, SquareAction.Card, newcard.ID);
-                            int newcardID = _dataService.GetNextCard(thiscard.Owner, newcard.ID);
-                            //newcard = new MoveCard(thiscard,(MoveCard.tCardType)newcardtype);
-                            newcard = GameCards.FirstOrDefault(gc=>gc.ID == newcardID && gc.Owner == thiscard.Owner)!;
-                            //Console.WriteLine("Got new card for " + thisplayer?.Name + "="+newcard?.ID + ":"+newcardID.ToString());
+                            _spamConsumed.Add(new SpamCardUse(thiscard.Owner, newcard.ID));
+                            newcard = DrawNext(thiscard.Owner);
+                            if (newcard == null)
+                            {
+                                _warnings.Add($"Robot {thiscard.Owner} ran out of cards resolving Spam in phase {p_PhaseNumber}.");
+                                break;
+                            }
                         }
                         ProcessMove(newcard);
                     }
@@ -1234,7 +1253,7 @@ namespace MRR
                                     //int realdamage = g_BoardElements.LaserDamage;
 
                                     int LaserCount = 1 + OptionCards.Count(uc => (uc.ID == (int)tOptionCardCommandType.DoubleBarrelLaser || uc.ID == (int)tOptionCardCommandType.AdditionalLaser) && (uc.Owner == thisplayer.ID));
-                                    int realdamage = _dataService.LaserDamage * LaserCount;
+                                    int realdamage = LaserDamage * LaserCount;
                                     //OptionCard DoubleLaser = OptionCards.GetOption(tOptionCardCommandType.DoubleBarrelLaser, thisplayer);
                                     //if (DoubleLaser != null)
                                     //{

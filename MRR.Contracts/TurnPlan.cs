@@ -26,6 +26,17 @@ namespace MRR
         /// <summary>Non-fatal problems noticed while planning.</summary>
         public List<string> Warnings { get; set; } = [];
 
+        /// <summary>
+        /// Spam cards consumed while resolving the turn. The planner cannot retire them
+        /// itself -- MoveCards is Master's table -- so it reports them and Master marks them
+        /// played. This is what DataService.GetNextCard used to do as a side effect of
+        /// drawing.
+        /// </summary>
+        public List<SpamCardUse> SpamConsumed { get; set; } = [];
+
         public override string ToString() => Summary;
     }
+
+    /// <summary>One Spam card played by one robot while the turn was planned.</summary>
+    public readonly record struct SpamCardUse(int RobotID, int CardID);
 }

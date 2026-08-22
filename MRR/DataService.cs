@@ -951,6 +951,78 @@ namespace MRR.Services
         /// created a DbContext inside the per-command loop and saved each command
         /// individually -- roughly 130 contexts and 130 round trips per turn.
         /// </summary>
+        /// <summary>
+        /// Assembles everything the planner needs for one turn. Refreshes live state first,
+        /// so the plan is made from what is actually on the board.
+        /// </summary>
+        public TurnRequest BuildTurnRequest()
+        {
+            ReloadAllData();
+
+            var request = new TurnRequest
+            {
+                Turn             = Turn,
+                Phase            = Phase,
+                PhaseCount       = PhaseCount,
+                GameState        = GameState,
+                BoardID          = BoardID,
+                BoardFileName    = BoardFileName,
+                TotalFlags       = TotalFlags,
+                LaserDamage      = LaserDamage,
+                GameType         = GameType,
+                OptionsOnStartup = OptionsOnStartup,
+                Board            = BoardLoadFromDB(BoardID),
+                Players          = new PlayerStates(AllPlayers),
+                GameCards        = GameCards,
+                OptionCards      = OptionCards,
+            };
+
+            foreach (var player in request.Players)
+                request.DrawPiles[player.ID] = BuildDrawPile(player.ID);
+
+            return request;
+        }
+
+        /// <summary>
+        /// The cards a robot would draw, in order, when Spam forces a replacement: its deck
+        /// (CardLocation 0) first, then its discard pile (3), each by CurrentOrder.
+        ///
+        /// This is the read half of what funcGetNextCard did. Drawing up front is what makes
+        /// a turn reproducible: the old code drew inside the simulation loop and reshuffled
+        /// the discard pile as a side effect, so replanning the same turn could deal
+        /// differently. Read-only -- retiring the spent Spam cards happens after planning,
+        /// from TurnPlan.SpamConsumed.
+        /// </summary>
+        public List<MoveCard> BuildDrawPile(int robotID)
+        {
+            var pile = new List<MoveCard>();
+            var table = GetQueryResults(
+                "SELECT CardID FROM MoveCards " +
+                $"WHERE Owner = {robotID} AND (CardLocation = 0 OR CardLocation = 3) " +
+                "ORDER BY CardLocation, CurrentOrder;");
+
+            foreach (System.Data.DataRow row in table.Rows)
+            {
+                int cardID = Convert.ToInt32(row["CardID"]);
+                var card = GameCards.FirstOrDefault(c => c.ID == cardID && c.Owner == robotID);
+                if (card != null) pile.Add(card);
+            }
+            return pile;
+        }
+
+        /// <summary>
+        /// Marks the Spam cards a planned turn consumed as played (CardLocation 5), which
+        /// funcGetNextCard used to do while drawing.
+        /// </summary>
+        public void RetireSpamCards(IEnumerable<SpamCardUse> consumed)
+        {
+            foreach (var use in consumed)
+            {
+                ExecuteSQL(
+                    $"UPDATE MoveCards SET CardLocation = 5 WHERE Owner = {use.RobotID} AND CardID = {use.CardID};");
+            }
+        }
+
         public int PersistCommands(CommandList commands, int turn)
         {
             using var ctx = CreateDbContext();

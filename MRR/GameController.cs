@@ -64,7 +64,10 @@ namespace MRR.Controller
             {
                 await Task.Run(() =>
                 {
-                    CreateCommands createCommands = new CreateCommands(_dataService);
+                    // Master assembles the input, the planner reads only that, Master applies
+                    // the result. Nothing in between touches the database.
+                    TurnRequest request = _dataService.BuildTurnRequest();
+                    CreateCommands createCommands = new CreateCommands(request);
                     TurnPlan plan = createCommands.ExecuteTurn();
                     Console.WriteLine("Execute Turn Result: " + plan.Summary);
                     foreach (var warning in plan.Warnings) Console.WriteLine("  warning: " + warning);
@@ -75,6 +78,7 @@ namespace MRR.Controller
                     // commands, then advance the state machine. The planner used to do both
                     // itself.
                     _dataService.PersistCommands(plan.Commands, _dataService.Turn);
+                    _dataService.RetireSpamCards(plan.SpamConsumed);
                     _dataService.GameState = plan.NextGameState;
                 });
 
