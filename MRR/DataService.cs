@@ -953,16 +953,23 @@ namespace MRR.Services
         /// </summary>
         public int PersistCommands(CommandList commands, int turn)
         {
-            ExecuteSQL($"Delete from CommandList where Turn={turn} and Phase>0;");
-            if (commands.Count == 0) return 0;
-
             using var ctx = CreateDbContext();
+            using var transaction = ctx.Database.BeginTransaction();
+
+            // Delete and insert in ONE transaction. The turn's commands are the durable
+            // record used to resume after a restart, so a half-written CommandList is worse
+            // than no change at all: replacing the rows must be all-or-nothing.
+            ctx.Database.ExecuteSqlRaw(
+                "DELETE FROM CommandList WHERE Turn = {0} AND Phase > 0;", turn);
+
             foreach (var command in commands)
             {
                 command.Turn = turn;
                 ctx.CommandItems.Add(command);
             }
             ctx.SaveChanges();
+
+            transaction.Commit();
             return commands.Count;
         }
 
