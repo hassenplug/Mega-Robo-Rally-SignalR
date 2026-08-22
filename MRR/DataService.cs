@@ -943,6 +943,29 @@ namespace MRR.Services
             return System.Text.RegularExpressions.Regex.IsMatch(tableName, @"^[a-zA-Z0-9_]+$");
         }
 
+        /// <summary>
+        /// Stores a planned turn's commands, replacing whatever was there for that turn.
+        /// Master's job, not the planner's: CommandList is a Master-owned table.
+        ///
+        /// One DbContext and one SaveChanges for the whole batch. The previous version
+        /// created a DbContext inside the per-command loop and saved each command
+        /// individually -- roughly 130 contexts and 130 round trips per turn.
+        /// </summary>
+        public int PersistCommands(CommandList commands, int turn)
+        {
+            ExecuteSQL($"Delete from CommandList where Turn={turn} and Phase>0;");
+            if (commands.Count == 0) return 0;
+
+            using var ctx = CreateDbContext();
+            foreach (var command in commands)
+            {
+                command.Turn = turn;
+                ctx.CommandItems.Add(command);
+            }
+            ctx.SaveChanges();
+            return commands.Count;
+        }
+
         public int ProcessDbCommand(int p_CommandID, int p_NewStatus)
         {
             var command = ListOfCommands.FirstOrDefault(c => c.CommandID == p_CommandID);

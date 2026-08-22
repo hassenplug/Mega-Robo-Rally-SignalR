@@ -455,13 +455,13 @@ namespace MRR
         /// <summary>
         /// calculate command list, given cards and player positions
         /// </summary>
-        public string ExecuteTurn()
+        public TurnPlan ExecuteTurn()
         {
             //GameState = DBConn.UpdateGameState();
 
             if (GameState != 6)
             {
-                return ("Wrong State:" + GameState.ToString());
+                return new TurnPlan { Planned = false, Summary = "Wrong State:" + GameState };
             }
 
             // check all robots, and set their new state to "done moving"
@@ -631,32 +631,43 @@ namespace MRR
 
             ListOfCommands.AddCommand(10,2); // set game state to next turn
 
-            AddCommandsToDatabase();
+            SequenceCommands();
 
             // ✅ Discard working copy here (workingPlayers goes out of scope)
             // Working copy is NOT saved back to database or AllPlayers
             // Only CommandList was written to database above
 
             //SendGameMessage(8,"Added " + ListOfCommands.Count + " commands"); // set to state 8, ready to start running commands
-            Console.WriteLine("Added " + ListOfCommands.Count + " commands");
-            _dataService.ExecuteSQL("Update CurrentGameData set iValue = 7 where iKey = 10;");  // set state to 0
-            return ("Added " + ListOfCommands.Count + " commands");
+            Console.WriteLine("Planned " + ListOfCommands.Count + " commands");
+
+            // The caller stores the commands and applies the state change. Previously this
+            // method wrote CommandList itself and then ran
+            //   UPDATE CurrentGameData SET iValue = 7 WHERE iKey = 10
+            // to advance the state machine -- a planner reaching into two Master-owned
+            // tables. Both are now results, not side effects.
+            return new TurnPlan
+            {
+                Planned       = true,
+                Commands      = ListOfCommands,
+                NextGameState = 7,
+                Summary       = "Added " + ListOfCommands.Count + " commands",
+            };
 
  
         }
 
-        public void AddCommandsToDatabase()
+        /// <summary>
+        /// Assigns command ids, running counters and normal/express sequence numbers, and
+        /// fills the fields the executor reads. Pure: it orders the list, it does not store
+        /// it. Master persists the result (see TurnPlan).
+        /// </summary>
+        public void SequenceCommands()
         {
             int commandID = 0;
             int lastCommandID = -1;
             int lastBot = -1;
             int RunningCommand = 0;
             //int ExpressCounter = 0;
-
-            string cTurn = Turn.ToString();
-
-            string strSQL = "Delete from CommandList where Turn=" + cTurn + " and Phase>0;";
-            _dataService.ExecuteSQL(strSQL);
 
 
             // process sequence for list of commands
@@ -749,10 +760,6 @@ namespace MRR
 
                 thisCommand.BTCommand = thisCommand.StringCommand;
                 thisCommand.CommandCatID = (int)thisCommand.Category;
-
-                using var ctx = _dataService.CreateDbContext();
-                ctx.CommandItems.Add(thisCommand);
-                ctx.SaveChanges();
             }
         }
 

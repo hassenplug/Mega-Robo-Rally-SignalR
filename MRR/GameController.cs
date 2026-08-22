@@ -65,8 +65,17 @@ namespace MRR.Controller
                 await Task.Run(() =>
                 {
                     CreateCommands createCommands = new CreateCommands(_dataService);
-                    var exeResult = createCommands.ExecuteTurn();
-                    Console.WriteLine("Execute Turn Result: " + exeResult);
+                    TurnPlan plan = createCommands.ExecuteTurn();
+                    Console.WriteLine("Execute Turn Result: " + plan.Summary);
+                    foreach (var warning in plan.Warnings) Console.WriteLine("  warning: " + warning);
+
+                    if (!plan.Planned) return;
+
+                    // Master owns both of these tables, so Master applies the plan: store the
+                    // commands, then advance the state machine. The planner used to do both
+                    // itself.
+                    _dataService.PersistCommands(plan.Commands, _dataService.Turn);
+                    _dataService.GameState = plan.NextGameState;
                 });
 
                 // Sync C# state from DB so NextState() sees state 7, not stale 6
