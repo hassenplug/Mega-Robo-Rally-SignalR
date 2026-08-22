@@ -36,7 +36,7 @@ namespace MRR
         /// Deep copy of AllPlayers used for turn simulation. Rebuilt at the top of
         /// ExecuteTurn and discarded when the next turn is calculated; never saved back.
         /// </summary>
-        private Players workingPlayers = new Players();
+        private PlayerStates workingPlayers = new PlayerStates();
 
         #region Game Parameters & Configuration
 
@@ -46,7 +46,7 @@ namespace MRR
         {
             _dataService = dataService;
 
-            //AllPlayers = new Players(_dataService);
+            //AllPlayers = new PlayerStates(_dataService);
 
             g_BoardElements = new BoardElementCollection(0, 0);
         }
@@ -61,7 +61,11 @@ namespace MRR
 
         public int TotalFlags => _dataService.TotalFlags;
 
-        public Players AllPlayers => _dataService.AllPlayers;
+        // Transitional: presents the host's live Players as PlayerStates over the same
+        // objects. Disappears in the next step, when the planner takes its players as a
+        // TurnRequest field instead of reaching for them.
+        private PlayerStates? _allPlayersView;
+        public PlayerStates AllPlayers => _allPlayersView ??= new PlayerStates(_dataService.AllPlayers);
 
         public CommandList ListOfCommands { get; set; } = [];
 
@@ -88,11 +92,11 @@ namespace MRR
 
         #region Process Move
 
-        //public void ProcessMove(MoveCard? p_movecard, Players workingPlayers)  //MoveCard.tCardType p_card, int p_player )
+        //public void ProcessMove(MoveCard? p_movecard, PlayerStates workingPlayers)  //MoveCard.tCardType p_card, int p_player )
         public void ProcessMove(MoveCard? p_movecard)  //MoveCard.tCardType p_card, int p_player )
         {
             if (p_movecard == null) return;
-            Player? thisplayer = workingPlayers.GetPlayer(p_movecard.Owner);
+            PlayerState? thisplayer = workingPlayers.GetPlayer(p_movecard.Owner);
             if (thisplayer == null) return;
 
             ListOfCommands.PhaseStep += 10;
@@ -187,7 +191,7 @@ namespace MRR
             }
         }
 
-        public int CalcMoveDistance(Player p_Player, int p_Distance, Direction p_Direction, SquareAction p_MoveType)
+        public int CalcMoveDistance(PlayerState p_Player, int p_Distance, Direction p_Direction, SquareAction p_MoveType)
         {
             // check to see if this robot can move 1 square
             //   check for walls (2 checks)
@@ -197,7 +201,7 @@ namespace MRR
             // check for remaining moves
 
             // Walls (this square)
-            Player thisplayer = p_Player; // workingPlayers.GetPlayer(p_Player);
+            PlayerState thisplayer = p_Player; // workingPlayers.GetPlayer(p_Player);
             int PlayerX = thisplayer.CurrentPos.X;
             int PlayerY = thisplayer.CurrentPos.Y;
 
@@ -232,7 +236,7 @@ namespace MRR
 
 
             //   check for robot on target square
-            Player? l_PushPlayer = AllPlayers.GetPlayer(l_newsquare);
+            PlayerState? l_PushPlayer = AllPlayers.GetPlayer(l_newsquare);
             if (l_PushPlayer != null)
             {
                 ListOfCommands.AddCommand(l_PushPlayer, SquareAction.RobotPush, thisplayer.ID);
@@ -330,7 +334,7 @@ namespace MRR
             return remainingDistance + l_MoveDistance;
         }
 
-        public void RotateRobot(Player p_Robot, int p_Distance) //, SquareAction p_MoveType)
+        public void RotateRobot(PlayerState p_Robot, int p_Distance) //, SquareAction p_MoveType)
         {
 
             p_Robot.Rotate(p_Distance);  // rotate NextPos direction
@@ -340,7 +344,7 @@ namespace MRR
 
         }
 
-        public bool MoveRobot(Player p_Robot, RobotLocation p_NewLocation, int p_Distance, Direction p_Direction, SquareAction p_MoveType)
+        public bool MoveRobot(PlayerState p_Robot, RobotLocation p_NewLocation, int p_Distance, Direction p_Direction, SquareAction p_MoveType)
         {
             bool StillAlive = true;
 
@@ -387,7 +391,7 @@ namespace MRR
 
         public void ClearThisSpot(int currentX, int currentY, int changeX, int changeY, Direction changeD)
         {
-            Player? blockingPlayer = AllPlayers.FirstOrDefault(wp => wp.CurrentPos.X == currentX && wp.CurrentPos.Y == currentY);
+            PlayerState? blockingPlayer = AllPlayers.FirstOrDefault(wp => wp.CurrentPos.X == currentX && wp.CurrentPos.Y == currentY);
             if (blockingPlayer!= null)
             {
                 if (currentX + changeX < 0)
@@ -461,18 +465,19 @@ namespace MRR
             }
 
             // check all robots, and set their new state to "done moving"
-            //if (!CheckPlayersReady()) return "Execute Failed: Players not ready";
+            //if (!CheckPlayersReady()) return "Execute Failed: PlayerStates not ready";
             
-            //Console.WriteLine("Players: " + AllPlayers.Count.ToString());
+            //Console.WriteLine("PlayerStates: " + AllPlayers.Count.ToString());
 
             g_BoardElements = _dataService.BoardLoadFromDB(BoardID);
 
             _dataService.ReloadAllData();
+            _allPlayersView = null;   // ReloadAllData replaces the Player objects
 
             ListOfCommands.Clear(); // = new CommandList();
 
             // ✅ Create working copy for simulation (will be discarded)
-            workingPlayers = _dataService.AllPlayers.DeepCopy();
+            workingPlayers = AllPlayers.DeepCopy();
 
             //Console.WriteLine("Check Rules Version");
 
@@ -499,16 +504,16 @@ namespace MRR
             /// 3) return all robots to correct direction
             ///
 
-            //Players PlayerDirections = new Players(AllPlayers);
+            //PlayerStates PlayerDirections = new PlayerStates(AllPlayers);
             // Note: Don't refresh real AllPlayers; we're working on copy only
 
-            foreach (Player thisplayer in workingPlayers) // Use working copy, not real AllPlayers)
+            foreach (PlayerState thisplayer in workingPlayers) // Use working copy, not real AllPlayers)
             {
                 CommandItem? lastcommand = null;
                 int lastphase = 0;
                 int laststep = -1;
 
-                //Player thisplayer = new Player(EndingPlayer); // copy this player
+                //PlayerState thisplayer = new PlayerState(EndingPlayer); // copy this player
 
                 //foreach (CommandItem thiscommand in ListOfCommands.Where(loc => (loc.RobotID == thisplayer.ID) && (loc.IsRobotCommand())))
                 IEnumerable<CommandItem> playercommands = ListOfCommands.Where(loc => (loc.RobotID == thisplayer.ID) && (loc.IsRobotCommand()));
@@ -580,10 +585,10 @@ namespace MRR
             //int RunningCommandID = 0;
             //ListOfCommands.Select(loc => { loc.RunningCounter = RunningCommandID+=10; return loc; }).ToList();
 
-            foreach (Player thisplayer in workingPlayers)
+            foreach (PlayerState thisplayer in workingPlayers)
             {
                 //thisplayer.FutureCards = workingPlayers.First(wp => wp.ID == thisplayer.ID).TotalCards();
-                Player? futureplayer = workingPlayers.GetPlayer(thisplayer.ID);
+                PlayerState? futureplayer = workingPlayers.GetPlayer(thisplayer.ID);
                 //if ((CircuitBreaker.Owner == thisplayer.ID) && (futureplayer.Damage > 2) && (futureplayer.Damage <10))
                 OptionCard? CircuitBreaker = OptionCards.GetOption(tOptionCardCommandType.CircuitBreaker, thisplayer);
                 if ((CircuitBreaker != null) && (futureplayer?.Damage > 2) && (futureplayer?.Damage < 10))
@@ -615,11 +620,11 @@ namespace MRR
                 {
                     if (turncount > 5)
                     {
-                        ListOfCommands.AddCommand((Player?)null, SquareAction.SetGameState, 13); // shut down game (don't just end)
+                        ListOfCommands.AddCommand((PlayerState?)null, SquareAction.SetGameState, 13); // shut down game (don't just end)
                     }
                     else
                     {
-                        ListOfCommands.AddCommand((Player?)null, SquareAction.EndOfGame);
+                        ListOfCommands.AddCommand((PlayerState?)null, SquareAction.EndOfGame);
                     }
                 }
             }
@@ -752,7 +757,7 @@ namespace MRR
         }
 
 
-        public int TurnRobot(Player p_thisplayer, CommandItem? p_OnMove, tCommandSequence p_Sequence)
+        public int TurnRobot(PlayerState p_thisplayer, CommandItem? p_OnMove, tCommandSequence p_Sequence)
         {
             // return number of commands added
 
@@ -790,9 +795,9 @@ namespace MRR
         /// </summary>
 
 
-//        public Player LoadOneRobot(int RobotID)
+//        public PlayerState LoadOneRobot(int RobotID)
 //        {
-//            return new Players(RobotID).FirstOrDefault();
+//            return new PlayerStates(RobotID).FirstOrDefault();
 //        }
 
 
@@ -811,7 +816,7 @@ namespace MRR
             
             ListOfCommands.AddCommand("Run Phase " + p_PhaseNumber.ToString(),firstplayer);  // set button text & wait for click
             //ListOfCommands.AddCommand(3,p_PhaseNumber);
-            ListOfCommands.AddCommand((Player?)null, SquareAction.PhaseStart, p_PhaseNumber);
+            ListOfCommands.AddCommand((PlayerState?)null, SquareAction.PhaseStart, p_PhaseNumber);
             //ListOfCommands.AddCommand(10,7); // set game state to waiting for input
 
 
@@ -834,10 +839,10 @@ namespace MRR
              */
             // find any player on a randomizer...
             // player is active && does not have any random cards && current square contains random action
-            //IEnumerable<Player> activePlayers = AllPlayers.Where(ap=>(ap.Active ));
+            //IEnumerable<PlayerState> activePlayers = AllPlayers.Where(ap=>(ap.Active ));
             //IEnumerable<BoardElement> playersSquare = AllPlayers.Where(ap => (ap.Active)).Select(ap => g_BoardElements.GetSquare(ap.CurrentPos.X, ap.CurrentPos.Y));
             /*
-             * IEnumerable<Player> randomizers = AllPlayers.Where(ap => (ap.Active &&
+             * IEnumerable<PlayerState> randomizers = AllPlayers.Where(ap => (ap.Active &&
                 g_BoardElements.GetSquare(ap.CurrentPos.X, ap.CurrentPos.Y).ActionList.Any(al=>al.SquareAction == SquareAction.Randomizer)));
             foreach (BoardElement thisplayer in playersSquare)
             {
@@ -845,10 +850,10 @@ namespace MRR
                 //thisplayer.Active = true;
             }*/
 
-            foreach (Player thisplayer in workingPlayers.Where(ap => (ap.Active &&
+            foreach (PlayerState thisplayer in workingPlayers.Where(ap => (ap.Active &&
                 g_BoardElements.GetSquare(ap.CurrentPos.X, ap.CurrentPos.Y)?.ActionList.Any(al=>al.SquareAction == SquareAction.Randomizer) == true)))
             {
-                Player? currentPlayer = workingPlayers.GetPlayer(thisplayer.ID);
+                PlayerState? currentPlayer = workingPlayers.GetPlayer(thisplayer.ID);
                 if (currentPlayer == null) continue;
                 MoveCard currentcard = currentPlayer.CardsPlayed!.First(pc => pc.PhasePlayed == p_PhaseNumber);
                 if (!currentcard.Random) // already a random card?
@@ -879,7 +884,7 @@ namespace MRR
                     if (EMPOptionList.Count() == 1) // only work if only one is being set off
                     {
                         OptionCard EMP = EMPOptionList.First();
-                        Player? EMPlayer = workingPlayers.GetPlayer(EMP.Owner);
+                        PlayerState? EMPlayer = workingPlayers.GetPlayer(EMP.Owner);
                         if (EMPlayer != null && UseOption(EMPlayer, EMP))
                         {
                             // clear cards and shut down all players
@@ -891,7 +896,7 @@ namespace MRR
                             }
 
                             var OtherPlayers = workingPlayers.Where(wp => wp.ID != EMPlayer.ID);
-                            foreach (Player notEMP in OtherPlayers)
+                            foreach (PlayerState notEMP in OtherPlayers)
                             {
                                 notEMP.ShutDown = tShutDown.Currently;
                                 ListOfCommands.AddCommand(notEMP, SquareAction.SetShutDownMode, (int)tShutDown.Currently);
@@ -908,7 +913,7 @@ namespace MRR
                     while (OptionCards.Where(oc => oc.ID == (int)tOptionCardCommandType.DamageEraser && oc.PhasePlayed > 0).Any())
                     {
                         OptionCard Eraser = OptionCards.First(oc => oc.ID == (int)tOptionCardCommandType.DamageEraser && oc.PhasePlayed > 0);
-                        Player? eraseDamagePlayer = workingPlayers.GetPlayer(Eraser.Owner);
+                        PlayerState? eraseDamagePlayer = workingPlayers.GetPlayer(Eraser.Owner);
                         if (eraseDamagePlayer != null && UseOption(eraseDamagePlayer, Eraser))
                         {
                             // erase damage
@@ -952,7 +957,7 @@ namespace MRR
 
                 foreach (OptionCard currentCard in LocalOptionList)
                 {
-                    Player? currentPlayer = AllPlayers.GetPlayer(currentCard.Owner);
+                    PlayerState? currentPlayer = AllPlayers.GetPlayer(currentCard.Owner);
                     if (currentPlayer != null && currentPlayer.IsRunning)
                     {
                         BoardElement? currentBoardSquare = g_BoardElements.GetSquare(currentPlayer.CurrentPos);
@@ -997,7 +1002,7 @@ namespace MRR
 
             foreach (MoveCard thiscard in GameCards.Where(gc => gc.PhasePlayed == p_PhaseNumber).OrderBy(gc => gc.Priority))
             {
-                Player? thisplayer = workingPlayers.GetPlayer(thiscard.Owner);
+                PlayerState? thisplayer = workingPlayers.GetPlayer(thiscard.Owner);
                 if (thisplayer != null)
                 {
                     if (thisplayer.IsRunning) // player not dead
@@ -1048,7 +1053,7 @@ namespace MRR
             //    (be,ap) => be);
 
             int CurrentAction = 0;
-            ListOfCommands.AddCommand((Player?)null, SquareAction.BeginBoardEffects);
+            ListOfCommands.AddCommand((PlayerState?)null, SquareAction.BeginBoardEffects);
 
             while (true)
             {
@@ -1120,25 +1125,25 @@ namespace MRR
                     // 4 limit list by robots
                     // 5 inflict damage (fire & damage bot)
                     // 6 repeat
-                    //IEnumerable<Player> liveplayers = AllPlayers.Where(wp => wp.IsRunning);
+                    //IEnumerable<PlayerState> liveplayers = AllPlayers.Where(wp => wp.IsRunning);
 
                     // need to create a list of players to iderate through, but add to while iderating
-                    List<Player> liveplayers = [];
+                    List<PlayerState> liveplayers = [];
                     
-                    foreach (Player thisplayer in AllPlayers.Where(wp => wp.IsRunning))
+                    foreach (PlayerState thisplayer in AllPlayers.Where(wp => wp.IsRunning))
                     {
                         liveplayers.Add(thisplayer);
                         OptionCard? RearLaser = OptionCards.GetOption(tOptionCardCommandType.RearLaser, thisplayer);
                         if (RearLaser != null) // add another player for rear laser
                         {
-                            Player rearPlayer = new Player(thisplayer);
+                            PlayerState rearPlayer = new PlayerState(thisplayer);
                             rearPlayer.CurrentPos.Direction = RotationFunctions.Rotate(2, rearPlayer.CurrentPos.Direction);
                             liveplayers.Add(rearPlayer);
                         }
 
                     }
 
-                    foreach (Player thisplayer in liveplayers) // robots only shoot if they are running
+                    foreach (PlayerState thisplayer in liveplayers) // robots only shoot if they are running
                     {
                         int RemainingPower = 1;
                         OptionCard? RearLaser = OptionCards.GetOption(tOptionCardCommandType.RearLaser, thisplayer);
@@ -1166,7 +1171,7 @@ namespace MRR
                         }
                         Direction canndir2 = RotationFunctions.Rotate(2, canndir);
                         var (AddX, AddY) = RotationFunctions.MovementOffset(canndir);
-                        //Func<Player, bool> playerFilter = null;
+                        //Func<PlayerState, bool> playerFilter = null;
 
                         int CheckX = thisplayer.CurrentPos.X;
                         int CheckY = thisplayer.CurrentPos.Y;
@@ -1208,7 +1213,7 @@ namespace MRR
                             }
 
                             /// check for opponent
-                            Player? shootPlayer = workingPlayers.GetPlayer(new RobotLocation(Direction.None, CheckX, CheckY)); //.Where(wp=>!wp.IsDead)
+                            PlayerState? shootPlayer = workingPlayers.GetPlayer(new RobotLocation(Direction.None, CheckX, CheckY)); //.Where(wp=>!wp.IsDead)
                             if (shootPlayer != null)
                             {
                                 if (!shootPlayer.IsDead)
@@ -1299,7 +1304,7 @@ namespace MRR
 
                 foreach (BoardAction thisaction in l_CurrentActions)
                 {
-                    Player? thisplayer = AllPlayers.GetPlayer(thisaction.RobotID);
+                    PlayerState? thisplayer = AllPlayers.GetPlayer(thisaction.RobotID);
                     if (thisplayer == null) continue;
                     switch (thisaction.SquareAction)
                     {
@@ -1358,7 +1363,7 @@ namespace MRR
                             AddFlag(thisplayer, thisaction.Parameter);
                             break;
                         case SquareAction.TouchLastManFlag:
-                            foreach (Player oneplayer in AllPlayers.Where(op => op.LastFlag > 0))
+                            foreach (PlayerState oneplayer in AllPlayers.Where(op => op.LastFlag > 0))
                             {
                                 ListOfCommands.AddCommand(oneplayer, SquareAction.Flag, 0);
                                 oneplayer.LastFlag = 0;
@@ -1390,7 +1395,7 @@ namespace MRR
                             if (!AllowOptions) break;
 
                             //OptionCard usingcard = OptionCards.GetOption(thisaction.Parameter);
-                            //Player usingPlayer = AllPlayers.GetPlayer(usingcard.Owner);
+                            //PlayerState usingPlayer = AllPlayers.GetPlayer(usingcard.Owner);
                             //BoardElement usingBoardSquare = g_BoardElements.GetSquare(usingPlayer.CurrentPos);
                             //switch (usingcard.CommandType)
                             //{
@@ -1510,7 +1515,7 @@ namespace MRR
                             if (BM2.Count(bm => bm.RobotID == thisplayer.PlayerID) > 0)
                             {
                                 CommandItem firstmove = BM2.First(bm => bm.RobotID == thisplayer.PlayerID);
-                                Player? thisWorkingPlayer = AllPlayers.GetPlayer(thisplayer.PlayerID);
+                                PlayerState? thisWorkingPlayer = AllPlayers.GetPlayer(thisplayer.PlayerID);
                                 thisWorkingPlayer?.SetLocation(firstmove.StartPos);
                                 thisWorkingPlayer?.NextPos.SetLocation(thisWorkingPlayer.CurrentPos);
                             }
@@ -1578,7 +1583,7 @@ namespace MRR
 
         #region Helper Functions
         
-        public bool UseOption(Player? currentPlayer, OptionCard currentCard)
+        public bool UseOption(PlayerState? currentPlayer, OptionCard currentCard)
         {
             if (currentCard.Use())
             {
@@ -1594,7 +1599,7 @@ namespace MRR
             return false;
         }
         
-        public bool SetNextFlagForPlayer(Player p_thisplayer, int nextFlagID = 0)
+        public bool SetNextFlagForPlayer(PlayerState p_thisplayer, int nextFlagID = 0)
         {
             int flagid = p_thisplayer.LastFlag + 1;
             if (nextFlagID != 0) flagid = nextFlagID;
@@ -1619,7 +1624,7 @@ namespace MRR
         }
 
 
-        public bool AddDeathPoints(Player p_thisplayer, int AddCount, Player? p_DamagedPlayer = null)
+        public bool AddDeathPoints(PlayerState p_thisplayer, int AddCount, PlayerState? p_DamagedPlayer = null)
         {
             // if (p_DamagedPlayer != null)
             // {
@@ -1633,7 +1638,7 @@ namespace MRR
         /// <summary>
         /// Advances the player's flag count. Returns true if that wins the game.
         /// </summary>
-        public bool AddFlag(Player p_thisplayer, int AddCount)
+        public bool AddFlag(PlayerState p_thisplayer, int AddCount)
         {
             p_thisplayer.LastFlag += AddCount;
             ListOfCommands.AddCommand(p_thisplayer, SquareAction.Flag, p_thisplayer.LastFlag);
@@ -1644,7 +1649,7 @@ namespace MRR
             return p_thisplayer.LastFlag >= TotalFlags;
         }
 
-        public bool AddDamage(Player p_thisrobot, int p_Damage, Player? p_DamagingRobot = null)
+        public bool AddDamage(PlayerState p_thisrobot, int p_Damage, PlayerState? p_DamagingRobot = null)
         {
             
             if (p_DamagingRobot != null)
@@ -1768,7 +1773,7 @@ namespace MRR
             return true; // still alive
         }
 
-        public void DamageAtSquare(RobotLocation DamageSquare, Player CausedDamage) // new RobotLocation(0, X, Y, Damage)
+        public void DamageAtSquare(RobotLocation DamageSquare, PlayerState CausedDamage) // new RobotLocation(0, X, Y, Damage)
         {
             List<RobotLocation> DamageSquareList = [];
             //RobotLocation DamageThisSquare = new RobotLocation(0, 1, 2, 3);
