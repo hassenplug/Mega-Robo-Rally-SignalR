@@ -1,6 +1,6 @@
 # Mega Robo Rally — Project TODO
 
-**Last updated:** 2026-05-05
+**Last updated:** 2026-08-22
 **Legend:** `[x]` Done &nbsp; `[-]` Partial / In Progress &nbsp; `[ ]` Not started
 
 ---
@@ -45,9 +45,14 @@
 - [x] Flag / checkpoint detection (`CreateCommands.cs` + `GameController.cs`)
   - End of each phase: robot on flag N (where N == LastFlag+1) touches it
 
-- [ ] Win condition (`GameController.cs`)
-  - After flag check: if `robot.LastFlag == TotalFlags` → that robot wins
-  - End the game and display winner
+- [-] Win condition (`CreateCommands.AddFlag`)
+  - [x] Flag comparison fixed 2026-08-22. Was comparing against a hardcoded 5
+    (`Player.TotalFlags` was `get => 5; set {}`), so any board without exactly 5 flags
+    scored wrong. Now one game-wide `TotalFlags` in `CurrentGameData` (iKey 7), taken from
+    the board at game start; `AddFlag` returns true on `LastFlag >= TotalFlags`.
+  - [ ] Still only *announces* the winner — [CreateCommands.cs:1346](../MRR/CreateCommands.cs#L1346)
+    adds a `"Game Winner:"` text command, with `SquareAction.GameWinner` commented out. The
+    game does not actually end. Issue the `GameWinner` command so `ProcessDbCommand` handles it.
 
 - [ ] Damage card draw mechanic
   - When a robot takes damage, draw top card from damage stack → add to discard
@@ -263,31 +268,37 @@ Home Router (192.168.1.x)
 
 - [ ] Entity Framework for game setup / initialization
   - Use EF (`MRRDbContext` already exists) for initial game setup steps
-  - Currently using raw SQL for `procGameNew` / `procResetGame`
+  - `GameController.StartGame()` / `LoadGameData()` still use raw SQL string building
 
-- [ ] Convert remaining SQL stored procedures to C# (see `sql-to-csharp-conversion-list.md`)
+- [x] **Convert SQL stored procedures to C# — COMPLETE (verified 2026-08-22).**
 
-  **High priority:**
-  - [ ] `procResetPlayers` — advances shutdown states, respawns dead robots, resets option play records; called each turn start (`GameController.cs:259`)
-  - [ ] `procMoveCardsShuffleAndDeal` — shuffles and deals 9 cards to each player at turn start
-  - [ ] `procUpdateCardPlayed` — called every time a phone submits a card into a register
-  - [ ] `procUpdateRobotCards` + `procMoveCardsCheckProgrammed` — rebuilds CardsDealt/CardsPlayed strings; checks when all players are ready
-  - [ ] `funcProcessCommand` (DB-category commands) — C# handles robot/user categories; MySQL still handles DB-category; see `sql-to-csharp-conversion-list.md`
-  - [ ] `funcGetNextGameState` — DataHub still calls it directly for phone-triggered transitions
-  - [ ] `Robots_BEFORE_UPDATE` trigger — damage cap → death; ShutDown=4 → clear damage; ShutDown=2 → status=9; silent data bug without this
-  - [ ] `funcDealSpamToPlayer` — inserts a Spam card into the player's discard pile when a robot takes damage
-  - [ ] `procGameFillPrograms` — auto-fill empty registers (classic rules damage > 4)
-  - [ ] `procCurrentPosSave` / `procCurrentPosLoad` — state snapshot for state 16
-  - [ ] `procDealOptionToRobot` — deal option cards to robots
-  - [ ] `procVerifyPosition` — validate robot position (no collision, non-zero)
-  - [ ] `funcGetNextCard` — draw next card; reshuffle discard if deck empty
-  - [ ] `funcGetProgramReadyState` — returns programming readiness state
+  The `rally` schema now contains **37 base tables and nothing else**: zero stored
+  procedures, zero functions, zero triggers, zero views. `install/MRRDatabase.sql` matches,
+  and no C# code calls a `proc*`/`func*` — every remaining mention is a comment or
+  commented-out code.
 
-  **Medium / low priority:**
-  - [ ] `procUpdatePlayerPriority` — round-robin priority rotation
-  - [ ] `procRobotConnectionStatus`, `procKickstart`, `procSetStatus`, `procProcessOption`
-  - [ ] `Robots_AFTER_UPDATE` trigger (sync StatusLEDs via `procSetStatus` equivalent)
-  - [ ] `CurrentGameData_BEFORE_UPDATE`, `GameData_BEFORE_UPDATE` triggers
+  Ported to `DataService`: `procResetPlayers` → `ResetPlayers()`,
+  `procMoveCardsShuffleAndDeal` → `MoveCardsShuffleAndDeal()`, `procUpdateCardPlayed` →
+  `UpdateCardPlayed()`, `funcProcessCommand` → `ProcessDbCommand()`, `funcDealSpamToPlayer`
+  → `DealSpamToPlayer()`, `procCurrentPosSave`/`Load` → `CurrentPosSave()`/`CurrentPosLoad()`,
+  `procDealOptionToRobot` → `DealOptionToRobot()`, `procVerifyPosition` → `VerifyPosition()`,
+  `funcGetNextCard` → `GetNextCard()`, `procUpdatePlayerPriority` → `UpdatePlayerPriority()`,
+  `procSetStatus` → `SetStatus()`, `funcGetNextOption` → `GetNextOption()`.
+  `funcGetNextGameState` → `GameController.NextState()`.
+
+  **Deliberately dropped rather than ported:**
+  - `Robots_BEFORE_UPDATE` — the damage-cap → death rule. Robots do not normally die from
+    taking damage, so the rule is not wanted. The `ApplyRobotBeforeUpdateRules` helper written
+    for it was never called and was deleted 2026-08-22. `ResetPlayers()` still applies the
+    ShutDown transitions it also covered.
+  - `procGameFillPrograms` — Classic-rules only; deleted with `RulesVersion` 2026-08-22.
+  - `procMoveCardsCheckProgrammed` — its only callers were the Classic paths; deleted 2026-08-22.
+  - `funcGetProgramReadyState`, `procMoveCardsCheckOne`, `procProcessOption`,
+    `procKickstart`, `procRobotConnectionStatus` — no C# equivalent and no callers.
+  - `Robots_AFTER_UPDATE`, `CurrentGameData_BEFORE_UPDATE`, `GameData_BEFORE_UPDATE` —
+    convenience triggers (LED sync, `sValue` lookups, BoardID cascade). The application now
+    writes those fields explicitly. `GameData_BEFORE_UPDATE`'s BoardID cascade is done by
+    hand in the board-editor `PUT` ([Program.cs](../MRR/Program.cs#L578)).
 
 ---
 
@@ -318,3 +329,9 @@ Home Router (192.168.1.x)
 - [x] Camera image capture: `Player.GetCameraImageAsync()` via ws_img
 - [x] Grid alignment agent: `GridAlignmentAgent.cs` + `GET /api/robot/align/{robotId}`
 - [x] SixLabors.ImageSharp 3.1.12 added for image processing (Pi-compatible)
+- [x] `RulesVersion` removed 2026-08-22 — Renegade only. Deleted the Classic branch of
+      `MoveCardsShuffleAndDeal` and `GameFillPrograms` (148 lines), the field, the
+      `GameData` column, and the `CurrentGameData` iKey 27 row
+- [x] One game-wide `TotalFlags` 2026-08-22 — `CurrentGameData` iKey 7, set from the board
+      at game start; removed the hardcoded `Player.TotalFlags`
+- [x] Dead code removed 2026-08-22: `ApplyRobotBeforeUpdateRules`, `MoveCardsCheckProgrammed`

@@ -1,5 +1,19 @@
 # Rally Database — SQL-to-C# Conversion List
 
+> ## ⚠️ HISTORICAL SNAPSHOT — the migration is COMPLETE
+>
+> **Every per-row status below is out of date.** This was generated 2026-03-24, when the
+> migration was in progress. As of 2026-08-22 the `rally` schema holds **37 base tables and
+> nothing else**: zero stored procedures, zero functions, zero triggers, zero views, and no C#
+> code calls a `proc*`/`func*`.
+>
+> The 41 rows marked "Not Started" are all either ported to C# or deliberately dropped. The
+> per-item breakdown of which is which lives in
+> **[install/todo.md](../../install/todo.md)** (Section 6) — use that, not this file.
+>
+> Kept because the *descriptions* are a useful record of what each original SQL object did.
+
+
 Generated: 2026-03-24
 
 ---
@@ -81,20 +95,39 @@ Generated: 2026-03-24
 
 ---
 
-## Critical Path
+## Critical Path — CLEARED
 
-Must be converted before the game can run without MySQL:
+All six blockers are resolved; the game runs with no MySQL-side logic at all.
 
-1. `Robots_BEFORE_UPDATE` trigger — damage/death rules silently broken without it
-2. `funcProcessCommand` — every DB-category command during execution calls it
-3. `procResetPlayers` + `procMoveCardsShuffleAndDeal` — block every turn start
-4. `procUpdateCardPlayed` + `procUpdateRobotCards` — block phone card programming
-5. `funcGetNextGameState` — DataHub still calls it directly for phone-triggered transitions
-6. `procCommandUpdateStatus` — blocks `procRobotConnectionStatus` (missing from SQL file)
+1. `Robots_BEFORE_UPDATE` — **dropped, not ported.** Robots do not normally die from taking
+   damage, so the damage-cap → death rule is not wanted. `ResetPlayers()` still applies the
+   ShutDown transitions the trigger also covered.
+2. `funcProcessCommand` → `DataService.ProcessDbCommand()` — handles all categories.
+3. `procResetPlayers` → `ResetPlayers()`; `procMoveCardsShuffleAndDeal` → `MoveCardsShuffleAndDeal()`.
+4. `procUpdateCardPlayed` → `UpdateCardPlayed()` (rebuilds the CardsDealt/CardsPlayed strings itself).
+5. `funcGetNextGameState` → `GameController.NextState()`. `DataHub` is now broadcast-only;
+   inbound actions go through the REST API.
+6. `procCommandUpdateStatus` / `procRobotConnectionStatus` — dropped; no C# equivalent, no callers.
 
 ---
 
 ## Summary
+
+As of 2026-08-22 — verified against the live schema and `install/MRRDatabase.sql`:
+
+| Category | Objects remaining in the database |
+|---|---|
+| Stored Procedures | **0** |
+| Functions | **0** |
+| Triggers | **0** |
+| Views | **0** |
+| Base tables | 37 |
+
+Each original object was either ported to C# or deliberately dropped; see
+[install/todo.md](../../install/todo.md) Section 6 for the split. The table below is the
+2026-03-24 snapshot, retained for its descriptions only.
+
+<details><summary>Original 2026-03-24 counts (obsolete)</summary>
 
 | Category | Total | Done | Partial | Not Started |
 |---|---|---|---|---|
@@ -103,3 +136,5 @@ Must be converted before the game can run without MySQL:
 | Triggers | 6 | 1 | 0 | 5 |
 | Views (active) | 11 | 4 | 0 | 7 |
 | **Total** | **49** | **7** | **2** | **40** |
+
+</details>

@@ -13,7 +13,7 @@ Mega Robo Rally (MRR) is a physical/digital hybrid Robo Rally (Renegade edition)
 
 **Tech stack:** C# / ASP.NET Core 9, MySQL (server: mrobopi, db: rally), SignalR for real-time
 
-**Key files:** GameController.cs (state machine 0–16), CreateCommands.cs (cards→commands), CommandProcess.cs (command executor), AIMRobot.cs (robot WebSocket client), DataService.cs (MySQL), DataHub.cs (SignalR hub)
+**Key files:** GameController.cs (state machine 0–16), CreateCommands.cs (cards→commands), CommandProcess.cs (command executor), Players.cs (robot WebSocket client), DataService.cs (MySQL), DataHub.cs (SignalR hub)
 
 **Agents created:**
 - `.claude/agents/robo-rally-dev.md` — full Robo Rally Renegade rules, VEX AIM command reference, Sense HAT notes, implementation gaps list

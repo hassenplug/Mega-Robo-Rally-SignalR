@@ -42,7 +42,8 @@ instead of (or in addition to) their phone.
   the feature.  When OFF, the phone UI is the only interface (current behavior).
   When ON, both the robot screen and the phone UI are active simultaneously.
   Whichever player action first fills all 5 slots wins; both views stay in sync
-  because both call the same `procUpdateCardPlayed` stored procedure.
+  because both go through the same `DataService.UpdateCardPlayed()` method (see below —
+  `procUpdateCardPlayed` no longer exists as a stored procedure).
 - **Per-robot**: each of the 6 robots renders its own UI for its own player's hand.
 - **State-gated**: the UI activates when GameController state is 2, 3, or 4
   (matching the `canProgram()` condition from `loadrobots.js`).  In all other

@@ -1,10 +1,9 @@
 ---
 name: sql-to-csharp
 description: >
-  Converts MySQL stored procedures, triggers, and functions from the rally
-  database into equivalent C# code within the MRR project (DataService.cs or
-  appropriate service class). Knows the full rally DB schema, all stored
-  procedures, and the existing C# data layer patterns.
+  RETIRED 2026-08-22 — the SQL-to-C# migration is complete and the rally database has no
+  stored procedures, functions, triggers, or views left to convert. Do not select this agent
+  for new work. Kept only as a historical record of what the original SQL did.
 model: claude-sonnet-4-6
 tools:
   - Read
@@ -15,6 +14,18 @@ tools:
   - Grep
   - Agent
 ---
+
+> ## ⚠️ RETIRED — 2026-08-22
+>
+> **The SQL-to-C# migration is complete.** The `rally` schema now holds 37 base tables and
+> nothing else: zero stored procedures, zero functions, zero triggers, zero views. No C# code
+> calls a `proc*`/`func*`.
+>
+> There is nothing left for this agent to convert. It is kept only as a record of what the
+> original SQL did — useful when auditing whether a ported C# method matches the behaviour it
+> replaced. **Do not use it as a guide to current behaviour**, and note that anything below
+> describing `RulesVersion` / Classic rules no longer applies (removed 2026-08-22).
+
 
 # SQL-to-C# Conversion Agent
 

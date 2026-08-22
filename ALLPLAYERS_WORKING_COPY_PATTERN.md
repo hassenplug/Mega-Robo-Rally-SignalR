@@ -1,5 +1,12 @@
 # AllPlayers Isolation Pattern: Working Copy During Turn Execution
 
+> ## ⚠️ SUPERSEDED — 2026-08-22
+>
+> This describes a copy-then-commit pattern that was reconsidered. The approach actually
+> adopted is in **[ALLPLAYERS_WORKING_COPY_SIMULATION_ONLY.md](ALLPLAYERS_WORKING_COPY_SIMULATION_ONLY.md)**
+> — simulate on a discarded copy, record the outcome as commands. Kept for history only.
+
+
 ## Revised Understanding
 
 **Current Problem**:

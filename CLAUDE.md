@@ -32,17 +32,30 @@ RobotScreenUI.cs     AIM robot touchscreen programming UI
 GridAlignmentAgent.cs Camera-based grid alignment for navigation
 Data/
   MRRDbContext.cs    Entity Framework DbContext
-Sensors/             (empty — future Sense HAT integration)
-Services/            (empty — future service classes)
+  CurrentGameData.cs CurrentGameDataEntity (keyed on iKey)
 wwwroot/             Static web assets for phone UI
 ```
+
+## Design Documents
+| Document | Covers |
+|---|---|
+| [API_DECOMPOSITION_DESIGN.md](API_DECOMPOSITION_DESIGN.md) | Splitting the app into seven API contracts across two processes; migration order; open defects |
+| [install/PROCESS_MANAGER.md](install/PROCESS_MANAGER.md) | systemd supervision, `mrrctl`, deploy/rollback. Implementation in [install/service/](install/service/) |
+| [DB_SYNC_ISSUES.md](DB_SYNC_ISSUES.md) | Open: DB deletes that don't clear the matching in-memory collections |
+| [ALLPLAYERS_REFACTOR_PLAN.md](ALLPLAYERS_REFACTOR_PLAN.md) | Open: removing the `DbSet<Player> Robots` mapping. Largely subsumed by API_DECOMPOSITION_DESIGN.md step 3 |
 
 ## Key Architecture Patterns
 - **State machine** in `GameController.NextState()` (states 0–16) — do not bypass it
 - **Command pipeline**: CreateCommands writes rows → CommandProcess reads and executes them sequentially
 - **Robot communication**: dual WebSocket per robot (ws_cmd + ws_status) via `AIMRobot`
 - **Real-time**: SignalR `DataHub` broadcasts to all phones after every state change
-- **Database**: MySQL with stored procedures (`procResetPlayers`, `procMoveCardsShuffleAndDeal`, etc.)
+- **Database**: MySQL (`rally`), **tables only** — 37 base tables, and zero stored
+  procedures, functions, triggers, or views. All that logic now lives in C#, mostly in
+  `DataService` (e.g. `ResetPlayers()`, `MoveCardsShuffleAndDeal()`, `ProcessDbCommand()`).
+  Do not add database-side logic, and do not call `proc*`/`func*` — they do not exist.
+- **Renegade rules only.** `RulesVersion` was removed 2026-08-22; there is no Classic path.
+- **One `TotalFlags` per game**, in `CurrentGameData` (iKey 7), taken from the board at game
+  start. It is not a per-player value.
 - **Thread safety**: `Interlocked` flags guard `NextState()` and `ExecuteTurn()`
 
 ## Game State Reference
@@ -87,10 +100,10 @@ See [install/todo.md](install/todo.md) for the active task list.
 | Agent | File | When to use |
 |---|---|---|
 | `robo-rally-dev` | [.claude/agents/robo-rally-dev.md](.claude/agents/robo-rally-dev.md) | Game logic, robot movement, board simulation, player UI, hardware integration. Contains the full Robo Rally Renegade rule set and implementation guidance. |
-| `sql-to-csharp` | [.claude/agents/sql-to-csharp.md](.claude/agents/sql-to-csharp.md) | Converting MySQL stored procedures, triggers, and functions into C# methods in `DataService.cs`. Contains the full rally DB schema, all procedure logic, and trigger behavior. |
+| ~~`sql-to-csharp`~~ | [.claude/agents/sql-to-csharp.md](.claude/agents/sql-to-csharp.md) | **Retired — migration complete.** The DB has no procedures, functions, or triggers left to convert. Kept only as a record of what the original SQL did. |
 | `aim-robot-api` | [.claude/agents/aim-robot-api.md](.claude/agents/aim-robot-api.md) | Any VEX AIM robot command from C#. Documents every WebSocket command (drive, turn, LCD, LED, sound, vision, IMU, kicker), the JSON wire format, and `AIMRobot.cs` patterns. |
 | `aim-screen-ui` | [.claude/agents/aim-screen-ui.md](.claude/agents/aim-screen-ui.md) | Robot touchscreen programming UI (`RobotScreenUI.cs`). Knows the 240×240 circular LCD layout, touch polling, the 9-card ring + 5 horizontal slot design, and GameController integration (states 4–5). |
 | `gm-ui` | [.claude/agents/gm-ui.md](.claude/agents/gm-ui.md) | GM control panel (`gmindex.html`). Knows the full REST API surface, exact AllDataUpdate payload shape, state-by-state button logic, robot status panels, game message bar (titlemsg + CurrentGameData.Message), game selection, direction setter, Use Robots toggle (simulation vs. physical), pre-game player setup (robot body / base / seat assignment), and wwwroot/ conventions. |
 | `aim-navigation` | [.claude/agents/aim-navigation.md](.claude/agents/aim-navigation.md) | Improving physical robot navigation accuracy. Knows the full IMU sensor pipeline (heading, gyro_rate, odometry via robot_x/robot_y), extending RobotStatus, IMU-guided turn correction (turn_to), odometry-based move verification (set_pose), and integrating camera grid alignment (GridAlignmentAgent) for post-move correction. |
-| `mrr-database` | [.claude/agents/mrr-database.md](.claude/agents/mrr-database.md) | Maintains `install/MRRDatabase.sql` as the single source of truth for the entire rally DB schema. Knows all 37 tables, 12 views, 7 functions, 24 stored procedures, 6 triggers, and seed data. Use when adding/modifying DB schema, writing new queries, or updating the install script. |
+| `mrr-database` | [.claude/agents/mrr-database.md](.claude/agents/mrr-database.md) | Maintains `install/MRRDatabase.sql` as the single source of truth for the rally schema — 37 tables and seed data. Use when adding/modifying DB schema, writing new queries, or updating the install script. Its procedure/function/trigger/view reference sections are **historical only**; none of those objects exist in the database. |
 | `move-to-memory` | [.claude/agents/move-to-memory.md](.claude/agents/move-to-memory.md) | Refactors the data layer so live game data (Players, MoveCards, CurrentGameData) lives in memory with write-through property setters. Manages the CreateCommands write-suppression window, targeted AllPlayers reload at state 6→7, and in-turn AllPlayers sync inside ProcessDbCommand. |

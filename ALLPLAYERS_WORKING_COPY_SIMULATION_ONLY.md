@@ -1,5 +1,16 @@
 # AllPlayers Working Copy: Simulation Only (Discard Pattern)
 
+> ## ✅ IMPLEMENTED — verified 2026-08-22
+>
+> This pattern is live: [CreateCommands.cs:475](MRR/CreateCommands.cs#L475) does
+> `workingPlayers = _dataService.AllPlayers.DeepCopy()` and simulates against the copy,
+> recording results into `ListOfCommands`. Kept as the explanation of *why* it works that way.
+>
+> Making this boundary explicit is step 2 of
+> [API_DECOMPOSITION_DESIGN.md](API_DECOMPOSITION_DESIGN.md) — the copy becomes a
+> `TurnRequest` parameter instead of a field read off a shared singleton.
+
+
 ## Revised Understanding
 
 **Correct Pattern**:

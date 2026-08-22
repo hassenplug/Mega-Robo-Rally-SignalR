@@ -239,7 +239,8 @@ available in the `AllDataUpdate` payload.
 | `titlemsg` | Built by `DataService.GetAllDataJson()` — "Turn X Phase Y" | Yes |
 | `message` | `CurrentGameData` row where `sKey='Message'` (iKey=28) | No — must be added |
 
-The `message` field is set by stored procedures and `funcProcessCommand` at key game
+The `message` field is set by `DataService.ProcessDbCommand()` (the C# replacement for
+`funcProcessCommand`) at key game
 events (e.g. "Waiting for all players to program", "Phase 2 complete", winner
 announcement). It is currently **not** included in the `AllDataUpdate` payload.
 

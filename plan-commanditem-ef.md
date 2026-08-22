@@ -1,5 +1,12 @@
 # Plan: Make CommandItem an EF Entity (CommandList table)
 
+> ## ✅ IMPLEMENTED — verified 2026-08-22
+>
+> `CommandItem` is the EF entity. `MRRDbContext` declares
+> `DbSet<CommandItem> CommandItems` mapped via `entity.ToTable("CommandList")`, and
+> `PendingCommandEntity` is gone. Kept for history only.
+
+
 ## Context
 
 `CommandItem` (in `CommandList.cs`) is the in-memory game command object. It is built during turn calculation and then written to the `CommandList` DB table via raw SQL string concatenation in `CreateCommands.AddOneCommandToDB()`. Reading back from the DB (in `CommandProcess.cs`) uses a separate EF entity `PendingCommandEntity` that duplicates the DB schema. The goal is to eliminate this duplication: make `CommandItem` itself the EF entity so the same object is used end-to-end — game logic, DB write, and DB read.

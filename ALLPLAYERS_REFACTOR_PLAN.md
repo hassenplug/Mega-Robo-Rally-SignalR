@@ -1,5 +1,16 @@
 # Refactoring Plan: AllPlayers Direct Database Connection
 
+> ## 🔶 STILL OPEN — re-checked 2026-08-22
+>
+> The core goal is **not** done: `MRRDbContext` still declares `DbSet<Player> Robots`
+> ([MRRDbContext.cs:13](MRR/Data/MRRDbContext.cs#L13)) and `DataService.GetAllPlayers()`
+> still loads players with raw SQL.
+>
+> Largely subsumed by step 3 of [API_DECOMPOSITION_DESIGN.md](API_DECOMPOSITION_DESIGN.md),
+> which splits `DataService` into `IGameStateStore` plus per-context repositories. Prefer that
+> plan; this document remains useful for its inventory of the sync problems.
+
+
 ## Goal
 Eliminate the `DbSet<Player> Robots` Entity Framework mapping, connect `AllPlayers` directly to the database, and ensure all database writes automatically sync to the in-memory collection. Make `AllPlayers` read-only in `CreateCommands`.
 

@@ -2,10 +2,11 @@
 name: mrr-database
 description: >
   Expert on the Mega Robo Rally MySQL/MariaDB database schema. Maintains
-  install/MRRDatabase.sql as the single source of truth for all tables,
-  views, stored procedures, functions, triggers, and seed data. Use whenever
-  adding or modifying the DB schema, writing new queries, or syncing the
-  install script.
+  install/MRRDatabase.sql as the single source of truth for the 37 tables and
+  seed data. The database is tables-only — it has no views, stored procedures,
+  functions, or triggers, and none should be added; that logic lives in C#.
+  Use whenever adding or modifying the DB schema, writing new queries, or
+  syncing the install script.
 model: sonnet
 tools:
   - Read
@@ -16,6 +17,20 @@ tools:
   - Grep
   - Agent
 ---
+
+> ## ⚠️ Sections 4, 6 and the views table are HISTORICAL — 2026-08-22
+>
+> The live `rally` schema and `install/MRRDatabase.sql` contain **37 base tables and nothing
+> else** — zero stored procedures, zero functions, zero triggers, zero views. All of that
+> logic is in C# (mostly `DataService`).
+>
+> Still accurate and useful: the table reference, column meanings, lookup values, and seed
+> data. Treat the Stored Procedures Reference (§4), Functions, Triggers Reference (§6), views
+> table, and "Adding a new procedure/function/trigger" as a record of the *original* SQL
+> behaviour, not of the current database. Never add database-side logic.
+>
+> Also removed 2026-08-22: `GameData.RulesVersion` and `CurrentGameData` iKey 27 (Renegade only).
+
 
 # MRR Database Agent
 
@@ -205,7 +220,6 @@ Key-value store for live game state. Dual-keyed: `sKey` (string) and `iKey` (int
 | Players | 23 | 6 | Player count |
 | PlayerListID | 25 | 1 | Active player list |
 | GameDataID | 26 | 1 | Active GameData row |
-| RulesVersion | 27 | 2 | 0=classic, 1=Renegade, 2=MRR |
 | Message | 28 | | Status message string |
 
 **Trigger:** `CurrentGameData_BEFORE_UPDATE` auto-sets `sValue` from lookup tables when GameState, GameType, or BoardID changes.
@@ -240,9 +254,9 @@ Key-value store for live game state. Dual-keyed: `sKey` (string) and `iKey` (int
 | 1 | Standard 6–8 player | 84 cards | 6xU, 18xR+L, 6xBack1, 18xFwd1, 12xFwd2, 6xFwd3 |
 | 2 | Standard 9+ player | 112 cards | Larger deck, same types |
 | 3 | Single-phase mode | 77 cards | One card per turn |
-| 4 | Renegade rules (RulesVersion=1) | 20 cards | Each robot gets their own copy |
+| 4 | Renegade rules — **the only set used** | 20 cards | Each robot gets their own copy |
 
-SetID selection in `procMoveCardsShuffleAndDeal`: >8 players → 2; PhaseCount=1 → 3; RulesVersion=1 → 4.
+SetID is always **4** since `RulesVersion` was removed (2026-08-22); `DataService.GameNewAddCards()` no longer selects a set by player count or PhaseCount.
 
 ---
 
@@ -447,7 +461,6 @@ ShutDown is advanced to NextState each turn in `procResetPlayers`. ShutDown=4 ze
 | OptionCount | Options to deal (-1 = none) |
 | BoardID | FK→Boards |
 | PlayerListID | FK→OperatorData list |
-| RulesVersion | 0=classic, 1=Renegade |
 
 **Trigger:** `GameData_BEFORE_UPDATE` — when BoardID changes, auto-copies `LaserDamage`, `GameType`, `PhaseCount`, `TotalFlags`, `X`, `Y` from `Boards`.
 
