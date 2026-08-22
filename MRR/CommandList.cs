@@ -210,11 +210,19 @@ namespace MRR
         public int CommandID { get; set; }
         public int Turn { get; set; }
 
-        public static Players? AllPlayers { get; set; }
-
-        private Player _Robot;
+        private Player? _Robot;
+        /// <summary>
+        /// The robot this command belongs to, or null if it has not been attached.
+        ///
+        /// This used to be resolved implicitly: the RobotID setter looked the player up in a
+        /// <c>static Players? AllPlayers</c> on this class, so an EF-materialized command
+        /// silently acquired a Robot — and silently had none if that static was unset or the
+        /// object crossed a process boundary. The static is gone; whoever loads commands
+        /// attaches the robot explicitly (see PendingCommands' constructor). RobotID remains
+        /// the persisted source of truth.
+        /// </summary>
         [NotMapped]
-        public Player Robot {
+        public Player? Robot {
             get { return _Robot; }
             set
             {
@@ -226,15 +234,7 @@ namespace MRR
 
         public int RobotID {
             get { return _RobotID; }
-            set
-            {
-                _RobotID = value;
-                if (value > 0)
-                {
-                    var player = AllPlayers?.GetPlayer(p => p.ID == value);
-                    if (player != null) _Robot = player;
-                }
-            }
+            set { _RobotID = value; }
         }
 
         [NotMapped]
@@ -377,7 +377,7 @@ namespace MRR
                     //case SquareAction.Card:return new SquareActionDetails(CommandCategories.DB, "played card: ") ; //+ MainGame.GameCards.FirstOrDefault(gc=>gc.ID == Value).Text + "");
                     case SquareAction.Card:
                         if (Value==99) return new SquareActionDetails(CommandCategories.DB, "played card: SPAM"); // + MainGame.GameCards.FirstOrDefault(gc=>(gc.ID == Value) && (gc.Owner==RobotID)).Text + "");
-                        return new SquareActionDetails(CommandCategories.DB, "played card: " + (Robot.CardsPlayer?.FirstOrDefault(gc => gc.ID == Value)?.Text ?? Value.ToString()));
+                        return new SquareActionDetails(CommandCategories.DB, "played card: " + (Robot?.CardsPlayer?.FirstOrDefault(gc => gc.ID == Value)?.Text ?? Value.ToString()));
                         // return new SquareActionDetails(CommandCategories.DB, "played card: " + MainGame.GameCards.FirstOrDefault(gc=>(gc.ID == Value) && (gc.Owner==RobotID)).Text + "");
                     case SquareAction.Randomizer:return new SquareActionDetails(CommandCategories.DB, "gets random card");
                     case SquareAction.BeginBoardEffects: return new SquareActionDetails(CommandCategories.DB, "begin board effects");
@@ -475,7 +475,7 @@ namespace MRR
         public override string ToString()
         {
             string outstring = "P:" + Phase + " S:" + PhaseStep + "; ";
-            outstring += Robot.Name + " " ;
+            outstring += (Robot?.Name ?? "robot " + RobotID) + " " ;
             outstring += Description + " ";
             if (StringCommand != "") outstring += "{" + StringCommand + "} ";
             if (CommandSequence!=0) outstring += "seq:" + CommandSequence + " ";

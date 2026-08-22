@@ -50,14 +50,12 @@ namespace MRR.Services
                 if (_allPlayers == null)
                 {
                     _allPlayers = GetAllPlayers();
-                    CommandItem.AllPlayers = _allPlayers;
                 }
                 return _allPlayers;
             }
             set
             {
                 _allPlayers = value;
-                CommandItem.AllPlayers = value;
             }
         }
 
@@ -1007,7 +1005,9 @@ namespace MRR.Services
             int cRow        = p_Command.PositionRow;
             int cCol        = p_Command.PositionCol;
             int cDir        = p_Command.PositionDir;
-            Player robot = p_Command.Robot;
+            // Resolve explicitly rather than relying on CommandItem.Robot having been
+            // attached by whoever loaded this command.
+            Player? robot = p_Command.Robot ?? AllPlayers.GetPlayer(p => p.ID == cRobotID);
 
             if (p_NewStatus == -1)
                 p_NewStatus = 6; // command complete

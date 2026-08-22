@@ -94,6 +94,14 @@ app.MapGet("/api/settings/robot-screen", (bool enabled, GameController gameContr
     return Results.Ok(new { UseRobotScreen = enabled });
 });
 
+// Liveness probe for mrr-health.service. Deliberately cheap and side-effect free:
+// no SignalR broadcast (unlike /api/alldata) and no dependency on a static file path
+// (unlike /index.html, which the probe uses today only because "/" returns 404 —
+// UseStaticFiles is registered before UseDefaultFiles above).
+// Set MRR_HEALTH_URL=http://127.0.0.1:5000/api/health in /etc/default/mrr to use it.
+app.MapGet("/api/health", (GameController gameController) =>
+    Results.Ok(new { status = "ok", state = gameController.GameState }));
+
 app.MapGet("/api/alldata", (DataService dataService, IHubContext<DataHub> hubContext) =>
 {
     var dataout = dataService.GetAllDataJson();

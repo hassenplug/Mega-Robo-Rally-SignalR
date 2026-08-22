@@ -38,6 +38,16 @@ namespace MRR
             _commandList = _dbContext.CommandItems
                 .Where(c => c.Turn == _dataService.Turn)
                 .ToList();
+
+            // Attach the robot to each command. EF only materializes RobotID; this used to
+            // happen invisibly inside CommandItem's RobotID setter via a static Players
+            // reference. Doing it here keeps CommandItem.Description and ToString() able to
+            // name the robot and its cards, without a static that can silently be unset.
+            var players = _dataService.AllPlayers;
+            foreach (var command in _commandList)
+            {
+                command.Robot = players.GetPlayer(p => p.ID == command.RobotID);
+            }
         }
 
         //private Players RobotList => _dataService.AllPlayers;
