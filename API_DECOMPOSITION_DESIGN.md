@@ -1,6 +1,6 @@
 # MRR API Decomposition Design
 
-**Status:** Design proposal — no code changes yet
+**Status:** In progress — steps 0 and 1 implemented (see §9)
 **Date:** 2026-08-22 (decisions 1–8 resolved)
 **Related:** [install/PROCESS_MANAGER.md](install/PROCESS_MANAGER.md) — supervision, and the
 implemented units in [install/service/](install/service/). §9 of this document specifies the
@@ -515,21 +515,38 @@ new fixtures would otherwise have to cover twice.
 Ordered by value-over-risk. Each step ends with a playable game; never more than one seam
 open at a time.
 
-| Step | Work | Ends with |
+| Step | Work | Status |
 |---|---|---|
-| **0. Contracts** | `MRR.Contracts`; move shared models; delete `static CommandItem.AllPlayers`; set up the §3.2 reference constraints. Remove `RulesVersion` (§8) | One process, build enforces the boundaries |
-| **1. Config out** | Move board / gamedata / operator / hardware routes, `BoardElement`, load/save, `LoadXMLBoards` into `mrr-config`; transaction + `/validate` fixes; new systemd unit (§9.1) | **Two processes.** Authoring cannot disturb a live game |
-| **2. Purify Rules** | Sever the writes in §5.3; pre-drawn deck; `Plan()` returns a `TurnPlan`; Master persists | Deterministic planner; `CreateCommands` no longer references `DataService` |
-| **3. Split `DataService`** | Extract `RuleEffects`, repositories, `IGameStateStore`. **Riskiest step — do it alone, on a branch** | Internal seams exist, backed by step 2's fixtures |
-| **4. Admin** | Replace `/api/table` with `MRR.Admin`: reload-after-write, audit log, loopback binding, `POST` for mutations | A safe way to hand-edit game state mid-session |
-| **5. Split `Player`** | `PlayerState` vs `IRobotTransport`; stand up Device Gateway; awaited sends, timeouts, `/abort` | Robot failures visible; real simulation mode |
-| **6. Presentation** | Invert `RobotScreenUI` to render-and-report; centralize pushes; per-seat groups; debounce; fix `/` → 404 | Password leak and broadcast storm fixed |
+| **0. Contracts** | `MRR.Contracts` (4-project layout, §3.2); move the `Player`-free models; delete `static CommandItem.AllPlayers`; add `/api/health`. Remove `RulesVersion` (§8) | **Done** — `4560eb3`, `6e7969d` |
+| **1. Split `Player`** | `PlayerState` (Contracts) + `Player : PlayerState` (host transport). Unblocks `CommandItem`, `CommandList`, `OptionCardList` into Contracts | **Done** — `0bba5bb`. Moved up from step 5; see below |
+| **2. Config out** | Move board / gamedata / operator / hardware routes, `BoardElement`, load/save, `LoadXMLBoards` into `mrr-config`; transaction + `/validate` fixes; new systemd unit (§10) | **Two processes.** Authoring cannot disturb a live game |
+| **3. Purify Rules** | Retarget `CreateCommands` from `Players`/`Player` to `PlayerState`; sever the writes in §5.3; pre-drawn deck; `Plan()` returns a `TurnPlan`; Master persists. Extract `MRR.Rules` | Deterministic planner; `CreateCommands` no longer references `DataService` |
+| **4. Split `DataService`** | Extract `RuleEffects`, repositories, `IGameStateStore`. **Riskiest step — do it alone, on a branch** | Internal seams exist |
+| **5. Admin** | Replace `/api/table` with `MRR.Admin`: reload-after-write, audit log, loopback binding, `POST` for mutations | A safe way to hand-edit game state mid-session |
+| **6. Device Gateway** | `IRobotTransport` over the transport half of `Player`; awaited sends, timeouts, `/abort` | Robot failures visible; real simulation mode |
+| **7. Presentation** | Invert `RobotScreenUI` to render-and-report; centralize pushes; per-seat groups; debounce; fix `/` → 404 | Password leak and broadcast storm fixed |
+
+### Why the `Player` split moved to step 1
+
+Discovered while implementing step 0. `MRR.Rules` *is* `CreateCommands`, and
+`CreateCommands` had 51 references to `Player`/`Players` — `ProcessMove(Player)`,
+`MoveRobot(Player…)`, `AddDamage(Player…)`, `workingPlayers`. `Player` owned three
+WebSockets and a `RobotScreenUI`, so it could not live in Contracts, so neither could
+anything that referenced it: `CommandList.cs` (13 references) and `OptionCardList`
+(3 methods) were stuck in the host for the same reason.
+
+Purifying Rules was therefore blocked on splitting `Player`, not the other way round.
+Splitting it first also made three files move to Contracts with no signature changes at
+all, because `Player : PlayerState` means every existing call site upcasts implicitly.
+
+The remaining `Player` work — putting the transport behind `IRobotTransport` — is genuinely
+independent and stays late, at step 6.
 
 Steps 1 and 2 carry most of the value and are independently shippable. Step 4 can be pulled
 earlier if hand-editing game state is needed before the rest lands — it only depends on
 step 0.
 
-### Why steps 2 and 3 are in this order
+### Why Rules comes before `DataService`
 
 All twelve of the planner's `_dataService` property passthroughs
 ([CreateCommands.cs:54-83](MRR/CreateCommands.cs#L54-L83)) are reads that can be built into a
