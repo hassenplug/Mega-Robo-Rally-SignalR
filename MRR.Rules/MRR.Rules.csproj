@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The turn planner. Given a TurnRequest it produces a TurnPlan, and that is all:
+       no database, no ASP.NET, no sockets, no clock.
+
+       The ONLY reference is MRR.Contracts, and that is the point. The planner cannot
+       reach a database because it cannot see one, so a plan is reproducible from its
+       input alone. Do not add a PackageReference here without a very good reason.
+       See API_DECOMPOSITION_DESIGN.md section 3.2. -->
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>MRR</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MRR.Contracts\MRR.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

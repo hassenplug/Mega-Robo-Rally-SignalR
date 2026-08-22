@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\MRR.Contracts\MRR.Contracts.csproj" />
+    <ProjectReference Include="..\MRR.Rules\MRR.Rules.csproj" />
   </ItemGroup>
 
 </Project>
