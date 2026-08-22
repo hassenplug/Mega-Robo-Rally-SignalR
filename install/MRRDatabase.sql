@@ -24,15 +24,6 @@ USE rally;
 
 -- ===== TABLES =====
 
--- BluetoothDongles
-DROP TABLE IF EXISTS `BluetoothDongles`;
-CREATE TABLE `BluetoothDongles` (
-  `DongleID` int(11) NOT NULL,
-  `DongleMAC` varchar(20) DEFAULT NULL,
-  `Active` int(11) DEFAULT NULL,
-  PRIMARY KEY (`DongleID`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
-
 -- GameTypes (lookup for Boards.GameType and CurrentGameData.sValue)
 DROP TABLE IF EXISTS `GameTypes`;
 CREATE TABLE `GameTypes` (
@@ -156,7 +147,9 @@ CREATE TABLE `RobotBases` (
   `RobotBaseID` int(11) NOT NULL,
   `Port` varchar(20) DEFAULT 'COM00',
   `BatteryStatus` int(11) DEFAULT NULL,
-  `MACID` varchar(25) DEFAULT NULL,
+  `IPAddress` varchar(25) DEFAULT NULL,
+  `AIMName` varchar(20) DEFAULT NULL,
+  `AIMID` varchar(15) DEFAULT NULL,
   `DefaultBody` int(11) DEFAULT NULL,
   PRIMARY KEY (`RobotBaseID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
@@ -508,9 +501,6 @@ CREATE TABLE `HistoryRobotOptions` (
 
 -- ===== SEED DATA =====
 
--- BluetoothDongles
-INSERT INTO `BluetoothDongles` VALUES (0,'00:0C:78:33:50:8E',1),(1,'00:0C:78:33:DE:E6',1);
-
 -- GameTypes
 INSERT INTO `GameTypes` VALUES
 (0,'Standard',1,5,0),
@@ -812,17 +802,22 @@ INSERT INTO `OperatorData` VALUES
 INSERT INTO `PhaseCounter` VALUES (1),(2),(3),(4),(5);
 
 -- RobotBases
+-- Bases 1-7 are the VEX AIM robots, renumbered so RobotBaseID matches the robot
+-- number in install/notes.txt. AIMName is the label on the robot (AIM-01..AIM-07);
+-- AIMID is its hardware identifier as reported over ws_status.
+-- Base 6 is a placeholder: that robot's address and hardware ID are not yet known.
+-- Bases 8-10 are retired Bluetooth-era entries and still hold MAC addresses.
 INSERT INTO `RobotBases` VALUES
-(1,NULL,NULL,'192.168.1.153',1),
-(2,NULL,NULL,'192.168.1.163',2),
-(3,NULL,NULL,'192.168.1.206',3),
-(4,NULL,NULL,'192.168.1.215',4),
-(5,NULL,NULL,'192.168.1.228',5),
-(6,NULL,NULL,'192.168.1.107',6),
-(7,NULL,NULL,'192.168.1.106',7),
-(8,NULL,NULL,'00:16:53:0A:37:26',8),
-(9,NULL,NULL,'00:16:53:0A:36:D5',9),
-(10,NULL,NULL,'00:16:53:0A:36:67',10);
+(1,NULL,NULL,'192.168.1.149','AIM-01','AIM-328D8418',1),
+(2,NULL,NULL,'192.168.1.206','AIM-02','AIM-426E8118',2),
+(3,NULL,NULL,'192.168.1.107','AIM-03','AIM-1AA57518',3),
+(4,NULL,NULL,'192.168.1.215','AIM-04','AIM-3A8A8B18',4),
+(5,NULL,NULL,'192.168.1.160','AIM-05','AIM-12598D18',5),
+(6,NULL,NULL,'192.168.1.','AIM-06','AIM-??',6),
+(7,NULL,NULL,'192.168.1.106','AIM-07','AIM-1A5E7918',7),
+(8,NULL,NULL,'00:16:53:0A:37:26',NULL,NULL,8),
+(9,NULL,NULL,'00:16:53:0A:36:D5',NULL,NULL,9),
+(10,NULL,NULL,'00:16:53:0A:36:67',NULL,NULL,10);
 
 -- RobotBodies
 INSERT INTO `RobotBodies` VALUES

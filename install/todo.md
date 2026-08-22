@@ -236,9 +236,9 @@ Home Router (192.168.1.x)
 - [ ] Assign static IPs to all 6 robots and update the database
   - Configure DHCP reservations on the game router by MAC address
   - Suggested scheme: `192.168.4.101`–`192.168.4.106` for robots 1–6
-  - Enter confirmed IPs into the `RobotBases` table (`MACID` column — used as IP address)
+  - Enter confirmed IPs into the `RobotBases` table (`IPAddress` column; renamed from `MACID` 2026-08-22)
   - `RobotBases` also holds `DefaultBody` — verify each base is mapped to the correct robot body
-  - `DataService.GetAllPlayers()` reads `MACID` into `Player.IPAddress`; `Player.Connect()` in `Players.cs` uses it to open the WebSocket
+  - `DataService.GetAllPlayers()` reads `IPAddress` into `Player.IPAddress`; `Player.Connect()` in `Players.cs` uses it to open the WebSocket
 
 ### Player Phones
 

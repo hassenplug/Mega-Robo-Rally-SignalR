@@ -2,7 +2,7 @@
 name: robot-discovery
 description: >
   Writes C# code to auto-discover VEX AIM robot IP addresses on the local
-  network. Knows the RobotBases.MACID storage pattern, the WebSocket connection
+  network. Knows the RobotBases.IPAddress storage pattern, the WebSocket connection
   handshake (ws_cmd + program_init), the ws_status identity fields, and how to
   integrate discovery results back into DataService and the DB. Use for any task
   involving scanning the network for robots, mapping discovered IPs to RobotBase
@@ -23,19 +23,23 @@ tools:
 ## Goal
 
 Write a `RobotDiscoveryService` that scans the local network for VEX AIM robots,
-identifies each one, and updates `RobotBases.MACID` with the discovered IP address
+identifies each one, and updates `RobotBases.IPAddress` with the discovered IP address
 so that subsequent `ConnectToAllRobots()` calls succeed without manual IP entry.
 
 ---
 
 ## Background: How IPs Are Currently Stored
 
-`RobotBases.MACID` is a `VARCHAR` column that stores the robot's **IP address**
-(despite the column name — it was originally intended for MAC but is used for IP).
+`RobotBases.IPAddress` is a `VARCHAR` column holding the robot's IP address. It was
+called `MACID` until 2026-08-22 — the name was a leftover from Bluetooth pairing even
+though every code path used it as an IP. Renamed when the `BluetoothDongles` table was
+dropped. The table also gained `AIMName` (the label on the robot, `AIM-01`..`AIM-07`) and
+`AIMID` (its hardware identifier as a string, e.g. `AIM-328D8418`) — both of which discovery
+could populate from the `ws_status` identity fields.
 
 When players are loaded in `DataService.GetAllPlayers()`:
 ```csharp
-IPAddress = row["MACID"].ToString(),   // e.g. "192.168.1.101"
+IPAddress = row["IPAddress"].ToString(),   // e.g. "192.168.1.101"
 ```
 
 `Player.ConnectAsync()` then opens:
@@ -175,14 +179,14 @@ await Task.WhenAll(targets.Select(async ip =>
 
 ### Step 4 — Match to RobotBases and update DB
 
-After discovery, the GM assigns each found IP to a `RobotBases` row and updates `MACID`.
+After discovery, the GM assigns each found IP to a `RobotBases` row and updates `IPAddress`.
 Robots cannot self-identify, so automatic matching is not possible.
 
 The only viable approach is **GM manual assignment** — return the discovered IPs and
 let the GM assign each to a `RobotBaseID` via the API:
 ```
 GET /api/robot/discover        → returns list of { ip, robotIdentifier, rawResponse }
-GET /api/robot/assignbase/{robotBaseId}/{ip}  → UPDATE RobotBases SET MACID='{ip}' WHERE RobotBaseID={id}
+GET /api/robot/assignbase/{robotBaseId}/{ip}  → UPDATE RobotBases SET IPAddress='{ip}' WHERE RobotBaseID={id}
 ```
 
 ---
@@ -241,7 +245,7 @@ public class RobotDiscoveryService(DataService dataService)
     public void AssignBase(int robotBaseId, string ip)
     {
         _dataService.ExecuteSQL(
-            $"UPDATE RobotBases SET MACID = '{ip}' WHERE RobotBaseID = {robotBaseId}");
+            $"UPDATE RobotBases SET IPAddress = '{ip}' WHERE RobotBaseID = {robotBaseId}");
         Console.WriteLine($"[Discovery] Assigned base {robotBaseId} → {ip}");
     }
 
@@ -296,8 +300,8 @@ app.MapGet("/api/robot/assignbase/{robotBaseId:int}/{ip}",
 5. **Graceful failures**: Any exception from `ProbeAsync` (refused connection,
    timeout, malformed JSON) returns `null` — never propagates out.
 
-6. **DB column name**: The IP is stored in `RobotBases.MACID` (varchar). Use
-   `UPDATE RobotBases SET MACID = @ip WHERE RobotBaseID = @id` with parameterized
+6. **DB column name**: The IP is stored in `RobotBases.IPAddress` (varchar). Use
+   `UPDATE RobotBases SET IPAddress = @ip WHERE RobotBaseID = @id` with parameterized
    commands to avoid SQL injection on the IP string.
 
 7. **Port 80 only**: VEX AIM robots always listen on port 80. Do not scan other ports.

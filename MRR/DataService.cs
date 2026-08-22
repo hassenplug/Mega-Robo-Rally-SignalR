@@ -476,7 +476,7 @@ namespace MRR.Services
                 var players = new Players();
 
                 string strSQL = @"SELECT r.RobotID, rb.Name AS RobotName, rb.Color AS RobotColor, rb.ColorFG AS RobotColorFG,
-                       r.OperatorName, r.Password, r.PlayerSeat, rbase.MACID,
+                       r.OperatorName, r.Password, r.PlayerSeat, rbase.IPAddress,
                        so.Direction AS PlayerViewDirection
                 FROM Robots r
                 JOIN RobotBodies rb ON r.RobotBodyID = rb.RobotBodyID
@@ -496,7 +496,7 @@ namespace MRR.Services
                         Color               = row["RobotColor"].ToString() ?? "FFFFFF",
                         ForeColor           = row["RobotColorFG"].ToString() ?? "000000",
                         Password            = row["Password"]?.ToString() ?? "",
-                        IPAddress           = row["MACID"].ToString(),
+                        IPAddress           = row["IPAddress"].ToString(),
                         PlayerViewDirection = Convert.ToInt32(row["PlayerViewDirection"]),
                         AllGameCards        = GameCards
                     });

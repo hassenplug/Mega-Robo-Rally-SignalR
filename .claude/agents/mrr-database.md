@@ -312,22 +312,42 @@ ShutDown is advanced to NextState each turn in `procResetPlayers`. ShutDown=4 ze
 
 ---
 
-### RobotBases (hardware MAC mapping)
+### RobotBases (hardware address mapping)
 
-10 entries (IDs 1–10) mapping RobotBaseID to physical MAC address for Bluetooth/WebSocket pairing.
+10 entries (IDs 1–10) mapping RobotBaseID to a physical robot.
 
-| RobotBaseID | MACID |
-|---|---|
-| 1 | 00:16:53:08:BE:AA |
-| 2 | 00:16:53:0A:76:DD |
-| 3 | 00:16:53:0A:76:11 |
-| 4 | 00:16:53:08:B6:A7 |
-| 5 | 00:16:53:0A:7D:86 |
-| 6 | 00:16:53:0A:82:8D |
-| 7 | 00:16:53:08:BE:77 |
-| 8 | 00:16:53:0A:37:26 |
-| 9 | 00:16:53:0A:36:D5 |
-| 10 | 00:16:53:0A:36:67 |
+Bluetooth is gone: the `BluetoothDongles` table was dropped 2026-08-22 and `MACID` was
+renamed to **`IPAddress`** the same day — every code path already treated it as an IP
+(`Player.IPAddress`, the align endpoint). Two columns were added at the same time:
+
+| Column | Type | Meaning |
+|---|---|---|
+| `IPAddress` | varchar(25) | The robot's IP. Bases 8–10 still hold retired Bluetooth MACs. |
+| `AIMName` | varchar(20) | The label on the robot — `AIM-01` … `AIM-07`. |
+| `AIMID` | varchar(15) | The robot's hardware identifier, e.g. `AIM-328D8418`. A **string**, not a number. |
+
+Bases 1–7 were renumbered so that `RobotBaseID` = the robot number, which makes the whole
+chain line up: `RobotID N` → `RobotBaseID N` → `AIM-0N`.
+
+| RobotBaseID | IPAddress | AIMName | AIMID |
+|---|---|---|---|
+| 1 | 192.168.1.149 | AIM-01 | AIM-328D8418 |
+| 2 | 192.168.1.206 | AIM-02 | AIM-426E8118 |
+| 3 | 192.168.1.107 | AIM-03 | AIM-1AA57518 |
+| 4 | 192.168.1.215 | AIM-04 | AIM-3A8A8B18 |
+| 5 | 192.168.1.160 | AIM-05 | AIM-12598D18 |
+| 6 | `192.168.1.` | AIM-06 | `AIM-??` | 
+| 7 | 192.168.1.106 | AIM-07 | AIM-1A5E7918 |
+| 8 | 00:16:53:0A:37:26 | — | — |
+| 9 | 00:16:53:0A:36:D5 | — | — |
+| 10 | 00:16:53:0A:36:67 | — | — |
+
+Base 6 is a deliberate placeholder — that robot's address and hardware ID are not yet
+known. It is harmless: `Player.ConnectAsync()` catches the failure and logs
+`Connection failed`, leaving `isConnected` false.
+
+No C# reads `AIMName` or `AIMID` yet; they are reference data. `IPAddress` is the column
+the game actually uses, via `DataService.GetAllPlayers()` → `Player.IPAddress`.
 
 ---
 
@@ -681,7 +701,6 @@ Saved by `procCurrentPosSave()` at state 5; restored by `procCurrentPosLoad()` a
 - **PhaseCounter**: Simple lookup (IDs 1–5) used in cursor joins to iterate phase slots
 - **BoardSegmentList**: Maps board segments (XML-based modular boards) to board positions
 - **RobotCommands**: Physical command parameter lookup (Move, Turn, LED/PTO, Shutdown values)
-- **BluetoothDongles**: Two dongle MAC addresses (`00:0C:78:33:50:8E`, `00:0C:78:33:DE:E6`)
 - **GameCommandList**: Script of commands to run at game events (start, each turn, end)
 - **GameCommandTiming**: Timing categories (connection, start, each turn, each phase, end)
 - **RobotMessages**: Message strings (0=null, 1=Validate, 2=Remove Robot, 3=Next Phase, 4=Direction)
