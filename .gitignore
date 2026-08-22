@@ -1,5 +1,5 @@
-MRR/bin
-MRR/obj
+# Build output — one pattern per project, plus a catch-all for projects added later.
+bin/
+obj/
+
 install/keys
-
-

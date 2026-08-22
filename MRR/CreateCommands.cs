@@ -1156,7 +1156,7 @@ namespace MRR
                         {
                             if (Turret.OptionDirection != Direction.Up ) // if turret is not facing up, use it.  Otherwise, ignore it.
                             {
-                                canndir = RotationFunctions.GetOptionDirection(thisplayer, Turret);
+                                canndir = RotationFunctions.GetOptionDirection(thisplayer.CurrentPos.Direction, Turret);
                             }
                             else
                             {
@@ -1246,7 +1246,7 @@ namespace MRR
                                     OptionCard? Shield = OptionCards.GetOption(tOptionCardCommandType.Shield, shootPlayer);
                                     if (Shield != null)
                                     {
-                                        if (RotationFunctions.GetOptionDirection(shootPlayer, Shield,true) == canndir)
+                                        if (RotationFunctions.GetOptionDirection(shootPlayer.CurrentPos.Direction, Shield,true) == canndir)
                                         {
                                             if (realdamage > 0)
                                             {
@@ -1266,7 +1266,7 @@ namespace MRR
                                     OptionCard? reflector = OptionCards.GetOption(tOptionCardCommandType.Reflector, shootPlayer);
                                     if (reflector != null)
                                     {
-                                        if (RotationFunctions.GetOptionDirection(shootPlayer, reflector, true ) == canndir)
+                                        if (RotationFunctions.GetOptionDirection(shootPlayer.CurrentPos.Direction, reflector, true ) == canndir)
                                         {
                                             // return fire
                                             ListOfCommands.AddCommand(shootPlayer, reflector);

@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Shared domain models and DTOs. Deliberately has NO package references:
+       no MySqlConnector, no EntityFrameworkCore, no ASP.NET. Anything that needs
+       a database or a socket belongs in MRR (the host), not here.
+       Namespace stays "MRR" so moving a type into this project is not a breaking
+       change for consumers. See API_DECOMPOSITION_DESIGN.md section 3.2. -->
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>MRR</RootNamespace>
+  </PropertyGroup>
+
+</Project>
