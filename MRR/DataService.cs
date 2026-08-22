@@ -84,8 +84,6 @@ namespace MRR.Services
             }
         }
 
-        public int RulesVersion { get; set; }
-
         public int PhaseCount { get; set; }
 
         public CommandList ListOfCommands { get; set; } = new CommandList();
@@ -858,7 +856,6 @@ namespace MRR.Services
                             if (row[3] != System.DBNull.Value) BoardFileName = row[3].ToString() ?? "";
                             break;
                         case 22: OptionsOnStartup = value; break;
-                        case 27: RulesVersion = value; break;
                     }
                 }
             }
@@ -1238,21 +1235,16 @@ namespace MRR.Services
         /// <summary>
         /// C# equivalent of procMoveCardsShuffleAndDeal.
         /// Shuffles and deals move cards to each active player at the start of a turn.
-        /// Behaviour varies by RulesVersion and PhaseCount:
-        ///   PhaseCount=1  — single-phase (10-Turn) mode: rotate priorities then assign
-        ///                   cards to players by priority slot.
-        ///   RulesVersion=1 — Renegade rules: discard played Spam cards, move hand/played
-        ///                   cards to discard, shuffle with DealPriority weighting, refill
-        ///                   deck from discard if a player has fewer than 9 cards, deal 9
-        ///                   cards and update Robots.CardsDealt / CardsPlayed strings.
-        ///   RulesVersion=0 — Classic rules: deal (9 - Damage + ExtraMemoryOption) cards
-        ///                   per robot, respecting locked registers, then call
-        ///                   MoveCardsCheckProgrammed to update robot Status values.
+        /// Behaviour varies by PhaseCount:
+        ///   PhaseCount=1 — single-phase (10-Turn) mode: rotate priorities then assign
+        ///                  cards to players by priority slot.
+        ///   otherwise    — Renegade rules: discard played Spam cards, move hand/played
+        ///                  cards to discard, shuffle with DealPriority weighting, refill
+        ///                  deck from discard if a player has fewer than 9 cards, deal 9
+        ///                  cards and update Robots.CardsDealt / CardsPlayed strings.
         /// </summary>
         public void MoveCardsShuffleAndDeal()
         {
-            int rulesVersion = GetIntFromDB(
-                "SELECT iValue FROM CurrentGameData WHERE sKey = 'RulesVersion'");
             int phaseCount = GetIntFromDB(
                 "SELECT iValue FROM CurrentGameData WHERE sKey = 'PhaseCount'");
 
@@ -1295,7 +1287,7 @@ namespace MRR.Services
                     cmd.ExecuteNonQuery();
                 }
             }
-            else if (rulesVersion == 1)
+            else
             {
                 // Renegade rules.
 
@@ -1385,236 +1377,6 @@ namespace MRR.Services
                 }
 
                 UpdatePlayerPriority(connection);
-            }
-            else
-            {
-                // Classic rules (RulesVersion=0).
-
-                // Load all active robots (Programming=1) with their Damage values.
-                var activeRobots = new List<(int robotID, int damage)>();
-                using (var cmd = new MySqlCommand(
-                    "SELECT Robots.Damage, Robots.RobotID " +
-                    "FROM Robots " +
-                    "INNER JOIN RobotStatus ON Robots.`Status` = RobotStatus.RobotStatusID " +
-                    "WHERE RobotStatus.Programming = 1",
-                    connection))
-                using (var reader = cmd.ExecuteReader())
-                {
-                    while (reader.Read())
-                    {
-                        activeRobots.Add((reader.GetInt32(1), reader.GetInt32(0)));
-                    }
-                }
-
-                // First pass: handle locked registers for robots with damage > 4.
-                foreach (var (robotID, damage) in activeRobots)
-                {
-                    int lastLockedCard;
-                    if (damage > 4)
-                    {
-                        lastLockedCard = 10 - damage;
-
-                        // Check that the robot has enough cards; fill from unowned pool if short.
-                        int cardCount = GetIntFromDB(
-                            $"SELECT COUNT(CardID) FROM MoveCards WHERE `Owner` = {robotID}");
-                        if (cardCount < 5)
-                        {
-                            using var fillCmd = new MySqlCommand(
-                                $"UPDATE MoveCards SET `Owner` = {robotID}, Random = 1 " +
-                                $"WHERE `Owner` = -1 ORDER BY CurrentOrder, CardID LIMIT 5",
-                                connection);
-                            fillCmd.ExecuteNonQuery();
-
-                            // Auto-fill empty program registers.
-                            GameFillPrograms(connection);
-                        }
-                    }
-                    else
-                    {
-                        lastLockedCard = 6;
-                    }
-
-                    // Lock any cards that were played in registers >= lastLockedCard.
-                    using var lockCmd = new MySqlCommand(
-                        $"UPDATE MoveCards SET `Locked` = 1 " +
-                        $"WHERE `Owner` = {robotID} AND PhasePlayed >= {lastLockedCard} AND PhasePlayed < 6",
-                        connection);
-                    lockCmd.ExecuteNonQuery();
-                }
-
-                // Return all unlocked, non-programmed cards to the unowned pool
-                // with a fresh random shuffle order.
-                using (var cmd = new MySqlCommand(
-                    "UPDATE MoveCards " +
-                    "SET CurrentOrder = ROUND(500.0 * RAND()), `Owner` = -1, PhasePlayed = -1, Random = 0 " +
-                    "WHERE `Locked` = 0 AND PhasePlayed < 6",
-                    connection))
-                {
-                    cmd.ExecuteNonQuery();
-                }
-
-                // Second pass: deal cards to each active robot.
-                foreach (var (robotID, damage) in activeRobots)
-                {
-                    // Extra Memory option (OptionID=16) adds 1 to card count.
-                    int optionCards = GetIntFromDB(
-                        $"SELECT IFNULL(SUM(Quantity), 0) FROM RobotOptions " +
-                        $"WHERE RobotID = {robotID} AND OptionID = 16");
-
-                    int newCardCount = 9 - damage + optionCards;
-
-                    while (newCardCount > 0)
-                    {
-                        using var dealCmd = new MySqlCommand(
-                            $"UPDATE MoveCards SET `Owner` = {robotID} " +
-                            $"WHERE `Owner` = -1 ORDER BY CurrentOrder, CardID LIMIT 1",
-                            connection);
-                        dealCmd.ExecuteNonQuery();
-                        newCardCount--;
-                    }
-                }
-
-                // Update robot Status values based on programming state.
-                MoveCardsCheckProgrammed(connection);
-            }
-        }
-
-        /// <summary>
-        /// C# equivalent of procGameFillPrograms.
-        /// Auto-fills empty program registers for all robots using their unplayed cards.
-        /// Used only in classic (RulesVersion=0) mode when a robot has too few cards.
-        /// Accepts an existing open connection.
-        /// </summary>
-        private void GameFillPrograms(MySqlConnection connection)
-        {
-            // Iterate until no more empty robot/phase slots exist
-            int counter = 0;
-            while (counter < 300)
-            {
-                counter++;
-                int tRobot = 0, tPhase = 0;
-                using (var cmd = new MySqlCommand(
-                    "SELECT AllRobotPhases.RobotID, AllRobotPhases.PhaseID " +
-                    "FROM MoveCards RIGHT JOIN " +
-                    "  (SELECT Robots.RobotID, PhaseCounter.ID AS PhaseID " +
-                    "   FROM PhaseCounter, Robots) AS AllRobotPhases " +
-                    "ON MoveCards.PhasePlayed = AllRobotPhases.PhaseID " +
-                    "   AND MoveCards.Owner = AllRobotPhases.RobotID " +
-                    "WHERE MoveCards.CardID IS NULL LIMIT 1",
-                    connection))
-                using (var reader = cmd.ExecuteReader())
-                {
-                    if (!reader.Read()) break;
-                    tRobot = reader.GetInt32(0);
-                    tPhase = reader.GetInt32(1);
-                }
-
-                // Find next available card for this robot
-                int tCard = 0;
-                using (var cmd = new MySqlCommand(
-                    "SELECT CardID FROM MoveCards WHERE Owner = @robot AND PhasePlayed = -1 " +
-                    "ORDER BY CurrentOrder, CardID LIMIT 1",
-                    connection))
-                {
-                    cmd.Parameters.AddWithValue("@robot", tRobot);
-                    var res = cmd.ExecuteScalar();
-                    if (res == null || res == DBNull.Value) break;
-                    tCard = Convert.ToInt32(res);
-                }
-
-                using (var cmd = new MySqlCommand(
-                    "UPDATE MoveCards SET PhasePlayed = @phase, Random = 1 WHERE CardID = @card",
-                    connection))
-                {
-                    cmd.Parameters.AddWithValue("@phase", tPhase);
-                    cmd.Parameters.AddWithValue("@card", tCard);
-                    int rows = cmd.ExecuteNonQuery();
-                    if (rows == 0) break;
-                }
-            }
-
-            MoveCardsCheckProgrammed(connection);
-        }
-
-        /// <summary>
-        /// C# equivalent of procMoveCardsCheckProgrammed.
-        /// Reads each active robot's card counts and updates their Status:
-        ///   1 = Waiting for Cards (fewer than 5 cards)
-        ///   4 = Ready to Run (all PhaseCount registers filled)
-        ///   3 = Programming (some registers filled beyond locked count)
-        ///   2 = Ready to Program (no progress yet)
-        /// Uses an existing open connection so it can be called within a transaction
-        /// or alongside other commands without opening a second connection.
-        /// </summary>
-        public void MoveCardsCheckProgrammed(MySqlConnection? connection = null)
-        {
-            bool ownConnection = connection == null;
-            if (ownConnection)
-            {
-                connection = new MySqlConnection(_connectionString);
-                connection.Open();
-            }
-
-            try
-            {
-                int requiredCards = GetIntFromDB(
-                    "SELECT iValue FROM CurrentGameData WHERE sKey = 'PhaseCount'");
-
-                // Collect per-robot card statistics for all actively-programming robots.
-                var robotStats = new List<(int cards, int programmed, int locked, int robotID, int currentStatus)>();
-                using (var cmd = new MySqlCommand(
-                    "SELECT COUNT(CardID) AS countCards, " +
-                    "  SUM(IF(MoveCards.PhasePlayed > 0 AND MoveCards.PhasePlayed < 6, 1, 0)) AS countProgrammed, " +
-                    "  SUM(IF(MoveCards.Locked > 0, 1, 0)) AS countLocked, " +
-                    "  Robots.RobotID AS rID, " +
-                    "  Robots.`Status` AS CurrentStatus " +
-                    "FROM Robots " +
-                    "INNER JOIN RobotStatus ON Robots.`Status` = RobotStatus.RobotStatusID " +
-                    "INNER JOIN MoveCards ON Robots.RobotID = MoveCards.`Owner` " +
-                    "WHERE RobotStatus.Programming = 1 " +
-                    "GROUP BY rID, CurrentStatus",
-                    connection!))
-                using (var reader = cmd.ExecuteReader())
-                {
-                    while (reader.Read())
-                    {
-                        robotStats.Add((
-                            reader.GetInt32(0),
-                            reader.IsDBNull(1) ? 0 : reader.GetInt32(1),
-                            reader.IsDBNull(2) ? 0 : reader.GetInt32(2),
-                            reader.GetInt32(3),
-                            reader.GetInt32(4)
-                        ));
-                    }
-                }
-
-                foreach (var (cards, programmed, locked, robotID, currentStatus) in robotStats)
-                {
-                    int newStatus;
-                    if (cards < 5)
-                        newStatus = 1;
-                    else if (programmed == requiredCards)
-                        newStatus = 4;
-                    else if (programmed > locked)
-                        newStatus = 3;
-                    else
-                        newStatus = 2;
-
-                    if (newStatus != currentStatus)
-                    {
-                        using var updateCmd = new MySqlCommand(
-                            $"UPDATE Robots SET `Status` = {newStatus} WHERE RobotID = {robotID}",
-                            connection!);
-                        updateCmd.ExecuteNonQuery();
-                    }
-                }
-            }
-            finally
-            {
-                if (ownConnection)
-                {
-                    connection!.Dispose();
-                }
             }
         }
 
@@ -1786,41 +1548,19 @@ namespace MRR.Services
 
         // =====================================================================
         // procGameNewAddCards — C# equivalent
-        // Creates the MoveCards deck for a new game based on player count,
-        // PhaseCount, and RulesVersion.
+        // Creates the MoveCards deck for a new game. Renegade always uses deck set 4,
+        // with each robot getting its own copy; player count and PhaseCount no longer
+        // select a set (they only did so under the removed Classic rules).
         // =====================================================================
         public void GameNewAddCards()
         {
-            int playerCount = GetIntFromDB("SELECT COUNT(*) FROM Robots");
-            int phaseCount  = GetIntFromDB("SELECT iValue FROM CurrentGameData WHERE sKey='PhaseCount'");
-            int rulesVersion = GetIntFromDB("SELECT iValue FROM CurrentGameData WHERE sKey='RulesVersion'");
-
-            int setID;
-            if (phaseCount == 1)
-                setID = 3;
-            else if (playerCount > 8)
-                setID = 2;
-            else
-                setID = 1;
-
             ExecuteSQL("DELETE FROM MoveCards");
 
-            if (rulesVersion == 1)
-            {
-                setID = 4;
-                // Each robot gets its own copy of the deck (Owner = RobotID)
-                ExecuteSQL(
-                    $"INSERT INTO MoveCards (CardID, CardTypeID, `Owner`, CardLocation) " +
-                    $"SELECT CardID, CardTypeID, Robots.RobotID, 0 " +
-                    $"FROM MoveCardsCompleteList, Robots WHERE SetID = {setID}");
-            }
-            else
-            {
-                // Classic: unowned pool (Owner = -1 default)
-                ExecuteSQL(
-                    $"INSERT INTO MoveCards (CardID, CardTypeID) " +
-                    $"SELECT CardID, CardTypeID FROM MoveCardsCompleteList WHERE SetID = {setID}");
-            }
+            // Each robot gets its own copy of the deck (Owner = RobotID)
+            ExecuteSQL(
+                "INSERT INTO MoveCards (CardID, CardTypeID, `Owner`, CardLocation) " +
+                "SELECT CardID, CardTypeID, Robots.RobotID, 0 " +
+                "FROM MoveCardsCompleteList, Robots WHERE SetID = 4");
         }
 
         // =====================================================================
@@ -2298,36 +2038,6 @@ namespace MRR.Services
                 cmd.Parameters.AddWithValue("@id", robotID);
                 cmd.ExecuteNonQuery();
             }
-        }
-
-        // =====================================================================
-        // Robots_BEFORE_UPDATE trigger logic — applied inline before any
-        // UPDATE Robots SET ... that touches Damage, ShutDown, or Status.
-        // Call this on a Player object before writing to DB to get corrected values.
-        // =====================================================================
-        /// <summary>
-        /// Applies Robots_BEFORE_UPDATE trigger rules to a player's pending values.
-        /// Call before issuing an UPDATE Robots SET Damage/ShutDown/Status.
-        /// Returns (damage, shutDown, status) after trigger rules are applied.
-        /// </summary>
-        public static (int damage, int shutDown, int status) ApplyRobotBeforeUpdateRules(
-            int damage, int shutDown, int status)
-        {
-            if (damage > 9)
-            {
-                status   = 11; // Dead
-                shutDown = 0;
-            }
-            if (shutDown == 4)
-            {
-                damage   = 0;
-                shutDown = 2;
-            }
-            if (shutDown == 2)
-            {
-                status = 9; // Shut Down
-            }
-            return (damage, shutDown, status);
         }
 
         public void BoardFileRead(string p_Filename)

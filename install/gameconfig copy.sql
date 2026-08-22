@@ -6,7 +6,6 @@ use rally;
 Update GameData set BoardID=85,PlayerListID=2 where GameDataID=2;
 
 #update CurrentGameData set iValue = 2 where sKey='GameDataID';
-update CurrentGameData set iValue = 1 where sKey='RulesVersion';
 #update CurrentGameData set iValue = 0 where sKey='GameState';
 
 Select * from OperatorData;

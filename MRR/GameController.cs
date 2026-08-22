@@ -154,7 +154,6 @@ namespace MRR.Controller
                 "    WHEN 'BoardID'      THEN GameData.BoardID " +
                 "    WHEN 'OptionCount'  THEN GameData.OptionCount " +
                 "    WHEN 'PlayerListID' THEN GameData.PlayerListID " +
-                "    WHEN 'RulesVersion' THEN GameData.RulesVersion " +
                 "    ELSE CurrentGameData.iValue " +
                 "  END;");
             //_dataService.ExecuteSQL("call procResetGame();");

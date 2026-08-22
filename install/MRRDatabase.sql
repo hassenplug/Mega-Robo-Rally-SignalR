@@ -33,7 +33,7 @@ CREATE TABLE `BluetoothDongles` (
   PRIMARY KEY (`DongleID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
--- GameTypes (referenced by Boards, CurrentGameData trigger)
+-- GameTypes (lookup for Boards.GameType and CurrentGameData.sValue)
 DROP TABLE IF EXISTS `GameTypes`;
 CREATE TABLE `GameTypes` (
   `GameType` int(11) NOT NULL,
@@ -44,7 +44,7 @@ CREATE TABLE `GameTypes` (
   PRIMARY KEY (`GameType`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
--- GameState (referenced by CurrentGameData trigger)
+-- GameState (lookup for the CurrentGameData GameState row's sValue)
 DROP TABLE IF EXISTS `GameState`;
 CREATE TABLE `GameState` (
   `GameStateID` int(11) NOT NULL,
@@ -58,7 +58,7 @@ CREATE TABLE `GameState` (
   PRIMARY KEY (`GameStateID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
--- Boards (referenced by BoardItems, BoardItemActions, CurrentGameData trigger)
+-- Boards (referenced by BoardItems, BoardItemActions; lookup for CurrentGameData.sValue)
 DROP TABLE IF EXISTS `Boards`;
 CREATE TABLE `Boards` (
   `BoardID` int(11) NOT NULL,
@@ -283,7 +283,6 @@ CREATE TABLE `GameData` (
   `OptionCount` int(11) DEFAULT -1,
   `BoardID` int(11) DEFAULT 0,
   `PlayerListID` int(11) DEFAULT 1,
-  `RulesVersion` int(11) DEFAULT 1,
   PRIMARY KEY (`GameDataID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
@@ -701,7 +700,6 @@ INSERT INTO `CurrentGameData` VALUES
 ('ProgramsReady',0,NULL,'Status',11),
 ('RobotsActive',1,NULL,'Toggle',8),
 ('RobotsReady',0,NULL,'Status',12),
-('RulesVersion',1,NULL,'Config',27),
 ('SubCommand',0,NULL,'x',5),
 ('TotalFlags',2,NULL,'Game',7),
 ('Turn',1,NULL,'Status',2);

@@ -3,7 +3,6 @@ use rally;
 #preset parameters
 Update GameData set BoardID=85,PlayerListID=2 where GameDataID=2;
 
-update CurrentGameData set iValue = 1 where sKey='RulesVersion';
 
 #Start Game
 call procGameStart(2);  #start game #2

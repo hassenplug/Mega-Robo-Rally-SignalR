@@ -552,7 +552,7 @@ app.MapGet("/api/boardeditor/gamedata", (DataService dataService) =>
 {
     var data = dataService.GetQueryResultsJson(
         "SELECT GameDataID, Description, GameCode, BoardID, GameType, TotalFlags, LaserDamage, " +
-        "PhaseCount, BoardCols, BoardRows, OptionCount, PlayerListID, RulesVersion " +
+        "PhaseCount, BoardCols, BoardRows, OptionCount, PlayerListID " +
         "FROM GameData ORDER BY GameDataID;",
         "gameData");
     return Results.Content(data, "application/json");
@@ -587,7 +587,7 @@ app.MapPut("/api/boardeditor/gamedata/{gameDataId:int}", async (int gameDataId, 
 
         var result = dataService.GetQueryResultsJson(
             $"SELECT GameDataID, Description, GameCode, BoardID, GameType, TotalFlags, LaserDamage, " +
-            $"PhaseCount, BoardCols, BoardRows, OptionCount, PlayerListID, RulesVersion " +
+            $"PhaseCount, BoardCols, BoardRows, OptionCount, PlayerListID " +
             $"FROM GameData WHERE GameDataID={gameDataId};",
             "gameData");
         return Results.Content(result, "application/json");

@@ -499,8 +499,7 @@ async function loadBoard(boardId) {
             y: data.y,
             laserDamage: data.laserDamage,
             phaseCount: data.phaseCount,
-            gameType: data.gameType,
-            rulesVersion: data.rulesVersion
+            gameType: data.gameType
         };
         document.getElementById('boardName').value = data.boardName;
         document.getElementById('boardW').value = data.x;
@@ -1083,8 +1082,7 @@ async function newBoard() {
         y: parseInt(document.getElementById('boardH').value),
         laserDamage: parseInt(document.getElementById('laserDamage').value),
         phaseCount: parseInt(document.getElementById('phaseCount').value),
-        gameType: 0,
-        rulesVersion: 1
+        gameType: 0
     };
 
     try {
@@ -1139,7 +1137,6 @@ async function saveBoard() {
         laserDamage: parseInt(document.getElementById('laserDamage').value),
         phaseCount: parseInt(document.getElementById('phaseCount').value),
         gameType: currentBoard.gameType || 0,
-        rulesVersion: currentBoard.rulesVersion || 1,
         squares
     };
 
@@ -1223,7 +1220,7 @@ const GD_LABELS = {
     BoardID: 'Board ID', GameType: 'Game Type', TotalFlags: 'Total Flags',
     LaserDamage: 'Laser Damage', PhaseCount: 'Phase Count',
     BoardCols: 'Board Cols', BoardRows: 'Board Rows',
-    RulesVersion: 'Rules Version', PlayerListID: 'Player List ID',
+    PlayerListID: 'Player List ID',
     OptionCount: 'Option Count'
 };
 
@@ -1242,7 +1239,7 @@ function renderGameDataDetails() {
     if (!gd) { el.innerHTML = ''; return; }
 
     const fields = ['BoardID','GameType','TotalFlags','LaserDamage','PhaseCount',
-                    'BoardCols','BoardRows','RulesVersion','PlayerListID','OptionCount'];
+                    'BoardCols','BoardRows','PlayerListID','OptionCount'];
     let rows = '';
     for (const f of fields) {
         rows += `<tr><td style="color:#888;padding:2px 4px;font-size:11px">${GD_LABELS[f]}</td>` +
