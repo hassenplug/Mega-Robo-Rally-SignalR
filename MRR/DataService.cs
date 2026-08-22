@@ -1006,8 +1006,10 @@ namespace MRR.Services
             int cCol        = p_Command.PositionCol;
             int cDir        = p_Command.PositionDir;
             // Resolve explicitly rather than relying on CommandItem.Robot having been
-            // attached by whoever loaded this command.
-            Player? robot = p_Command.Robot ?? AllPlayers.GetPlayer(p => p.ID == cRobotID);
+            // attached by whoever loaded this command. PlayerState, not Player: this method
+            // only ever reads and writes game state (damage, flags, position, status), never
+            // the robot transport.
+            PlayerState? robot = p_Command.Robot ?? AllPlayers.GetPlayer(p => p.ID == cRobotID);
 
             if (p_NewStatus == -1)
                 p_NewStatus = 6; // command complete

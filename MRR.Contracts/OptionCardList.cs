@@ -35,7 +35,7 @@ namespace MRR
             }
         }
 
-        public void ClearFromPlayer(OptionCard removeCard, Player? fromPlayer)
+        public void ClearFromPlayer(OptionCard removeCard, PlayerState? fromPlayer)
         {
             //RRGame maingame = fromPlayer.MainGame;
             // need to clear from whole list, not from player list..
@@ -44,7 +44,7 @@ namespace MRR
 
         }
 
-        public OptionCard? GetOption(tOptionCardCommandType OptionID, Player usePlayer, int Phase = -1)
+        public OptionCard? GetOption(tOptionCardCommandType OptionID, PlayerState usePlayer, int Phase = -1)
         {
             //OptionCard useCard = this.FirstOrDefault(uc => uc.ID == (int)OptionID);  // return that card
             OptionCard? useCard = this.FirstOrDefault(uc => (uc.ID == (int)OptionID) && (uc.Owner==usePlayer.ID));  // return that card
@@ -86,7 +86,7 @@ namespace MRR
             }
         }
 
-        public OptionCard? GetOptionToDestroy(Player Player)
+        public OptionCard? GetOptionToDestroy(PlayerState Player)
         {
             OptionCard? useCard = this.FirstOrDefault(uc => uc.Owner == Player.ID && uc.DestroyWhenDamaged);
             //OptionCard useCard = this[OptionID];

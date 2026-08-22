@@ -30,7 +30,7 @@ namespace MRR
             Phase = 0;
         }
 
-        public CommandItem AddCommand(CommandItem p_InsertBefore, Player p_Player, SquareAction p_Action, tCommandSequence p_Sequence)
+        public CommandItem AddCommand(CommandItem p_InsertBefore, PlayerState p_Player, SquareAction p_Action, tCommandSequence p_Sequence)
         {
             // insert turning if this move is a turn... (turn "insert before" move)  (or do it at end of phase generation)
 
@@ -45,14 +45,14 @@ namespace MRR
             return newCommand;
         }
 
-        public CommandItem AddCommand(Player? p_Player, SquareAction p_Action, int p_Value = 0, int p_ValueB = 0)
+        public CommandItem AddCommand(PlayerState? p_Player, SquareAction p_Action, int p_Value = 0, int p_ValueB = 0)
         {
             Direction holddir = Direction.None;
             if (p_Player != null) holddir = p_Player.CurrentPos.Direction;
             return AddCommand(p_Player, p_Value, p_ValueB, holddir, p_Action);
         }
 
-        public CommandItem? AddCommand(Player? p_Player, OptionCard? p_OptionCard, SquareAction p_action = SquareAction.PlayOptionCard)
+        public CommandItem? AddCommand(PlayerState? p_Player, OptionCard? p_OptionCard, SquareAction p_action = SquareAction.PlayOptionCard)
         {
             if (p_OptionCard == null) return null;
             switch (p_action)
@@ -67,7 +67,7 @@ namespace MRR
 
         }
 
-        public CommandItem AddCommand(Player p_Player, tOptionCardCommandType p_OptionCardType)
+        public CommandItem AddCommand(PlayerState p_Player, tOptionCardCommandType p_OptionCardType)
         {
             return AddCommand(p_Player, SquareAction.PlayOptionCard, (int)p_OptionCardType);
         }
@@ -80,7 +80,7 @@ namespace MRR
         /// <param name="p_Direction"></param>
         /// <param name="p_Action"></param>
         /// <returns></returns>
-        public CommandItem AddCommand(Player? p_Player, int p_Value, int p_ValueB, Direction p_Direction, SquareAction p_Action)
+        public CommandItem AddCommand(PlayerState? p_Player, int p_Value, int p_ValueB, Direction p_Direction, SquareAction p_Action)
         {
             CommandItem newCommand = new CommandItem(Phase, PhaseStep, p_Player, p_Value, p_ValueB, p_Direction, p_Action);
             this.Add(newCommand);
@@ -102,7 +102,7 @@ namespace MRR
             return newCommand;
         }
 
-        public CommandItem AddCommand(string p_buttonText, Player? p_Robot = null)
+        public CommandItem AddCommand(string p_buttonText, PlayerState? p_Robot = null)
         {
             CommandItem newCommand = new CommandItem(Phase, PhaseStep, p_Robot, 0, 0, Direction.None, SquareAction.SetButtonText);
             newCommand.text = p_buttonText;
@@ -117,7 +117,7 @@ namespace MRR
 //            return AddCommand(null, SquareAction.PhaseStart, p_NewPhase);
 //        }
 
-        public CommandItem SetEnergy(Player p_player, int newEnergy)
+        public CommandItem SetEnergy(PlayerState p_player, int newEnergy)
         {
             p_player.Energy=newEnergy;
             return AddCommand(p_player, SquareAction.SetEnergy, p_player.Energy);
@@ -151,7 +151,7 @@ namespace MRR
         }
 
 
-        //public CommandItem(int p_Phase, int p_PhaseStep, Player p_Robot, int p_Value, SquareAction p_Type)
+        //public CommandItem(int p_Phase, int p_PhaseStep, PlayerState p_Robot, int p_Value, SquareAction p_Type)
         //    :this(p_Phase, p_PhaseStep,2, p_Robot, p_Value, Direction.None, p_Type)
         //{
         //}
@@ -166,7 +166,7 @@ namespace MRR
         /// <param name="p_Value"></param>
         /// <param name="p_Direction"></param>
         /// <param name="p_Type"></param>
-        public CommandItem(int p_Phase, int p_PhaseStep, Player? p_Robot, int p_Value, int p_ValueB, Direction p_Direction, SquareAction p_Type) //, RRGame p_mainGame)
+        public CommandItem(int p_Phase, int p_PhaseStep, PlayerState? p_Robot, int p_Value, int p_ValueB, Direction p_Direction, SquareAction p_Type) //, RRGame p_mainGame)
         {
             Phase = p_Phase;
             PhaseStep = p_PhaseStep;
@@ -196,7 +196,7 @@ namespace MRR
             }
             else
             {
-                Robot = new Player();
+                Robot = new PlayerState();
                 //RobotID = 0;
                 StartPos = new RobotLocation();
                 EndPos = new RobotLocation();
@@ -210,7 +210,7 @@ namespace MRR
         public int CommandID { get; set; }
         public int Turn { get; set; }
 
-        private Player? _Robot;
+        private PlayerState? _Robot;
         /// <summary>
         /// The robot this command belongs to, or null if it has not been attached.
         ///
@@ -222,7 +222,7 @@ namespace MRR
         /// the persisted source of truth.
         /// </summary>
         [NotMapped]
-        public Player? Robot {
+        public PlayerState? Robot {
             get { return _Robot; }
             set
             {
