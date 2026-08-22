@@ -1,19 +1,38 @@
 #!/bin/bash
-# mrr-health-check - liveness probe for mrr-server.service, run by mrr-health.timer.
+# mrr-health-check <game|config> - liveness probe, run by mrr-health.timer.
 #
 # Covers the case systemd cannot see: the process is alive but no longer serving.
 # Restarts only after MRR_HEALTH_STRIKES consecutive failures, and never touches a
 # unit that is stopped, paused (frozen), or still inside its startup grace period.
+#
+# Each role keeps its OWN strike file. A shared counter would let failures of one host
+# accumulate strikes that then restart the other -- an editor problem must never restart
+# the game. See PROCESS_MANAGER.md section 10.1.
 set -uo pipefail
 
 [ -r /etc/default/mrr ] && . /etc/default/mrr
 
-UNIT=mrr-server.service
-URL="${MRR_HEALTH_URL:-http://127.0.0.1:5000/index.html}"
+ROLE="${1:-game}"
+
+case "$ROLE" in
+    game)
+        UNIT=mrr-server.service
+        URL="${MRR_GAME_HEALTH_URL:-${MRR_HEALTH_URL:-http://127.0.0.1:5000/api/health}}"
+        ;;
+    config)
+        UNIT=mrr-config.service
+        URL="${MRR_CONFIG_HEALTH_URL:-http://127.0.0.1:5001/api/health}"
+        ;;
+    *)
+        echo "health-check: unknown role '$ROLE' (expected 'game' or 'config')" >&2
+        exit 2
+        ;;
+esac
+
 TIMEOUT="${MRR_HEALTH_TIMEOUT:-5}"
 MAX_STRIKES="${MRR_HEALTH_STRIKES:-3}"
 GRACE="${MRR_HEALTH_GRACE:-60}"
-STRIKE_FILE=/run/mrr/health.strikes
+STRIKE_FILE="/run/mrr/health.${ROLE}.strikes"
 
 mkdir -p /run/mrr
 
@@ -39,7 +58,7 @@ if [[ "$entered" =~ ^[0-9]+$ ]] && [ "$entered" -gt 0 ]; then
     now=$(awk '{printf "%d", $1 * 1000000}' /proc/uptime)
     age=$(( (now - entered) / 1000000 ))
     if [ "$age" -lt "$GRACE" ]; then
-        echo "skip: only ${age}s since start (grace ${GRACE}s)"
+        echo "skip: $UNIT only ${age}s since start (grace ${GRACE}s)"
         exit 0
     fi
 fi
@@ -53,7 +72,7 @@ strikes=$(cat "$STRIKE_FILE" 2>/dev/null || echo 0)
 [[ "$strikes" =~ ^[0-9]+$ ]] || strikes=0
 strikes=$(( strikes + 1 ))
 echo "$strikes" > "$STRIKE_FILE"
-echo "health probe failed (${strikes}/${MAX_STRIKES}): $URL"
+echo "health probe failed for $UNIT (${strikes}/${MAX_STRIKES}): $URL"
 
 if [ "$strikes" -ge "$MAX_STRIKES" ]; then
     echo "restarting $UNIT after ${strikes} consecutive failed probes"

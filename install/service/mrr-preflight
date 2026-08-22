@@ -1,36 +1,57 @@
 #!/bin/bash
-# mrr-preflight - start gate for mrr-server.service (ExecStartPre).
+# mrr-preflight <game|config> - start gate, run as ExecStartPre.
 # Exits non-zero with a specific reason so the journal names the blocker instead of
 # leaving a bare .NET stack trace. systemd retries every RestartSec until it passes.
 set -uo pipefail
 
 [ -r /etc/default/mrr ] && . /etc/default/mrr
 
-APP_DIR="${MRR_APP_DIR:-/srv/mrr/app}"
-APP_DLL="$APP_DIR/MRR.dll"
+ROLE="${1:-game}"
+
+case "$ROLE" in
+    game)
+        APP_DIR="${MRR_GAME_APP_DIR:-${MRR_APP_DIR:-/srv/mrr/game}}"
+        APP_DLL="$APP_DIR/MRR.dll"
+        PORT="${MRR_GAME_PORT:-${MRR_PORT:-5000}}"
+        NEEDS_SPI=yes
+        ;;
+    config)
+        APP_DIR="${MRR_CONFIG_APP_DIR:-/srv/mrr/config}"
+        APP_DLL="$APP_DIR/MRR.Config.dll"
+        PORT="${MRR_CONFIG_PORT:-5001}"
+        # The authoring host never touches the LEDs, so it must not be gated on SPI.
+        NEEDS_SPI=no
+        ;;
+    *)
+        echo "preflight FAILED: unknown role '$ROLE' (expected 'game' or 'config')" >&2
+        exit 2
+        ;;
+esac
+
 DB_HOST="${MRR_DB_HOST:-mrobopi}"
 DB_PORT="${MRR_DB_PORT:-3306}"
-PORT="${MRR_PORT:-5000}"
 
-fail() { echo "preflight FAILED: $*" >&2; exit 1; }
+fail() { echo "preflight[$ROLE] FAILED: $*" >&2; exit 1; }
 
 # 1. Is the app actually deployed?
-[ -f "$APP_DLL" ] || fail "$APP_DLL not found - run 'mrrctl deploy'"
+[ -f "$APP_DLL" ] || fail "$APP_DLL not found - run 'mrrctl deploy $ROLE'"
 
-# 2. SPI. Communication() builds LEDs -> Ws2812b.Update() during startup; a missing
-#    or unreadable /dev/spidev0.0 kills the app before Kestrel ever listens.
-[ -e /dev/spidev0.0 ] || fail "/dev/spidev0.0 missing - add 'dtparam=spi=on' to /boot/firmware/config.txt (reboot), or load it now with: sudo dtoverlay spi0-2cs"
-[ -r /dev/spidev0.0 ] || fail "/dev/spidev0.0 not readable by $(id -un) - add the user to the 'spi' group"
+# 2. SPI, game host only. Communication() builds LEDs -> Ws2812b.Update() during startup;
+#    a missing or unreadable /dev/spidev0.0 kills the app before Kestrel ever listens.
+if [ "$NEEDS_SPI" = yes ]; then
+    [ -e /dev/spidev0.0 ] || fail "/dev/spidev0.0 missing - add 'dtparam=spi=on' to /boot/firmware/config.txt (reboot), or load it now with: sudo dtoverlay spi0-2cs"
+    [ -r /dev/spidev0.0 ] || fail "/dev/spidev0.0 not readable by $(id -un) - add the user to the 'spi' group"
+fi
 
 # 3. Database. mariadb.service being "active" does not mean it accepts connections yet,
-#    which is exactly the race at boot.
+#    which is exactly the race at boot. Both roles need it.
 if ! timeout 3 bash -c "exec 3<>/dev/tcp/${DB_HOST}/${DB_PORT}" 2>/dev/null; then
     fail "MariaDB not answering at ${DB_HOST}:${DB_PORT} - check 'systemctl status mariadb'"
 fi
 
-# 4. Port. Catches a hand-started 'dotnet run' still holding 5000.
+# 4. Port. Catches a hand-started 'dotnet run' still holding the port.
 if ss -ltnH "sport = :${PORT}" 2>/dev/null | grep -q .; then
-    fail "TCP ${PORT} already in use - another MRR instance is running (e.g. 'dotnet run' in a VS Code terminal)"
+    fail "TCP ${PORT} already in use - another instance is running (e.g. 'dotnet run' in a VS Code terminal)"
 fi
 
-echo "preflight OK (app=$APP_DLL db=${DB_HOST}:${DB_PORT} spi=ok port=${PORT} free)"
+echo "preflight[$ROLE] OK (app=$APP_DLL db=${DB_HOST}:${DB_PORT} spi=${NEEDS_SPI} port=${PORT} free)"

@@ -25,7 +25,7 @@ for f in mrrctl mrr-preflight mrr-health-check mrr-recover; do
 done
 
 info "installing systemd units to $UNIT_DIR"
-for f in mrr.target mrr-server.service mrr-spi.service \
+for f in mrr.target mrr-server.service mrr-config.service mrr-spi.service \
          mrr-health.service mrr-health.timer \
          mrr-recover.service mrr-recover.timer; do
     install -m 0644 -o root -g root "$SRC/$f" "$UNIT_DIR/$f"
@@ -39,7 +39,9 @@ else
 fi
 
 info "creating $APP_ROOT (owned by $RUN_USER)"
-mkdir -p "$APP_ROOT/app/images/align"
+# One directory per host. 'images/align' holds camera captures written by the game host.
+mkdir -p "$APP_ROOT/game/images/align"
+mkdir -p "$APP_ROOT/config"
 chown -R "$RUN_USER":"$RUN_USER" "$APP_ROOT"
 
 info "installing sudoers drop-in so '$RUN_USER' can drive systemctl without a password"
@@ -69,16 +71,20 @@ info "publishing the app as $RUN_USER"
 sudo -H -u "$RUN_USER" "$BIN_DIR/mrrctl" deploy
 
 info "enabling at boot"
-systemctl enable mrr.target mrr-server.service mrr-health.timer mrr-recover.timer
+# mrr-config is enabled so it starts at boot with the group, but it is NOT PartOf the
+# target -- a target restart must not bounce the board editor. See PROCESS_MANAGER.md 10.1.
+systemctl enable mrr.target mrr-server.service mrr-config.service \
+                 mrr-health.timer mrr-recover.timer
 
 if [ "$START" = yes ]; then
-    if ss -ltnH 'sport = :5000' 2>/dev/null | grep -q .; then
+    if ss -ltnH 'sport = :5000 or sport = :5001' 2>/dev/null | grep -q .; then
         echo
-        echo "!! TCP 5000 is already in use - a hand-started server is still running."
-        echo "!! Stop it, then:  mrrctl start"
+        echo "!! TCP 5000 or 5001 is already in use - a hand-started host is still running."
+        echo "!! Stop it, then:  mrrctl start all"
     else
-        info "starting mrr.target"
-        systemctl start mrr.target
+        info "starting both hosts"
+        # Enumerated, not via the target: mrr-config is not PartOf=mrr.target.
+        systemctl start mrr.target mrr-config.service
         sleep 3
         sudo -H -u "$RUN_USER" "$BIN_DIR/mrrctl" status || true
     fi

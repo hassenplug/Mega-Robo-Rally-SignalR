@@ -11,13 +11,15 @@ PURGE=no
 info() { echo "==> $*"; }
 
 info "stopping and disabling units"
-systemctl disable --now mrr.target mrr-server.service mrr-health.timer mrr-recover.timer 2>/dev/null || true
+systemctl disable --now mrr.target mrr-server.service mrr-config.service \
+                        mrr-health.timer mrr-recover.timer 2>/dev/null || true
 systemctl stop mrr-spi.service 2>/dev/null || true
 systemctl reset-failed 'mrr*' 2>/dev/null || true
 
 info "removing unit files"
 rm -f /etc/systemd/system/mrr.target \
       /etc/systemd/system/mrr-server.service \
+      /etc/systemd/system/mrr-config.service \
       /etc/systemd/system/mrr-spi.service \
       /etc/systemd/system/mrr-health.service \
       /etc/systemd/system/mrr-health.timer \

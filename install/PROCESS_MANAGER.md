@@ -52,31 +52,37 @@ the cases stock systemd can't see (hang, latched crash-loop).
 ```
 multi-user.target                          (normal boot)
 └── mrr.target                             ← ENABLED; the "game group" (R1, R5)
-    ├── mrr-server.service                 ← the ASP.NET Core game server
+    ├── mrr-server.service                 ← game host, :5000 (PartOf the target)
     │     Requires  mariadb.service        ← DB must be up
     │     After     network-online.target
     │     Wants     mrr-spi.service         ← oneshot: load SPI overlay if missing
     │     Restart=always / RestartSec=5     (R2, R3)
-    ├── mrr-health.timer  → mrr-health.service    every 30 s: HTTP probe (R6)
+    ├── mrr-config.service                 ← authoring host, :5001 (NOT PartOf — §10.1)
+    │     Requires  mariadb.service
+    │     no SPI, no dependency on the game host
+    ├── mrr-health.timer  → mrr-health.service    every 30 s: one probe per host (R6)
     └── mrr-recover.timer → mrr-recover.service   every 2 min: un-latch a failed unit (R7)
 
 /usr/local/bin/mrrctl        operator CLI (R4)
-/usr/local/bin/mrr-preflight ExecStartPre gate: DB reachable? spidev present? port free?
+/usr/local/bin/mrr-preflight ExecStartPre gate, per role: DB? spidev (game only)? port free?
 /etc/default/mrr             all tunables in one file
-/srv/mrr/app                 the deployed (published) app — separate from the git repo
-/srv/mrr/previous            previous deploy, for `mrrctl rollback`
+/srv/mrr/game                deployed game host — separate from the git repo
+/srv/mrr/config              deployed authoring host
+/srv/mrr/{game,config}.previous   previous deploys, for `mrrctl rollback <role>`
 ```
 
-Every managed service declares `PartOf=mrr.target`, so `stop`/`restart` on the target
-propagates to all members. Adding a second process later is one unit file plus one
-`systemctl enable` — see §10.
+Managed services declare `PartOf=mrr.target`, so `stop`/`restart` on the target propagates
+to them — **with one deliberate exception**: `mrr-config.service` omits `PartOf`, so a group
+restart cannot bounce the board editor along with the game. See §10.1. Adding a further
+process is one unit file plus one `systemctl enable` — see §10.
 
 ### Why the app is deployed out of the repo
 
-`mrr-server.service` runs `/srv/mrr/app/MRR.dll`, **not** `MRR/bin/Debug/net9.0/MRR.dll`.
+`mrr-server.service` runs `/srv/mrr/game/MRR.dll`, **not** `MRR/bin/Debug/net9.0/MRR.dll`
+(and `mrr-config.service` runs `/srv/mrr/config/MRR.Config.dll`).
 The Pi is also the dev machine (VS Code Server runs on it), so pointing the service at the
 build output would mean a `dotnet build` mid-game silently swaps the binaries under the
-running game. `mrrctl deploy` publishes Release output into `/srv/mrr/app` as an explicit
+running game. `mrrctl deploy` publishes Release output into `/srv/mrr/<role>` as an explicit
 act; day-to-day editing in the repo can't disturb a running game.
 
 ---
@@ -133,44 +139,40 @@ Run as `mrr`; a sudoers drop-in makes the privileged verbs password-free.
 | Command | Does |
 |---|---|
 | `mrrctl status` | Unit state, freezer state, uptime, PID, memory, last health result |
-| `mrrctl start` / `stop` / `restart` | The whole `mrr.target` group |
+| `mrrctl start` / `stop` / `restart` | The **game host** by default; `all` for both hosts, `config` for the editor (§10.1) |
 | `mrrctl pause` / `resume` | Freeze / thaw the game server (§5) |
 | `mrrctl logs` / `logs -f` | `journalctl` for all MRR units, follow with `-f` |
 | `mrrctl enable` / `disable` | Whether the group starts at boot |
-| `mrrctl deploy` | `dotnet publish` Release → `/srv/mrr/app`, keep previous copy, restart if running |
+| `mrrctl deploy [role]` | `dotnet publish` Release → `/srv/mrr/<role>`, keep previous copy, restart if running. Default `all` |
 | `mrrctl update` | `git pull` then `deploy` |
-| `mrrctl rollback` | Swap `/srv/mrr/previous` back into place and restart |
+| `mrrctl rollback [role]` | Swap `/srv/mrr/<role>.previous` back into place and restart. Default `game` |
 | `mrrctl list` | All MRR units and their states |
 
-Any verb takes an optional unit shorthand, so a future second process is addressable:
-`mrrctl restart sensehat` → `mrr-sensehat.service`.
+Any verb takes an optional unit shorthand: `game`/`server`, `config`/`editor`, `health`,
+`recover`, `spi`, `target`, `all`, or any `mrr-*` unit name.
 
 ### Health probe endpoint
 
-The probe defaults to `GET http://127.0.0.1:5000/index.html` — a static file, so it proves
-Kestrel and the request pipeline are alive with no side effects.
+Both hosts expose `GET /api/health` (added 2026-08-22), and that is what the probes use:
 
-Two URLs it deliberately does **not** use:
-
-- **`/`** returns **404** on this app. [MRR/Program.cs:39-40](../MRR/Program.cs#L39-L40)
-  calls `UseStaticFiles()` *before* `UseDefaultFiles()`, so `/` is never rewritten to
-  `index.html`. (Swapping those two lines is the real fix, and is worth doing — phones
-  currently have to be pointed at `http://mrobopi:5000/index.html`. Until then the probe
-  must use the explicit filename, or the watchdog would restart a perfectly healthy
-  server every 90 s.)
-- **`/api/alldata`** calls `hubContext.Clients.All.SendAsync(...)`, so probing it every
-  30 s would broadcast an `AllDataUpdate` to every phone, forever.
-
-Recommended small code change — add a real liveness endpoint to
-[MRR/Program.cs](../MRR/Program.cs):
-
-```csharp
-// Liveness probe for mrr-health.service. No DB, no SignalR, no side effects.
-app.MapGet("/api/health", (GameController gc) =>
-    Results.Ok(new { status = "ok", state = gc.GameState }));
+```sh
+MRR_GAME_HEALTH_URL=http://127.0.0.1:5000/api/health
+MRR_CONFIG_HEALTH_URL=http://127.0.0.1:5001/api/health
 ```
 
-then set `MRR_HEALTH_URL=http://127.0.0.1:5000/api/health` in `/etc/default/mrr`.
+It is cheap and side-effect free. The game host's returns the current game state; the
+config host's touches no database, so it answers even when MariaDB is down — which keeps a
+DB outage from being misread as a wedged editor.
+
+Two URLs the probe deliberately does **not** use:
+
+- **`/api/alldata`** calls `hubContext.Clients.All.SendAsync(...)`, so probing it every
+  30 s would broadcast an `AllDataUpdate` to every phone, forever.
+- **`/`** on the game host returns **404**. [MRR/Program.cs](../MRR/Program.cs) calls
+  `UseStaticFiles()` *before* `UseDefaultFiles()`, so `/` is never rewritten to
+  `index.html`, and phones have to be pointed at the explicit filename. Swapping those two
+  lines is still worth doing; `MRR.Config` already registers them in the correct order, so
+  `http://<host>:5001/` serves the board editor directly.
 
 ---
 
@@ -189,7 +191,7 @@ then set `MRR_HEALTH_URL=http://127.0.0.1:5000/api/health` in `/etc/default/mrr`
 | `/usr/local/bin/mrr-recover` | 755 | Reset failed units |
 | `/etc/default/mrr` | 644 | Tunables (never overwritten by re-install) |
 | `/etc/sudoers.d/mrr-process-manager` | 440 | Password-free `systemctl` for the `mrr` user |
-| `/srv/mrr/app`, `/srv/mrr/previous` | mrr:mrr | Deployed app + rollback copy |
+| `/srv/mrr/game`, `/srv/mrr/config` (+ `.previous` each) | mrr:mrr | Deployed hosts + rollback copies |
 
 Source of truth for all of the above: [install/service/](service/).
 
@@ -199,11 +201,13 @@ Source of truth for all of the above: [install/service/](service/).
 DOTNET_ROOT=/home/mrr/.dotnet
 ASPNETCORE_ENVIRONMENT=Production
 ASPNETCORE_URLS=http://*:5000        # overrides "Urls" in appsettings.json
-MRR_APP_DIR=/srv/mrr/app
+MRR_GAME_APP_DIR=/srv/mrr/game
+MRR_CONFIG_APP_DIR=/srv/mrr/config
 MRR_DB_HOST=mrobopi
 MRR_DB_PORT=3306
 MRR_PORT=5000
-MRR_HEALTH_URL=http://127.0.0.1:5000/index.html   # NOT "/" - see §6
+MRR_GAME_HEALTH_URL=http://127.0.0.1:5000/api/health
+MRR_CONFIG_HEALTH_URL=http://127.0.0.1:5001/api/health
 MRR_HEALTH_TIMEOUT=5
 MRR_HEALTH_STRIKES=3                 # consecutive failures before restart
 MRR_HEALTH_GRACE=60                  # seconds after start before probing
@@ -253,7 +257,8 @@ Use `sudo ./install.sh --no-start` to install without starting.
 
 ```bash
 mrrctl status                     # active (running), freezer: running
-curl -sf localhost:5000/index.html >/dev/null && echo web-ok
+curl -sf localhost:5000/api/health >/dev/null && echo game-ok
+curl -sf localhost:5001/api/health >/dev/null && echo config-ok
 systemctl is-enabled mrr.target   # enabled  → survives reboot
 mrrctl logs | tail -30            # look for "preflight OK"
 sudo reboot                       # the real test
@@ -309,6 +314,27 @@ If the new process must not outlive the game server, add
 ---
 
 ## 10.1 The two-process layout (API decomposition)
+
+> **Status: implemented 2026-08-22.** Everything in this section is in
+> [install/service/](service/). What landed:
+>
+> | File | Change |
+> |---|---|
+> | `mrr-config.service` | **New.** `WantedBy=mrr.target` but deliberately no `PartOf=`, no `mrr-spi` dependency, no `After=mrr-server` |
+> | `mrr-preflight` | Takes a role: `mrr-preflight game` / `config`. Config skips the SPI check and gates on port 5001 |
+> | `mrr-health-check` | Takes a role; per-role strike files at `/run/mrr/health.{role}.strikes` |
+> | `mrr-health.service` | Two `ExecStart=` lines, one probe per host |
+> | `mrrctl` | `config`/`editor` shorthands; bare verbs address the **game host**; `all` for both; per-role `deploy`/`rollback` |
+> | `mrr.env` | Role-scoped `MRR_GAME_*` / `MRR_CONFIG_*`, with unprefixed aliases kept for now |
+> | `install.sh` / `uninstall.sh` | Install, enable and remove the second unit; per-role deploy directories |
+>
+> Verified here: all shell scripts pass `bash -n`, all units pass `systemd-analyze verify`,
+> and the SPI split was tested directly — with `/dev/spidev0.0` absent, `preflight game`
+> fails and `preflight config` still passes.
+>
+> Deploy layout changed: `/srv/mrr/app` becomes `/srv/mrr/game` and `/srv/mrr/config`, each
+> with its own `.previous`. **A machine with the old layout installed needs a re-run of
+> `install.sh`**, or the units will look for a DLL that is not there.
 
 [API_DECOMPOSITION_DESIGN.md](../API_DECOMPOSITION_DESIGN.md) splits the app into seven API
 contracts across **two** processes. This section is the supervision half of that plan.

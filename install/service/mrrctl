@@ -7,12 +7,14 @@ set -uo pipefail
 
 TARGET=mrr.target
 MAIN=mrr-server.service
-BOOT_UNITS=(mrr-server.service mrr-health.timer mrr-recover.timer)
+GAME=mrr-server.service
+CONFIG=mrr-config.service
+BOOT_UNITS=(mrr-server.service mrr-config.service mrr-health.timer mrr-recover.timer)
 
 REPO="${MRR_REPO:-/home/mrr/Mega-Robo-Rally-SignalR}"
-APP_DIR="${MRR_APP_DIR:-/srv/mrr/app}"
-PREV_DIR="$(dirname "$APP_DIR")/previous"
-STAGE_DIR="$(dirname "$APP_DIR")/staging"
+GAME_APP_DIR="${MRR_GAME_APP_DIR:-${MRR_APP_DIR:-/srv/mrr/game}}"
+CONFIG_APP_DIR="${MRR_CONFIG_APP_DIR:-/srv/mrr/config}"
+APP_DIR="$GAME_APP_DIR"   # back-compat for anything still reading APP_DIR
 DOTNET="${MRR_DOTNET:-/home/mrr/.dotnet/dotnet}"
 RUN_USER="${MRR_USER:-mrr}"
 SYSTEMCTL=/usr/bin/systemctl
@@ -24,11 +26,19 @@ sc() {
     if [ "$(id -u)" -eq 0 ]; then "$SYSTEMCTL" "$@"; else sudo "$SYSTEMCTL" "$@"; fi
 }
 
-# "server" -> mrr-server.service, "health" -> mrr-health.timer, "" -> mrr.target
-resolve() {
+# Resolve a shorthand to one or more units.
+#
+# A bare verb means THE GAME HOST, not the whole group. Restarting the board editor
+# because you restarted the game is harmless; restarting the game because you wanted to
+# reload the editor loses a turn. Use "all" to act on both. See PROCESS_MANAGER.md 10.1.
+resolve_many() {
     local name="${1:-}"
     case "$name" in
-        ""|all|target)  echo "$TARGET" ;;
+        "")             echo "$GAME" ;;
+        all|both)       echo "$GAME $CONFIG" ;;
+        game|server)    echo "$GAME" ;;
+        config|editor)  echo "$CONFIG" ;;
+        target)         echo "$TARGET" ;;
         *.service|*.timer|*.target) echo "$name" ;;
         health)         echo "mrr-health.timer" ;;
         recover)        echo "mrr-recover.timer" ;;
@@ -37,7 +47,9 @@ resolve() {
     esac
 }
 
-# pause/resume operate on a service, never on the target
+resolve() { resolve_many "${1:-}" | awk '{print $1}'; }
+
+# pause/resume operate on a single service, never on the target
 resolve_service() {
     local u; u=$(resolve "${1:-}")
     [ "$u" = "$TARGET" ] && u="$MAIN"
@@ -63,26 +75,54 @@ cmd_status() {
     if [[ "$mem" =~ ^[0-9]+$ ]]; then
         echo "memory    : $(( mem / 1024 / 1024 )) MB"
     fi
-    local url="${MRR_HEALTH_URL:-http://127.0.0.1:5000/index.html}"
+    local role url strikes
+    case "$unit" in
+        "$CONFIG") role=config; url="${MRR_CONFIG_HEALTH_URL:-http://127.0.0.1:5001/api/health}" ;;
+        *)         role=game;   url="${MRR_GAME_HEALTH_URL:-${MRR_HEALTH_URL:-http://127.0.0.1:5000/api/health}}" ;;
+    esac
     echo "health    : $url"
     if curl -fsS -o /dev/null --max-time 3 "$url" 2>/dev/null; then
         echo "probe     : OK"
     else
         echo "probe     : NOT RESPONDING"
     fi
-    if [ -f /run/mrr/health.strikes ]; then
-        echo "strikes   : $(cat /run/mrr/health.strikes)"
-    fi
-    if [ -f "$APP_DIR/MRR.dll" ]; then
-        echo "deployed  : $APP_DIR  ($(date -r "$APP_DIR/MRR.dll" '+%Y-%m-%d %H:%M'))"
+    strikes="/run/mrr/health.${role}.strikes"
+    [ -f "$strikes" ] && echo "strikes   : $(cat "$strikes")"
+
+    if [ "$role" = config ]; then
+        if [ -f "$CONFIG_APP_DIR/MRR.Config.dll" ]; then
+            echo "deployed  : $CONFIG_APP_DIR  ($(date -r "$CONFIG_APP_DIR/MRR.Config.dll" '+%Y-%m-%d %H:%M'))"
+        else
+            echo "deployed  : MISSING - run 'mrrctl deploy config'"
+        fi
     else
-        echo "deployed  : MISSING - run 'mrrctl deploy'"
+        if [ -f "$GAME_APP_DIR/MRR.dll" ]; then
+            echo "deployed  : $GAME_APP_DIR  ($(date -r "$GAME_APP_DIR/MRR.dll" '+%Y-%m-%d %H:%M'))"
+        else
+            echo "deployed  : MISSING - run 'mrrctl deploy game'"
+        fi
+    fi
+
+    # A bare "mrrctl status" should still show that the other host exists.
+    if [ -z "${1:-}" ]; then
+        echo
+        echo "config    : $("$SYSTEMCTL" show -p ActiveState --value "$CONFIG") ($CONFIG)  -  'mrrctl status config'"
     fi
 }
 
-cmd_start()   { local u; u=$(resolve "${1:-}"); info "starting $u";   sc start "$u"; }
-cmd_stop()    { local u; u=$(resolve "${1:-}"); info "stopping $u (stays down until 'mrrctl start')"; sc stop "$u"; }
-cmd_restart() { local u; u=$(resolve "${1:-}"); info "restarting $u"; sc restart "$u"; }
+cmd_start() {
+    for u in $(resolve_many "${1:-}"); do info "starting $u"; sc start "$u"; done
+}
+cmd_stop() {
+    # Units are enumerated rather than relying on target propagation: mrr-config is
+    # deliberately not PartOf=mrr.target, so stopping the target would leave it running.
+    for u in $(resolve_many "${1:-}"); do
+        info "stopping $u (stays down until 'mrrctl start')"; sc stop "$u"
+    done
+}
+cmd_restart() {
+    for u in $(resolve_many "${1:-}"); do info "restarting $u"; sc restart "$u"; done
+}
 
 cmd_pause() {
     local u; u=$(resolve_service "${1:-}")
@@ -119,62 +159,97 @@ cmd_list() {
     "$SYSTEMCTL" list-timers 'mrr-*' --no-pager
 }
 
+# Per-role deploy. Each host publishes to its own directory and keeps its own previous
+# build, so a bad editor deploy never forces a game rollback -- independent deploy is one
+# of the few things a separate process actually buys. See PROCESS_MANAGER.md 10.1.
+role_paths() {
+    case "$1" in
+        game)   echo "$GAME_APP_DIR|MRR.dll|$REPO/MRR/MRR.csproj|$GAME" ;;
+        config) echo "$CONFIG_APP_DIR|MRR.Config.dll|$REPO/MRR.Config/MRR.Config.csproj|$CONFIG" ;;
+        *)      die "unknown role '$1' (expected game, config or all)" ;;
+    esac
+}
+
+deploy_one() {
+    local role="$1" paths dir dll proj unit prev stage was_active=no
+    paths=$(role_paths "$role")
+    dir=${paths%%|*};  paths=${paths#*|}
+    dll=${paths%%|*};  paths=${paths#*|}
+    proj=${paths%%|*}; unit=${paths#*|}
+    prev="${dir}.previous"
+    stage="${dir}.staging"
+
+    [ -f "$proj" ] || die "project not found: $proj"
+    [ -w "$(dirname "$dir")" ] || die "$(dirname "$dir") not writable by $(id -un)"
+
+    [ "$("$SYSTEMCTL" is-active "$unit")" = "active" ] && was_active=yes
+
+    info "[$role] publishing (Release) -> $stage"
+    rm -rf "$stage"
+    "$DOTNET" publish "$proj" -c Release -o "$stage" --nologo \
+        || die "[$role] publish failed - nothing was changed"
+    [ -f "$stage/$dll" ] || die "[$role] publish produced no $dll - nothing was changed"
+
+    if [ "$was_active" = yes ]; then
+        info "[$role] stopping $unit for swap"
+        sc stop "$unit"
+    fi
+
+    if [ -d "$dir" ] && [ -f "$dir/$dll" ]; then
+        info "[$role] keeping previous build in $prev"
+        rm -rf "$prev"
+        cp -a "$dir" "$prev"
+    fi
+
+    info "[$role] installing -> $dir"
+    mkdir -p "$dir"
+    # 'images/' holds camera captures written at runtime by the game host; never wipe them.
+    rsync -a --delete --exclude 'images/' "$stage/" "$dir/"
+    [ "$role" = game ] && mkdir -p "$dir/images/align"
+    rm -rf "$stage"
+    [ "$(id -u)" -eq 0 ] && chown -R "$RUN_USER":"$RUN_USER" "$dir" "$prev" 2>/dev/null
+
+    if [ "$was_active" = yes ]; then
+        info "[$role] starting $unit"
+        sc start "$unit"
+    fi
+    info "[$role] deployed. 'mrrctl rollback $role' reverts to the previous build."
+}
+
 cmd_deploy() {
     [ -x "$DOTNET" ] || die "dotnet not found at $DOTNET"
-    [ -d "$REPO/MRR" ] || die "repo not found at $REPO"
-    [ -w "$(dirname "$APP_DIR")" ] || die "$(dirname "$APP_DIR") not writable by $(id -un)"
-
-    local was_active=no
-    [ "$("$SYSTEMCTL" is-active "$MAIN")" = "active" ] && was_active=yes
-
-    info "publishing (Release) -> $STAGE_DIR"
-    rm -rf "$STAGE_DIR"
-    "$DOTNET" publish "$REPO/MRR/MRR.csproj" -c Release -o "$STAGE_DIR" --nologo || die "publish failed - nothing was changed"
-    [ -f "$STAGE_DIR/MRR.dll" ] || die "publish produced no MRR.dll - nothing was changed"
-
-    if [ "$was_active" = yes ]; then
-        info "stopping $MAIN for swap"
-        sc stop "$MAIN"
-    fi
-
-    if [ -d "$APP_DIR" ] && [ -f "$APP_DIR/MRR.dll" ]; then
-        info "keeping previous build in $PREV_DIR"
-        rm -rf "$PREV_DIR"
-        cp -a "$APP_DIR" "$PREV_DIR"
-    fi
-
-    info "installing -> $APP_DIR"
-    mkdir -p "$APP_DIR"
-    rsync -a --delete --exclude 'images/' "$STAGE_DIR/" "$APP_DIR/"
-    mkdir -p "$APP_DIR/images/align"
-    rm -rf "$STAGE_DIR"
-    [ "$(id -u)" -eq 0 ] && chown -R "$RUN_USER":"$RUN_USER" "$APP_DIR" "$PREV_DIR" 2>/dev/null
-
-    if [ "$was_active" = yes ]; then
-        info "starting $MAIN"
-        sc start "$MAIN"
-    fi
-    info "deployed. 'mrrctl rollback' reverts to the previous build."
+    [ -d "$REPO" ] || die "repo not found at $REPO"
+    local which="${1:-all}"
+    case "$which" in
+        all) deploy_one game; deploy_one config ;;
+        *)   deploy_one "$which" ;;
+    esac
 }
 
 cmd_update() {
     info "git pull in $REPO"
     git -C "$REPO" pull --ff-only || die "git pull failed"
-    cmd_deploy
+    cmd_deploy "${1:-all}"
 }
 
 cmd_rollback() {
-    [ -f "$PREV_DIR/MRR.dll" ] || die "no previous build in $PREV_DIR"
-    local was_active=no
-    [ "$("$SYSTEMCTL" is-active "$MAIN")" = "active" ] && was_active=yes
-    [ "$was_active" = yes ] && sc stop "$MAIN"
-    info "restoring $PREV_DIR -> $APP_DIR"
-    rm -rf "$APP_DIR.rollback-tmp"
-    mv "$APP_DIR" "$APP_DIR.rollback-tmp"
-    mv "$PREV_DIR" "$APP_DIR"
-    mv "$APP_DIR.rollback-tmp" "$PREV_DIR"
-    [ "$was_active" = yes ] && sc start "$MAIN"
-    info "rolled back (the build you just left is now in $PREV_DIR)"
+    local role="${1:-game}" paths dir dll unit prev was_active=no
+    paths=$(role_paths "$role")
+    dir=${paths%%|*};  paths=${paths#*|}
+    dll=${paths%%|*};  paths=${paths#*|}
+    paths=${paths#*|}; unit=${paths#*|}
+    prev="${dir}.previous"
+
+    [ -f "$prev/$dll" ] || die "no previous build in $prev"
+    [ "$("$SYSTEMCTL" is-active "$unit")" = "active" ] && was_active=yes
+    [ "$was_active" = yes ] && sc stop "$unit"
+    info "[$role] restoring $prev -> $dir"
+    rm -rf "$dir.rollback-tmp"
+    mv "$dir" "$dir.rollback-tmp"
+    mv "$prev" "$dir"
+    mv "$dir.rollback-tmp" "$prev"
+    [ "$was_active" = yes ] && sc start "$unit"
+    info "[$role] rolled back (the build you just left is now in $prev)"
 }
 
 usage() {
@@ -182,19 +257,25 @@ usage() {
 mrrctl - Mega Robo Rally process manager
 
   mrrctl status  [unit]     state, freezer, pid, memory, live health probe
-  mrrctl start   [unit]     start the game group (or one unit)
+  mrrctl start   [unit]     start it
   mrrctl stop    [unit]     stop it; stays down until started again
   mrrctl restart [unit]     restart it
-  mrrctl pause   [unit]     freeze the server in place (short interruptions)
+  mrrctl pause   [unit]     freeze in place (short interruptions only)
   mrrctl resume  [unit]     thaw it
   mrrctl logs [-f] [N]      journal for all mrr-* units
   mrrctl enable | disable   start at boot, or not
   mrrctl list               all MRR units and timers
-  mrrctl deploy             publish Release -> /srv/mrr/app, restart if running
-  mrrctl update             git pull, then deploy
-  mrrctl rollback           restore the previous deploy
+  mrrctl deploy  [role]     publish Release for a role (default: all)
+  mrrctl update  [role]     git pull, then deploy
+  mrrctl rollback [role]    restore that role's previous deploy (default: game)
 
-  [unit] defaults to the whole group. Shorthands: server, health, recover, spi.
+  [unit] defaults to the GAME host, not the whole group. Restarting the editor
+  because you restarted the game is harmless; the reverse loses a turn.
+  Use 'all' for both hosts.
+
+  Shorthands: game (or server) :5000, config (or editor) :5001,
+              health, recover, spi, target.
+  Roles for deploy/rollback: game, config, all.
   Tunables live in /etc/default/mrr.
 EOF
 }

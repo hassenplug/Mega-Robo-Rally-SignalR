@@ -1,0 +1,47 @@
+[Unit]
+Description=Mega Robo Rally configuration and authoring host (board editor)
+Documentation=file:/home/mrr/Mega-Robo-Rally-SignalR/install/PROCESS_MANAGER.md
+
+# Deliberately NOT "PartOf=mrr.target". WantedBy below still starts this at boot with
+# the group, but a "systemctl restart mrr.target" (or mrrctl restart) must NOT bounce the
+# board editor along with the game. Not being able to disturb a running game is the entire
+# reason this is a separate process. See PROCESS_MANAGER.md section 10.1.
+
+# Needs the database -- it reads and writes the board and GameData tables.
+Requires=mariadb.service
+After=mariadb.service
+
+Wants=network-online.target
+After=network-online.target
+
+# No mrr-spi dependency: only the game host drives the LEDs over SPI. Gating the authoring
+# host on /dev/spidev0.0 would make board editing unavailable for a reason unrelated to it.
+
+# Independent of the game host on purpose -- no After=, no BindsTo=. It has to come up
+# whether or not the game is healthy.
+
+StartLimitIntervalSec=300
+StartLimitBurst=10
+
+[Service]
+Type=exec
+User=mrr
+Group=mrr
+WorkingDirectory=/srv/mrr/config
+EnvironmentFile=/etc/default/mrr
+
+ExecStartPre=/usr/local/bin/mrr-preflight config
+ExecStart=/home/mrr/.dotnet/dotnet /srv/mrr/config/MRR.Config.dll
+
+Restart=always
+RestartSec=5
+TimeoutStopSec=20
+
+SyslogIdentifier=mrr-config
+StandardOutput=journal
+StandardError=journal
+
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=mrr.target

@@ -23,13 +23,13 @@ StartLimitBurst=10
 Type=exec
 User=mrr
 Group=mrr
-WorkingDirectory=/srv/mrr/app
+WorkingDirectory=/srv/mrr/game
 EnvironmentFile=/etc/default/mrr
 
 # Refuses to start (with a specific reason in the journal) if the DB is unreachable,
 # spidev is missing, the app is not deployed, or TCP 5000 is already taken.
-ExecStartPre=/usr/local/bin/mrr-preflight
-ExecStart=/home/mrr/.dotnet/dotnet /srv/mrr/app/MRR.dll
+ExecStartPre=/usr/local/bin/mrr-preflight game
+ExecStart=/home/mrr/.dotnet/dotnet /srv/mrr/game/MRR.dll
 
 # always, not on-failure: a clean exit must also come back up.
 Restart=always
