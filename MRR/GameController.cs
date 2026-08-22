@@ -540,12 +540,6 @@ namespace MRR.Controller
             return true;
         }
 
-        public void LoadBoard()
-        {
-            _dataService.BoardFileRead("../install/Boards/6x6x6R4Fb.srx");
-            _dataService.BoardSaveToDB(3,_dataService.g_BoardElements);
-        }
-
     }
 }
 

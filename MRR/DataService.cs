@@ -284,42 +284,6 @@ namespace MRR.Services
             }
         }
 
-
-        public void BoardSaveToDB(int destinationID, BoardElementCollection l_BoardElements)
-        {
-            ExecuteSQL("Delete from BoardItems where BoardID=" + destinationID + ";");
-            ExecuteSQL("Delete from BoardItemActions where BoardID=" + destinationID + ";");
-            //  loop through cells
-            //  loop through actions
-            foreach (BoardElement thisSquare in l_BoardElements.BoardElements)
-            {
-                string strSQL = "insert into BoardItems " +
-                    "(BoardID, X, Y, SquareType, Rotation) " +
-                    " values (" + destinationID + "," + thisSquare.BoardCol + "," + thisSquare.BoardRow + "," + (int)thisSquare.Type + "," + (int)thisSquare.Rotation + ")";
-
-                ExecuteSQL(strSQL);
-
-                foreach (BoardAction thisAction in thisSquare.ActionList)
-                {
-
-                    strSQL = "insert into BoardItemActions " +
-                        "(BoardID, X, Y, SquareAction, ActionSequence, Phase, Parameter) " +
-                        " values (" + destinationID + "," + thisSquare.BoardCol + "," + thisSquare.BoardRow +
-                        "," + (int)thisAction.SquareAction + "," + thisAction.ActionSequence + "," + thisAction.Phase + "," + thisAction.Parameter + ")";
-                    ExecuteSQL(strSQL);
-
-                    strSQL = "Update Boards set " +
-                        " X=" + l_BoardElements.BoardCols.ToString() +
-                        ", Y=" + l_BoardElements.BoardRows.ToString() +
-                        ", GameType=" + (int)l_BoardElements.GameType +
-                        ", TotalFlags=" + l_BoardElements.TotalFlags.ToString() +
-                        ", LaserDamage=" + l_BoardElements.LaserDamage.ToString() +
-                        " where BoardID=" + destinationID.ToString();
-                    ExecuteSQL(strSQL);
-                }
-            }
-        }
-
         ////////////////////////////////////////////////////////////////////////////
         // Load board data from the database into a BoardElementCollection
         ////////////////////////////////////////////////////////////////////////////    
@@ -2040,46 +2004,6 @@ namespace MRR.Services
                 cmd.Parameters.AddWithValue("@id", robotID);
                 cmd.ExecuteNonQuery();
             }
-        }
-
-        public void BoardFileRead(string p_Filename)
-        {
-
-            if (p_Filename.Contains(".jpg")) p_Filename = p_Filename.Replace(".jpg", ".srx");
-            if (p_Filename.Contains(".srx"))
-            {
-                g_BoardElements = LoadFile(typeof(BoardElementCollection), p_Filename) as BoardElementCollection ?? new BoardElementCollection();
-            }
-
-            if (g_BoardElements != null)
-            {
-                // Board metadata, not game state — reading a board file must not change the
-                // running game's flag count. BoardSaveToDB persists this into Boards.TotalFlags.
-                g_BoardElements.TotalFlags = g_BoardElements.CalcTotalFlags();
-                LaserDamage = g_BoardElements.LaserDamage;
-                //GameType = g_BoardElements.BoardType;
-            }
-            else
-            {
-                Console.WriteLine("Load Board Failed:" + p_Filename);
-            }
-        }
-
-        public Object? LoadFile(Type FileType, string FileName)
-        {
-            if (!File.Exists(FileName))
-            {
-                return null;
-            }
-            //XmlDeserializationEvents
-            DateTime starttime = DateTime.Now;
-            XmlSerializer serialPlay = new XmlSerializer(FileType);
-            System.IO.StreamReader csvfile = new System.IO.StreamReader(FileName);
-            Object? localfile = serialPlay.Deserialize(csvfile);
-            csvfile.Close();
-            //Console.WriteLine("Load " + FileType.ToString() + " ET:" + (DateTime.Now - starttime).ToString());
-
-            return localfile;
         }
 
 

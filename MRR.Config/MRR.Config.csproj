@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!-- Configuration and Authoring host. Owns the board, GameData and operator tables
+       (see API_DECOMPOSITION_DESIGN.md section 6). Runs as mrr-config.service on :5001,
+       separately from the game so that editing a board cannot disturb a live game.
+
+       Deliberately does NOT reference the MRR host project. It has its own small data
+       access (BoardData.cs) rather than sharing a persistence layer, because sharing one
+       would re-couple the two processes, and the isolation is the whole point. The cost is
+       roughly 60 lines of duplicated ADO plumbing. -->
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>MRR.Config</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MySQLConnector" Version="2.4.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MRR.Contracts\MRR.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

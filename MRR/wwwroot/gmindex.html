@@ -18,7 +18,13 @@
     <a href="/editboard/84" target="database">Board Editor</a><br>
     <a href="/database.html" >Database</a><br>
     <a href="/datagrid-editor.html" >DataGrid Editor</a><br>
-    <a href="/board-editor.html" target="b-edit">Board Editor</a><br>
+    <a href="#" id="boardEditorLink" target="b-edit">Board Editor</a><br>
+    <script>
+      // Board editor moved to the Configuration host (mrr-config.service, :5001).
+      // Derive the origin from this page so the hostname is never hardcoded.
+      document.getElementById('boardEditorLink').href =
+        location.protocol + '//' + location.hostname + ':5001/';
+    </script>
 
 </body>
 </html>

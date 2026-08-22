@@ -58,7 +58,12 @@
             <span class="arrow">&#9660;</span> Board Editor
         </div>
         <div class="frame-body">
-            <iframe src="board-editor.html" name="boardedit" width="100%" height="1000" style="border:1px solid black; display:block;"></iframe>
+            <iframe id="boardEditorFrame" name="boardedit" width="100%" height="1000" style="border:1px solid black; display:block;"></iframe>
+            <script>
+              // Board editor is served by the Configuration host on :5001.
+              document.getElementById('boardEditorFrame').src =
+                location.protocol + '//' + location.hostname + ':5001/';
+            </script>
         </div>
     </div>
 
