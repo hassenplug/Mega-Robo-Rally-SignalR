@@ -13,29 +13,26 @@ namespace MRR.Services
 {
     public class DataService
     {
+        /// <summary>
+        /// Raw database access. First slice of the DataService split: the plumbing lives in
+        /// SqlGateway now, and the members below forward to it so no call site had to change.
+        /// </summary>
+        private readonly SqlGateway _sql;
+
         private readonly string _connectionString;
-        private readonly string DatabaseName;
+        private string DatabaseName => _sql.DatabaseName;
 
         public DataService(IConfiguration configuration)
         {
             _connectionString = configuration.GetConnectionString("Rally")
                 ?? throw new InvalidOperationException("Connection string 'Rally' not found in configuration.");
-            var builder = new MySqlConnector.MySqlConnectionStringBuilder(_connectionString);
-            DatabaseName = builder.Database;
+            _sql = new SqlGateway(_connectionString);
         }
 
-        public string ConnectionString { get { return _connectionString; } }
+        public string ConnectionString => _sql.ConnectionString;
 
-        /// <summary>
-        /// Creates a new MRRDbContext instance using the configured connection string.
-        /// Caller is responsible for disposing.
-        /// </summary>
-        public MRRDbContext CreateDbContext()
-        {
-            var optionsBuilder = new DbContextOptionsBuilder<MRRDbContext>();
-            optionsBuilder.UseMySql(_connectionString, new MySqlServerVersion(new Version(8, 0, 0)));
-            return new MRRDbContext(optionsBuilder.Options);
-        }
+        /// <summary>New MRRDbContext on the configured connection. Caller disposes.</summary>
+        public MRRDbContext CreateDbContext() => _sql.CreateDbContext();
 
         ///////////////////////////////////////////////////////////////////////////
         // Retrieve all relevant data from the database to send to clients
@@ -181,42 +178,9 @@ namespace MRR.Services
             };
         }
 
-        public int GetIntFromDB(string strSQL)
-        {
-            var dt = GetQueryResults(strSQL);
-            var returnval = 0;
-            if (dt != null && dt.Rows.Count > 0)
-            {
-                var val = dt.Rows[0][0];
-                if (val != DBNull.Value)
-                {
-                    returnval = Convert.ToInt32(val);
-                }
-            }
+        public int GetIntFromDB(string strSQL) => _sql.GetIntFromDB(strSQL);
 
-            return returnval;
-        }
-
-        public int[] GetIntList(string strSQL)
-        {
-            List<int> returnvalset = new List<int>();
-            var dt = GetQueryResults(strSQL);
-            if (dt != null && dt.Rows.Count > 0)
-            {
-                foreach (DataRow row in dt.Rows)
-                {
-                    var returnval = 0;
-                    var val = row[0];
-                    if (val != DBNull.Value)
-                    {
-                        returnval = Convert.ToInt32(val);
-                    }
-                    returnvalset.Add(returnval);
-                }
-            }
-
-            return returnvalset.ToArray();
-        }
+        public int[] GetIntList(string strSQL) => _sql.GetIntList(strSQL);
 
 
         ///////////////////////////////////////////////////////////////////////////
@@ -230,59 +194,14 @@ namespace MRR.Services
         // DBConn.Command(
 
 
-        public int ExecuteSQL(string query)
-        {
-            using (var connection = new MySqlConnection(_connectionString))
-            {
-                try
-                {
-                    connection.Open();
-
-                    using (var command = new MySqlCommand(query, connection))
-                    {
-                        return command.ExecuteNonQuery();
-                    }
-                }
-                catch (MySqlException ex)
-                {
-                    // Log or handle the exception appropriately
-                    Console.WriteLine($"DB Error ({ex.Number}): {ex.Message}");
-                    Console.WriteLine($"sql: ({query})");
-                    return 0;
-                }
-            }
-        }
+        public int ExecuteSQL(string query) => _sql.ExecuteSQL(query);
 
         ///////////////////////////////////////////////////////////////////////////
         // Execute a query that returns results (e.g., SELECT)
         // Returns a list of dictionaries representing rows or an error message
         ///////////////////////////////////////////////////////////////////////////
 
-        public DataTable GetQueryResults(string query)
-        {
-            var dt = new DataTable();
-            using (var connection = new MySqlConnection(_connectionString))
-            {
-                try
-                {
-                    connection.Open();
-                    using (var command = new MySqlCommand(query, connection))
-                    using (var reader = command.ExecuteReader())
-                    {
-                        dt.Load(reader); // loads schema + rows
-                        return dt;
-                    }
-                }
-                catch (MySqlException ex)
-                {
-                    // Log/throw as appropriate; returning empty table could also be chosen
-                    Console.WriteLine($"DB Error ({ex.Number}): {ex.Message}");
-                    Console.WriteLine($"sql: ({query})");
-
-                    return dt; // empty table lets callers iterate without null checks
-                }
-            }
-        }
+        public DataTable GetQueryResults(string query) => _sql.GetQueryResults(query);
 
         ////////////////////////////////////////////////////////////////////////////
         // Load board data from the database into a BoardElementCollection
