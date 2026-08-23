@@ -411,6 +411,10 @@ app.MapPost("/api/boardeditor/template/seed", (BoardData data, IWebHostEnvironme
         ("@laser", template.LaserDamage), ("@gameType", template.GameType),
         ("@flags", template.CalcTotalFlags()));
 
+    // BoardSaveToDB writes BoardName from the collection, and a .srx carries none, so
+    // without this the row ends up called "Imported" and reads like a playable board in
+    // the editor's list.
+    template.BoardName = "Template";
     data.BoardSaveToDB(0, template);
 
     return Results.Ok(new

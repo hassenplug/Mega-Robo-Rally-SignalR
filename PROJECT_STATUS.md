@@ -66,7 +66,7 @@ sudo systemctl enable --now mariadb
 # user + schema
 sudo mysql < install/userMRR.sql          # creates mrr@localhost, grants on rally.*
 mysql -u mrr -p rally < install/MRRDatabase.sql   # 36 tables + seed data
-mysql -u mrr -p rally < install/rallyBoards.sql   # the board library (~89 boards)
+mysql -u mrr -p rally < install/rallyBoards.sql   # the board library (89 playable boards)
 ```
 
 **Do not run `install/gameconfig.sql` on a fresh install.** It is not a provisioning
@@ -296,7 +296,7 @@ Replace `127.0.0.1` with `mrobopi`. Two exceptions:
 
 1. **Robots on and on the network.** Check `RobotBases.IPAddress` matches reality; the
    discovered addresses are recorded in [install/notes.txt](install/notes.txt).
-2. **Pick a board.** Validate it first — 12 of 89 boards currently fail (§4.2):
+2. **Pick a board.** Validate it first — 12 of the 89 playable boards fail (§4.2):
    ```
    curl http://mrobopi:5001/api/boardeditor/{boardId}/validate
    ```
@@ -361,13 +361,18 @@ riskiest area is Spam resolution: replacement cards are now drawn up front by Ma
 than pulled from the database mid-simulation. Watch the first game closely, particularly a
 turn where someone plays a Spam card.
 
-### 4.2 Twelve of 89 boards are unplayable
+### 4.2 Twelve of the 89 boards are unplayable
 
 - **6 boards have gaps in flag numbering** (board 3 is `1,4`; board 42 is `1,2,4`). A robot
   only advances when it reaches `LastFlag + 1`, so nothing bridges a gap and the board
   cannot be won. Boards: **3, 21, 42, 50, 70, 82**.
 - **6 boards have duplicate player start positions** (two robots assigned the same square).
   Boards: **20, 40, 41, 59, 67, 71**.
+
+> `SELECT COUNT(*) FROM Boards` returns **90**, not 89. `BoardID 0` is the editor's
+> square-type palette template, not a playable board — it is what the palette reads, and it
+> is seeded by `POST /api/boardeditor/template/seed`. Counts of playable boards should use
+> `WHERE BoardID > 0`.
 
 All 6 gap boards are `GameType 1` (KingOfTheHill), where the numbering may be deliberate —
 worth checking before "fixing" them. Validate any board before using it.
