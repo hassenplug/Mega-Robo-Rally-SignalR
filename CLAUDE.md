@@ -92,6 +92,11 @@ wwwroot/             Static web assets for phone UI
   HTTP listen URL both come from [MRR/appsettings.json](MRR/appsettings.json)
   (`ConnectionStrings:Rally` and `Urls`), so the app can run on a host separate from the DB.
 
+## Project Status & Operations
+
+[PROJECT_STATUS.md](PROJECT_STATUS.md) — how to rebuild the SD card, run each part, run a
+game, plus known issues and what remains. Start there for anything operational.
+
 ## Project TODO
 See [install/todo.md](install/todo.md) for the active task list.
 
