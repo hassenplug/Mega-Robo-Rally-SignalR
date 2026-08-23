@@ -50,6 +50,15 @@ app.MapHub<DataHub>("/datahub");
 // Replaces /api/table. Loopback-only, audited, and reloads game state after every write.
 app.MapAdminApi(app.Services.GetRequiredService<AdminAudit>());
 
+// ── Turn execution control ──────────────────────────────────────────────────
+// Stops a turn that is going wrong. Until now there was no way to do that short of
+// restarting the process -- and freezing it mid-turn is worse, because already-sent robot
+// commands keep running while the dispatch loop is suspended.
+app.MapPost("/api/execution/abort", (GameController gameController) =>
+    gameController.AbortTurn()
+        ? Results.Ok(new { aborted = true, note = "Dispatch stopped. Commands already sent are still moving their robots. Use Reload Position (state 16) or Create Program (state 15) to recover." })
+        : Results.Ok(new { aborted = false, note = "No turn is running." }));
+
 // ── Settings API ────────────────────────────────────────────────────────────
 
 app.MapGet("/api/settings/robot-screen", (bool enabled, GameController gameController) =>

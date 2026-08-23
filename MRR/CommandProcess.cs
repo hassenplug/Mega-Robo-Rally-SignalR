@@ -80,10 +80,10 @@ namespace MRR
         {
             bool stillRunning = true;
 
-            while (MarkCommandsReady() > 0 && stillRunning)
+            while (!_aborted && MarkCommandsReady() > 0 && stillRunning)
             {
                 var active = GetActiveCommandList();
-                while (active.Count > 0 && stillRunning)
+                while (!_aborted && active.Count > 0 && stillRunning)
                 {
                     stillRunning = false;
                     foreach (CommandItem onecommand in active)
@@ -105,11 +105,53 @@ namespace MRR
                 // sure the state the phones end on is the real one.
                 PublishSnapshot(force: true);
 
+                if (_aborted) break;
+
                 //Console.WriteLine("Process Commands:Done ");
                 // update to next state (post execute state)
             }
+
+            if (_aborted) AbandonTurn();
             return false;
         }
+
+        /// <summary>
+        /// Retires whatever never ran, so the turn cannot resume on the next pass or after a
+        /// restart. Commands already sent to a robot are left alone: the robot is moving and
+        /// its result still has to be recorded.
+        ///
+        /// The state machine is deliberately not touched. Aborting says "stop"; what to do
+        /// next -- reload the previous positions (state 16) or reprogram (state 15) -- is the
+        /// GM's call, using controls that already exist.
+        /// </summary>
+        private void AbandonTurn()
+        {
+            var pending = _commandList.Where(c => c.StatusID == 1 || c.StatusID == 2).ToList();
+            AbandonedCount = pending.Count;
+
+            foreach (var command in pending) command.StatusID = 6; // complete, never executed
+            if (pending.Count > 0) Db.SaveChanges();
+
+            Console.WriteLine($"Turn aborted: {AbandonedCount} command(s) abandoned, " +
+                              $"{_commandList.Count(c => c.StatusID is 3 or 4)} still in flight.");
+            PublishSnapshot(force: true);
+        }
+
+        private volatile bool _aborted;
+
+        /// <summary>How many commands were still pending when the turn was aborted.</summary>
+        public int AbandonedCount { get; private set; }
+
+        /// <summary>
+        /// Stops the turn. The loop notices between commands and stops dispatching; anything
+        /// already handed to a robot is beyond recall, since the robot is physically moving.
+        ///
+        /// This is the safe alternative to freezing the process mid-turn. "mrrctl pause"
+        /// suspends the dispatch loop while already-sent AIM commands keep running, so the
+        /// board drifts out of step with the state the process resumes believing. See
+        /// install/PROCESS_MANAGER.md section 10.1.
+        /// </summary>
+        public void Abort() => _aborted = true;
 
         /// <summary>When each command was handed to a robot, for the deadline check.</summary>
         private readonly Dictionary<int, DateTime> _sentAtUtc = [];

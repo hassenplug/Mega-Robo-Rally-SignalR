@@ -148,6 +148,25 @@ namespace MRR.Controller
             }
         }
 
+        /// <summary>
+        /// Stops the turn in progress. Returns false if nothing was running.
+        ///
+        /// Commands already sent to a robot cannot be recalled -- the robot is physically
+        /// moving -- so this stops dispatch and retires what had not started. The state
+        /// machine is left where it is: use "Reload Position" (state 16) to put the robots
+        /// back where the turn began, or "Create Program" (state 15) to reprogram.
+        /// </summary>
+        public bool AbortTurn()
+        {
+            lock (_processCommandsLock)
+            {
+                if (_pendingCommands == null) return false;
+                Console.WriteLine("Abort requested for the running turn.");
+                _pendingCommands.Abort();
+                return true;
+            }
+        }
+
         public void LoadGameData(int gameDataID)
         {
             // Copy all GameData fields into CurrentGameData
