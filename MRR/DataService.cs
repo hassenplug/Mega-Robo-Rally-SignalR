@@ -27,6 +27,7 @@ namespace MRR.Services
             _connectionString = configuration.GetConnectionString("Rally")
                 ?? throw new InvalidOperationException("Connection string 'Rally' not found in configuration.");
             _sql = new SqlGateway(_connectionString);
+            _state = new GameStateStore(_sql);
         }
 
         public string ConnectionString => _sql.ConnectionString;
@@ -56,30 +57,25 @@ namespace MRR.Services
             }
         }
 
-        public int RobotsActive { get; set; }
+        /// <summary>
+        /// The CurrentGameData scalars. Second slice of the DataService split: the cache and
+        /// its write-through live in GameStateStore, and the properties below forward, so no
+        /// call site had to change.
+        /// </summary>
+        private readonly GameStateStore _state;
 
-        public string BoardFileName { get; set; } = string.Empty;
-
-        public int BoardID { get; set; }
-
-        private int _gameState;
-        public int GameState
-        {
-            get => _gameState;
-            set
-            {
-                _gameState = value;
-                using var ctx = CreateDbContext();
-                var row = ctx.CurrentGameData.Find(10);
-                if (row != null)
-                {
-                    row.IValue = value;
-                    ctx.SaveChanges();
-                }
-            }
-        }
-
-        public int PhaseCount { get; set; }
+        public int RobotsActive     { get => _state.RobotsActive;     set => _state.RobotsActive = value; }
+        public string BoardFileName { get => _state.BoardFileName;    set => _state.BoardFileName = value; }
+        public int BoardID          { get => _state.BoardID;          set => _state.BoardID = value; }
+        public int GameState        { get => _state.GameState;        set => _state.GameState = value; }
+        public int PhaseCount       { get => _state.PhaseCount;       set => _state.PhaseCount = value; }
+        public int Turn             { get => _state.Turn;             set => _state.Turn = value; }
+        public int Phase            { get => _state.Phase;            set => _state.Phase = value; }
+        public GameTypes GameType   { get => _state.GameType;         set => _state.GameType = value; }
+        public int OptionsOnStartup { get => _state.OptionsOnStartup; set => _state.OptionsOnStartup = value; }
+        public int LaserDamage      { get => _state.LaserDamage;      set => _state.LaserDamage = value; }
+        public int TotalFlags       { get => _state.TotalFlags;       set => _state.TotalFlags = value; }
+        public bool IsOptionsEnabled { get => _state.IsOptionsEnabled; set => _state.IsOptionsEnabled = value; }
 
         public CommandList ListOfCommands { get; set; } = new CommandList();
 
@@ -91,58 +87,8 @@ namespace MRR.Services
 
         public BoardElementCollection g_BoardElements { get; set; } = new BoardElementCollection();
 
-        public int Turn { get; set; } = 0;
-        public int Phase { get; set; } = 0;
-
-        public GameTypes GameType { get; set; }
-
-        public int OptionsOnStartup { get; set; } = -1;
-
-        public int LaserDamage { get; set; } = 1;
-
-        private int _totalFlags = 5;
-        /// <summary>
-        /// Number of flags in the current game — one value for the whole game, not per player.
-        /// CurrentGameData (iKey 7) is the source of truth: set from the board in
-        /// GameController.StartGame(), reloaded by UpdateGameState(), and written through here
-        /// so a mid-game restart restores it.
-        /// </summary>
-        public int TotalFlags
-        {
-            get => _totalFlags;
-            set
-            {
-                _totalFlags = value;
-                using var ctx = CreateDbContext();
-                var row = ctx.CurrentGameData.Find(7);
-                if (row != null)
-                {
-                    row.IValue = value;
-                    ctx.SaveChanges();
-                }
-            }
-        }
-
         public AllDataPayload AllData { get; set; } = new AllDataPayload();
 
-        public bool IsOptionsEnabled
-        {
-            get
-            {
-                return (OptionsOnStartup > -1);
-            }
-            set
-            {
-                if (value)
-                {
-                    OptionsOnStartup = 1;
-                }
-                else
-                {
-                    OptionsOnStartup = -1;
-                }
-            }
-        }
 
 
         ///////////////////////////////////////////////////////////////////////////
@@ -708,40 +654,7 @@ namespace MRR.Services
             }
         }
 
-        public int UpdateGameState()
-        {
-            // Query current game data
-            string strSQL = "Select iKey, sKey, iValue, sValue from CurrentGameData;";
-            var dt = GetQueryResults(strSQL);
-            if (dt != null && dt.Rows.Count > 0)
-            {
-                foreach (System.Data.DataRow row in dt.Rows)
-                {
-                    var key = Convert.ToInt32(row[0]);
-                    var value = Convert.ToInt32(row[2]);
-//                    Console.WriteLine("GameState Key:" + key.ToString() + " Value:" + value.ToString());
-                    switch (key)
-                    {
-                        case 1: GameType = (GameTypes)value; break;
-                        case 2: Turn = value; break;
-                        case 3: Phase = value; break;
-                        case 6: LaserDamage = value; break;
-                        // Backing field, not the property: this is a read from CurrentGameData,
-                        // so writing back through the setter would be a redundant round trip.
-                        case 7: _totalFlags = value; break;
-                        case 8: RobotsActive = value; break;
-                        case 10: _gameState = value; break;
-                        case 16: PhaseCount = value; break;
-                        case 20:
-                            BoardID = value;
-                            if (row[3] != System.DBNull.Value) BoardFileName = row[3].ToString() ?? "";
-                            break;
-                        case 22: OptionsOnStartup = value; break;
-                    }
-                }
-            }
-            return GameState;
-        }
+        public int UpdateGameState() => _state.Reload();
 
         ///////////////////////////////////////////////////////////////////////////
         // Datagrid editor API methods
