@@ -521,10 +521,10 @@ open at a time.
 | **1. Split `Player`** | `PlayerState` (Contracts) + `Player : PlayerState` (host transport). Unblocks `CommandItem`, `CommandList`, `OptionCardList` into Contracts | **Done** — `0bba5bb`. Moved up from step 5; see below |
 | **2. Config out** | Board / gamedata routes, load/save and `.srx` import into `MRR.Config`; transaction + `/validate` fixes; `mrr-config.service` and role-aware `mrrctl` (§10) | **Done** — `0bc7b79`, `bdd4e49`. **Two processes.** Authoring cannot disturb a live game |
 | **3. Purify Rules** | Retarget to `PlayerState`; sever the writes; pre-drawn deck; `TurnRequest` in / `TurnPlan` out; extract `MRR.Rules` | **Done** — `191b2b9`, `cf4ad8e`, `5d106a0`, `4b4680f`, `1e0f5a2`. Planner cannot reach a database: verified by CS0246 |
-| **4. Split `DataService`** | Extract `RuleEffects`, repositories, `IGameStateStore`. **Riskiest step — do it alone, on a branch** | Internal seams exist |
-| **5. Admin** | Replace `/api/table` with `MRR.Admin`: reload-after-write, audit log, loopback binding, `POST` for mutations | A safe way to hand-edit game state mid-session |
-| **6. Device Gateway** | `IRobotTransport` over the transport half of `Player`; awaited sends, timeouts, `/abort` | Robot failures visible; real simulation mode |
-| **7. Presentation** | Invert `RobotScreenUI` to render-and-report; centralize pushes; per-seat groups; debounce; fix `/` → 404 | Password leak and broadcast storm fixed |
+| **4. Split `DataService`** | Extract `SqlGateway`, `GameStateStore`, then repositories and `RuleEffects` | **Partial** — `3e4995c`, `9c966b6`, `48704d4`. Plumbing and the CurrentGameData cache are out; concerns separated into partials. `RuleEffects` outstanding |
+| **5. Admin** | Replace `/api/table` with `MRR.Admin`: reload-after-write, audit log, loopback binding, `POST` for mutations | **Done** — `72d1a21`. Verified: LAN callers get 403, loopback 200, hostile UPDATE did not run |
+| **6. Device Gateway** | `IRobotTransport` over the transport half of `Player`; awaited sends, timeouts, `/abort` | **Not started.** Fire-and-forget sends still mean a failed send advances the turn as if the robot moved |
+| **7. Presentation** | Invert `RobotScreenUI` to render-and-report; centralize pushes; per-seat groups; debounce; fix `/` → 404 | **Partial** — `1e9f27c`. Password leak closed, broadcast debounced, `/` fixed. Per-seat groups and the `RobotScreenUI` inversion outstanding |
 
 ### Why the `Player` split moved to step 1
 
