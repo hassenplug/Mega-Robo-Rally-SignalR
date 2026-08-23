@@ -31,6 +31,7 @@ builder.Services.AddDbContextFactory<MRRDbContext>((serviceProvider, options) =>
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<GameController>();
 builder.Services.AddSingleton<AdminAudit>();
+builder.Services.AddSingleton<AdminAccess>();
 
 var app = builder.Build();
 
@@ -47,8 +48,10 @@ app.UseWebSockets();
 app.MapHub<DataHub>("/datahub");
 
 // ── Admin & Diagnostics ─────────────────────────────────────────────────────
-// Replaces /api/table. Loopback-only, audited, and reloads game state after every write.
-app.MapAdminApi(app.Services.GetRequiredService<AdminAudit>());
+// Replaces /api/table. Audited, reloads game state after every write. Loopback always;
+// remote only when Admin:AllowRemote and Admin:ApiKey are configured (see AdminAccess).
+app.MapAdminApi(app.Services.GetRequiredService<AdminAudit>(),
+                app.Services.GetRequiredService<AdminAccess>());
 
 // ── Turn execution control ──────────────────────────────────────────────────
 // Stops a turn that is going wrong. Until now there was no way to do that short of

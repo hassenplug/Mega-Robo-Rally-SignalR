@@ -24,24 +24,23 @@ namespace MRR.Admin
     /// </summary>
     public static class AdminApi
     {
-        public static void MapAdminApi(this WebApplication app, AdminAudit audit)
+        public static void MapAdminApi(this WebApplication app, AdminAudit audit, AdminAccess access)
         {
             // ── access control ──────────────────────────────────────────────────
-            // Loopback only. The game host binds 0.0.0.0:5000 so six phones can reach it,
-            // which means without this check arbitrary SQL is reachable from the game WiFi.
-            static bool IsLocal(HttpContext http)
-            {
-                var remote = http.Connection.RemoteIpAddress;
-                if (remote is null) return false;
-                if (IPAddress.IsLoopback(remote)) return true;
-                // A loopback request can arrive mapped to ::ffff:127.0.0.1
-                return remote.IsIPv4MappedToIPv6 && IPAddress.IsLoopback(remote.MapToIPv4());
-            }
+            // Loopback is always allowed. Remote use is possible but must be turned on and
+            // keyed -- see AdminAccess. The game host binds 0.0.0.0:5000 so six phones can
+            // reach it, so anything allowed here is allowed from the game WiFi.
+            bool IsLocal(HttpContext http) => access.Check(http) is
+                AdminAccess.Decision.AllowedLocal or AdminAccess.Decision.AllowedRemote;
 
-            static IResult Refused() => Results.Problem(
-                "The admin API is available from the machine running the game only. " +
-                "Use an SSH tunnel: ssh -L 5000:127.0.0.1:5000 <host>",
-                statusCode: StatusCodes.Status403Forbidden);
+            IResult Refused(HttpContext http)
+            {
+                var decision = access.Check(http);
+                Console.WriteLine($"[admin] refused {http.Request.Method} {http.Request.Path} " +
+                                  $"from {http.Connection.RemoteIpAddress}: {decision}");
+                return Results.Problem(access.ExplainDenial(decision),
+                                       statusCode: StatusCodes.Status403Forbidden);
+            }
 
             static bool IsMutating(string sql)
             {
@@ -55,14 +54,14 @@ namespace MRR.Admin
             // ── tables ──────────────────────────────────────────────────────────
 
             app.MapGet("/api/admin/tables", (HttpContext http, DataService data) =>
-                !IsLocal(http) ? Refused() : Results.Ok(new { tables = data.GetTableList() }));
+                !IsLocal(http) ? Refused(http) : Results.Ok(new { tables = data.GetTableList() }));
 
             // Read-only. The old route took a "setvalue" segment and ran an UPDATE from a
             // GET; changing data now requires POST /api/admin/sql.
             app.MapGet("/api/admin/tables/{tablename}", (string tablename, string? filter,
                                                         HttpContext http, DataService data) =>
             {
-                if (!IsLocal(http)) return Refused();
+                if (!IsLocal(http)) return Refused(http);
                 var where = string.IsNullOrWhiteSpace(filter) ? "" : " where " + filter;
                 var json = data.GetQueryResultsJson($"Select * from {tablename}{where};", tablename);
                 return Results.Content(json, "application/json");
@@ -71,7 +70,7 @@ namespace MRR.Admin
             app.MapPost("/api/admin/tables/{tablename}", async (string tablename, HttpContext http,
                                                                DataService data, IHubContext<DataHub> hub) =>
             {
-                if (!IsLocal(http)) return Refused();
+                if (!IsLocal(http)) return Refused(http);
                 using var reader = new StreamReader(http.Request.Body);
                 var json = await reader.ReadToEndAsync();
                 try
@@ -95,7 +94,7 @@ namespace MRR.Admin
             app.MapPost("/api/admin/sql", async (HttpContext http, DataService data,
                                                  IHubContext<DataHub> hub) =>
             {
-                if (!IsLocal(http)) return Refused();
+                if (!IsLocal(http)) return Refused(http);
 
                 using var reader = new StreamReader(http.Request.Body);
                 var body = (await reader.ReadToEndAsync()).Trim();
@@ -135,7 +134,7 @@ namespace MRR.Admin
             });
 
             app.MapGet("/api/admin/sql/history", (HttpContext http, int? limit, AdminAudit a) =>
-                !IsLocal(http) ? Refused()
+                !IsLocal(http) ? Refused(http)
                                : Results.Ok(new { logPath = a.LogPath, entries = a.Recent(limit ?? 100) }));
 
             // ── diagnostics ─────────────────────────────────────────────────────
@@ -145,7 +144,7 @@ namespace MRR.Admin
             app.MapGet("/api/admin/diagnostics", (HttpContext http, DataService data,
                                                   GameController game) =>
             {
-                if (!IsLocal(http)) return Refused();
+                if (!IsLocal(http)) return Refused(http);
 
                 int dbState = data.GetIntFromDB("SELECT iValue FROM CurrentGameData WHERE iKey=10;");
                 int dbTurn  = data.GetIntFromDB("SELECT iValue FROM CurrentGameData WHERE iKey=2;");
@@ -167,8 +166,16 @@ namespace MRR.Admin
             });
         }
 
-        private static string Caller(HttpContext http) =>
-            http.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        /// <summary>
+        /// Who made the call, for the audit log. Remote callers are tagged, so "who changed
+        /// this" distinguishes the operator at the Pi from someone across the network.
+        /// </summary>
+        private static string Caller(HttpContext http)
+        {
+            var address = http.Connection.RemoteIpAddress;
+            var who = address?.ToString() ?? "unknown";
+            return AdminAccess.IsLoopback(address) ? who : who + " (remote)";
+        }
 
         /// <summary>
         /// Re-read game state and push it to the clients. Without this a hand-edit is

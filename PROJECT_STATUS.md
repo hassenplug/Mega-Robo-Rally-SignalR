@@ -154,7 +154,7 @@ what the process resumes believing. Use `POST /api/execution/abort` instead (§3
 | `http://mrobopi:5000/api/health` | Game host liveness |
 | `http://mrobopi:5001/` | Board editor |
 | `http://mrobopi:5001/api/health` | Authoring host liveness |
-| `http://127.0.0.1:5000/api/admin/…` | Admin — **loopback only**, see §6.3 |
+| `http://127.0.0.1:5000/api/admin/…` | Admin — loopback always; remote needs a key, see §6.3 |
 
 ### 2.4 Exact commands
 
@@ -470,11 +470,46 @@ hostname. Keep it accurate — it is the first thing any assistant reads.
 
 ### 6.3 Admin API
 
-Loopback-only by design. From another machine, tunnel:
+Loopback is always allowed with no key — that is the operator at the Pi.
+
+**Remote access is possible but off by default**, because the game host binds
+`0.0.0.0:5000` so phones can reach it, which means anything allowed here is allowed from
+the game WiFi — and these routes run arbitrary SQL.
+
+To enable it, set both of these in `MRR/appsettings.json` and restart:
+
+```json
+"Admin": {
+  "AllowRemote": true,
+  "ApiKey": "a-long-random-string",
+  "AllowedNetworks": [ "192.168.1.0/24" ]
+}
+```
+
+- **`AllowRemote` alone does nothing.** Without an `ApiKey` remote access stays closed and
+  the host says so loudly at startup, rather than quietly opening arbitrary SQL to the LAN.
+- **`AllowedNetworks`** is optional. Empty means any address, provided the key is right.
+  Listing your LAN narrows it further; CIDR, IPv4 or IPv6.
+
+Generate a key with `openssl rand -base64 32`.
+
+Callers send it as a header, or as a query parameter for a browser:
 
 ```bash
-ssh -L 5000:127.0.0.1:5000 mrr@mrobopi
+curl -H "X-MRR-Admin-Key: a-long-random-string" http://mrobopi:5000/api/admin/tables
+curl "http://mrobopi:5000/api/admin/tables?adminKey=a-long-random-string"
 ```
+
+Remote callers are tagged `(remote)` in the audit log, so "who changed this" distinguishes
+the operator at the Pi from someone across the network.
+
+> The key travels in plaintext — there is no TLS on :5000. That is acceptable on a private
+> game LAN and not acceptable on an untrusted network. If you need it over something you do
+> not control, leave `AllowRemote` off and tunnel instead:
+>
+> ```bash
+> ssh -L 5000:127.0.0.1:5000 mrr@mrobopi
+> ```
 
 Every statement is audited to `admin-audit.log` beside the deployed binary, with caller,
 turn, phase and rows affected. Every write reloads game state and republishes to the phones
