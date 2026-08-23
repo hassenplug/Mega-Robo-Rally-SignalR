@@ -23,12 +23,22 @@ namespace MRR.Services
     {
 
         /// <summary>
-        /// Reloads MoveCard state for a single player from the DB into in-memory GameCards.
-        /// CardsDealtStr and CardsPlayedStr are computed from GameCards, so this keeps them fresh.
+        /// DOES NOTHING. Retained only so its seven call sites keep compiling.
+        ///
+        /// It was meant to reload a player's MoveCards from the database into the in-memory
+        /// GameCards. UpdateCardPlayed now does that inline (step 8 below), for exactly the
+        /// two cards it moved, so re-reading the player's whole hand on every keypress became
+        /// redundant and someone disabled this with an early return.
+        ///
+        /// The problem is that it is silent: Program.cs, GameController and RobotScreenUI all
+        /// call it as though it refreshes something. Either delete it and its callers, or
+        /// restore it -- but it should not stay a no-op that reads like a refresh. Tracked in
+        /// install/todo.md, Section 7.
         /// </summary>
         public void RefreshPlayerCards(int robotID)
         {
-            return;
+            return;   // intentional: see remarks above. The body below is unreachable.
+#pragma warning disable CS0162
             var dt = GetQueryResults(
                 $"SELECT CardID, PhasePlayed, CardLocation, Executed FROM MoveCards WHERE Owner = {robotID};");
             foreach (DataRow row in dt.Rows)
@@ -39,6 +49,7 @@ namespace MRR.Services
                 card.CardLocation = (int)row["CardLocation"];
                 card.Executed     = (int)row["Executed"] == 1;
             }
+#pragma warning restore CS0162
         }
 
         public void LoadGameCardsFromDatabase()
@@ -262,7 +273,12 @@ namespace MRR.Services
                 cmd.ExecuteNonQuery();
             }
 
-            player.PlayerStatus = (tPlayerStatus)newStatus;
+            // Guarded rather than assumed. player comes from AllPlayers.GetPlayer, which
+            // returns null for an unknown robot id. Today an unknown id also fails the
+            // Programming-status check above and returns early, so this is not reachable --
+            // but that is incidental protection, not a guard, and it would break the moment
+            // that check changed.
+            if (player != null) player.PlayerStatus = (tPlayerStatus)newStatus;
 
             // 8. Sync in-memory GameCards to match the DB moves above.
             var returnedCard = GameCards.FirstOrDefault(c => c.Owner == p_Player && c.PhasePlayed == p_PhasePlayed && c.CardLocation == 2);
