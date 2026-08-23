@@ -419,9 +419,53 @@
             }
         });
 
+        // ─── TEMPORARY: admin API key handling ──────────────────────────────────
+        // The admin routes need a key when this page is loaded from anything other than the
+        // machine running the game (Admin:AllowRemote + Admin:ApiKey; see
+        // PROJECT_STATUS.md 6.3). From loopback no key is needed and none is asked for.
+        //
+        // The key is NOT hardcoded here on purpose: this page is served to any client that
+        // can reach :5000, so a key written into it would be handed out to everyone who
+        // opens it. It is prompted for on the first 403 and kept in sessionStorage, which
+        // is cleared when the tab closes and is never sent anywhere but this server.
+        //
+        // Temporary. Replace with a real sign-in when the admin surface gets one.
+        const ADMIN_KEY_STORAGE = 'mrrAdminKey';
+
+        function getAdminKey()   { try { return sessionStorage.getItem(ADMIN_KEY_STORAGE) || ''; } catch (e) { return ''; } }
+        function setAdminKey(k)  { try { k ? sessionStorage.setItem(ADMIN_KEY_STORAGE, k) : sessionStorage.removeItem(ADMIN_KEY_STORAGE); } catch (e) {} }
+        function clearAdminKey() { setAdminKey(''); }
+
+        // fetch() wrapper: attaches the key if we have one, and on a 403 asks for it once
+        // and retries. Everything on this page goes through here.
+        async function adminFetch(url, options) {
+            options = options || {};
+            const withKey = (key) => {
+                const headers = Object.assign({}, options.headers || {});
+                if (key) headers['X-MRR-Admin-Key'] = key;
+                return Object.assign({}, options, { headers });
+            };
+
+            let response = await fetch(url, withKey(getAdminKey()));
+            if (response.status !== 403) return response;
+
+            // Refused. Either we sent no key, or the one we have is wrong or expired.
+            const had = getAdminKey();
+            clearAdminKey();
+            const entered = window.prompt(
+                had ? 'Admin key rejected. Enter the admin API key again:'
+                    : 'This server requires an admin API key for remote access.\n' +
+                      '(Admin:ApiKey in appsettings.json. Leave blank to cancel.)');
+            if (!entered) return response;      // user cancelled; hand back the 403
+
+            setAdminKey(entered.trim());
+            return await fetch(url, withKey(getAdminKey()));
+        }
+        // ─── end temporary admin key handling ───────────────────────────────────
+
         async function loadTableList() {
             try {
-                const response = await fetch('/api/admin/tables');
+                const response = await adminFetch('/api/admin/tables');
                 const data = await response.json();
                 const select = document.getElementById('tableSelect');
                 const current = select.value;
@@ -457,7 +501,7 @@
                 const url = (filter && filter.trim())
                     ? `/api/admin/tables/${encodeURIComponent(tableName)}?filter=${encodeURIComponent(filter)}`
                     : `/api/admin/tables/${encodeURIComponent(tableName)}`;
-                const response = await fetch(url);
+                const response = await adminFetch(url);
                 
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -549,7 +593,7 @@
                     
                     // Updates go through POST /api/admin/sql. The old route ran this
                     // UPDATE from a GET, which any prefetch could have triggered.
-                    const resp = await fetch('/api/admin/sql', {
+                    const resp = await adminFetch('/api/admin/sql', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ sql: `UPDATE ${currentTable} SET ${setValue} WHERE ${filterClause};` })
