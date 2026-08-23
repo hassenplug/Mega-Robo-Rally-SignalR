@@ -95,6 +95,10 @@ namespace MRR
                     // refresh active set for the next inner loop iteration
                     active = GetActiveCommandList();
                     PublishSnapshot();
+
+                    // Commands in flight complete on their own threads, so without this the
+                    // loop spins a core polling them while the robots move.
+                    if (active.Count > 0) Thread.Sleep(PollInterval);
                 }
 
                 // The loop above skips a publish when one went out moments earlier, so make
@@ -106,6 +110,18 @@ namespace MRR
             }
             return false;
         }
+
+        /// <summary>When each command was handed to a robot, for the deadline check.</summary>
+        private readonly Dictionary<int, DateTime> _sentAtUtc = [];
+
+        /// <summary>
+        /// How long to wait for a robot to finish a command before giving up on it. Generous:
+        /// a full-square move plus an IMU-corrected turn takes a few seconds.
+        /// </summary>
+        private static readonly TimeSpan CommandDeadline = TimeSpan.FromSeconds(30);
+
+        /// <summary>Gap between polls of the in-flight command set.</summary>
+        private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(20);
 
         private DateTime _lastPublishUtc = DateTime.MinValue;
         private static readonly TimeSpan PublishInterval = TimeSpan.FromMilliseconds(100);
@@ -212,8 +228,27 @@ namespace MRR
                         if (onecommand.CommandCatID != 2)LogCommand(onecommand, "Robot Command    ");
                         
                         onecommand.StatusID = 3; // executing
-                        //robot.SendRobotCommandAsync(onecommand).Wait();
-                        _ = robot.SendRobotCommandAsync(onecommand);
+                        _sentAtUtc[onecommand.CommandID] = DateTime.UtcNow;
+
+                        // Deliberately not awaited: SendRobotCommandAsync waits for the robot
+                        // to finish moving and sets StatusID = 4 itself when it does, so the
+                        // loop stays responsive meanwhile. What was missing is observing the
+                        // failure -- "_ = task" discarded it, so a socket dropping mid-move
+                        // left the command at StatusID 3 forever and the loop spinning on it
+                        // with no message anywhere.
+                        var sentTo = robot;
+                        var sentCommand = onecommand;
+                        _ = robot.SendRobotCommandAsync(onecommand).ContinueWith(t =>
+                        {
+                            if (!t.IsFaulted) return;
+                            var error = t.Exception?.GetBaseException();
+                            Console.WriteLine(
+                                $"[robot {sentTo.ID} {sentTo.Name}] send FAILED for command " +
+                                $"{sentCommand.CommandID} ({sentCommand.CommandType}): {error?.Message}");
+                            sentTo.isConnected = false;   // the socket really is gone
+                            sentCommand.StatusID = 4;     // let the turn move on instead of hanging
+                        }, TaskScheduler.Default);
+
                         if (onecommand.CommandCatID == 2)
                         {
                             // don't wait for reply
@@ -225,6 +260,20 @@ namespace MRR
 
                     if (onecommand.StatusID == 3)
                     {
+                        // Still moving. If it has been too long the robot is not coming back
+                        // -- a lost ack, a robot switched off mid-turn -- so say so and move
+                        // on rather than spinning here for the rest of the evening.
+                        if (_sentAtUtc.TryGetValue(onecommand.CommandID, out var sentAt)
+                            && DateTime.UtcNow - sentAt > CommandDeadline)
+                        {
+                            Console.WriteLine(
+                                $"[robot {onecommand.RobotID}] command {onecommand.CommandID} " +
+                                $"({onecommand.CommandType}) did not complete within " +
+                                $"{CommandDeadline.TotalSeconds:0}s; giving up on it.");
+                            _sentAtUtc.Remove(onecommand.CommandID);
+                            onecommand.StatusID = 4;
+                            Db.SaveChanges();
+                        }
                     }
 
                     if (onecommand.StatusID == 4)
