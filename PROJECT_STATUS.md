@@ -156,6 +156,138 @@ what the process resumes believing. Use `POST /api/execution/abort` instead (§3
 | `http://mrobopi:5001/api/health` | Authoring host liveness |
 | `http://127.0.0.1:5000/api/admin/…` | Admin — **loopback only**, see §6.3 |
 
+### 2.4 Exact commands
+
+> **As of 2026-08-22 the services are NOT installed on `mrobopi`** — `mrrctl` is not on
+> PATH and no `mrr-*` units exist. Use **Mode A**. Mode B works only after
+> `sudo install/service/install.sh` has been run (§1.6).
+
+Everything below assumes:
+
+```bash
+cd ~/Mega-Robo-Rally-SignalR
+```
+
+#### Mode A — by hand (works today)
+
+**0. Check the database is up.** Nothing else will work without it.
+
+```bash
+systemctl is-active mariadb                       # expect: active
+mysql -h localhost -u mrr -prallypass rally -e "SELECT COUNT(*) FROM Boards;"
+```
+
+**1. Build.** Expect `0 Error(s)`, `0 Warning(s)`.
+
+```bash
+~/.dotnet/dotnet build Mega-Robo-Rally-SignalR.sln
+```
+
+**2. Start the game host** (phones, GM panel, robots, SignalR) — port 5000:
+
+```bash
+~/.dotnet/dotnet run --project MRR/MRR.csproj
+```
+
+Leave that terminal open. To run it in the background instead:
+
+```bash
+nohup ~/.dotnet/dotnet run --project MRR/MRR.csproj > /tmp/mrr-game.log 2>&1 &
+```
+
+**3. Start the board editor** (optional, independent) — port 5001, second terminal:
+
+```bash
+~/.dotnet/dotnet run --project MRR.Config/MRR.Config.csproj
+```
+
+```bash
+nohup ~/.dotnet/dotnet run --project MRR.Config/MRR.Config.csproj > /tmp/mrr-config.log 2>&1 &
+```
+
+**4. Confirm both are answering.**
+
+```bash
+curl -s http://127.0.0.1:5000/api/health     # {"status":"ok","state":4}
+curl -s http://127.0.0.1:5001/api/health     # {"status":"ok","role":"config"}
+```
+
+`state` is the current game state (§3.2). If a host does not answer within ~30s, read its
+log: `tail -40 /tmp/mrr-game.log`.
+
+**5. Stop them.** By listening port — never by name, see the warning below.
+
+```bash
+kill $(ss -ltnp | grep ':5000' | sed -E 's/.*pid=([0-9]+).*/\1/')   # game host
+kill $(ss -ltnp | grep ':5001' | sed -E 's/.*pid=([0-9]+).*/\1/')   # board editor
+```
+
+> **Never `pkill -f MRR` or `pkill -f dotnet`.** The pattern matches the shell you type it
+> in, so it kills your own session. During development that happened mid-`git commit` and
+> corrupted the git object database. Always kill by port, as above.
+
+#### Mode B — as services (after install.sh)
+
+```bash
+mrrctl status                 # game host: state, pid, memory, live health probe
+mrrctl status config          # board editor
+
+mrrctl start                  # start the GAME host
+mrrctl start all              # start both hosts
+mrrctl restart                # restart the GAME host only
+mrrctl restart config         # restart the board editor only
+mrrctl stop all               # stop both; they stay down until started
+
+mrrctl logs -f                # follow the journal for all mrr-* units
+mrrctl logs 200               # last 200 lines
+
+mrrctl deploy all             # publish Release for both, restart if running
+mrrctl rollback game          # revert the game host to its previous build
+```
+
+A bare verb means the **game host**, not both.
+
+> **Do not `mrrctl pause` during a turn.** It freezes the process while already-sent robot
+> commands keep running, so the board ends up out of step with what the process believes.
+> Use the abort endpoint (§3.4) instead.
+
+#### Everyday one-liners
+
+```bash
+# what is the game doing right now?
+curl -s http://127.0.0.1:5000/api/health
+
+# in-memory state vs the database (loopback only)
+curl -s http://127.0.0.1:5000/api/admin/diagnostics
+
+# stop a turn that is going wrong
+curl -s -X POST http://127.0.0.1:5000/api/execution/abort
+
+# check a board before using it
+curl -s http://127.0.0.1:5001/api/boardeditor/7/validate
+
+# turn the robot touchscreens on / off
+curl -s "http://127.0.0.1:5000/api/settings/robot-screen?enabled=true"
+
+# back up the database
+mysqldump -u mrr -prallypass rally > ~/rally-$(date +%F).sql
+
+# back up the code (the SD card is a single point of failure)
+git bundle create ~/mrr-$(date +%F).bundle --all && git fsck --full
+```
+
+#### From another machine
+
+Replace `127.0.0.1` with `mrobopi`. Two exceptions:
+
+- **Admin routes are loopback-only** and will return 403. Tunnel instead:
+  ```bash
+  ssh -L 5000:127.0.0.1:5000 mrr@mrobopi
+  ```
+- Phones just open `http://mrobopi:5000/` in a browser; nothing to install.
+
+---
+
 ---
 
 ## 3. Game setup and execution
