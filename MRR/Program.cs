@@ -38,8 +38,10 @@ var app = builder.Build();
 // runs immediately (connects to robots, reloads game data).
 app.Services.GetRequiredService<GameController>();
 
-app.UseStaticFiles();
+// UseDefaultFiles must come first, or "/" is never rewritten to index.html and returns
+// 404 -- which is why phones had to be pointed at the explicit filename.
 app.UseDefaultFiles();
+app.UseStaticFiles();
 app.UseWebSockets();
 
 app.MapHub<DataHub>("/datahub");

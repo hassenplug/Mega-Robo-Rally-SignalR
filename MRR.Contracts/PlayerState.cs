@@ -380,7 +380,6 @@ namespace MRR
 //            PositionValid       = PositionValid ? 1 : 0,
             Priority            = Priority,
             ShutDown            = (int)ShutDown,
-            Password            = Password,
             PlayerSeat          = PlayerSeat,
             Energy              = Energy,
             FlagEnergy          = $"{LastFlag}/{CardsPlayer.Count}",

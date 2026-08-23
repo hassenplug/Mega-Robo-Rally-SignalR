@@ -94,18 +94,39 @@ namespace MRR
                     }
                     // refresh active set for the next inner loop iteration
                     active = GetActiveCommandList();
-                    // send updates to clients
-                    var allDataJson = _dataService.GetAllDataJson();
-                    // Notify connected SignalR clients using the hub context from background thread
-                    _hubContext.Clients.All.SendAsync("AllDataUpdate", allDataJson).GetAwaiter().GetResult();
-                    //_hubContext .Clients.All.SendAsync("AllDataUpdate", allDataJson).GetAwaiter().GetResult();
-
+                    PublishSnapshot();
                 }
+
+                // The loop above skips a publish when one went out moments earlier, so make
+                // sure the state the phones end on is the real one.
+                PublishSnapshot(force: true);
 
                 //Console.WriteLine("Process Commands:Done ");
                 // update to next state (post execute state)
             }
             return false;
+        }
+
+        private DateTime _lastPublishUtc = DateTime.MinValue;
+        private static readonly TimeSpan PublishInterval = TimeSpan.FromMilliseconds(100);
+
+        /// <summary>
+        /// Pushes the game snapshot to the clients, at most once every 100 ms.
+        ///
+        /// This loop runs per command, and each publish rebuilt and re-serialized the whole
+        /// payload -- for a turn of roughly 130 commands that is 130 full serializations and
+        /// broadcasts, on a Pi that is driving robot I/O at the same time. Phones cannot
+        /// render faster than this anyway. Pass force to bypass the interval, which the end
+        /// of the turn does so the last state is never the one that got skipped.
+        /// </summary>
+        private void PublishSnapshot(bool force = false)
+        {
+            var now = DateTime.UtcNow;
+            if (!force && now - _lastPublishUtc < PublishInterval) return;
+            _lastPublishUtc = now;
+
+            var allDataJson = _dataService.GetAllDataJson();
+            _hubContext.Clients.All.SendAsync("AllDataUpdate", allDataJson).GetAwaiter().GetResult();
         }
 
         public int MarkCommandsReady()

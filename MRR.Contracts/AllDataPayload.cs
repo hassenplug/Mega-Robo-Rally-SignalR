@@ -29,7 +29,10 @@ namespace MRR
 //        public int PositionValid { get; set; }
         public int Priority { get; set; }
         public int ShutDown { get; set; }
-        public string Password { get; set; } = "";
+        // Password is deliberately NOT here. It was broadcast to every connected client,
+        // so all six phones received all six players' passwords -- and nothing on either
+        // side ever checked it, so it bought nothing in exchange. Player.Password still
+        // loads from the Robots table; it just does not leave the server.
         public int PlayerSeat { get; set; }
         public int Energy { get; set; }
         public string FlagEnergy { get; set; } = "";
