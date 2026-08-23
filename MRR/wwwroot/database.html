@@ -151,7 +151,7 @@
         // 1. FETCH DATA (SELECT)
         async function fetchData() {
             currentTableName = tableNameInput.value || 'CurrentGameData';
-            var apiUrl = `/api/table/${currentTableName}`;
+            var apiUrl = `/api/admin/tables/${currentTableName}`;
             const setClause = setClauseInput.value.trim();
             const whereClause = whereClauseInput.value.trim();
             const encodedSet = encodeURIComponent(setClause);

@@ -5,6 +5,7 @@ using System.Net.WebSockets;
 using MRR.Controller;
 using MRR;
 using MRR.Data;
+using MRR.Admin;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 using System.Text;
@@ -29,6 +30,7 @@ builder.Services.AddDbContextFactory<MRRDbContext>((serviceProvider, options) =>
 // Register SignalR before GameController so IHubContext<DataHub> is available
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<GameController>();
+builder.Services.AddSingleton<AdminAudit>();
 
 var app = builder.Build();
 
@@ -42,48 +44,9 @@ app.UseWebSockets();
 
 app.MapHub<DataHub>("/datahub");
 
-// Unified table data API - GET/POST for list, read, and write operations
-app.MapGet("/api/table", (DataService dataService) =>
-{
-    var tables = dataService.GetTableList();
-    return Results.Ok(new { tables });
-});
-
-app.MapGet("/api/table/{tablename}/{filter?}/{setvalue?}", (string tablename, string? filter, string? setvalue, DataService dataService, IHubContext<DataHub> hubContext) =>
-{
-    string whereClause = "";
-    if (filter != "" && filter != null)
-    {
-        whereClause = " where " + filter;
-    }
-
-    if(setvalue != "" && setvalue != null)
-    {
-        var setStatement = "Update " + tablename + " set " + setvalue + whereClause + ";";
-        dataService.ExecuteSQL(setStatement);
-    }
-
-    var dataout = dataService.GetQueryResultsJson($"Select * from {tablename}{whereClause};", tablename);
-    hubContext.Clients.All.SendAsync(tablename, dataout);
-    return Results.Content(dataout, "application/json");
-});
-
-app.MapPost("/api/table/{tablename}", async (string tablename, DataService dataService, HttpRequest request) =>
-{
-    try
-    {
-        using (var reader = new StreamReader(request.Body))
-        {
-            var json = await reader.ReadToEndAsync();
-            var result = dataService.SaveTableData(tablename, json);
-            return Results.Ok(result);
-        }
-    }
-    catch (Exception ex)
-    {
-        return Results.BadRequest(new { error = ex.Message });
-    }
-});
+// ── Admin & Diagnostics ─────────────────────────────────────────────────────
+// Replaces /api/table. Loopback-only, audited, and reloads game state after every write.
+app.MapAdminApi(app.Services.GetRequiredService<AdminAudit>());
 
 // ── Settings API ────────────────────────────────────────────────────────────
 

@@ -421,7 +421,7 @@
 
         async function loadTableList() {
             try {
-                const response = await fetch('/api/table');
+                const response = await fetch('/api/admin/tables');
                 const data = await response.json();
                 const select = document.getElementById('tableSelect');
                 const current = select.value;
@@ -454,7 +454,9 @@
         async function loadTable(tableName, filter = '') {
             try {
                 document.getElementById('gridContainer').innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading data...</p></div>';
-                const url = (filter && filter.trim()) ? `/api/table/${encodeURIComponent(tableName)}/${encodeURIComponent(filter)}` : `/api/table/${encodeURIComponent(tableName)}`;
+                const url = (filter && filter.trim())
+                    ? `/api/admin/tables/${encodeURIComponent(tableName)}?filter=${encodeURIComponent(filter)}`
+                    : `/api/admin/tables/${encodeURIComponent(tableName)}`;
                 const response = await fetch(url);
                 
                 if (!response.ok) {
@@ -545,8 +547,13 @@
                 const filterClause = (document.getElementById('searchInput') || {}).value.trim() || '';
                 if (setValue && filterClause) {
                     
-                    const url = `/api/table/${encodeURIComponent(currentTable)}/${encodeURIComponent(filterClause)}/${encodeURIComponent(setValue)}`;
-                    const resp = await fetch(url);
+                    // Updates go through POST /api/admin/sql. The old route ran this
+                    // UPDATE from a GET, which any prefetch could have triggered.
+                    const resp = await fetch('/api/admin/sql', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ sql: `UPDATE ${currentTable} SET ${setValue} WHERE ${filterClause};` })
+                    });
                     if (!resp.ok) {
                         const txt = await resp.text();
                         throw new Error(`Failed update row ${item.index}: HTTP ${resp.status} - ${txt}`);
