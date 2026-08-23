@@ -3,7 +3,7 @@
 > ## 🔶 STILL OPEN — re-checked 2026-08-22
 >
 > The core goal is **not** done: `MRRDbContext` still declares `DbSet<Player> Robots`
-> ([MRRDbContext.cs:13](MRR/Data/MRRDbContext.cs#L13)) and `DataService.GetAllPlayers()`
+> ([MRRDbContext.cs:13](../MRR/Data/MRRDbContext.cs#L13)) and `DataService.GetAllPlayers()`
 > still loads players with raw SQL.
 >
 > Largely subsumed by step 3 of [API_DECOMPOSITION_DESIGN.md](API_DECOMPOSITION_DESIGN.md),

@@ -5,7 +5,7 @@
 
 This is the practical document: how to rebuild the machine, how to run the parts, how to
 run a game, what is broken, and what is left. For *why* the code is shaped the way it is,
-see [API_DECOMPOSITION_DESIGN.md](API_DECOMPOSITION_DESIGN.md); for supervision detail see
+see [API_DECOMPOSITION_DESIGN.md](documents/API_DECOMPOSITION_DESIGN.md); for supervision detail see
 [install/PROCESS_MANAGER.md](install/PROCESS_MANAGER.md).
 
 > **Read this first.** The architecture was substantially rebuilt on 2026-08-22 — four

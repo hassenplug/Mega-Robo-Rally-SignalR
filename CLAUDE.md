@@ -39,10 +39,10 @@ wwwroot/             Static web assets for phone UI
 ## Design Documents
 | Document | Covers |
 |---|---|
-| [API_DECOMPOSITION_DESIGN.md](API_DECOMPOSITION_DESIGN.md) | Splitting the app into seven API contracts across two processes; migration order; open defects |
+| [API_DECOMPOSITION_DESIGN.md](documents/API_DECOMPOSITION_DESIGN.md) | Splitting the app into seven API contracts across two processes; migration order; open defects |
 | [install/PROCESS_MANAGER.md](install/PROCESS_MANAGER.md) | systemd supervision, `mrrctl`, deploy/rollback. Implementation in [install/service/](install/service/) |
-| [DB_SYNC_ISSUES.md](DB_SYNC_ISSUES.md) | Open: DB deletes that don't clear the matching in-memory collections |
-| [ALLPLAYERS_REFACTOR_PLAN.md](ALLPLAYERS_REFACTOR_PLAN.md) | Open: removing the `DbSet<Player> Robots` mapping. Largely subsumed by API_DECOMPOSITION_DESIGN.md step 3 |
+| [DB_SYNC_ISSUES.md](documents/DB_SYNC_ISSUES.md) | Open: DB deletes that don't clear the matching in-memory collections |
+| [ALLPLAYERS_REFACTOR_PLAN.md](documents/ALLPLAYERS_REFACTOR_PLAN.md) | Open: removing the `DbSet<Player> Robots` mapping. Largely subsumed by API_DECOMPOSITION_DESIGN.md step 3 |
 
 ## Key Architecture Patterns
 - **State machine** in `GameController.NextState()` (states 0–16) — do not bypass it

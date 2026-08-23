@@ -336,7 +336,7 @@ If the new process must not outlive the game server, add
 > with its own `.previous`. **A machine with the old layout installed needs a re-run of
 > `install.sh`**, or the units will look for a DLL that is not there.
 
-[API_DECOMPOSITION_DESIGN.md](../API_DECOMPOSITION_DESIGN.md) splits the app into seven API
+[API_DECOMPOSITION_DESIGN.md](../documents/API_DECOMPOSITION_DESIGN.md) splits the app into seven API
 contracts across **two** processes. This section is the supervision half of that plan.
 
 ```

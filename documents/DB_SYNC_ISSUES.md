@@ -4,7 +4,7 @@
 >
 > Issue 1 is unchanged: `GameController.StartGame()` still issues `DELETE FROM MoveCards /
 > CommandList / RobotOptions / StatusLEDs / Robots` without clearing the matching in-memory
-> collections ([GameController.cs:169-174](MRR/GameController.cs#L169-L174)). The later
+> collections ([GameController.cs:169-174](../MRR/GameController.cs#L169-L174)). The later
 > `GetAllPlayers(true)` and `LoadCurrentGame()` calls in the same method mitigate but do not
 > replace per-collection clearing.
 >

@@ -3,8 +3,8 @@
 > ## ⚠️ SUPERSEDED — 2026-08-22
 >
 > This is an early draft. The maintained design, matching the units actually installed, is
-> **[install/PROCESS_MANAGER.md](install/PROCESS_MANAGER.md)**, with the implementation in
-> [install/service/](install/service/). That document also covers the two-process layout the
+> **[install/PROCESS_MANAGER.md](../install/PROCESS_MANAGER.md)**, with the implementation in
+> [install/service/](../install/service/). That document also covers the two-process layout the
 > API decomposition requires (its §10.1).
 >
 > Kept for history only. Do not update this file; update `install/PROCESS_MANAGER.md`.

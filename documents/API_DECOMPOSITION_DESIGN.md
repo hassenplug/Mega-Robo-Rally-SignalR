@@ -2,8 +2,8 @@
 
 **Status:** In progress — steps 0–3 and 5 done; 4, 6 and 7 partial (see §9)
 **Date:** 2026-08-22 (decisions 1–8 resolved)
-**Related:** [install/PROCESS_MANAGER.md](install/PROCESS_MANAGER.md) — supervision, and the
-implemented units in [install/service/](install/service/). §9 of this document specifies the
+**Related:** [install/PROCESS_MANAGER.md](../install/PROCESS_MANAGER.md) — supervision, and the
+implemented units in [install/service/](../install/service/). §9 of this document specifies the
 changes that decomposition requires there.
 
 > The root-level `PROCESS_MANAGER_DESIGN.md` is an earlier draft, superseded by
@@ -41,7 +41,7 @@ Two consequences that shape the design:
 drop a frame and nobody notices. Device Gateway is a *reliable control plane* — drop a
 command and a robot is physically in the wrong square. Opposite reliability requirements;
 treating them as two halves of "Communication" is what let
-[`RobotScreenUI`](MRR/RobotScreenUI.cs) end up doing both jobs plus database writes.
+[`RobotScreenUI`](../MRR/RobotScreenUI.cs) end up doing both jobs plus database writes.
 
 **Only the between-games tempo justifies its own process.** Everything at per-command tempo
 must share an address space; everything else is called only by Master and gains nothing
@@ -99,7 +99,7 @@ The benefits sought — testable rules, isolated work, clear ownership, no more 
 failure isolation, and independent deploy. On one Pi, one MySQL instance, one hard real-time
 robot loop, only Configuration benefits from those.
 
-Concretely: [`ProcessCommands`](MRR/CommandProcess.cs#L69) touches every active command on
+Concretely: [`ProcessCommands`](../MRR/CommandProcess.cs#L69) touches every active command on
 every pass and currently broadcasts a full snapshot each iteration. A hop on the per-command
 dispatch path costs a round trip per command per pass, on a Pi 5, while robots are moving.
 Rules, Presentation, and Admin are called only from inside the host, so a hop buys nothing.
@@ -148,7 +148,7 @@ the namespaces already match.
 1. **Data access** — raw SQL, EF context, table CRUD, board load/save
 2. **Live game state** — `AllPlayers`, `GameCards`, `OptionCards`, `g_BoardElements`,
    `GameState`, `Turn`, `Phase`, `BoardID` in memory
-3. **Game rules** — [`ProcessDbCommand`](MRR/DataService.cs), a ~220-line
+3. **Game rules** — [`ProcessDbCommand`](../MRR/DataService.cs), a ~220-line
    `SquareAction` switch that *applies* damage, flags, options, lives, and win conditions
 
 It becomes:
@@ -163,10 +163,10 @@ It becomes:
 
 | Landmine | Location | Why it blocks a split |
 |---|---|---|
-| `static Players? AllPlayers` on `CommandItem` | [CommandList.cs:213](MRR.Contracts/CommandList.cs) | A static back-reference from the command model into live game state. Any serialization silently loses `Robot`. |
-| `Player` is both domain model and WebSocket client | [Players.cs:527](MRR/Players.cs#L527) — `ConnectAsync`, `SendCommandAsync`, `GetStatusAsync`, `AlignAsync` | Everyone needs `Player`; only Device Gateway should own a socket. Split into `PlayerState` + `IRobotTransport`. |
-| `RobotScreenUI` writes game state and broadcasts | [RobotScreenUI.cs:355](MRR/RobotScreenUI.cs#L355) — `UpdateCardPlayed` then `SendAsync` | One method spans three contracts. |
-| Board import lives inside the planner | [CreateCommands.cs:1864](MRR.Rules/CreateCommands.cs) — `LoadXMLBoards`, `BoardSaveToDB` | Between-games authoring code inside the per-turn hot path. Moves to Config. |
+| `static Players? AllPlayers` on `CommandItem` | [CommandList.cs:213](../MRR.Contracts/CommandList.cs) | A static back-reference from the command model into live game state. Any serialization silently loses `Robot`. |
+| `Player` is both domain model and WebSocket client | [Players.cs:527](../MRR/Players.cs#L527) — `ConnectAsync`, `SendCommandAsync`, `GetStatusAsync`, `AlignAsync` | Everyone needs `Player`; only Device Gateway should own a socket. Split into `PlayerState` + `IRobotTransport`. |
+| `RobotScreenUI` writes game state and broadcasts | [RobotScreenUI.cs:355](../MRR/RobotScreenUI.cs#L355) — `UpdateCardPlayed` then `SendAsync` | One method spans three contracts. |
+| Board import lives inside the planner | [CreateCommands.cs:1864](../MRR.Rules/CreateCommands.cs) — `LoadXMLBoards`, `BoardSaveToDB` | Between-games authoring code inside the per-turn hot path. Moves to Config. |
 
 ---
 
@@ -178,8 +178,8 @@ It becomes:
 `CurrentGameData`, `Robots`, `MoveCards`, `RobotOptions`, or `StatusLEDs` — except Admin,
 which does so deliberately and then forces a reload (§5.7).
 
-**From:** [GameController.cs](MRR/GameController.cs) entire, plus `/api/state`,
-`/api/player`, `/api/settings`, `/api/alldata` at [Program.cs:90-205](MRR/Program.cs#L90-L205).
+**From:** [GameController.cs](../MRR/GameController.cs) entire, plus `/api/state`,
+`/api/player`, `/api/settings`, `/api/alldata` at [Program.cs:90-205](../MRR/Program.cs#L90-L205).
 
 | Method | Route | Notes |
 |---|---|---|
@@ -209,11 +209,11 @@ between games, nothing real-time, a crash is harmless.
 **Owns:** `Boards`, `BoardItems`, `BoardItemActions`, `BoardSegmentList`, `BoardSquares`,
 `GameData`, `OperatorData`, `RobotBases`, `RobotBodies`, `SeatOrientation`.
 
-**From:** [Program.cs:282-599](MRR/Program.cs#L282-L599),
-[BoardElement.cs](MRR.Contracts/BoardElement.cs), `BoardLoadFromDB` / `BoardSaveToDB` /
-`BoardFileRead`, `SeedBoardTemplate` at [Program.cs:610](MRR/Program.cs),
-`LoadXMLBoards` at [CreateCommands.cs:1864](MRR.Rules/CreateCommands.cs), the setup half of
-[`StartGame()`](MRR/GameController.cs#L176), `board-editor.html`, `board-viewer.html`,
+**From:** [Program.cs:282-599](../MRR/Program.cs#L282-L599),
+[BoardElement.cs](../MRR.Contracts/BoardElement.cs), `BoardLoadFromDB` / `BoardSaveToDB` /
+`BoardFileRead`, `SeedBoardTemplate` at [Program.cs:610](../MRR/Program.cs),
+`LoadXMLBoards` at [CreateCommands.cs:1864](../MRR.Rules/CreateCommands.cs), the setup half of
+[`StartGame()`](../MRR/GameController.cs#L176), `board-editor.html`, `board-viewer.html`,
 `datagrid-editor.html`.
 
 | Method | Route |
@@ -231,14 +231,14 @@ between games, nothing real-time, a crash is harmless.
 depends on it, and it rehearses the pattern.
 
 **Fix during the move:** the board `PUT` at
-[Program.cs:453-547](MRR/Program.cs#L453-L547) does `DELETE` then bulk `INSERT` with no
+[Program.cs:453-547](../MRR/Program.cs#L453-L547) does `DELETE` then bulk `INSERT` with no
 transaction — a malformed request leaves the board empty — and builds SQL by string
 concatenation with `Replace("'", "''")` as the only escaping. Wrap in a transaction, use
 parameters.
 
 **`/validate` has real work to do.** Verified against the live DB: 6 boards have gaps in
 their flag numbering (board 3 is `1,4`; board 42 is `1,2,4`), which makes them unwinnable
-because [CreateCommands.cs:1339](MRR.Rules/CreateCommands.cs) only advances on
+because [CreateCommands.cs:1339](../MRR.Rules/CreateCommands.cs) only advances on
 `LastFlag + 1 == Parameter`. 16 boards have a stale `Boards.TotalFlags` column. Validation
 should cover: contiguous flag numbering from 1, unique start positions, conveyors not
 pointing off-board, and `Boards.TotalFlags` agreeing with the flag squares.
@@ -250,9 +250,9 @@ pointing off-board, and `Boards.TotalFlags` agreeing with the flag squares.
 **The highest-value contract.** Not because it is separately deployable, but because it is
 separately *testable*.
 
-**From:** [CreateCommands.cs](MRR.Rules/CreateCommands.cs) minus its authoring code,
-[PhaseFunctions.cs](MRR.Contracts/PhaseFunctions.cs), [RotationFunctions.cs](MRR.Contracts/RotationFunctions.cs),
-[CardList.cs](MRR.Contracts/CardList.cs), [OptionCard.cs](MRR.Contracts/OptionCard.cs) and [OptionCardList.cs](MRR.Contracts/OptionCardList.cs), plus `RuleEffects`
+**From:** [CreateCommands.cs](../MRR.Rules/CreateCommands.cs) minus its authoring code,
+[PhaseFunctions.cs](../MRR.Contracts/PhaseFunctions.cs), [RotationFunctions.cs](../MRR.Contracts/RotationFunctions.cs),
+[CardList.cs](../MRR.Contracts/CardList.cs), [OptionCard.cs](../MRR.Contracts/OptionCard.cs) and [OptionCardList.cs](../MRR.Contracts/OptionCardList.cs), plus `RuleEffects`
 lifted from `ProcessDbCommand`.
 
 ```
@@ -276,10 +276,10 @@ No database, no SignalR, no robots. Same request → byte-identical command list
 
 | Line | What it does | Resolution |
 |---|---|---|
-| [651](MRR.Rules/CreateCommands.cs) | `AddCommandsToDatabase()` writes `CommandList` | Return the list; Master persists it |
-| [634](MRR.Rules/CreateCommands.cs) | `Update CurrentGameData ... iKey = 10` — sets game state to 7 | Returns as `TurnPlan.nextGameState`; Master applies it |
-| [1638](MRR.Rules/CreateCommands.cs) | *(fixed 2026-08-22)* wrote a player's flag count into game-wide `TotalFlags` | Already removed — see §7 |
-| [1027](MRR.Rules/CreateCommands.cs) | `GetNextCard()` draws a replacement card mid-simulation, chaining for Spam | **Pre-draw — decided** |
+| [651](../MRR.Rules/CreateCommands.cs) | `AddCommandsToDatabase()` writes `CommandList` | Return the list; Master persists it |
+| [634](../MRR.Rules/CreateCommands.cs) | `Update CurrentGameData ... iKey = 10` — sets game state to 7 | Returns as `TurnPlan.nextGameState`; Master applies it |
+| [1638](../MRR.Rules/CreateCommands.cs) | *(fixed 2026-08-22)* wrote a player's flag count into game-wide `TotalFlags` | Already removed — see §7 |
+| [1027](../MRR.Rules/CreateCommands.cs) | `GetNextCard()` draws a replacement card mid-simulation, chaining for Spam | **Pre-draw — decided** |
 
 **Deck pre-draw (decided).** Master reads enough of each player's deck up front and passes
 it as `request.deck`; the planner consumes from that list instead of calling the DB. Fully
@@ -290,7 +290,7 @@ what goes away is the planner calling it.
 
 **What purity unlocks:**
 
-- **Regression fixtures.** Every open item in [install/todo.md](install/todo.md) — pushers,
+- **Regression fixtures.** Every open item in [install/todo.md](../install/todo.md) — pushers,
   merge conveyors, reboot, shutdown, win condition, damage-card draw — becomes a board +
   program + expected command list. Today, testing a conveyor chain means a physical game.
 - **Board validation.** Config's `/validate` can dry-run a board before robots are placed.
@@ -302,7 +302,7 @@ what goes away is the planner calling it.
 **Owns** running a command list to completion. The `CommandList.StatusID` lifecycle
 (1 waiting → 2 ready → 3 sent → 4 in progress → 5 apply → 6 complete) is private to it.
 
-**From:** [CommandProcess.cs](MRR/CommandProcess.cs), calling into `RuleEffects`.
+**From:** [CommandProcess.cs](../MRR/CommandProcess.cs), calling into `RuleEffects`.
 
 | Method | Route | Notes |
 |---|---|---|
@@ -313,7 +313,7 @@ what goes away is the planner calling it.
 
 **Fixes during the move:**
 
-- **Fire-and-forget sends.** [CommandProcess.cs:185](MRR/CommandProcess.cs#L185) does
+- **Fire-and-forget sends.** [CommandProcess.cs:185](../MRR/CommandProcess.cs#L185) does
   `_ = robot.SendRobotCommandAsync(onecommand)` and immediately marks status 3/4. A send
   failure is invisible and the turn proceeds as if the robot moved. The `IRobotTransport`
   boundary forces a real awaited call with an error status.
@@ -332,16 +332,16 @@ correct alternative to freezing the process mid-turn (§9.4).
 **Owns** all six AIM WebSocket pairs and is the only code that knows the AIM wire format.
 **Transport only — no game rules, no database.**
 
-**From:** the socket half of [Players.cs:470-700](MRR/Players.cs#L470-L700),
-[RobotStatus.cs](MRR/RobotStatus.cs), [GridAlignmentAgent.cs](MRR/GridAlignmentAgent.cs),
-the `/api/robot/*` endpoints at [Program.cs:210-280](MRR/Program.cs#L210-L280), and the
+**From:** the socket half of [Players.cs:470-700](../MRR/Players.cs#L470-L700),
+[RobotStatus.cs](../MRR/RobotStatus.cs), [GridAlignmentAgent.cs](../MRR/GridAlignmentAgent.cs),
+the `/api/robot/*` endpoints at [Program.cs:210-280](../MRR/Program.cs#L210-L280), and the
 *rendering* half of `RobotScreenUI`.
 
 | Method | Route | Notes |
 |---|---|---|
 | `GET` | `/api/robots` | Connection state, IP, last status, last-heard-from |
 | `POST` | `/api/robots/connect` | `{robotId?}` — all if omitted |
-| `POST` | `/api/robots/{id}/disconnect` | Currently unimplemented ([Program.cs:262](MRR/Program.cs#L262)) |
+| `POST` | `/api/robots/{id}/disconnect` | Currently unimplemented ([Program.cs:262](../MRR/Program.cs#L262)) |
 | `POST` | `/api/robots/{id}/command` | `RobotCommandRequest`, `awaitReply` flag |
 | `GET` | `/api/robots/{id}/status` | IMU heading, odometry, motion state |
 | `POST` | `/api/robots/{id}/align` | Camera grid alignment |
@@ -369,8 +369,8 @@ while Config keeps ownership of the data. Config enables CORS for the game-host 
 
 **Owns** every push to a human. The only holder of an `IHubContext`.
 
-**From:** [DataHub.cs](MRR/DataHub.cs), [AllDataPayload.cs](MRR.Contracts/AllDataPayload.cs), the
-layout/decision half of [RobotScreenUI.cs](MRR/RobotScreenUI.cs), and the ~8 scattered
+**From:** [DataHub.cs](../MRR/DataHub.cs), [AllDataPayload.cs](../MRR.Contracts/AllDataPayload.cs), the
+layout/decision half of [RobotScreenUI.cs](../MRR/RobotScreenUI.cs), and the ~8 scattered
 `_hubContext.Clients.All.SendAsync("AllDataUpdate", ...)` call sites across
 `GameController`, `PendingCommands`, `RobotScreenUI`, and `Program.cs`.
 
@@ -387,9 +387,9 @@ layout/decision half of [RobotScreenUI.cs](MRR/RobotScreenUI.cs), and the ~8 sca
 - **Every phone receives every player's hand and password.** `RobotData.Password` is in the
   broadcast payload and the hub sends `Clients.All`. In a 6-player game that is an
   information leak. Use SignalR groups keyed by seat.
-- **Broadcast storm.** [CommandProcess.cs:88-90](MRR/CommandProcess.cs#L88-L90) rebuilds and
+- **Broadcast storm.** [CommandProcess.cs:88-90](../MRR/CommandProcess.cs#L88-L90) rebuilds and
   re-serializes the full snapshot every loop iteration. Debounce to ~100 ms.
-- **`/` returns 404.** [Program.cs:39-40](MRR/Program.cs#L39-L40) calls `UseStaticFiles()`
+- **`/` returns 404.** [Program.cs:39-40](../MRR/Program.cs#L39-L40) calls `UseStaticFiles()`
   before `UseDefaultFiles()`, so `/` is never rewritten to `index.html` and phones must be
   pointed at the explicit filename. Swapping those two lines is the fix, and it also lets
   the health probe stop depending on a static file path (`mrr.env` documents this).
@@ -428,7 +428,7 @@ the manual fix on its next write-through. Every mutating Admin call must therefo
 3. **Localhost binding.** Kestrel listens for Admin routes on `127.0.0.1` only, or the routes
    are gated to a loopback/authenticated caller. Arbitrary SQL must never be reachable from
    the phone WiFi. This is a real change from today: `/api/table/{tablename}/{filter}/{setvalue}`
-   ([Program.cs:52-69](MRR/Program.cs#L52-L69)) is a `GET` that executes caller-supplied SQL
+   ([Program.cs:52-69](../MRR/Program.cs#L52-L69)) is a `GET` that executes caller-supplied SQL
    fragments and is currently exposed on `http://*:5000`.
 4. **`GET` is read-only.** Mutations are `POST`. Today's mutating `GET` is crawler- and
    prefetch-hostile.
@@ -473,8 +473,8 @@ Ownership here means write-ownership plus schema-ownership, not gatekeeping read
 | Severity | Defect | Status |
 |---|---|---|
 | **High** | Win condition hardcoded to 5 flags: `Player.TotalFlags` was `get => 5; set {}`, so `AddFlag` ignored the board's real flag count and its `> 5` branch wrote a player's progress into game-wide `TotalFlags`. | **Fixed 2026-08-22.** One game-wide `TotalFlags` in `CurrentGameData` iKey 7, taken from the board at game start. |
-| **High** | Robot sends are fire-and-forget; a failed send advances the turn as if the robot moved ([CommandProcess.cs:185](MRR/CommandProcess.cs#L185)). | Open — §5.4 |
-| **Medium** | Board `PUT` is `DELETE`+`INSERT` with no transaction ([Program.cs:453](MRR/Program.cs)). | Open — §5.2 |
+| **High** | Robot sends are fire-and-forget; a failed send advances the turn as if the robot moved ([CommandProcess.cs:185](../MRR/CommandProcess.cs#L185)). | Open — §5.4 |
+| **Medium** | Board `PUT` is `DELETE`+`INSERT` with no transaction ([Program.cs:453](../MRR/Program.cs)). | Open — §5.2 |
 | **Medium** | Every phone receives every player's hand and password. | Open — §5.6 |
 | **Medium** | No abort path once a turn starts. | Open — §5.4 |
 | **Medium** | 6 boards have gaps in flag numbering and are unwinnable; 16 have a stale `Boards.TotalFlags`. | Open — board data; §5.2 `/validate` |
@@ -491,14 +491,14 @@ dead-branch elimination.** `RulesVersion` is load-bearing today:
 
 | Site | Action |
 |---|---|
-| [DataService.cs:1255](MRR/DataService.cs) `MoveCardsShuffleAndDeal` | Reads it, then branches. **Delete the `RulesVersion=0` Classic `else` branch** at [1389](MRR/DataService.cs); keep the Renegade path unconditionally |
-| [DataService.cs:1487](MRR/DataService.cs) `GameFillPrograms` | Classic-only (`procGameFillPrograms`). Delete |
-| [DataService.cs:1798](MRR/DataService.cs) `GameNewAddCards` | Reads it. Drop the read and the branch |
-| [DataService.cs:87](MRR/DataService.cs#L87), [861](MRR/DataService.cs) | Property and `UpdateGameState` `case 27`. Delete |
-| [CreateCommands.cs:60](MRR.Rules/CreateCommands.cs) | Passthrough. Delete |
-| [GameController.cs:157](MRR/GameController.cs#L157) | `LoadGameData` CASE arm. Delete |
-| [Program.cs:555](MRR/Program.cs), [590](MRR/Program.cs) | GameData `SELECT` column lists. Delete |
-| [board-editor.html:1226](MRR.Config/wwwroot/board-editor.html), [1245](MRR.Config/wwwroot/board-editor.html) | Editor field lists. Delete |
+| [DataService.cs:1255](../MRR/DataService.cs) `MoveCardsShuffleAndDeal` | Reads it, then branches. **Delete the `RulesVersion=0` Classic `else` branch** at [1389](../MRR/DataService.cs); keep the Renegade path unconditionally |
+| [DataService.cs:1487](../MRR/DataService.cs) `GameFillPrograms` | Classic-only (`procGameFillPrograms`). Delete |
+| [DataService.cs:1798](../MRR/DataService.cs) `GameNewAddCards` | Reads it. Drop the read and the branch |
+| [DataService.cs:87](../MRR/DataService.cs#L87), [861](../MRR/DataService.cs) | Property and `UpdateGameState` `case 27`. Delete |
+| [CreateCommands.cs:60](../MRR.Rules/CreateCommands.cs) | Passthrough. Delete |
+| [GameController.cs:157](../MRR/GameController.cs#L157) | `LoadGameData` CASE arm. Delete |
+| [Program.cs:555](../MRR/Program.cs), [590](../MRR/Program.cs) | GameData `SELECT` column lists. Delete |
+| [board-editor.html:1226](../MRR.Config/wwwroot/board-editor.html), [1245](../MRR.Config/wwwroot/board-editor.html) | Editor field lists. Delete |
 | `install/MRRDatabase.sql:286`, `:704` | Drop `GameData.RulesVersion`; drop the `CurrentGameData` iKey 27 row |
 | `install/gameconfig.sql` + copy | Drop the `RulesVersion` update line |
 
@@ -549,7 +549,7 @@ step 0.
 ### Why Rules comes before `DataService`
 
 All twelve of the planner's `_dataService` property passthroughs
-([CreateCommands.cs:54-83](MRR/CreateCommands.cs#L54-L83)) are reads that can be built into a
+([CreateCommands.cs](../MRR.Rules/CreateCommands.cs)) are reads that can be built into a
 `TurnRequest` at the call site in `ExecuteTurn()`, and the four genuine writes are severable
 independently (§5.3). Nothing about step 2 requires step 3.
 
@@ -569,7 +569,7 @@ order itself, for two reasons:
 
 ## 10. Process manager changes
 
-The existing supervision design ([install/PROCESS_MANAGER.md](install/PROCESS_MANAGER.md))
+The existing supervision design ([install/PROCESS_MANAGER.md](../install/PROCESS_MANAGER.md))
 already anticipates a second process — its §10 is "Adding a second managed process," and
 `mrr.target` + `PartOf=` exist for exactly this. What decomposition needs is spelled out
 there in a new section; summarised here:
