@@ -50,7 +50,7 @@
     (`Player.TotalFlags` was `get => 5; set {}`), so any board without exactly 5 flags
     scored wrong. Now one game-wide `TotalFlags` in `CurrentGameData` (iKey 7), taken from
     the board at game start; `AddFlag` returns true on `LastFlag >= TotalFlags`.
-  - [ ] Still only *announces* the winner — [CreateCommands.cs:1346](../MRR/CreateCommands.cs#L1346)
+  - [ ] Still only *announces* the winner — [CreateCommands.cs:1346](../MRR.Rules/CreateCommands.cs)
     adds a `"Game Winner:"` text command, with `SquareAction.GameWinner` commented out. The
     game does not actually end. Issue the `GameWinner` command so `ProcessDbCommand` handles it.
 
@@ -298,7 +298,7 @@ Home Router (192.168.1.x)
   - `Robots_AFTER_UPDATE`, `CurrentGameData_BEFORE_UPDATE`, `GameData_BEFORE_UPDATE` —
     convenience triggers (LED sync, `sValue` lookups, BoardID cascade). The application now
     writes those fields explicitly. `GameData_BEFORE_UPDATE`'s BoardID cascade is done by
-    hand in the board-editor `PUT` ([Program.cs](../MRR/Program.cs#L578)).
+    hand in the board-editor `PUT` ([Program.cs](../MRR/Program.cs)).
 
 ---
 

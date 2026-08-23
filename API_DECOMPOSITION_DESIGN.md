@@ -1,6 +1,6 @@
 # MRR API Decomposition Design
 
-**Status:** In progress — steps 0–3 implemented (see §9)
+**Status:** In progress — steps 0–3 and 5 done; 4, 6 and 7 partial (see §9)
 **Date:** 2026-08-22 (decisions 1–8 resolved)
 **Related:** [install/PROCESS_MANAGER.md](install/PROCESS_MANAGER.md) — supervision, and the
 implemented units in [install/service/](install/service/). §9 of this document specifies the
@@ -148,7 +148,7 @@ the namespaces already match.
 1. **Data access** — raw SQL, EF context, table CRUD, board load/save
 2. **Live game state** — `AllPlayers`, `GameCards`, `OptionCards`, `g_BoardElements`,
    `GameState`, `Turn`, `Phase`, `BoardID` in memory
-3. **Game rules** — [`ProcessDbCommand`](MRR/DataService.cs#L963), a ~220-line
+3. **Game rules** — [`ProcessDbCommand`](MRR/DataService.cs), a ~220-line
    `SquareAction` switch that *applies* damage, flags, options, lives, and win conditions
 
 It becomes:
@@ -163,10 +163,10 @@ It becomes:
 
 | Landmine | Location | Why it blocks a split |
 |---|---|---|
-| `static Players? AllPlayers` on `CommandItem` | [CommandList.cs:213](MRR/CommandList.cs#L213) | A static back-reference from the command model into live game state. Any serialization silently loses `Robot`. |
+| `static Players? AllPlayers` on `CommandItem` | [CommandList.cs:213](MRR.Contracts/CommandList.cs) | A static back-reference from the command model into live game state. Any serialization silently loses `Robot`. |
 | `Player` is both domain model and WebSocket client | [Players.cs:527](MRR/Players.cs#L527) — `ConnectAsync`, `SendCommandAsync`, `GetStatusAsync`, `AlignAsync` | Everyone needs `Player`; only Device Gateway should own a socket. Split into `PlayerState` + `IRobotTransport`. |
 | `RobotScreenUI` writes game state and broadcasts | [RobotScreenUI.cs:355](MRR/RobotScreenUI.cs#L355) — `UpdateCardPlayed` then `SendAsync` | One method spans three contracts. |
-| Board import lives inside the planner | [CreateCommands.cs:1864](MRR/CreateCommands.cs#L1864) — `LoadXMLBoards`, `BoardSaveToDB` | Between-games authoring code inside the per-turn hot path. Moves to Config. |
+| Board import lives inside the planner | [CreateCommands.cs:1864](MRR.Rules/CreateCommands.cs) — `LoadXMLBoards`, `BoardSaveToDB` | Between-games authoring code inside the per-turn hot path. Moves to Config. |
 
 ---
 
@@ -210,9 +210,9 @@ between games, nothing real-time, a crash is harmless.
 `GameData`, `OperatorData`, `RobotBases`, `RobotBodies`, `SeatOrientation`.
 
 **From:** [Program.cs:282-599](MRR/Program.cs#L282-L599),
-[BoardElement.cs](MRR/BoardElement.cs), `BoardLoadFromDB` / `BoardSaveToDB` /
-`BoardFileRead`, `SeedBoardTemplate` at [Program.cs:610](MRR/Program.cs#L610),
-`LoadXMLBoards` at [CreateCommands.cs:1864](MRR/CreateCommands.cs#L1864), the setup half of
+[BoardElement.cs](MRR.Contracts/BoardElement.cs), `BoardLoadFromDB` / `BoardSaveToDB` /
+`BoardFileRead`, `SeedBoardTemplate` at [Program.cs:610](MRR/Program.cs),
+`LoadXMLBoards` at [CreateCommands.cs:1864](MRR.Rules/CreateCommands.cs), the setup half of
 [`StartGame()`](MRR/GameController.cs#L176), `board-editor.html`, `board-viewer.html`,
 `datagrid-editor.html`.
 
@@ -238,7 +238,7 @@ parameters.
 
 **`/validate` has real work to do.** Verified against the live DB: 6 boards have gaps in
 their flag numbering (board 3 is `1,4`; board 42 is `1,2,4`), which makes them unwinnable
-because [CreateCommands.cs:1339](MRR/CreateCommands.cs#L1339) only advances on
+because [CreateCommands.cs:1339](MRR.Rules/CreateCommands.cs) only advances on
 `LastFlag + 1 == Parameter`. 16 boards have a stale `Boards.TotalFlags` column. Validation
 should cover: contiguous flag numbering from 1, unique start positions, conveyors not
 pointing off-board, and `Boards.TotalFlags` agreeing with the flag squares.
@@ -250,9 +250,9 @@ pointing off-board, and `Boards.TotalFlags` agreeing with the flag squares.
 **The highest-value contract.** Not because it is separately deployable, but because it is
 separately *testable*.
 
-**From:** [CreateCommands.cs](MRR/CreateCommands.cs) minus its authoring code,
-[PhaseFunctions.cs](MRR/PhaseFunctions.cs), [RotationFunctions.cs](MRR/RotationFunctions.cs),
-[CardList.cs](MRR/CardList.cs), [OptionCards.cs](MRR/OptionCards.cs), plus `RuleEffects`
+**From:** [CreateCommands.cs](MRR.Rules/CreateCommands.cs) minus its authoring code,
+[PhaseFunctions.cs](MRR.Contracts/PhaseFunctions.cs), [RotationFunctions.cs](MRR.Contracts/RotationFunctions.cs),
+[CardList.cs](MRR.Contracts/CardList.cs), [OptionCard.cs](MRR.Contracts/OptionCard.cs) and [OptionCardList.cs](MRR.Contracts/OptionCardList.cs), plus `RuleEffects`
 lifted from `ProcessDbCommand`.
 
 ```
@@ -276,10 +276,10 @@ No database, no SignalR, no robots. Same request → byte-identical command list
 
 | Line | What it does | Resolution |
 |---|---|---|
-| [651](MRR/CreateCommands.cs#L651) | `AddCommandsToDatabase()` writes `CommandList` | Return the list; Master persists it |
-| [634](MRR/CreateCommands.cs#L634) | `Update CurrentGameData ... iKey = 10` — sets game state to 7 | Returns as `TurnPlan.nextGameState`; Master applies it |
-| [1638](MRR/CreateCommands.cs#L1638) | *(fixed 2026-08-22)* wrote a player's flag count into game-wide `TotalFlags` | Already removed — see §7 |
-| [1027](MRR/CreateCommands.cs#L1027) | `GetNextCard()` draws a replacement card mid-simulation, chaining for Spam | **Pre-draw — decided** |
+| [651](MRR.Rules/CreateCommands.cs) | `AddCommandsToDatabase()` writes `CommandList` | Return the list; Master persists it |
+| [634](MRR.Rules/CreateCommands.cs) | `Update CurrentGameData ... iKey = 10` — sets game state to 7 | Returns as `TurnPlan.nextGameState`; Master applies it |
+| [1638](MRR.Rules/CreateCommands.cs) | *(fixed 2026-08-22)* wrote a player's flag count into game-wide `TotalFlags` | Already removed — see §7 |
+| [1027](MRR.Rules/CreateCommands.cs) | `GetNextCard()` draws a replacement card mid-simulation, chaining for Spam | **Pre-draw — decided** |
 
 **Deck pre-draw (decided).** Master reads enough of each player's deck up front and passes
 it as `request.deck`; the planner consumes from that list instead of calling the DB. Fully
@@ -369,7 +369,7 @@ while Config keeps ownership of the data. Config enables CORS for the game-host 
 
 **Owns** every push to a human. The only holder of an `IHubContext`.
 
-**From:** [DataHub.cs](MRR/DataHub.cs), [AllDataPayload.cs](MRR/AllDataPayload.cs), the
+**From:** [DataHub.cs](MRR/DataHub.cs), [AllDataPayload.cs](MRR.Contracts/AllDataPayload.cs), the
 layout/decision half of [RobotScreenUI.cs](MRR/RobotScreenUI.cs), and the ~8 scattered
 `_hubContext.Clients.All.SendAsync("AllDataUpdate", ...)` call sites across
 `GameController`, `PendingCommands`, `RobotScreenUI`, and `Program.cs`.
@@ -474,7 +474,7 @@ Ownership here means write-ownership plus schema-ownership, not gatekeeping read
 |---|---|---|
 | **High** | Win condition hardcoded to 5 flags: `Player.TotalFlags` was `get => 5; set {}`, so `AddFlag` ignored the board's real flag count and its `> 5` branch wrote a player's progress into game-wide `TotalFlags`. | **Fixed 2026-08-22.** One game-wide `TotalFlags` in `CurrentGameData` iKey 7, taken from the board at game start. |
 | **High** | Robot sends are fire-and-forget; a failed send advances the turn as if the robot moved ([CommandProcess.cs:185](MRR/CommandProcess.cs#L185)). | Open — §5.4 |
-| **Medium** | Board `PUT` is `DELETE`+`INSERT` with no transaction ([Program.cs:453](MRR/Program.cs#L453)). | Open — §5.2 |
+| **Medium** | Board `PUT` is `DELETE`+`INSERT` with no transaction ([Program.cs:453](MRR/Program.cs)). | Open — §5.2 |
 | **Medium** | Every phone receives every player's hand and password. | Open — §5.6 |
 | **Medium** | No abort path once a turn starts. | Open — §5.4 |
 | **Medium** | 6 boards have gaps in flag numbering and are unwinnable; 16 have a stale `Boards.TotalFlags`. | Open — board data; §5.2 `/validate` |
@@ -491,14 +491,14 @@ dead-branch elimination.** `RulesVersion` is load-bearing today:
 
 | Site | Action |
 |---|---|
-| [DataService.cs:1255](MRR/DataService.cs#L1255) `MoveCardsShuffleAndDeal` | Reads it, then branches. **Delete the `RulesVersion=0` Classic `else` branch** at [1389](MRR/DataService.cs#L1389); keep the Renegade path unconditionally |
-| [DataService.cs:1487](MRR/DataService.cs#L1487) `GameFillPrograms` | Classic-only (`procGameFillPrograms`). Delete |
-| [DataService.cs:1798](MRR/DataService.cs#L1798) `GameNewAddCards` | Reads it. Drop the read and the branch |
-| [DataService.cs:87](MRR/DataService.cs#L87), [861](MRR/DataService.cs#L861) | Property and `UpdateGameState` `case 27`. Delete |
-| [CreateCommands.cs:60](MRR/CreateCommands.cs#L60) | Passthrough. Delete |
+| [DataService.cs:1255](MRR/DataService.cs) `MoveCardsShuffleAndDeal` | Reads it, then branches. **Delete the `RulesVersion=0` Classic `else` branch** at [1389](MRR/DataService.cs); keep the Renegade path unconditionally |
+| [DataService.cs:1487](MRR/DataService.cs) `GameFillPrograms` | Classic-only (`procGameFillPrograms`). Delete |
+| [DataService.cs:1798](MRR/DataService.cs) `GameNewAddCards` | Reads it. Drop the read and the branch |
+| [DataService.cs:87](MRR/DataService.cs#L87), [861](MRR/DataService.cs) | Property and `UpdateGameState` `case 27`. Delete |
+| [CreateCommands.cs:60](MRR.Rules/CreateCommands.cs) | Passthrough. Delete |
 | [GameController.cs:157](MRR/GameController.cs#L157) | `LoadGameData` CASE arm. Delete |
-| [Program.cs:555](MRR/Program.cs#L555), [590](MRR/Program.cs#L590) | GameData `SELECT` column lists. Delete |
-| [board-editor.html:1226](MRR/wwwroot/board-editor.html#L1226), [1245](MRR/wwwroot/board-editor.html#L1245) | Editor field lists. Delete |
+| [Program.cs:555](MRR/Program.cs), [590](MRR/Program.cs) | GameData `SELECT` column lists. Delete |
+| [board-editor.html:1226](MRR.Config/wwwroot/board-editor.html), [1245](MRR.Config/wwwroot/board-editor.html) | Editor field lists. Delete |
 | `install/MRRDatabase.sql:286`, `:704` | Drop `GameData.RulesVersion`; drop the `CurrentGameData` iKey 27 row |
 | `install/gameconfig.sql` + copy | Drop the `RulesVersion` update line |
 
