@@ -39,6 +39,7 @@ namespace MRR.Controller
 
 
         public int RobotsActive => _dataService.RobotsActive;
+        public bool IsRunning => _dataService.IsRunning;
         public Players AllPlayers => _dataService.AllPlayers;
 
         public int GameState => _dataService.GameState;
@@ -194,6 +195,7 @@ namespace MRR.Controller
 
         public void StartGame() // pass board elements and players // find start positions for each player
         {
+            _dataService.IsRunning = true;
 
             _dataService.ExecuteSQL("Update CurrentGameData set iValue=0 where sKey='GameState';");
             _dataService.ExecuteSQL("Update CurrentGameData set iValue=0 where sKey='Turn';");
@@ -405,7 +407,7 @@ namespace MRR.Controller
             //_dataService.UpdateGameState(); // ensure C# state reflects any DB changes from UpdateGameState logic
             _dataService.ReloadAllData();
             
-            if (RobotsActive != 0)
+            if (RobotsActive != 0 && IsRunning)
             {
                 ConnectToAllRobots();
             }
@@ -427,11 +429,19 @@ namespace MRR.Controller
         private async Task ConnectPlayerWithScreen(Player player)
         {
             await player.Connect();
+            SetRobotConnected(player.ID, player.isConnected);
 
             if (UseRobotScreen && player.isConnected)
             {
                 InitScreenUI(player);
             }
+        }
+
+        /// <summary>Writes through to Robots.IsConnected so status displays (viewRobots-style
+        /// joins on IsConnected) reflect whether we actually have a live socket to the robot.</summary>
+        private void SetRobotConnected(int robotID, bool connected)
+        {
+            _dataService.ExecuteSQL($"Update Robots set IsConnected={(connected ? 1 : 0)} where RobotID={robotID};");
         }
 
         /// <summary>
@@ -569,7 +579,39 @@ namespace MRR.Controller
         {
             Player? thisplayer = AllPlayers.GetPlayer(playerID);
             thisplayer?.Connect().Wait();
+            SetRobotConnected(playerID, thisplayer?.isConnected ?? false);
             return true;
+        }
+
+        /// <summary>Ends the current game: clears IsRunning (iKey 9) so a restart won't try to
+        /// reconnect to robots, and disconnects from them now.</summary>
+        public void EndGame()
+        {
+            _dataService.IsRunning = false;
+            DisconnectAllRobots();
+        }
+
+        public bool DisconnectAllRobots()
+        {
+            foreach (Player thisplayer in AllPlayers)
+            {
+                _ = DisconnectPlayer(thisplayer);
+            }
+            return true;
+        }
+
+        public bool DisconnectRobot(int playerID)
+        {
+            Player? thisplayer = AllPlayers.GetPlayer(playerID);
+            if (thisplayer == null) return false;
+            DisconnectPlayer(thisplayer).Wait();
+            return true;
+        }
+
+        private async Task DisconnectPlayer(Player player)
+        {
+            await player.DisposeAsync();
+            SetRobotConnected(player.ID, false);
         }
 
     }

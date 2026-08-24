@@ -2,8 +2,8 @@ namespace MRR.Services
 {
     /// <summary>
     /// In-memory cache of the CurrentGameData row set: the scalars describing the game in
-    /// progress. Reload() refreshes from the database; GameState and TotalFlags write back
-    /// when set, so a mid-game restart restores them.
+    /// progress. Reload() refreshes from the database; GameState, TotalFlags, and IsRunning
+    /// write back when set, so a mid-game restart restores them.
     ///
     /// Second slice of the DataService split (design section 4). Scoped to the scalars on
     /// purpose — the live collections (players, cards, board) belong with their
@@ -20,6 +20,7 @@ namespace MRR.Services
         private const int KeyLaserDamage = 6;
         private const int KeyTotalFlags  = 7;
         private const int KeyRobotsActive = 8;
+        private const int KeyIsRunning   = 9;
         private const int KeyGameState   = 10;
         private const int KeyPhaseCount  = 16;
         private const int KeyBoardID     = 20;
@@ -66,6 +67,18 @@ namespace MRR.Services
             set { _totalFlags = value; WriteThrough(KeyTotalFlags, value); }
         }
 
+        private bool _isRunning;
+        /// <summary>
+        /// Whether a game is currently in progress. Set when a game starts and cleared when it
+        /// ends; written through to iKey 9 so a Pi reboot mid-game can tell the app to
+        /// reconnect to the robots instead of waiting for the GM to start a new game.
+        /// </summary>
+        public bool IsRunning
+        {
+            get => _isRunning;
+            set { _isRunning = value; WriteThrough(KeyIsRunning, value ? 1 : 0); }
+        }
+
         private void WriteThrough(int iKey, int value)
         {
             using var ctx = _sql.CreateDbContext();
@@ -77,8 +90,8 @@ namespace MRR.Services
 
         /// <summary>
         /// Refreshes every cached value from CurrentGameData. Assigns the backing fields for
-        /// GameState and TotalFlags rather than the properties: this is a read, so going
-        /// through the setters would write each value straight back again.
+        /// GameState, TotalFlags, and IsRunning rather than the properties: this is a read, so
+        /// going through the setters would write each value straight back again.
         /// </summary>
         public int Reload()
         {
@@ -95,6 +108,7 @@ namespace MRR.Services
                     case KeyLaserDamage:  LaserDamage = value; break;
                     case KeyTotalFlags:   _totalFlags = value; break;
                     case KeyRobotsActive: RobotsActive = value; break;
+                    case KeyIsRunning:    _isRunning = value != 0; break;
                     case KeyGameState:    _gameState = value; break;
                     case KeyPhaseCount:   PhaseCount = value; break;
                     case KeyOptionCount:  OptionsOnStartup = value; break;

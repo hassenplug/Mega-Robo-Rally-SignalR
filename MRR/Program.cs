@@ -115,6 +115,9 @@ app.MapGet("/api/state/{newstate?}/{parameter1?}", async (string? newstate, stri
         case "resetgame":
             //dataService.ExecuteSQL("call procResetGameState();");
             break;
+        case "endgame":
+            gameController.EndGame();
+            break;
         case "executeturn":
             Console.WriteLine("Executing turn...");
             await gameController.ExecuteTurn();
@@ -244,11 +247,11 @@ app.MapGet("/api/robot/{function?}/{parameter1?}", async (string? function, stri
         case "disconnect":
             if (parameter1 == "all")
             {
-                //gameController.DisconnectAllRobots();
+                gameController.DisconnectAllRobots();
             }
             else
             {
-                //gameController.DisconnectRobot(Convert.ToInt32(parameter1));
+                gameController.DisconnectRobot(Convert.ToInt32(parameter1));
             }
 
             break;

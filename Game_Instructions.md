@@ -32,3 +32,10 @@ Commands that need to happen for a game.
 - `CurrentGameData` should have a flag to determine:
   - Whether a game is currently in progress (and whether we need to connect to the robots)
   - What should be displayed on the player interface (e.g. "Game setup in progress")
+
+
+  Using the IsRunning flag in CurrentGameData
+  When the pi boots, or app starts, if IsRunning, connect to the robots, and store that robots are connected.
+  When IsRunning is turned off, disconnect from robots
+  When a game is started, IsRunning should be turned on
+  

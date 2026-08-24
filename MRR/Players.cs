@@ -308,6 +308,8 @@ namespace MRR
                     await wsImage.CloseAsync(WebSocketCloseStatus.NormalClosure, "Disposing", CancellationToken.None);
                 wsImage.Dispose();
             }
+
+            isConnected = false;
         }
 
 
