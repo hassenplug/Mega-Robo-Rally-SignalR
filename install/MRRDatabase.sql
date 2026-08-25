@@ -372,19 +372,18 @@ CREATE TABLE `Robots` (
   `MessageCommandID` int(11) DEFAULT NULL,
 
   `RobotName` varchar(20) DEFAULT NULL,
-  `RobotColor` int(11) DEFAULT 1,
-  `RobotColorFG` int(11) DEFAULT 1,
+  `RobotColor` varchar(6) DEFAULT 'FFFFFF',
+  `RobotColorFG` varchar(6) DEFAULT '000000',
 
-  `StatusColor` int(11) DEFAULT 1,
-  `LEDColor` int(11) DEFAULT 1,
-  `PlayerStatus` int(11) DEFAULT 1,
+  `StatusColor` varchar(8) DEFAULT NULL,
+  `LEDColor` varchar(8) DEFAULT NULL,
+  `PlayerStatus` varchar(20) DEFAULT NULL,
 
-  `sDir` int(11) DEFAULT 1,
-  `FlagEnergy` int(11) DEFAULT 1,
-  `PlayerSeat` int(11) DEFAULT 1,
+  `sDir` varchar(5) DEFAULT NULL,
+  `FlagEnergy` varchar(10) DEFAULT NULL,
   `DirectionAdjustment` int(11) DEFAULT 1,
-  `StatusToShow` int(11) DEFAULT 1,
-  `msg` int(11) DEFAULT 1,
+  `StatusToShow` varchar(20) DEFAULT NULL,
+  `msg` varchar(50) DEFAULT NULL,
   `IPAddress` varchar(15) DEFAULT NULL,
 
   PRIMARY KEY (`RobotID`),

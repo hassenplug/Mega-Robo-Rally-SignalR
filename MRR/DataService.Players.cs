@@ -114,30 +114,45 @@ namespace MRR.Services
             return _allPlayers;
         }
 
+        // Denormalizes the RobotStatus/RobotDirections/MoveCards/CommandList joins onto Robots itself
+        // (StatusColor, LEDColor, PlayerStatus, sDir, FlagEnergy, StatusToShow, msg) so other reads
+        // (RefreshAllPlayers, SetStatus) can use the plain Robots columns instead of re-joining.
+        private void RefreshRobotDenormalizedFields()
+        {
+            string updateSQL = @"UPDATE Robots r
+                JOIN RobotStatus rs ON IF(r.IsConnected = 1, r.Status, 10) = rs.RobotStatusID
+                JOIN RobotDirections rd ON r.CurrentPosDir = rd.DirID
+                LEFT JOIN (
+                    SELECT mc.Owner,
+                           GROUP_CONCAT(IF(mc.CardID IS NULL, '-', IF(mc.Executed, mct.ShortDescription, 'X'))
+                                        ORDER BY mc.PhasePlayed) AS ShowCardsPlayed
+                    FROM MoveCards mc
+                    JOIN MoveCardTypes mct ON mc.CardTypeID = mct.CardTypeID
+                    WHERE mc.PhasePlayed > 0
+                    GROUP BY mc.Owner
+                ) played ON r.RobotID = played.Owner
+                LEFT JOIN CommandList cl ON r.MessageCommandID = cl.CommandID
+                SET r.StatusColor  = rs.StatusColor,
+                    r.LEDColor     = rs.LEDColor,
+                    r.PlayerStatus = rs.ShortDescription,
+                    r.sDir         = rd.ShortDirDesc,
+                    r.FlagEnergy   = CONCAT(r.CurrentFlag,'/',r.Energy),
+                    r.StatusToShow = IF(played.ShowCardsPlayed IS NULL OR rs.Active = 0, rs.ShortDescription, played.ShowCardsPlayed),
+                    r.msg          = cl.Description";
+            this.ExecuteSQL(updateSQL);
+        }
+
         public void RefreshAllPlayers()
         {
-            string strSQL = @"SELECT r.RobotID, r.CurrentFlag, rs.StatusColor, rs.LEDColor, rs.ShortDescription AS PlayerStatus,
-                   r.Status AS StatusID, r.CurrentPosCol AS X, r.CurrentPosRow AS Y, r.CurrentPosDir AS Dir,
-                   rd.ShortDirDesc AS sDir, r.ArchivePosCol AS AX, r.ArchivePosRow AS AY, r.Score,
-                   r.PositionValid, r.Priority, r.ShutDown, r.Energy,
-                   CONCAT(r.CurrentFlag,'/',r.Energy) AS FlagEnergy,
-                   r.CardsDealt, r.CardsPlayed,
-                   IF(played.ShowCardsPlayed IS NULL OR rs.Active = 0, rs.ShortDescription, played.ShowCardsPlayed) AS StatusToShow,
-                   cl.Description AS msg
-            FROM Robots r
-            JOIN RobotStatus rs ON IF(r.IsConnected = 1, r.Status, 10) = rs.RobotStatusID
-            JOIN RobotDirections rd ON r.CurrentPosDir = rd.DirID
-            LEFT JOIN (
-                SELECT mc.Owner,
-                       GROUP_CONCAT(IF(mc.CardID IS NULL, '-', IF(mc.Executed, mct.ShortDescription, 'X'))
-                                    ORDER BY mc.PhasePlayed) AS ShowCardsPlayed
-                FROM MoveCards mc
-                JOIN MoveCardTypes mct ON mc.CardTypeID = mct.CardTypeID
-                WHERE mc.PhasePlayed > 0
-                GROUP BY mc.Owner ORDER BY mc.Owner
-            ) played ON r.RobotID = played.Owner
-            LEFT JOIN CommandList cl ON r.MessageCommandID = cl.CommandID
-            ORDER BY r.Priority";
+            RefreshRobotDenormalizedFields();
+
+            string strSQL = @"SELECT RobotID, CurrentFlag, StatusColor, LEDColor, PlayerStatus,
+                   `Status` AS StatusID, CurrentPosCol AS X, CurrentPosRow AS Y, CurrentPosDir AS Dir,
+                   sDir, ArchivePosCol AS AX, ArchivePosRow AS AY, Score,
+                   PositionValid, Priority, ShutDown, Energy, FlagEnergy,
+                   CardsDealt, CardsPlayed, StatusToShow, msg
+            FROM Robots
+            ORDER BY Priority";
 
             var loadplayers = this.GetQueryResults(strSQL);
             foreach (DataRow row in loadplayers.Rows)
@@ -211,24 +226,27 @@ namespace MRR.Services
 
         // =====================================================================
         // procSetStatus — C# equivalent
-        // Syncs StatusLEDs from Robots joined to RobotStatus (LEDColor).
+        // Syncs StatusLEDs from Robots.LEDColor (kept fresh via RefreshRobotDenormalizedFields).
         // Also applies the trigger logic for StatusLEDs_BEFORE_UPDATE:
         //   converts the hex Color string to R/G/B integers in the same UPDATE.
         // =====================================================================
         public void SetStatus()
         {
+            // Robots.Status may have just changed (e.g. ResetPlayers), so refresh the
+            // denormalized LEDColor/StatusColor columns before reading them below.
+            RefreshRobotDenormalizedFields();
+
             using var connection = new MySqlConnection(_connectionString);
             connection.Open();
 
-            // Step 1: set Color from LEDColor via Robots+RobotStatus join
+            // Step 1: set Color from Robots.LEDColor (no RobotStatus join needed anymore)
             using (var cmd = new MySqlCommand(
                 "UPDATE StatusLEDs " +
                 "INNER JOIN Robots vr ON StatusLEDs.LEDID = vr.RobotID " +
-                "INNER JOIN RobotStatus rs ON IF(vr.IsConnected=1, vr.Status, 10) = rs.RobotStatusID " +
-                "SET StatusLEDs.Color = rs.LEDColor, " +
-                "    StatusLEDs.R = CONV(SUBSTRING(rs.LEDColor,1,2),16,10), " +
-                "    StatusLEDs.G = CONV(SUBSTRING(rs.LEDColor,3,2),16,10), " +
-                "    StatusLEDs.B = CONV(SUBSTRING(rs.LEDColor,5,2),16,10)",
+                "SET StatusLEDs.Color = vr.LEDColor, " +
+                "    StatusLEDs.R = CONV(SUBSTRING(vr.LEDColor,1,2),16,10), " +
+                "    StatusLEDs.G = CONV(SUBSTRING(vr.LEDColor,3,2),16,10), " +
+                "    StatusLEDs.B = CONV(SUBSTRING(vr.LEDColor,5,2),16,10)",
                 connection))
             {
                 cmd.ExecuteNonQuery();

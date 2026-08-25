@@ -206,13 +206,20 @@ namespace MRR.Controller
             _dataService.ExecuteSQL("Delete from StatusLEDs;");
             _dataService.ExecuteSQL("Delete from Robots;");
 
-            // Populate Robots from the active OperatorData list so positions can be set below
+            // Populate Robots from the active OperatorData list so positions can be set below.
+            // Joins to RobotBases/RobotBodies/SeatOrientation denormalize display/lookup fields
+            // onto Robots so later reads don't need to re-join every time.
             _dataService.ExecuteSQL(
-                "insert into Robots (RobotID, OperatorName, RobotBaseID, RobotBodyID, `Status`, Priority, `Password`, PlayerSeat) " +
-                "Select RobotID, OperatorName, RobotID, RobotBodyID, 1, OperatorData.PlayerSeat, `Password`, OperatorData.PlayerSeat " +
-                "from OperatorData " +
-                "inner join CurrentGameData pl on OperatorData.OperatorListID = pl.iValue and pl.sKey = 'PlayerListID' " +
-                "where IsActive > 0;");
+                "insert into Robots (RobotID, OperatorName, RobotBaseID, RobotBodyID, `Status`, Priority, `Password`, PlayerSeat, " +
+                "RobotName, RobotColor, RobotColorFG, IPAddress, DirectionAdjustment) " +
+                "Select od.RobotID, od.OperatorName, od.RobotID, od.RobotBodyID, 1, od.PlayerSeat, od.`Password`, od.PlayerSeat, " +
+                "rbody.Name, rbody.Color, rbody.ColorFG, rbase.IPAddress, so.Direction " +
+                "from OperatorData od " +
+                "inner join CurrentGameData pl on od.OperatorListID = pl.iValue and pl.sKey = 'PlayerListID' " +
+                "inner join RobotBodies rbody on od.RobotBodyID = rbody.RobotBodyID " +
+                "inner join RobotBases rbase on od.RobotID = rbase.RobotBaseID " +
+                "inner join SeatOrientation so on od.PlayerSeat = so.SeatID " +
+                "where od.IsActive > 0;");
 
             //NextState();
 

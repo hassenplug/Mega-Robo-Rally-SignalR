@@ -52,6 +52,40 @@ namespace MRR.Services
 #pragma warning restore CS0162
         }
 
+        /// <summary>
+        /// Rebuilds Robots.CardsDealt (CSV of hand CardTypeIDs, desc) and Robots.CardsPlayed
+        /// (CSV of each register's CardTypeID by PhaseCounter slot, 0 = empty) from MoveCards.
+        /// Pass playerId to rebuild a single robot (e.g. after UpdateCardPlayed); omit to
+        /// rebuild every robot at once (e.g. after MoveCardsShuffleAndDeal).
+        /// </summary>
+        private void RebuildRobotCardsSummary(MySqlConnection connection, int? playerId = null)
+        {
+            string dealtFilter  = playerId.HasValue ? "AND mc.Owner = @player" : "";
+            string playedFilter = playerId.HasValue ? "WHERE r2.RobotID = @player" : "";
+            string whereClause  = playerId.HasValue ? "WHERE rb.RobotID = @player" : "";
+
+            string sql =
+                "UPDATE Robots rb " +
+                "LEFT JOIN (" +
+                "  SELECT mc.Owner, GROUP_CONCAT(mc.CardTypeID ORDER BY mc.CardTypeID DESC) AS gctl " +
+                $"  FROM MoveCards mc WHERE mc.CardLocation = 1 {dealtFilter} " +
+                "  GROUP BY mc.Owner" +
+                ") dealt ON rb.RobotID = dealt.Owner " +
+                "LEFT JOIN (" +
+                "  SELECT r2.RobotID AS Owner, GROUP_CONCAT(IFNULL(mc.CardTypeID, 0) ORDER BY pc.ID) AS gctp " +
+                "  FROM Robots r2 CROSS JOIN PhaseCounter pc " +
+                "  LEFT JOIN MoveCards mc ON pc.ID = mc.PhasePlayed AND mc.Owner = r2.RobotID " +
+                $"  {playedFilter} " +
+                "  GROUP BY r2.RobotID" +
+                ") played ON rb.RobotID = played.Owner " +
+                $"SET rb.CardsDealt = dealt.gctl, rb.CardsPlayed = played.gctp {whereClause}";
+
+            using var cmd = new MySqlCommand(sql, connection);
+            if (playerId.HasValue)
+                cmd.Parameters.AddWithValue("@player", playerId.Value);
+            cmd.ExecuteNonQuery();
+        }
+
         public void LoadGameCardsFromDatabase()
         {
             GameCards.Clear();
@@ -229,39 +263,7 @@ namespace MRR.Services
             int newStatus = (programCount == phaseCount) ? 4 : 3;
 
             // 7. Rebuild CardsDealt and CardsPlayed CSV strings (procUpdateRobotCards).
-            string? cardsDealt;
-            using (var cmd = new MySqlCommand(
-                "SELECT GROUP_CONCAT(CardTypeID ORDER BY CardTypeID DESC) " +
-                "FROM MoveCards WHERE CardLocation = 1 AND `Owner` = @player " +
-                "GROUP BY `Owner`",
-                connection))
-            {
-                cmd.Parameters.AddWithValue("@player", p_Player);
-                var result = cmd.ExecuteScalar();
-                cardsDealt = (result == null || result == DBNull.Value) ? null : result.ToString();
-            }
-
-            string? cardsPlayed;
-            using (var cmd = new MySqlCommand(
-                "SELECT GROUP_CONCAT(IFNULL(mc.CardTypeID, 0) ORDER BY pc.ID) " +
-                "FROM PhaseCounter pc " +
-                "LEFT JOIN MoveCards mc ON pc.ID = mc.PhasePlayed AND mc.`Owner` = @player",
-                connection))
-            {
-                cmd.Parameters.AddWithValue("@player", p_Player);
-                var result = cmd.ExecuteScalar();
-                cardsPlayed = (result == null || result == DBNull.Value) ? null : result.ToString();
-            }
-
-            using (var cmd = new MySqlCommand(
-                "UPDATE Robots SET CardsDealt = @dealt, CardsPlayed = @played WHERE RobotID = @player",
-                connection))
-            {
-                cmd.Parameters.AddWithValue("@dealt", (object?)cardsDealt ?? DBNull.Value);
-                cmd.Parameters.AddWithValue("@played", (object?)cardsPlayed ?? DBNull.Value);
-                cmd.Parameters.AddWithValue("@player", p_Player);
-                cmd.ExecuteNonQuery();
-            }
+            RebuildRobotCardsSummary(connection, p_Player);
 
             // Update robot Status.
             using (var cmd = new MySqlCommand(
@@ -502,21 +504,9 @@ namespace MRR.Services
                     cmd.ExecuteNonQuery();
                 }
 
-                // 7. Rebuild Robots.CardsDealt (sorted by CardTypeID desc) and
-                //    reset CardsPlayed to "0,0,0,0,0".
-                using (var cmd = new MySqlCommand(
-                    "UPDATE Robots rb " +
-                    "INNER JOIN (" +
-                    "  SELECT mc.Owner, GROUP_CONCAT(mc.CardTypeID ORDER BY mc.CardTypeID DESC) AS gctl " +
-                    "  FROM MoveCards mc " +
-                    "  WHERE mc.CardLocation = 1 " +
-                    "  GROUP BY mc.Owner" +
-                    ") ctl ON rb.RobotID = ctl.Owner " +
-                    "SET CardsDealt = ctl.gctl, CardsPlayed = '0,0,0,0,0'",
-                    connection))
-                {
-                    cmd.ExecuteNonQuery();
-                }
+                // 7. Rebuild Robots.CardsDealt/CardsPlayed for every robot (no one has
+                //    played into a register yet, so CardsPlayed naturally comes out "0,0,0,0,0").
+                RebuildRobotCardsSummary(connection);
 
                 UpdatePlayerPriority(connection);
             }
