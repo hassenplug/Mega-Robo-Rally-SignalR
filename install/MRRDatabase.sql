@@ -370,6 +370,23 @@ CREATE TABLE `Robots` (
   `CardsDealt` varchar(30) DEFAULT NULL,
   `CardsPlayed` varchar(20) DEFAULT NULL,
   `MessageCommandID` int(11) DEFAULT NULL,
+
+  `RobotName` varchar(20) DEFAULT NULL,
+  `RobotColor` int(11) DEFAULT 1,
+  `RobotColorFG` int(11) DEFAULT 1,
+
+  `StatusColor` int(11) DEFAULT 1,
+  `LEDColor` int(11) DEFAULT 1,
+  `PlayerStatus` int(11) DEFAULT 1,
+
+  `sDir` int(11) DEFAULT 1,
+  `FlagEnergy` int(11) DEFAULT 1,
+  `PlayerSeat` int(11) DEFAULT 1,
+  `DirectionAdjustment` int(11) DEFAULT 1,
+  `StatusToShow` int(11) DEFAULT 1,
+  `msg` int(11) DEFAULT 1,
+  `IPAddress` varchar(15) DEFAULT NULL,
+
   PRIMARY KEY (`RobotID`),
   KEY `fk_Players_RobotBases_idx` (`RobotBaseID`),
   KEY `fk_Players_RobotBodies1_idx` (`RobotBodyID`),
