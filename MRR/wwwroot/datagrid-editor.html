@@ -311,6 +311,32 @@
             justify-content: flex-end;
             margin-top: 20px;
         }
+
+        .sql-panel {
+            padding: 15px 30px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+            display: flex;
+            gap: 15px;
+            align-items: flex-start;
+        }
+
+        .sql-panel textarea {
+            flex: 1;
+            padding: 10px 12px;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 13px;
+            resize: vertical;
+            min-height: 60px;
+        }
+
+        .sql-panel textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
     </style>
 </head>
 <body>
@@ -332,6 +358,11 @@
                 <button id="saveBtn" onclick="saveChanges()" disabled style="display:none;">💾 Save</button>
                 <button id="refreshBtn" onclick="loadTableList()" style="display:none;">🔄 Refresh Tables</button>
             </div>
+        </div>
+
+        <div class="sql-panel">
+            <textarea id="sqlInput" rows="3" placeholder="SELECT * FROM ..." spellcheck="false"></textarea>
+            <button id="executeSqlBtn" class="success" onclick="executeSql()">▶ Execute SQL</button>
         </div>
 
         <div id="messageContainer"></div>
@@ -358,6 +389,22 @@
         let currentPage = 1;
         const pageSize = 50;
         let unsavedChanges = false;
+        let sqlManuallyEdited = false;
+
+        // Builds "SELECT * FROM <table> [WHERE <filter>]" from the current selection/filter.
+        function defaultSql() {
+            if (!currentTable) return '';
+            const filter = ((document.getElementById('searchInput') || {}).value || '').trim();
+            return `SELECT * FROM ${currentTable}` + (filter ? ` WHERE ${filter}` : '') + ';';
+        }
+
+        // Keeps the SQL box in sync with table/filter selection, unless the user has typed
+        // their own query into it.
+        function updateSqlDefault() {
+            if (sqlManuallyEdited) return;
+            const sqlInput = document.getElementById('sqlInput');
+            if (sqlInput) sqlInput.value = defaultSql();
+        }
 
         // Load table list on page load and wire setValue + search inputs
         document.addEventListener('DOMContentLoaded', () => {
@@ -386,7 +433,12 @@
                     if (currentTable) {
                         loadTable(currentTable, v);
                     }
+                    updateSqlDefault();
                 });
+            }
+            const sqlInput = document.getElementById('sqlInput');
+            if (sqlInput) {
+                sqlInput.addEventListener('input', () => { sqlManuallyEdited = true; });
             }
         });
 
@@ -417,6 +469,8 @@
                 const saveBtn = document.getElementById('saveBtn');
                 if (saveBtn) { saveBtn.disabled = true; saveBtn.style.display = 'none'; }
             }
+            sqlManuallyEdited = false;
+            updateSqlDefault();
         });
 
         // ─── TEMPORARY: admin API key handling ──────────────────────────────────
@@ -565,6 +619,7 @@
             //if (setValueInput) setValueInput.value = filter;
             // Trigger input event to update button state
             //if (setValueInput) setValueInput.dispatchEvent(new Event('input'));
+            updateSqlDefault();
             refreshCurrentTable();
         }
 
@@ -610,6 +665,62 @@
                 showMessage('Changes saved successfully!');
             } catch (error) {
                 showError('Failed to save changes: ' + (error.message || error));
+            }
+        }
+
+        // Runs whatever is in the SQL box via POST /api/admin/sql. A SELECT/SHOW/DESCRIBE
+        // comes back as { rows: [...] } and is rendered in the grid; anything else comes back
+        // as { rowsAffected } and just reports a count (the underlying table, if one is
+        // loaded, is refreshed since the statement may have changed it).
+        async function executeSql() {
+            const sqlInput = document.getElementById('sqlInput');
+            const sql = (sqlInput ? sqlInput.value : '').trim();
+            if (!sql) {
+                showError('Enter a SQL statement to execute.');
+                return;
+            }
+
+            const executeBtn = document.getElementById('executeSqlBtn');
+            if (executeBtn) executeBtn.disabled = true;
+            document.getElementById('gridContainer').innerHTML = '<div class="loading"><div class="spinner"></div><p>Running query...</p></div>';
+
+            try {
+                const resp = await adminFetch('/api/admin/sql', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sql })
+                });
+                const text = await resp.text();
+                let data = null;
+                try { data = text ? JSON.parse(text) : null; } catch (e) { /* not JSON */ }
+
+                if (!resp.ok) {
+                    throw new Error((data && data.error) ? data.error : (text || `HTTP ${resp.status}`));
+                }
+
+                if (data && Array.isArray(data.rows)) {
+                    tableData = data.rows;
+                    originalTableData = JSON.parse(JSON.stringify(tableData));
+                    document.getElementById('currentTable').textContent = '(SQL query)';
+                    document.getElementById('rowCount').textContent = tableData.length;
+                    renderTable(null, []);
+                    updateStatus(`Query returned ${tableData.length} row(s)`);
+                } else {
+                    const affected = (data && typeof data.rowsAffected === 'number') ? data.rowsAffected : 0;
+                    showMessage(`${affected} row(s) affected.`);
+                    updateStatus(`Executed — ${affected} row(s) affected`);
+                    if (currentTable) {
+                        const filterVal = ((document.getElementById('searchInput') || {}).value || '').trim();
+                        await loadTable(currentTable, filterVal);
+                    } else {
+                        document.getElementById('gridContainer').innerHTML = '<div class="loading"><p>Statement executed.</p></div>';
+                    }
+                }
+            } catch (error) {
+                showError('SQL execution failed: ' + (error.message || error));
+                document.getElementById('gridContainer').innerHTML = `<div class="error">${escapeHtml(error.message || String(error))}</div>`;
+            } finally {
+                if (executeBtn) executeBtn.disabled = false;
             }
         }
 
