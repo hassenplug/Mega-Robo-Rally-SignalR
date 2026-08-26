@@ -10,6 +10,8 @@ Commands that need to happen for a game.
 
 ## Pre-Game
 
+- [ ] Test connection to robots
+  - [ ] Search for robots to connect to and update IP
 - [ ] Pick a pre-created game from a list (pick GameData)
 - [ ] Start the game (load that game & start)
 - [ ] Auto-connect to robots
@@ -39,3 +41,9 @@ Commands that need to happen for a game.
   When IsRunning is turned off, disconnect from robots
   When a game is started, IsRunning should be turned on
   
+## Robot Connection Screen
+- [ ] Test connection to robots
+- [ ] Search for robots to connect to
+  - [ ] And update IP (button for each robot)
+- [ ] Auto-connect to robots
+- [ ] Reconnect to robot[s]

@@ -51,6 +51,13 @@ ws://{IPAddress}:80/ws_status
 If the IP is stale (DHCP reassignment), connection fails silently — `isConnected`
 stays false and all robot commands become no-ops.
 
+Add a `RobotBases.MACAddress` `VARCHAR` column (coordinate the schema change with the
+`mrr-database` agent so `install/MRRDatabase.sql` stays the source of truth). The MAC is
+fixed hardware identity, unlike the DHCP-assigned IP — once a GM assigns a discovered IP
+to a `RobotBaseID`, discovery persists that robot's MAC too. On every later scan, a probed
+IP whose MAC already matches a stored `RobotBases.MACAddress` can auto-update `IPAddress`
+without GM involvement; only genuinely new MACs need manual assignment.
+
 ---
 
 ## VEX AIM Robot Network Fingerprint
@@ -149,7 +156,9 @@ static async Task<RobotProbeResult?> ProbeAsync(string ip, int timeoutMs = 500)
             || statusProp.GetString() != "complete")
             return null;
 
-        return new RobotProbeResult { IP = ip, RawResponse = json };
+        var mac = await GetMacAddressAsync(ip);
+
+        return new RobotProbeResult { IP = ip, RawResponse = json, MacAddress = mac };
     }
     catch
     {
@@ -157,6 +166,69 @@ static async Task<RobotProbeResult?> ProbeAsync(string ip, int timeoutMs = 500)
     }
 }
 ```
+
+#### MAC address lookup
+
+The WebSocket handshake already forces the OS to ARP-resolve the robot's IP, so the MAC
+is sitting in the local ARP/neighbor cache by the time `ProbeAsync` returns — no extra
+network round trip needed, just a cache read. The lookup mechanism differs by OS (dev
+machine is Windows, deployment target is the Pi 5 running Linux), so branch on
+`RuntimeInformation.IsOSPlatform`:
+
+```csharp
+using System.Runtime.InteropServices;
+
+static async Task<string?> GetMacAddressAsync(string ip)
+{
+    try
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            return GetMacAddressWindows(ip);
+
+        return await GetMacAddressLinuxAsync(ip);
+    }
+    catch
+    {
+        return null; // MAC is a nice-to-have; never fail discovery over it
+    }
+}
+
+// Windows: iphlpapi SendARP
+[DllImport("iphlpapi.dll", ExactSpelling = true)]
+static extern int SendARP(uint destIP, uint srcIP, byte[] macAddr, ref int macAddrLen);
+
+static string? GetMacAddressWindows(string ip)
+{
+    var addr = System.Net.IPAddress.Parse(ip);
+    uint destIP = BitConverter.ToUInt32(addr.GetAddressBytes(), 0);
+    var mac = new byte[6];
+    int len = mac.Length;
+    if (SendARP(destIP, 0, mac, ref len) != 0) return null;
+    return string.Join(":", mac.Take(len).Select(b => b.ToString("X2")));
+}
+
+// Linux (Raspberry Pi): read the kernel neighbor table via `ip neigh`
+static async Task<string?> GetMacAddressLinuxAsync(string ip)
+{
+    var psi = new System.Diagnostics.ProcessStartInfo("ip", $"neigh show {ip}")
+    {
+        RedirectStandardOutput = true,
+        UseShellExecute = false,
+    };
+    using var proc = System.Diagnostics.Process.Start(psi);
+    if (proc == null) return null;
+    var output = await proc.StandardOutput.ReadToEndAsync();
+    await proc.WaitForExitAsync();
+
+    // Example line: "192.168.1.101 dev eth0 lladdr aa:bb:cc:dd:ee:ff REACHABLE"
+    var match = System.Text.RegularExpressions.Regex.Match(output, @"lladdr ([0-9a-fA-F:]{17})");
+    return match.Success ? match.Groups[1].Value.ToUpperInvariant() : null;
+}
+```
+
+Note: `ip neigh` only has an entry if the kernel has actually ARPed the IP recently
+(which the WebSocket connect in `ProbeAsync` guarantees) — an unsolicited lookup for an
+address the box never talked to will come back empty.
 
 ### Step 3 — Run all probes in parallel (bounded)
 
@@ -179,14 +251,24 @@ await Task.WhenAll(targets.Select(async ip =>
 
 ### Step 4 — Match to RobotBases and update DB
 
-After discovery, the GM assigns each found IP to a `RobotBases` row and updates `IPAddress`.
-Robots cannot self-identify, so automatic matching is not possible.
+Robots don't self-identify over WebSocket, so the *first* time a robot is seen, only the
+GM can say which physical robot a given IP belongs to. But the MAC address captured in
+step 2 is stable hardware identity — once a MAC has been assigned to a `RobotBaseID`
+once, every later scan can re-match it automatically, even after a DHCP-assigned IP
+change:
 
-The only viable approach is **GM manual assignment** — return the discovered IPs and
-let the GM assign each to a `RobotBaseID` via the API:
+1. For each `RobotProbeResult`, look up `RobotBases` by `MACAddress`.
+2. **Known MAC** → auto-update that row's `IPAddress`, no GM action needed.
+3. **Unknown/null MAC or no match** → falls to **GM manual assignment**: return it in
+   the discovery response and let the GM assign it to a `RobotBaseID` via the API. That
+   assignment persists both `IPAddress` and `MACAddress`, so it auto-matches from then on.
+
 ```
-GET /api/robot/discover        → returns list of { ip, robotIdentifier, rawResponse }
-GET /api/robot/assignbase/{robotBaseId}/{ip}  → UPDATE RobotBases SET IPAddress='{ip}' WHERE RobotBaseID={id}
+GET /api/robot/discover        → scans, auto-matches known MACs, returns list of
+                                  { ip, macAddress, robotBaseId (null if unmatched), rawResponse }
+GET /api/robot/assignbase/{robotBaseId}/{ip}/{macAddress}
+                                → UPDATE RobotBases SET IPAddress='{ip}', MACAddress='{macAddress}'
+                                  WHERE RobotBaseID={id}
 ```
 
 ---
@@ -198,8 +280,12 @@ public class RobotProbeResult
 {
     public string IP          { get; init; } = "";
     public string RawResponse { get; init; } = "";
-    // No identity field — VEX AIM robots do not self-identify over WebSocket.
-    // Assign RobotBaseID via the /api/robot/assignbase endpoint after discovery.
+    public string? MacAddress { get; init; }
+    public int? RobotBaseId   { get; init; }
+    // No WebSocket identity field — VEX AIM robots do not self-identify.
+    // MacAddress is read from the OS ARP/neighbor cache and lets repeat scans
+    // auto-match a robot already assigned to a RobotBaseID. New/unmatched MACs
+    // still need a one-time GM assignment via /api/robot/assignbase.
 }
 ```
 
@@ -233,25 +319,48 @@ public class RobotDiscoveryService(DataService dataService)
                 if (result != null)
                 {
                     found.Add(result);
-                    Console.WriteLine($"[Discovery] Robot found at {ip}");
+                    Console.WriteLine($"[Discovery] Robot found at {ip} (MAC {result.MacAddress ?? "unknown"})");
                 }
             }
             finally { semaphore.Release(); }
         }));
 
-        return [.. found];
+        // Auto-match known MACs so the GM only has to assign genuinely new robots.
+        var known = _dataService.GetRobotBaseMacMap(); // MACAddress -> RobotBaseID
+        var results = found.Select(r =>
+        {
+            if (r.MacAddress != null && known.TryGetValue(r.MacAddress, out var robotBaseId))
+            {
+                _dataService.ExecuteSQL(
+                    "UPDATE RobotBases SET IPAddress = @ip WHERE RobotBaseID = @id",
+                    ("@ip", r.IP), ("@id", robotBaseId));
+                return r with { RobotBaseId = robotBaseId };
+            }
+            return r;
+        }).ToList();
+
+        return results;
     }
 
-    public void AssignBase(int robotBaseId, string ip)
+    public void AssignBase(int robotBaseId, string ip, string? macAddress)
     {
         _dataService.ExecuteSQL(
-            $"UPDATE RobotBases SET IPAddress = '{ip}' WHERE RobotBaseID = {robotBaseId}");
-        Console.WriteLine($"[Discovery] Assigned base {robotBaseId} → {ip}");
+            "UPDATE RobotBases SET IPAddress = @ip, MACAddress = @mac WHERE RobotBaseID = @id",
+            ("@ip", ip), ("@mac", (object?)macAddress ?? DBNull.Value), ("@id", robotBaseId));
+        Console.WriteLine($"[Discovery] Assigned base {robotBaseId} → {ip} (MAC {macAddress ?? "unknown"})");
     }
 
-    // ... GetScanTargets() and ProbeAsync() as above
+    // ... GetScanTargets(), ProbeAsync() and GetMacAddressAsync() as above
 }
 ```
+
+`RobotProbeResult` should be a `record` (not `class`) so the `r with { RobotBaseId = ... }`
+non-destructive update above works. `DataService.GetRobotBaseMacMap()` is a small new
+helper (`SELECT RobotBaseID, MACAddress FROM RobotBases WHERE MACAddress IS NOT NULL`)
+returned as a `Dictionary<string, int>`. Note the parameterized `ExecuteSQL` calls above —
+match whatever parameterization pattern `DataService` already uses elsewhere; the MAC
+string in particular comes from an OS command's output and must never be interpolated
+directly into SQL.
 
 Register in `Program.cs`:
 ```csharp
@@ -270,12 +379,12 @@ app.MapGet("/api/robot/discover", async (RobotDiscoveryService discovery) =>
     return Results.Ok(results);
 });
 
-// Assign a discovered IP to a RobotBase record
-app.MapGet("/api/robot/assignbase/{robotBaseId:int}/{ip}",
-    (int robotBaseId, string ip, RobotDiscoveryService discovery) =>
+// Assign a discovered IP (and its MAC, if known) to a RobotBase record
+app.MapGet("/api/robot/assignbase/{robotBaseId:int}/{ip}/{macAddress?}",
+    (int robotBaseId, string ip, string? macAddress, RobotDiscoveryService discovery) =>
 {
-    discovery.AssignBase(robotBaseId, ip);
-    return Results.Ok(new { robotBaseId, ip });
+    discovery.AssignBase(robotBaseId, ip, macAddress);
+    return Results.Ok(new { robotBaseId, ip, macAddress });
 });
 ```
 
@@ -309,3 +418,17 @@ app.MapGet("/api/robot/assignbase/{robotBaseId:int}/{ip}",
 8. **Subnet detection**: If multiple active interfaces exist (e.g. Wi-Fi + Ethernet),
    scan the one most likely to be the game network — prefer non-APIPA addresses
    (skip 169.254.x.x).
+
+9. **MAC lookup is best-effort**: `GetMacAddressAsync` must never throw out of
+   `ProbeAsync` — a robot with no resolvable MAC (ARP cache miss, platform quirk)
+   still counts as discovered, just with `MacAddress = null`, and falls back to GM
+   manual assignment.
+
+10. **Dev vs. deployment OS differ**: MAC lookup branches on `RuntimeInformation
+    .IsOSPlatform` — `SendARP` (Windows, dev machine) vs. `ip neigh` (Linux, the Pi 5
+    deployment target). Test both paths; don't assume the dev machine's code path is
+    what ships.
+
+11. **Coordinate the schema change**: adding `RobotBases.MACAddress` touches the DB
+    schema — hand that off to (or check with) the `mrr-database` agent so
+    `install/MRRDatabase.sql` and the live DB don't drift apart.
