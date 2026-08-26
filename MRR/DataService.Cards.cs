@@ -86,6 +86,30 @@ namespace MRR.Services
             cmd.ExecuteNonQuery();
         }
 
+        /// <summary>
+        /// Recomputes Robots.CardCount (every MoveCards row owned by the robot, regardless of
+        /// CardLocation) from MoveCards. One UPDATE shared by every place that changes how many
+        /// cards a robot owns: dealing and expired-Spam-card deletion in
+        /// MoveCardsShuffleAndDeal (all robots), and a new Spam card being dealt to one robot
+        /// in DealSpamToPlayer. Pass playerId to refresh a single robot; omit to refresh all.
+        /// </summary>
+        private void RefreshCardCount(MySqlConnection connection, int? playerId = null)
+        {
+            string whereClause = playerId.HasValue ? "WHERE rb.RobotID = @player" : "";
+
+            string sql =
+                "UPDATE Robots rb " +
+                "LEFT JOIN (" +
+                "  SELECT Owner, COUNT(*) AS cnt FROM MoveCards GROUP BY Owner" +
+                ") mc ON rb.RobotID = mc.Owner " +
+                $"SET rb.CardCount = IFNULL(mc.cnt, 0) {whereClause}";
+
+            using var cmd = new MySqlCommand(sql, connection);
+            if (playerId.HasValue)
+                cmd.Parameters.AddWithValue("@player", playerId.Value);
+            cmd.ExecuteNonQuery();
+        }
+
         public void LoadGameCardsFromDatabase()
         {
             GameCards.Clear();
@@ -349,9 +373,23 @@ namespace MRR.Services
         {
             int maxId = GetIntFromDB(
                 $"SELECT COALESCE(MAX(CardID), 0) + 1 FROM MoveCards WHERE Owner = {robotID}");
-            ExecuteSQL(
-                $"INSERT INTO MoveCards (CardID, CardTypeID, Owner, CardLocation) " +
-                $"VALUES ({maxId}, 10, {robotID}, 3)");
+
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+
+            using (var cmd = new MySqlCommand(
+                "INSERT INTO MoveCards (CardID, CardTypeID, Owner, CardLocation) " +
+                "VALUES (@cardId, 10, @robotId, 3)",
+                connection))
+            {
+                cmd.Parameters.AddWithValue("@cardId", maxId);
+                cmd.Parameters.AddWithValue("@robotId", robotID);
+                cmd.ExecuteNonQuery();
+            }
+
+            // A new Spam card just entered this robot's collection; keep CardCount in sync.
+            RefreshCardCount(connection, robotID);
+
             return maxId;
         }
 
@@ -507,6 +545,10 @@ namespace MRR.Services
                 // 7. Rebuild Robots.CardsDealt/CardsPlayed for every robot (no one has
                 //    played into a register yet, so CardsPlayed naturally comes out "0,0,0,0,0").
                 RebuildRobotCardsSummary(connection);
+
+                // Refresh CardCount for everyone: step 1 above deleted expired Spam cards and
+                // step 6 dealt cards, both of which can change how many cards a robot owns.
+                RefreshCardCount(connection);
 
                 UpdatePlayerPriority(connection);
             }

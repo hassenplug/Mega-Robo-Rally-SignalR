@@ -97,16 +97,12 @@ namespace MRR.Services
             string titlemessage = "Turn " + Turn;
             if (Turn == 0) titlemessage = "Game Setup";
             if (Phase > 0) titlemessage += " Phase " + Phase;
-            //foreach (var player in AllPlayers)
-            //{
-            //    Console.WriteLine(player.ToRobotData().ToString());
-            //}
 
             return new AllDataPayload
             {
                 titlemsg  = titlemessage,
                 gamestate = GameState,
-                robots    = [.. AllPlayers.OrderBy(p => p.Priority).Select(p => p.ToRobotData())],
+                robots    = GetRobotsFromTable(),
             };
         }
 

@@ -369,6 +369,7 @@ CREATE TABLE `Robots` (
   `Energy` int(11) DEFAULT 3,
   `CardsDealt` varchar(30) DEFAULT NULL,
   `CardsPlayed` varchar(20) DEFAULT NULL,
+  `CardCount` int(11) DEFAULT 0,
   `MessageCommandID` int(11) DEFAULT NULL,
 
   `RobotName` varchar(20) DEFAULT NULL,

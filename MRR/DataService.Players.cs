@@ -142,6 +142,60 @@ namespace MRR.Services
             this.ExecuteSQL(updateSQL);
         }
 
+        // Reads Robots directly (after freshening the denormalized columns above) and maps it
+        // straight to RobotData -- this is what AllDataPayload.robots sends to clients now,
+        // replacing the old path that built RobotData from the in-memory Players/GameCards
+        // collections. StatusID/X/Y/Dir are aliases of Status/CurrentPosCol/CurrentPosRow/
+        // CurrentPosDir. PlayerViewDirection has no Robots column of its own -- it has always
+        // just duplicated DirectionAdjustment -- and is kept in the payload for compatibility
+        // with existing clients rather than dropping it. CardCount is a real column, kept
+        // current by RefreshCardCount (DataService.Cards.cs) whenever a robot's cards change.
+        public List<RobotData> GetRobotsFromTable()
+        {
+            //RefreshRobotDenormalizedFields();
+
+            var table = GetQueryResults("SELECT * FROM Robots ORDER BY Priority");
+            var result = new List<RobotData>();
+
+            foreach (DataRow row in table.Rows)
+            {
+                int directionAdjustment = Convert.ToInt32(row["DirectionAdjustment"]);
+                string cardsDealt = row["CardsDealt"].ToString() ?? "";
+
+                result.Add(new RobotData
+                {
+                    RobotID             = (int)row["RobotID"],
+                    RobotName           = row["RobotName"].ToString() ?? "",
+                    RobotColor          = row["RobotColor"].ToString() ?? "",
+                    RobotColorFG        = row["RobotColorFG"].ToString() ?? "",
+                    CurrentFlag         = (int)row["CurrentFlag"],
+                    StatusColor         = row["StatusColor"].ToString() ?? "",
+                    LEDColor            = row["LEDColor"].ToString() ?? "",
+                    PlayerStatus        = row["PlayerStatus"].ToString() ?? "",
+                    StatusID            = (int)row["Status"],
+                    X                   = (int)row["CurrentPosCol"],
+                    Y                   = (int)row["CurrentPosRow"],
+                    Dir                 = (int)row["CurrentPosDir"],
+                    sDir                = row["sDir"].ToString() ?? "",
+                    OperatorName        = row["OperatorName"].ToString() ?? "",
+                    Priority            = (int)row["Priority"],
+                    ShutDown            = (int)row["ShutDown"],
+                    PlayerSeat          = (int)row["PlayerSeat"],
+                    Energy              = (int)row["Energy"],
+                    FlagEnergy          = row["FlagEnergy"].ToString() ?? "",
+                    PlayerViewDirection = directionAdjustment,
+                    DirectionAdjustment = directionAdjustment,
+                    CardsDealt          = cardsDealt,
+                    CardsPlayed         = row["CardsPlayed"].ToString() ?? "",
+                    StatusToShow        = row["StatusToShow"].ToString() ?? "",
+                    msg                 = row["msg"].ToString() ?? "",
+                    CardCount           = (int)row["CardCount"],
+                });
+            }
+
+            return result;
+        }
+
         public void RefreshAllPlayers()
         {
             RefreshRobotDenormalizedFields();
