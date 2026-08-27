@@ -1,19 +1,22 @@
 # Database-to-Memory Sync Issues Found
 
-> ## 🔶 STILL OPEN — re-checked 2026-08-22
+> ## 🔶 PARTIALLY MOOT — re-checked 2026-08-27
 >
-> Issue 1 is unchanged: `GameController.StartGame()` still issues `DELETE FROM MoveCards /
-> CommandList / RobotOptions / StatusLEDs / Robots` without clearing the matching in-memory
-> collections ([GameController.cs:169-174](../MRR/GameController.cs#L169-L174)). The later
-> `GetAllPlayers(true)` and `LoadCurrentGame()` calls in the same method mitigate but do not
-> replace per-collection clearing.
+> Items 1, 2, 3, and 5 below are all instances of the `Robots` ↔ `AllPlayers` player-*data*
+> mirror going stale. [ALLPLAYERS_REMOVAL_DESIGN.md](ALLPLAYERS_REMOVAL_DESIGN.md) removes
+> that mirror instead of syncing it — once implemented, those four items close by
+> construction (there is nothing left to drift). Marked individually below; left in place
+> since the removal is not yet implemented.
+>
+> Items 4, 6–14 concern `GameCards`, `ListOfCommands`, `OptionCards`, and `CurrentGameData` —
+> unrelated collections, unaffected by that document, still genuinely open.
 >
 > The line numbers below have drifted; the code they describe has not.
 
 
 ## Critical Issues
 
-### 1. **GameController.StartGame()** - Lines 167-174
+### 1. **GameController.StartGame()** - Lines 167-174 — *moot once ALLPLAYERS_REMOVAL_DESIGN.md lands*
 **Location**: MRR/GameController.cs, lines 167-174
 **Issue**: Multiple database deletions without clearing in-memory collections:
 - `DELETE FROM MoveCards` - but `_dataService.GameCards` is NOT cleared
@@ -25,7 +28,7 @@
 
 ---
 
-### 2. **GameController.StartGame()** - Line 205
+### 2. **GameController.StartGame()** - Line 205 — *moot once ALLPLAYERS_REMOVAL_DESIGN.md lands*
 **Location**: MRR/GameController.cs, line 205
 **Issue**: Robot positions updated in DB but in-memory `Player` objects are NOT updated:
 ```sql
@@ -35,7 +38,7 @@ Update Robots set CurrentPosRow=X, CurrentPosCol=Y, CurrentPosDir=Z where RobotI
 
 ---
 
-### 3. **GameController.StartGame()** - Line 226
+### 3. **GameController.StartGame()** - Line 226 — *moot once ALLPLAYERS_REMOVAL_DESIGN.md lands*
 **Location**: MRR/GameController.cs, line 226
 **Issue**: Robot deleted from database but NOT removed from `AllPlayers` collection:
 ```sql
@@ -55,7 +58,7 @@ update CurrentGameData set iValue=iValue+1 where iKey=2
 
 ---
 
-### 5. **GameController.NextState()** - Line 295
+### 5. **GameController.NextState()** - Line 295 — *moot once ALLPLAYERS_REMOVAL_DESIGN.md lands*
 **Location**: MRR/GameController.cs, line 295
 **Issue**: Robot status changed in DB but not in in-memory `Player` objects:
 ```sql

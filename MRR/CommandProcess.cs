@@ -338,11 +338,17 @@ namespace MRR
                     if (onecommand.StatusID < 4)
                     {
                         LogCommand(onecommand, "User Input       ");
-                        //var robot6 = Db.Robots.FirstOrDefault(r => r.ID == onecommand.RobotID);
 
                         if (robotPlayer != null)
                         {
-                            robotPlayer.PlayerMsg = onecommand.Description;
+                            // MessageCommandID points at the CommandList row whose Description is
+                            // the message to show; RefreshRobotDenormalizedFields() joins on it to
+                            // populate Robots.msg for GetRobotsFromTable() to serve to clients.
+                            robotPlayer.MessageCommandID = onecommand.CommandID;
+                            Db.Robots.Where(r => r.ID == onecommand.RobotID)
+                                .ExecuteUpdate(s => s.SetProperty(r => r.MessageCommandID, onecommand.CommandID));
+                            _dataService.RefreshAllPlayers();
+
                             onecommand.StatusID = 4;
                             Db.SaveChanges();
                             return false; // wait for user input

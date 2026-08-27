@@ -763,7 +763,6 @@ namespace MRR
 
             foreach (CommandItem thisCommand in ListOfCommands)
             {
-                thisCommand.CommandID = thisCommand.NormalSequence;
                 thisCommand.Turn = Turn;
                 //thisCommand.StatusID = thisCommand.StatusID;
                 //thisCommand.PositionRow = thisCommand.EndPos.Y;

@@ -41,9 +41,23 @@ Commands that need to happen for a game.
   When IsRunning is turned off, disconnect from robots
   When a game is started, IsRunning should be turned on
   
+Removing AllPlayers from main code
+
+The latest code polls the db and directly sends that to the players, so we don't need to keep a current version of AllPlayers in memory, except during the process of creating commands
+
+Create a design doccument for removing AllPlayers from all other places, and identify any place where it is still needed
+
 ## Robot Connection Screen
-- [ ] Test connection to robots
-- [ ] Search for robots to connect to
-  - [ ] And update IP (button for each robot)
-- [ ] Auto-connect to robots
-- [ ] Reconnect to robot[s]
+
+- [ ] Header buttons
+  - [ ] Connect All
+  - [ ] Disconnect All
+  - [ ] Search
+
+  - [ ] Update IP
+- [ ] Show rows for all robots
+  - [ ] Button with Robot Name and colored background - Button will toggle connection
+    - [ ] Red (not connected)
+    - [ ] Yellow (Connecting)
+    - [ ] Green (Connected)
+    - [ ] Purple (Searching)

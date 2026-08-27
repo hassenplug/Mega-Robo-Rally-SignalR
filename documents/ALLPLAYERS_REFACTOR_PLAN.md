@@ -1,14 +1,19 @@
 # Refactoring Plan: AllPlayers Direct Database Connection
 
-> ## 🔶 STILL OPEN — re-checked 2026-08-22
+> ## ⚠️ SUPERSEDED — 2026-08-27
 >
-> The core goal is **not** done: `MRRDbContext` still declares `DbSet<Player> Robots`
-> ([MRRDbContext.cs:13](../MRR/Data/MRRDbContext.cs#L13)) and `DataService.GetAllPlayers()`
-> still loads players with raw SQL.
+> **Decided: the opposite direction.** This plan's goal was to keep the in-memory `AllPlayers`
+> mirror of the `Robots` table synced so it would never go stale — sync wrappers, EF
+> change-tracking, eventually a live query-on-demand view. Instead,
+> [ALLPLAYERS_REMOVAL_DESIGN.md](ALLPLAYERS_REMOVAL_DESIGN.md) removes that in-memory
+> player-*data* mirror outright: `GetRobotsFromTable()` already reads `Robots` fresh on every
+> broadcast, so there is nothing left to keep synced. The WebSocket connection registry
+> (`AllPlayers` as the list of connected `Player` objects) stays — confirmed still necessary,
+> since all robot communication runs through the live socket held on each `Player` — but the
+> *data* fields on those same objects (position, damage, status, score, cards) do not.
 >
-> Largely subsumed by step 3 of [API_DECOMPOSITION_DESIGN.md](API_DECOMPOSITION_DESIGN.md),
-> which splits `DataService` into `IGameStateStore` plus per-context repositories. Prefer that
-> plan; this document remains useful for its inventory of the sync problems.
+> Kept for history and for its inventory of the sync problems it was trying to solve, which
+> [DB_SYNC_ISSUES.md](DB_SYNC_ISSUES.md) catalogs in more detail.
 
 
 ## Goal

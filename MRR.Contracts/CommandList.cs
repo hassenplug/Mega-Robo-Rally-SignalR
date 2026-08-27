@@ -206,7 +206,7 @@ namespace MRR
         }
 
         [Key]
-        [DatabaseGenerated(DatabaseGeneratedOption.None)]
+        [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public int CommandID { get; set; }
         public int Turn { get; set; }
 

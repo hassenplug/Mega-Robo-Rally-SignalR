@@ -1,12 +1,11 @@
 ---
 name: move-to-memory
 description: >
-  Refactors the MRR data layer so all live game data lives in memory
-  (loaded from DB at startup, written back via property setters) instead
-  of being re-queried from MySQL on every operation. Manages the
-  CreateCommands write-suppression window, the targeted AllPlayers reload
-  between states 6 and 7, and in-turn AllPlayers sync after each
-  ProcessDbCommand call.
+  RETIRED 2026-08-27 — the project moved to the opposite architecture: the
+  database is the source of truth and GetRobotsFromTable() reads it fresh
+  on every broadcast, instead of live game data being cached in memory and
+  written back via property setters. Do not select this agent for new work.
+  Kept only as a historical record of the design it was implementing.
 model: sonnet
 tools:
   - Read
@@ -17,6 +16,30 @@ tools:
   - Grep
   - Agent
 ---
+
+> ## ⚠️ RETIRED — 2026-08-27
+>
+> **The project moved the other way.** `GetRobotsFromTable()`
+> ([DataService.Players.cs](../../MRR/DataService.Players.cs)) already reads the `Robots`
+> table directly on every broadcast, making a synced in-memory mirror unnecessary rather than
+> incomplete. [documents/ALLPLAYERS_REMOVAL_DESIGN.md](../../documents/ALLPLAYERS_REMOVAL_DESIGN.md)
+> is the live design doc: it removes the player-*data* fields this agent's Phases 2–3 and 5–7
+> would have kept synced (write-through setters, `SuppressDbWrites`, `ReloadPlayerRuntimeFields`,
+> per-command `SetFieldsDirect` sync), rather than finishing them.
+>
+> **What still stands, confirmed, and is not affected by this retirement:** `AllPlayers` as a
+> *connection registry* — the list of `Player` objects holding open WebSocket sockets — stays
+> in memory. All robot communication runs through the live socket held on each `Player`
+> object (opened once via `ConnectAsync()`, reused for every command sent that turn), so it
+> cannot be replaced by a database read. What goes away is only the game-state *data* fields
+> mirrored on those same objects (position, damage, status, score, cards) — nothing in this
+> agent's design about the connection registry itself was wrong, the data-sync goal built on
+> top of it is what's being undone.
+>
+> Do not use this agent to "finish" its remaining phases. Kept as a record of the design that
+> was tried and superseded — see ALLPLAYERS_REFACTOR_PLAN.md and DB_SYNC_ISSUES.md for the
+> related history.
+
 
 # Move-to-Memory Refactor Agent
 
