@@ -41,7 +41,7 @@ namespace MRR
         public string CardsDealt { get; set; } = "";
         public string CardsPlayed { get; set; } = "";
         public string StatusToShow { get; set; } = "";
-        public string msg { get; set; } = "";
+        public string PlayerMsg { get; set; } = "";
         public int CardCount { get; set; } = 0;
 
         public override string ToString() =>

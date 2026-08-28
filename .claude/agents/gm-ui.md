@@ -206,7 +206,7 @@ not a table-per-key structure. The actual shape is:
       "Status": 3, "ShutDown": 0, "Damage": 0, "CurrentFlag": 0,
       "CurrentPosCol": 4, "CurrentPosRow": 7, "CurrentPosDir": 1,
       "IsConnected": 1, "RobotBodyID": 1, "RobotBaseID": 2,
-      "PlayerSeat": 1, "Color": "7338B0", "Battery": 87, "msg": null, ... },
+      "PlayerSeat": 1, "Color": "7338B0", "Battery": 87, "PlayerMsg": null, ... },
     ...
   ]
 }
@@ -218,7 +218,7 @@ Key fields:
 - `message` — `CurrentGameData.Message` (iKey=28, sKey='Message'); **must be added** to `DataService` (see Game Message Bar section below)
 - `robots` — rows from `viewRobots`; `CurrentPosDir` 1=Up 2=Right 3=Down 4=Left
 - `robots[n].Battery` — AIM robot battery percentage (0–100), updated live from `ws_status`; only meaningful when `IsConnected == 1`
-- `robots[n].msg` — per-robot message from `CommandList.Description` via `MessageCommandID`
+- `robots[n].PlayerMsg` — per-robot message from `CommandList.Description` via `MessageCommandID`
 
 `GameState` is `parsed.gamestate`.
 Robot rows come from `viewRobots` — use `CurrentPosCol`/`CurrentPosRow`/`CurrentPosDir`,
@@ -295,7 +295,7 @@ bold). If empty, hide the element so `titlemsg` has full width.
 
 ### Per-robot messages
 
-Individual robots can also have a message via `robots[n].msg` (from
+Individual robots can also have a message via `robots[n].PlayerMsg` (from
 `CommandList.Description` via `Robots.MessageCommandID`). Display this inside the
 robot's status panel — e.g. "Validate Position", "Remove Robot" — when non-null.
 This is separate from the game-level message bar above.

@@ -43,7 +43,7 @@ wwwroot/             Static web assets for phone UI
 | [install/PROCESS_MANAGER.md](install/PROCESS_MANAGER.md) | systemd supervision, `mrrctl`, deploy/rollback. Implementation in [install/service/](install/service/) |
 | [DB_SYNC_ISSUES.md](documents/DB_SYNC_ISSUES.md) | Open: DB deletes that don't clear the matching in-memory collections |
 | ~~[ALLPLAYERS_REFACTOR_PLAN.md](documents/ALLPLAYERS_REFACTOR_PLAN.md)~~ | **Superseded** by ALLPLAYERS_REMOVAL_DESIGN.md — decided 2026-08-27 to remove the in-memory mirror rather than keep it synced. Kept for its inventory of the sync problems |
-| [ALLPLAYERS_REMOVAL_DESIGN.md](documents/ALLPLAYERS_REMOVAL_DESIGN.md) | **Decided direction**, not yet implemented: `GetRobotsFromTable()` already reads `Robots` fresh per broadcast, so the in-memory player-*data* mirror can be deleted. The WebSocket connection registry (`AllPlayers` as live `Player` objects) and the per-turn planning snapshot both stay — confirmed still necessary. Per-callsite audit + rollout order |
+| [ALLPLAYERS_REMOVAL_DESIGN.md](documents/ALLPLAYERS_REMOVAL_DESIGN.md) | **Partially implemented** 2026-08-27 (dead write-through mirrors removed from `ProcessDbCommand`/`UpdateCardPlayed`/`CommandProcess.cs`; build-verified). Paused pending a decision on a newly-found, pre-existing bug: `Damage`/`Lives` are never reloaded from the DB into turn planning (§11) |
 
 ## Key Architecture Patterns
 - **State machine** in `GameController.NextState()` (states 0–16) — do not bypass it

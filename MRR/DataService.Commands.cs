@@ -51,7 +51,7 @@ namespace MRR.Services
                 GameType         = GameType,
                 OptionsOnStartup = OptionsOnStartup,
                 Board            = BoardLoadFromDB(BoardID),
-                Players          = new PlayerStates(AllPlayers),
+                Players          = GetPlayerStatesFromDB(),
                 GameCards        = GameCards,
                 OptionCards      = OptionCards,
             };
@@ -87,6 +87,7 @@ namespace MRR.Services
         public int ProcessDbCommand(int p_CommandID, int p_NewStatus)
         {
             var command = ListOfCommands.FirstOrDefault(c => c.CommandID == p_CommandID);
+            Console.WriteLine($"ProcessDbCommand: commandID={p_CommandID}, newStatus={p_NewStatus}, command={command}");
             if (command == null)
                 return -1; // or throw an exception if preferred
 
@@ -110,11 +111,6 @@ namespace MRR.Services
             int cRow        = p_Command.PositionRow;
             int cCol        = p_Command.PositionCol;
             int cDir        = p_Command.PositionDir;
-            // Resolve explicitly rather than relying on CommandItem.Robot having been
-            // attached by whoever loaded this command. PlayerState, not Player: this method
-            // only ever reads and writes game state (damage, flags, position, status), never
-            // the robot transport.
-            PlayerState? robot = p_Command.Robot ?? AllPlayers.GetPlayer(p => p.ID == cRobotID);
 
             if (p_NewStatus == -1)
                 p_NewStatus = 6; // command complete
@@ -129,15 +125,11 @@ namespace MRR.Services
                     break;
 
                 case SquareAction.Damage: // Set Damage
-                    if (robot != null)
-                        robot.Damage = cParameter;
                     db.Robots.Where(r => r.ID == cRobotID)
                         .ExecuteUpdate(s => s.SetProperty(r => r.Damage, cParameter));
                     break;
 
                 case SquareAction.Archive: // Set Archive position
-                    if (robot != null)
-                        robot.ArchivePos = new RobotLocation((Direction)cDir, cCol, cRow);
                     db.Robots.Where(r => r.ID == cRobotID)
                         .ExecuteUpdate(s => s
                             .SetProperty(r => r.ArchivePosRow, cRow)
@@ -146,8 +138,6 @@ namespace MRR.Services
                     break;
 
                 case SquareAction.Flag: // Set Current Flag
-                    if (robot != null)
-                        robot.LastFlag = cParameter;
                     db.Robots.Where(r => r.ID == cRobotID)
                         .ExecuteUpdate(s => s.SetProperty(r => r.LastFlag, cParameter));
                     break;
@@ -165,7 +155,6 @@ namespace MRR.Services
                 }
 
                 case SquareAction.LostLife: // Set Lives
-                    if (robot != null) robot.Lives = cParameter;
                     db.Robots.Where(r => r.ID == cRobotID)
                         .ExecuteUpdate(s => s.SetProperty(r => r.Lives, cParameter));
                     break;
@@ -189,7 +178,6 @@ namespace MRR.Services
                     break;
 
                 case SquareAction.SetPlayerStatus: // Set robot Status
-                    if (robot != null) robot.PlayerStatus = (tPlayerStatus)cParameter;
                     db.Robots.Where(r => r.ID == cRobotID)
                         .ExecuteUpdate(s => s.SetProperty(r => r.PlayerStatus, (tPlayerStatus)cParameter));
                     break;
@@ -221,7 +209,6 @@ namespace MRR.Services
                     break;
 
                 case SquareAction.SetShutDownMode: // Set ShutDown
-                    if (robot != null) robot.ShutDown = (tShutDown)cParameter;
                     db.Robots.Where(r => r.ID == cRobotID)
                         .ExecuteUpdate(s => s.SetProperty(r => r.ShutDown, (tShutDown)cParameter));
                     break;
@@ -258,13 +245,11 @@ namespace MRR.Services
                 case SquareAction.SetButtonText:
 //                            onecommand.StatusID = _dataService.ProcessDbCommand(onecommand, -1);
 //                            Db.SaveChanges();
-                    if (robot != null) robot.PlayerMsg = "";
                     db.Robots.Where(r => r.ID == cRobotID)
                         .ExecuteUpdate(s => s.SetProperty(r => r.PlayerMsg, ""));
                     break;
 
                 case SquareAction.SetEnergy:
-                    if (robot != null) robot.Energy = cParameter;
                     db.Robots.Where(r => r.ID == cRobotID)
                         .ExecuteUpdate(s => s.SetProperty(r => r.Energy, cParameter));
                     break;
@@ -279,13 +264,6 @@ namespace MRR.Services
             {
                 if (cCol >= 0 && cRow >= 0)
                 {
-                    if (robot != null)
-                    {
-                        robot.CurrentPos.X = cCol;
-                        robot.CurrentPos.Y = cRow;
-                        robot.CurrentPos.Direction = (Direction)cDir;
-                        robot.Score = cParameterB;
-                    }
                     db.Robots.Where(r => r.ID == cRobotID)
                         .ExecuteUpdate(s => s
                             .SetProperty(r => r.CurrentPosRow, cRow)

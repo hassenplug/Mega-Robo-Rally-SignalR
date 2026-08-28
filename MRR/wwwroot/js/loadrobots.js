@@ -36,7 +36,7 @@ function showplayerprogram(pl) // show program for this line
     var played = rbt.CardsPlayed.split(",");
     var executed = rbt.StatusToShow.split(",");
 //    var messagetype = rbt.msgtype;
-    var message = rbt.msg;
+    var message = rbt.PlayerMsg;
 
     //console.log("Robot:" ,CurrentLine, " line: ", pl );
 
@@ -140,6 +140,7 @@ function confirmMessage()
 
 function SendUpdate(command, playerid=0, data1=0, data2=0)
 {
+    //console.log("SendUpdate:", command, playerid, data1, data2);
     fetch(`/api/player/${command}/${playerid}/${data1}/${data2}`)
         .catch(err => console.error(err.toString()));
 }

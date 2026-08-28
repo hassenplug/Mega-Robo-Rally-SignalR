@@ -177,7 +177,7 @@ app.MapGet("/api/player/{command:int}/{playerId:int?}/{data1:int?}/{data2:int?}"
         case 3:
             int markCommand = dataService.GetIntFromDB(
                 $"SELECT MessageCommandID FROM Robots WHERE RobotID={pid}");
-            
+            //Console.WriteLine($"Mark command for robot {pid} is {markCommand}");
             dataService.ProcessDbCommand(markCommand,-1);
             break;
     }

@@ -187,13 +187,20 @@ namespace MRR.Services
         ///   5. Moves the selected card from hand to the target slot (CardLocation=2).
         ///   6. Sets robot Status=4 (Ready) if all PhaseCount slots are filled, else Status=3 (Programming).
         ///   7. Rebuilds Robots.CardsDealt and Robots.CardsPlayed CSV strings (procUpdateRobotCards).
-        ///   8. Updates in-memory player state to match.
         /// </summary>
+        /// <remarks>
+        /// NEEDS RE-CHECK once documents/ALLPLAYERS_REMOVAL_DESIGN.md's removal is fully in:
+        /// this method used to look up the robot's cached Player object via AllPlayers and set
+        /// its PlayerStatus after the DB write below. That write-through was confirmed dead
+        /// (nothing reads it before the next full reload) and has been removed, but this was
+        /// the one call site flagged for a second look rather than assumed safe outright --
+        /// verify the phone/robot-screen programming flow still shows the right status after
+        /// this change.
+        /// </remarks>
         public void UpdateCardPlayed(int p_Player, int p_CardTypeID, int p_PhasePlayed)
         {
             using var connection = new MySqlConnection(_connectionString);
             connection.Open();
-            Player? player = AllPlayers.GetPlayer(p => p.ID == p_Player);
 
             // 1. Check that the robot is in a programming-eligible status.
             int inProgramming;
@@ -298,13 +305,6 @@ namespace MRR.Services
                 cmd.Parameters.AddWithValue("@player", p_Player);
                 cmd.ExecuteNonQuery();
             }
-
-            // Guarded rather than assumed. player comes from AllPlayers.GetPlayer, which
-            // returns null for an unknown robot id. Today an unknown id also fails the
-            // Programming-status check above and returns early, so this is not reachable --
-            // but that is incidental protection, not a guard, and it would break the moment
-            // that check changed.
-            if (player != null) player.PlayerStatus = (tPlayerStatus)newStatus;
 
             // 8. Sync in-memory GameCards to match the DB moves above.
             var returnedCard = GameCards.FirstOrDefault(c => c.Owner == p_Player && c.PhasePlayed == p_PhasePlayed && c.CardLocation == 2);

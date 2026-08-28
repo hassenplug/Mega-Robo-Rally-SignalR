@@ -384,7 +384,7 @@ CREATE TABLE `Robots` (
   `FlagEnergy` varchar(10) DEFAULT NULL,
   `DirectionAdjustment` int(11) DEFAULT 1,
   `StatusToShow` varchar(20) DEFAULT NULL,
-  `msg` varchar(50) DEFAULT NULL,
+  `PlayerMsg` varchar(50) DEFAULT NULL,
   `IPAddress` varchar(15) DEFAULT NULL,
 
   PRIMARY KEY (`RobotID`),

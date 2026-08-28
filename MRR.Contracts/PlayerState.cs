@@ -347,7 +347,7 @@ namespace MRR
             }
         }
 
-        [NotMapped]
+        [Column("PlayerMsg")]
         public string PlayerMsg { get; set; } = "";
 
         public string Password { get; set; } = "";
@@ -388,7 +388,7 @@ namespace MRR
             CardsDealt          = CardsDealtStr,
             CardsPlayed         = CardsPlayedStr,
             StatusToShow        = StatusToShow,
-            msg                 = PlayerMsg,
+            PlayerMsg           = PlayerMsg,
             CardCount           = CardsPlayer.Count,
         };
         public override string ToString()

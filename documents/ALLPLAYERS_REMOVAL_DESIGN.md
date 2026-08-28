@@ -1,6 +1,6 @@
 # Removing AllPlayers as an In-Memory Data Cache
 
-**Status:** Proposed — not yet implemented
+**Status:** Implemented 2026-08-27 — all of §9's rollout steps done and build-verified.
 **Date:** 2026-08-27
 **Related:** [API_DECOMPOSITION_DESIGN.md](API_DECOMPOSITION_DESIGN.md) (§4, §5.5, step 6 — `Player`/`IRobotTransport` split), [ALLPLAYERS_REFACTOR_PLAN.md](ALLPLAYERS_REFACTOR_PLAN.md) (superseded, see §8), [DB_SYNC_ISSUES.md](DB_SYNC_ISSUES.md) (mostly moot, see §8), `.claude/agents/move-to-memory.md` (conflicts, see §8)
 
@@ -90,18 +90,64 @@ One seam still ties this snapshot to the cache being removed: `BuildTurnRequest(
 
 ## 9. Rollout order
 
-1. Add `GetPlayerStatesFromDB()`; switch `BuildTurnRequest()` to it. Do this first — everything else assumes it's safe to stop keeping data fields fresh, and this is the one call that actually depended on that.
-2. Strip the field-mirroring writes from `ProcessDbCommand` (§6).
-3. Strip the field-mirroring write from `UpdateCardPlayed` (§6).
-4. Delete `CommandProcess.cs:347-350`'s `robotPlayer.MessageCommandID = ...` and `RefreshAllPlayers()` call.
-5. Remove `RefreshAllPlayers()`'s call inside `GetAllPlayers()`; then delete the method (confirm zero remaining callers first: `grep -rn "RefreshAllPlayers\b"`).
-6. Leave everything in §7 untouched.
-7. Optional cosmetic follow-ups: reword the `PlayerStates.cs` doc comment; delete the two dead commented-out lines (`CommandList.cs:297`, `Program.cs:228`).
+1. **Done.** Added `DataService.GetPlayerStatesFromDB()` ([DataService.Players.cs](../MRR/DataService.Players.cs)) — queries `Robots` directly into bare `PlayerState` objects, independent of `AllPlayers`. `BuildTurnRequest()` now calls it instead of wrapping `AllPlayers`. Field-for-field parity with what `GetAllPlayers()` + the old `RefreshAllPlayers()` used to populate, confirmed correct rather than merely preserved — see §11.
+2. **Done.** Stripped the field-mirroring writes from `ProcessDbCommand` (§6) — every `if (robot != null) robot.<field> = ...` line removed, including the status-5 position/score block; only the `db.Robots...ExecuteUpdate(...)` calls remain. `p_Command.Robot` is no longer referenced inside `ProcessDbCommand` at all (its attachment in `CommandProcess.cs`'s constructor still stands, for `Description` text — see §7).
+3. **Done.** Stripped the field-mirroring write from `UpdateCardPlayed` (§6) — the `AllPlayers.GetPlayer` lookup and the trailing `player.PlayerStatus = ...` write are gone. Flagged with an inline `<remarks>` on the method for a second look post-verification (requested explicitly — this is the one call site to double-check rather than assume safe outright, since its earlier comment already noted the guard was "incidental protection, not a guard").
+4. **Done.** Deleted `CommandProcess.cs`'s `robotPlayer.MessageCommandID = ...` in-memory write and the trailing `RefreshAllPlayers()` call; the `robotPlayer != null` check and the `Db.Robots...ExecuteUpdate(...)` write it guards both stay unchanged.
+5. **Done.** Removed `RefreshAllPlayers()`'s call inside `GetAllPlayers()`, then deleted the method entirely (its only other caller was step 1, already moved off it). `GetAllPlayers()` is now a pure roster load (existence + static/display fields), matching its narrowed contract in §6.
+6. Everything in §7 — left untouched, as designed.
+7. Cosmetic follow-up done: reworded the `PlayerStates.cs` doc comment to describe `GetPlayerStatesFromDB()` instead of `AllPlayers`. Left the two dead commented-out lines at `CommandList.cs:297` and `Program.cs:228` — unrelated, low-value diff noise.
+
+Build verified after every step: `dotnet build Mega-Robo-Rally-SignalR.sln` — 0 errors, 0 warnings.
 
 ## 10. Verification
 
-- After steps 1-5, `grep -rn "RefreshAllPlayers\b"` returns nothing.
+- `grep -rn "RefreshAllPlayers\b"` returns no code references (only this document's own history section, §11).
 - Play a full turn; confirm phones' displayed position/damage/status/cards still update every broadcast — they come from `GetRobotsFromTable()`, untouched by this change.
 - Confirm `CommandList` descriptions ("played card: X") still render — depends on `command.Robot.CardsPlayer`, untouched.
 - Confirm `/api/admin/diagnostics` still reports a `robotsConnected` count.
 - Confirm a robot disconnect/reconnect mid-game still works (`ConnectToAllRobots`, `DisconnectAllRobots`, `SetRobotConnected`) — none of this touches the removed data-mirroring code.
+- **Specifically re-check `UpdateCardPlayed`** (flagged, §9 step 3): confirm a robot's displayed program status still updates correctly through a full programming → lock → execute cycle after this change.
+- **Play a multi-turn game and confirm turn-planning behavior against real rules** (§11): with Circuit Breaker and Lives out of scope for this rules version, and ordinary damage converting to a dealt Spam card rather than an accumulating counter, confirm a robot only dies from a single hit big enough to cross the threshold in one simulation (e.g. a pit), and that this still works correctly turn after turn.
+
+## 11. Resolved — `Damage`/`Lives` never reloading from the database is correct under this rules version, not a bug
+
+Discovered while implementing §9 step 1, before writing `GetPlayerStatesFromDB()`. Neither of
+`GetAllPlayers()`'s roster query nor `RefreshAllPlayers()`'s runtime-refresh query
+([DataService.Players.cs:81-89](../MRR/DataService.Players.cs#L81), [:203-209](../MRR/DataService.Players.cs#L203))
+selects `Robots.Damage` or `Robots.Lives`. `Player.Damage`
+([PlayerState.cs:197](../MRR.Contracts/PlayerState.cs#L197)) is a plain in-memory field with no
+other source.
+
+`BuildTurnRequest()` calls `ReloadAllData()` → `GetAllPlayers(forceRefresh: true)` at the start
+of every turn, which **replaces `_allPlayers` with brand-new `Player` objects** (not an
+in-place update) — so `Damage` resets to its default (0) on every turn's planning input,
+regardless of whether the dead in-memory write in `ProcessDbCommand` (removed in step 2 above)
+existed or not. Only the DB column was ever accurate.
+
+**Why this matters:** `Damage` is not cosmetic — `MRR.Rules/CreateCommands.cs` reads it for
+real rule decisions: the Circuit Breaker check (`futureplayer?.Damage > 2 && ... < 10`, line
+604), the "would repair, but not damaged" check (line 1342), and the death threshold
+(`p_thisrobot.Damage + p_Damage > 9`, line 1720). Within one turn's simulation these are
+self-consistent (damage taken earlier in the same turn is visible later in the same turn,
+since it's all one deep-copied `workingPlayers` instance). What appears broken is
+**cross-turn accumulation**: damage taken in turn N does not carry into turn N+1's planning
+input, even though it is correctly persisted to `Robots.Damage` in the database and correctly
+drives DB-side logic (`ResetPlayers()`'s Circuit Breaker / respawn SQL reads the real column).
+`Lives` has the same gap but no confirmed reader in `CreateCommands.cs` — lower-stakes.
+
+**This is pre-existing and independent of this document** — it exists today, with or without
+any of the changes above, because the two queries have always omitted these columns. It is
+not something steps 2-4 introduced or could have caused.
+
+**Resolved 2026-08-27, confirmed by the product owner:** this rules version does not track
+`Lives` at all, and `Damage` is used only to detect a robot dying from entering a pit —
+ordinary damage (lasers, board hazards) converts to a dealt Spam card instead of accumulating
+on the counter (`CreateCommands.AddDamage()`: `Damage + p_Damage > 9` → apply the damage and
+mark near-death; otherwise → deal a Spam card and leave `Damage` alone). Circuit Breaker,
+which was the other reader of cross-turn `Damage`, is not used in this rules version either.
+Given that, a single hit large enough to kill in one shot (a pit) is fully decided within one
+turn's simulation and never needed last turn's value — resetting `Damage`/`Lives` to 0 at the
+start of each turn's planning input is the **correct** behavior here, not a gap to patch.
+`GetPlayerStatesFromDB()` (§9 step 1) therefore reproduces today's field list exactly, and
+that reproduction is the right answer on its own merits, not a risk accepted for expedience.

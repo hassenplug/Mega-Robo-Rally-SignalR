@@ -8,6 +8,15 @@
 ## Section 1 — Game Mechanics
 *Renegade rules completeness.*
 
+- [x] ~~Damage does not carry across turns into the rules engine~~ — investigated 2026-08-27
+  while implementing `documents/ALLPLAYERS_REMOVAL_DESIGN.md`; resolved same day, not a bug.
+  `Damage`/`Lives` reset to 0 at the start of every turn's planning input by design under this
+  rules version: `Lives` isn't tracked at all, ordinary damage converts to a dealt Spam card
+  instead of accumulating, and only a single hit big enough to kill in one shot (a pit) needs
+  `Damage` to reflect it — fully decided within one turn's simulation. Circuit Breaker (the
+  other would-be reader of cross-turn `Damage`) isn't used in this rules version either. See
+  `documents/ALLPLAYERS_REMOVAL_DESIGN.md` §11.
+
 - [ ] Shutdown mechanic (`GameController.cs` + phone UI)
   - Player announces shutdown during programming phase
   - Shut-down robot: takes no laser damage, cannot move, may clear damage cards
@@ -63,6 +72,8 @@
 - [-] Option card effects wired into phase processing (`CreateCommands.cs`)
   - Partial: ReverseGears, FourthGear, RammingGear referenced
   - Missing: Brakes, CrabLegs, Recompile, many others
+  - Circuit Breaker confirmed **not used** in this rules version (2026-08-27) — do not
+    implement it; the existing check in `CreateCommands.cs` (line ~604) is dead in practice
 
 ---
 
@@ -138,7 +149,8 @@
 - [ ] Shutdown toggle on phone UI
   - Player can choose to shut down during programming phase
 
-- [ ] Display robot status on phone (damage, lives, energy, position)
+- [ ] Display robot status on phone (damage, energy, position) — not lives; this rules
+  version doesn't track lives (confirmed 2026-08-27, see Section 1 note above)
 
 - [ ] Show deck size on player UI
   - Display total cards in the player's personal deck (all MoveCards owned by that robot across all locations except Played Spam / CardLocation=5)

@@ -5,8 +5,10 @@ namespace MRR
     ///
     /// Distinct from the host's Players (which is a List&lt;Player&gt; of live robots with
     /// open sockets) on purpose: the rules engine works on state snapshots and must never
-    /// be able to reach a physical robot. Master builds one of these from AllPlayers when
-    /// it asks for a turn plan; every Player is already a PlayerState, so that is an upcast.
+    /// be able to reach a physical robot. Master builds one of these directly from the
+    /// database via DataService.GetPlayerStatesFromDB() when it asks for a turn plan --
+    /// deliberately not sourced from AllPlayers, which is a connection registry, not a
+    /// game-state cache (see documents/ALLPLAYERS_REMOVAL_DESIGN.md).
     ///
     /// The helpers mirror Players' because both answer the same questions; the ~30 lines of
     /// duplication is the price of the rules engine not depending on the transport.

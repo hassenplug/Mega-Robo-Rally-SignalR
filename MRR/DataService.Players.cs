@@ -54,7 +54,7 @@ namespace MRR.Services
         Robots.CardsDealt,
         Robots.CardsPlayed,
         if(isnull(ShowCardsPlayed) || RobotStatus.Active=0,RobotStatus.ShortDescription,ShowCardsPlayed) as StatusToShow,
-        cl.Description msg
+        cl.Description PlayerMsg
 
 
         from (Robots inner join RobotBodies on Robots.RobotBodyID = RobotBodies.RobotBodyID)
@@ -109,14 +109,72 @@ namespace MRR.Services
 
             }
 
-            RefreshAllPlayers();
-            
             return _allPlayers;
         }
 
+        /// <summary>
+        /// Builds a fresh turn-planning snapshot straight from the database -- independent of
+        /// the AllPlayers connection registry. Used by BuildTurnRequest() (DataService.Commands.cs)
+        /// to populate TurnRequest.Players. See documents/ALLPLAYERS_REMOVAL_DESIGN.md: the
+        /// registry only needs to hold live robot connections now, not game-state data, and this
+        /// is the one remaining place that needs a full player-state snapshot for planning.
+        ///
+        /// Field-for-field, this matches what GetAllPlayers() + the now-removed
+        /// RefreshAllPlayers() used to populate onto AllPlayers before BuildTurnRequest copied
+        /// it into a PlayerStates snapshot -- Damage and Lives were never part of that (see
+        /// ALLPLAYERS_REMOVAL_DESIGN.md §11): confirmed intentional under the current rules,
+        /// where ordinary damage converts to a dealt Spam card instead of accumulating, and only
+        /// a single hit big enough to cross the death threshold in one go (e.g. a pit) needs
+        /// Damage to reflect it -- which works within one turn's simulation without needing last
+        /// turn's value.
+        /// </summary>
+        public PlayerStates GetPlayerStatesFromDB()
+        {
+            var result = new PlayerStates();
+
+            string strSQL = @"SELECT r.RobotID, rb.Name AS RobotName, rb.Color AS RobotColor, rb.ColorFG AS RobotColorFG,
+                   r.PlayerSeat, so.Direction AS PlayerViewDirection,
+                   r.CurrentFlag, r.ShutDown, r.`Status` AS StatusID,
+                   r.CurrentPosCol AS X, r.CurrentPosRow AS Y, r.CurrentPosDir AS Dir,
+                   r.ArchivePosCol AS AX, r.ArchivePosRow AS AY,
+                   r.Priority, r.Energy, r.Score, r.PositionValid
+            FROM Robots r
+            JOIN RobotBodies rb ON r.RobotBodyID = rb.RobotBodyID
+            JOIN SeatOrientation so ON r.PlayerSeat = so.SeatID
+            ORDER BY r.RobotID";
+
+            var rows = GetQueryResults(strSQL);
+            foreach (DataRow row in rows.Rows)
+            {
+                result.Add(new PlayerState
+                {
+                    ID                  = (int)row["RobotID"],
+                    Name                = row["RobotName"].ToString() ?? "",
+                    Color               = row["RobotColor"].ToString() ?? "FFFFFF",
+                    ForeColor           = row["RobotColorFG"].ToString() ?? "000000",
+                    PlayerSeat          = (int)row["PlayerSeat"],
+                    PlayerViewDirection = Convert.ToInt32(row["PlayerViewDirection"]),
+                    LastFlag            = (int)row["CurrentFlag"],
+                    ShutDown            = (tShutDown)(int)row["ShutDown"],
+                    PlayerStatus        = (tPlayerStatus)(int)row["StatusID"],
+                    CurrentPos          = new RobotLocation((Direction)(int)row["Dir"], (int)row["X"], (int)row["Y"]),
+                    ArchivePosCol       = (int)row["AX"],
+                    ArchivePosRow       = (int)row["AY"],
+                    Priority            = (int)row["Priority"],
+                    Energy              = (int)row["Energy"],
+                    Score               = (int)row["Score"],
+                    PositionValid       = (int)row["PositionValid"] != 0,
+                    Active              = (int)row["StatusID"] != 10,
+                    AllGameCards        = GameCards,
+                });
+            }
+
+            return result;
+        }
+
         // Denormalizes the RobotStatus/RobotDirections/MoveCards/CommandList joins onto Robots itself
-        // (StatusColor, LEDColor, PlayerStatus, sDir, FlagEnergy, StatusToShow, msg) so other reads
-        // (RefreshAllPlayers, SetStatus) can use the plain Robots columns instead of re-joining.
+        // (StatusColor, LEDColor, PlayerStatus, sDir, FlagEnergy, StatusToShow, PlayerMsg) so other
+        // reads (GetRobotsFromTable, SetStatus) can use the plain Robots columns instead of re-joining.
         private void RefreshRobotDenormalizedFields()
         {
             string updateSQL = @"UPDATE Robots r
@@ -138,7 +196,7 @@ namespace MRR.Services
                     r.sDir         = rd.ShortDirDesc,
                     r.FlagEnergy   = CONCAT(r.CurrentFlag,'/',r.Energy),
                     r.StatusToShow = IF(played.ShowCardsPlayed IS NULL OR rs.Active = 0, rs.ShortDescription, played.ShowCardsPlayed),
-                    r.msg          = cl.Description";
+                    r.PlayerMsg    = cl.Description";
             this.ExecuteSQL(updateSQL);
         }
 
@@ -188,47 +246,12 @@ namespace MRR.Services
                     CardsDealt          = cardsDealt,
                     CardsPlayed         = row["CardsPlayed"].ToString() ?? "",
                     StatusToShow        = row["StatusToShow"].ToString() ?? "",
-                    msg                 = row["msg"].ToString() ?? "",
+                    PlayerMsg           = row["PlayerMsg"].ToString() ?? "",
                     CardCount           = (int)row["CardCount"],
                 });
             }
 
             return result;
-        }
-
-        public void RefreshAllPlayers()
-        {
-            RefreshRobotDenormalizedFields();
-
-            string strSQL = @"SELECT RobotID, CurrentFlag, StatusColor, LEDColor, PlayerStatus,
-                   `Status` AS StatusID, CurrentPosCol AS X, CurrentPosRow AS Y, CurrentPosDir AS Dir,
-                   sDir, ArchivePosCol AS AX, ArchivePosRow AS AY, Score,
-                   PositionValid, Priority, ShutDown, Energy, FlagEnergy,
-                   CardsDealt, CardsPlayed, StatusToShow, msg
-            FROM Robots
-            ORDER BY Priority";
-
-            var loadplayers = this.GetQueryResults(strSQL);
-            foreach (DataRow row in loadplayers.Rows)
-            {
-                var existingPlayer = _allPlayers?.FirstOrDefault(p => p.ID == (int)row["RobotID"]);
-                if (existingPlayer != null)
-                {
-                    existingPlayer.LastFlag          = (int)row["CurrentFlag"];
-                    existingPlayer.ShutDown          = (tShutDown)(int)row["ShutDown"];
-                    existingPlayer.PlayerStatus      = (tPlayerStatus)(int)row["StatusID"];
-                    existingPlayer.CurrentPos        = new RobotLocation((Direction)(int)row["Dir"], (int)row["X"], (int)row["Y"]);
-                    existingPlayer.ArchivePosCol     = (int)row["AX"];
-                    existingPlayer.ArchivePosRow     = (int)row["AY"];
-                    existingPlayer.Priority          = (int)row["Priority"];
-                    existingPlayer.Energy            = (int)row["Energy"];
-                    existingPlayer.Score             = (int)row["Score"];
-                    existingPlayer.PositionValid     = (int)row["PositionValid"] != 0;
-                    existingPlayer.Active            = (int)row["StatusID"] != 10;
-                    //existingPlayer.PlayerMsg         = row["msg"]?.ToString()          ?? "";
-                };
-            }
-
         }
 
         /// <summary>

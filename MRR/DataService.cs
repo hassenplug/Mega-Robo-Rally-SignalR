@@ -40,6 +40,13 @@ namespace MRR.Services
         ///////////////////////////////////////////////////////////////////////////
 
         // Lazily-loaded players collection. First access will load from the database.
+        //
+        // This is now a connection registry, not a game-state cache: it exists to hold each
+        // robot's live WebSocket connection (Player : PlayerState adds the socket + ScreenUI),
+        // not to mirror Robots table data. GetRobotsFromTable() reads Robots fresh for every
+        // broadcast, and turn planning reads a fresh snapshot via GetPlayerStatesFromDB() --
+        // neither depends on this collection's data fields being current. See
+        // documents/ALLPLAYERS_REMOVAL_DESIGN.md.
         private Players? _allPlayers;
         public Players AllPlayers
         {
