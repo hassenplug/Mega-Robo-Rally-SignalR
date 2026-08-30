@@ -1,6 +1,6 @@
 # Mega Robo Rally — Project TODO
 
-**Last updated:** 2026-08-22
+**Last updated:** 2026-08-30
 **Legend:** `[x]` Done &nbsp; `[-]` Partial / In Progress &nbsp; `[ ]` Not started
 
 ---
@@ -62,6 +62,14 @@
   - [ ] Still only *announces* the winner — [CreateCommands.cs:1346](../MRR.Rules/CreateCommands.cs)
     adds a `"Game Winner:"` text command, with `SquareAction.GameWinner` commented out. The
     game does not actually end. Issue the `GameWinner` command so `ProcessDbCommand` handles it.
+    Related: even once issued, `ProcessDbCommand`'s `GameWinner` case only writes
+    `CurrentGameData` — it never calls `UpdateGameState()`, so C# state stays stale until the
+    next unrelated refresh (`documents/DB_SYNC_ISSUES.md` #12).
+
+- [ ] Board data cleanup (found via `documents/API_DECOMPOSITION_DESIGN.md` §7 /
+  `PROJECT_STATUS.md` §4.2, still open)
+  - 6 boards have flag-numbering gaps and 16 have a stale `Boards.TotalFlags` value
+  - 6 boards have duplicate player start positions (board IDs 20, 40, 41, 59, 67, 71)
 
 - [ ] Damage card draw mechanic
   - When a robot takes damage, draw top card from damage stack → add to discard
@@ -89,7 +97,13 @@
   - [x] Image is downloaded and saved to `images/align/` (`Players.cs` `GetCameraImageAsync` + `SaveAlignImage`)
   - [x] First 4 bytes are logged in hex on every capture (verify `0xFF 0xD8 0xFF` = JPEG magic)
   - [ ] Confirm `GridAlignmentAgent.ExtractImageBytes()` succeeds and `AnalyzeImage` returns `HasLines=true` on real board
+  - [ ] Does `ws_img` stream frames continuously once connected, or only after a trigger command?
+  - [ ] Is the frame rate controllable?
+  - [ ] Does `ws_img` require `program_init` first, the way `ws_cmd` does?
   - See `tools/ai_agent/ws_img_format.md` for what to update if format differs from raw JPEG
+  - Same open questions echoed in `tools/ai_agent/grid_alignment_agent.md` ("Known Unknowns")
+    and `tools/ai_agent/image_processing.md` ("pending hardware validation") — one hardware
+    session should close all three docs' unknowns at once
 
 - [-] Grid alignment agent calibration (`GridAlignmentAgent.cs`)
   - Code complete; constants need tuning against real board + lighting
@@ -120,6 +134,18 @@
   - Audit `Players.cs` and `Program.cs` for any leftover WebSocket stubs or dead paths
   - Remove all bluetooth communication and support
   - Make sure to keep a place to store the robot's IP address
+
+- [ ] Robot 6's `RobotBases` row has a placeholder IP/AIMName (`PROJECT_STATUS.md` §4.6) —
+  that seat cannot use a physical robot until a real base is assigned
+
+- [ ] Failed robot send still applies the move as if it succeeded (`CommandProcess.cs`,
+  `DataService.Commands.cs` `ProcessDbCommand`) — `SendRobotCommandAsync`'s fault handler
+  already stops the loop from hanging (sets `isConnected=false`, forces `StatusID=4`), but the
+  next poll still calls `ProcessDbCommand(command, 5)`, which applies the move's position
+  effect unconditionally. A robot whose send failed ends up with its DB position updated as
+  though it moved. Needs a path that skips the position effect when the send is known to have
+  failed. (`documents/API_DECOMPOSITION_DESIGN.md` §7, listed as High — the hang half of it is
+  already fixed, the false-success half is not)
 
 - [ ] Implement ws_audio upload if server-side audio needed (`ws://{ip}:80/ws_audio`)
   - Wire format is documented (AIM WebSocket Library v1.0.1):
@@ -160,6 +186,10 @@
 
 - [ ] Handle Haywire / Spam / option card notifications on phone
 
+- [ ] Every phone still receives every player's hand in the broadcast payload, not just its
+  own (`documents/API_DECOMPOSITION_DESIGN.md` §7, Medium; the password leak this item used to
+  also cover is already fixed). Needs per-seat SignalR groups or payload filtering.
+
 ### GM Control Page *(new page needed)*
 
 - [ ] Game selection — dropdown/list from GameData table; button to load selected game
@@ -185,6 +215,10 @@
   - GM UI: show in each robot status panel when `IsConnected == 1`; color-code ≥50% green, 20–49% yellow, <20% red
   - Design spec in `.claude/agents/gm-ui.md` § Robot Status Panel
 
+- [ ] Web control panel for `mrrctl` (start/stop/restart/status via REST, called from a
+  "System" panel in `gmindex.html`) — designed but explicitly deferred pending an auth story;
+  `mrrctl` itself is CLI-only today (`install/PROCESS_MANAGER.md` §11)
+
 ---
 
 ## Section 4 — Raspberry Pi Hardware
@@ -203,6 +237,45 @@
   - Script to run on a fresh Raspberry Pi OS image to install all dependencies
   - Should cover: .NET 9 runtime, MySQL server, project files, `systemd` service for auto-start
   - Store in `install/` directory alongside this file
+
+- [ ] **Install the systemd process manager on `mrobopi`.** Design + reference implementation
+  are code-complete in the repo (`install/PROCESS_MANAGER.md`; every file it describes exists
+  in `install/service/` — confirmed 2026-08-30: `mrr.target`, `mrr-server.service`,
+  `mrr-config.service`, `mrr-spi.service`, `mrr-health.{service,timer}`,
+  `mrr-recover.{service,timer}`, `mrrctl`, `mrr-preflight`, `mrr-health-check`, `mrr-recover`,
+  `mrr.env`, `install.sh`, `uninstall.sh`). What it does once installed:
+  - **Boot & restart**: `mrr.target` groups the units; `Restart=always` brings the game host
+    back after both a crash *and* a clean exit; a `mrr-preflight` gate blocks start until
+    MariaDB answers and (game host only) `/dev/spidev0.0` exists
+  - **Two-process layout** (implemented 2026-08-22, per §10.1): `mrr-server.service` (game
+    host, :5000) and `mrr-config.service` (board-authoring host, :5001) are supervised
+    independently — `mrr-config` deliberately omits `PartOf=mrr.target` so restarting/editing
+    the board editor can never bounce a live game
+  - **Health / recovery**: `mrr-health.timer` probes `GET /api/health` on both hosts every 30s
+    (confirmed live in code: `MRR/Program.cs` and `MRR.Config/Program.cs` both map it) and
+    restarts a host that fails 3 times in a row; `mrr-recover.timer` un-latches a crash-looped
+    unit every 2 minutes without touching an operator-initiated `stop`
+  - **Operator CLI (`mrrctl`)**: `status` / `start` / `stop` / `restart` / `pause` (cgroup
+    freeze — see doc §5 for why that's only right for short interruptions) / `resume` / `logs`
+    / `enable` / `disable` / `deploy [role]` / `update` / `rollback [role]` / `list`, each
+    addressable per-role (`game`, `config`, `all`)
+  - **Deploy safety**: the app runs from `/srv/mrr/{game,config}` (a `dotnet publish` output),
+    never straight from the repo build folder, specifically so editing code on the same Pi that
+    hosts the live game can't swap binaries under it mid-game; `.previous` copies back
+    `mrrctl rollback`
+  - **`documents/PROCESS_MANAGER_DESIGN.md` is an early draft, explicitly superseded — the doc
+    itself says so. `install/PROCESS_MANAGER.md` is the one to read/update.**
+
+  What's actually **not done**: installation on the physical host. Per `PROJECT_STATUS.md`,
+  as of its last update `mrrctl` isn't on `mrobopi`'s `PATH`, no `mrr-*` units are registered,
+  and the game is started by hand (`dotnet run` in a terminal — "Mode A"). Verify current state
+  before assuming otherwise, then: stop the hand-started server, run
+  `sudo install/service/install.sh`, and work through §8.4/§8.5's verification + restart-policy
+  checks in `install/PROCESS_MANAGER.md`.
+  - If any machine still has the old deploy layout (`/srv/mrr/app`), re-run `install.sh` to
+    move it to `/srv/mrr/game` + `/srv/mrr/config`
+  - Deliberately out of scope per the doc's own §11 (also listed in Section 3/6 above): a
+    web control panel calling `mrrctl` from `gmindex.html`, game-level pause, remote alerting
 
 ---
 
@@ -274,6 +347,10 @@ Home Router (192.168.1.x)
 - [ ] Document final IP address assignments
   - Record all IPs (Pi, each robot, game router LAN/WAN, home router) in `install/network.md`
 
+- [ ] `Urls: http://*:5000` in `appsettings.json` binds every network interface, not just the
+  game LAN (`documents/API_DECOMPOSITION_DESIGN.md` §7, Low) — fine on an isolated game router,
+  worth narrowing once the home-network port-forward above is in place
+
 ---
 
 ## Section 6 — Infrastructure / Setup
@@ -281,6 +358,90 @@ Home Router (192.168.1.x)
 - [ ] Entity Framework for game setup / initialization
   - Use EF (`MRRDbContext` already exists) for initial game setup steps
   - `GameController.StartGame()` / `LoadGameData()` still use raw SQL string building
+
+- [ ] **Security: DB password committed in tracked `appsettings.json`** (`ConnectionStrings:Rally`,
+  `pwd=rallypass`) in both `MRR/appsettings.json` and `MRR.Config/appsettings.json`
+  (`PROJECT_STATUS.md` §4.7). Move to an untracked `appsettings.Production.json` or an
+  environment variable before this repo is ever made public. Flagging this one as worth
+  verifying and fixing promptly rather than leaving it queued.
+
+- [ ] `SqlGateway.ExecuteSQL`/`GetQueryResults` silently swallow database errors and return
+  empty results instead of surfacing them (`PROJECT_STATUS.md` §6.6) — a bad connection string
+  or a bad query currently shows up later as an unrelated NullReferenceException instead of a
+  clear DB error at the source
+
+- [ ] Board editor `PUT` does its replace as a DELETE+INSERT with no surrounding transaction,
+  and builds SQL by string concatenation rather than parameters (`Program.cs:453`,
+  `documents/API_DECOMPOSITION_DESIGN.md` §7, Medium) — a failure mid-update can leave a board
+  half-written, and the concatenation is worth checking for injection risk
+
+- [ ] Split `DataService` further (`documents/API_DECOMPOSITION_DESIGN.md` §9 step 4, called out
+  in `PROJECT_STATUS.md` as "the largest remaining piece"): extract a `RuleEffects` layer and a
+  repository layer out of the current partial-class split. Sits on the turn-execution hot path
+  (`ProcessDbCommand`, `CreateCommands`) — wants careful review, not a quick pass.
+
+- [ ] Presentation-layer decomposition (`documents/API_DECOMPOSITION_DESIGN.md` §9 step 7 /
+  §4 "landmine"): `RobotScreenUI` still writes game state, calls the DB, and broadcasts SignalR
+  all from one method (`UpdateCardPlayed` then `SendAsync`) instead of separating render from
+  report; per-seat SignalR groups (see the phone-hand-visibility item in Section 3) are part of
+  the same step
+
+- [ ] Game-level turn pause, distinct from process-level pause (`install/PROCESS_MANAGER.md`
+  §11): `GameController` holding the dispatch loop while continuing to serve phones, vs.
+  `mrrctl pause` suspending the whole process. Explicitly out of scope when the process manager
+  was built; still wanted.
+
+- [ ] Remote alerting on repeated `mrr-server` restarts — no notification path exists yet
+  (`install/PROCESS_MANAGER.md` §11)
+
+### In-memory / DB sync bugs (`documents/DB_SYNC_ISSUES.md`)
+
+Same class of bug as the two fixed 2026-08-30 (see Done below): a DB write lands, but a
+matching in-memory collection is never updated, so the next unrelated write from that stale
+copy silently reverts it, or a broadcast reads stale data. Numbering below matches the doc
+(items 1/2/3/5 were the `AllPlayers` mirror, already resolved by its removal).
+
+- [ ] #4 — Turn counter incremented in DB (`CurrentGameData` iKey=2) but not `_dataService.Turn`
+  (`GameController.NextState()`)
+- [ ] #6 — Bulk `CommandList` `StatusID` update not reflected in `DataService.ListOfCommands`
+  (`GameController.NextState()`) — note: `ListOfCommands` itself was removed 2026-08-30 as dead
+  code (see Done below); re-check whether this item still applies to whatever now holds that
+  bulk-updated set, or is moot
+- [ ] #7 — `CreateCommands.ExecuteTurn()` writes `GameState` directly via raw SQL, bypassing the
+  `GameState` property setter
+- [ ] #8 — `CommandList` phase rows deleted in DB but the matching in-memory list not cleared
+  (`CreateCommands.ExecuteTurn()`)
+- [ ] #9 — `MoveCards` table cleared in DB but the `GameCards` collection not cleared
+  (`DataService.GameNewAddCards()`)
+- [ ] #10 — `ProcessDbCommand`'s `Option.Option` case inserts into `RobotOptions` but doesn't
+  update the in-memory `OptionCards` collection
+- [ ] #11 — `ProcessDbCommand`'s `DealCard` case updates a `MoveCard`'s `Owner` in the DB but
+  leaves the matching `GameCards` entry stale
+- [ ] #13 — `ProcessDbCommand`'s `SetCurrentGameData` case doesn't refresh `PhaseCount`/
+  `LaserDamage` in memory after writing them to the DB
+- [ ] #14 — `UpdateCardPlayed()` leaves `Player.CardsDealt`/`CardsPlayed` stale after its DB
+  update
+
+### Doc housekeeping (found while auditing docs 2026-08-30, not yet independently re-verified in code)
+
+- [ ] `documents/API_DECOMPOSITION_DESIGN.md` §7's defects table has several rows that read as
+  stale against `PROJECT_STATUS.md`: "no abort path" (an abort endpoint now exists), "`/api/table`
+  mutating GET" (replaced by `MRR.Admin` per that doc's own §9 step 5), and "phone receives
+  password" (fixed — only the hand-visibility half above is still open). Worth a pass to confirm
+  and update the table rather than trust either doc blindly.
+- [x] **Confirmed fixed 2026-08-30**: "`/` returns 404" — `MRR/Program.cs` now calls
+  `UseDefaultFiles()` before `UseStaticFiles()` (with a comment noting exactly this history), so
+  `/` does serve `index.html`. `install/PROCESS_MANAGER.md` §6 still described this as an open
+  fix to make; corrected there too. One leftover: the `/api/health` comment a few lines below it
+  in `Program.cs` still says "UseStaticFiles is registered before UseDefaultFiles above" — now
+  false, harmless, but worth a one-line fix next time that function is touched.
+- [ ] Same doc's §9 step 6 (Device Gateway) says "Not started"; `PROJECT_STATUS.md` §5.1 (same
+  date) says "Partial — dispatch bugs fixed; `IRobotTransport` remains." Reconcile.
+- [ ] Same doc's §5.4 still lists "busy-wait, no timeout" as open; `PROJECT_STATUS.md` §6.6 says
+  commands now time out after 30s. The timeout half looks done; confirm whether the busy-wait/
+  poll-interval half is still a real concern.
+- [ ] Git branch `pre-decomposition-cleanup` was well ahead of `origin` as of `PROJECT_STATUS.md`
+  §5.3 — confirm it's been pushed/merged/renamed since
 
 - [x] **Convert SQL stored procedures to C# — COMPLETE (verified 2026-08-22).**
 
@@ -325,6 +486,59 @@ Home Router (192.168.1.x)
 - [ ] `HasOptionCard` (`Players.cs`) — no callers; stub that always returns false
 - [ ] `MoveUnlimitedAsync` (`Players.cs`) — no callers; sends continuous drive command
 - [ ] `ShowAIAsync` (`Players.cs`) — no callers; triggers AI vision overlay on robot LCD
+- [ ] Dead commented-out line at `CommandList.cs:297` (found during `ALLPLAYERS_REMOVAL_DESIGN.md` review)
+- [ ] Dead commented-out line at `Program.cs:228` (same review)
+- [ ] `AdminApi.cs:155` computes `players = data.AllPlayers.Count` — cosmetic only, could become
+  a `COUNT(*)` now that `AllPlayers` isn't the source of truth elsewhere; no correctness need
+
+## Section 8 — Game Screen
+
+- GM screen needs a way to end the current game.
+- `CurrentGameData` should have a flag to determine:
+  - Whether a game is currently in progress (and whether we need to connect to the robots)
+  - What should be displayed on the player interface (e.g. "Game setup in progress")
+
+
+  Using the IsRunning flag in CurrentGameData
+  When the pi boots, or app starts, if IsRunning, connect to the robots, and store that robots are connected.
+  When IsRunning is turned off, disconnect from robots
+  When a game is started, IsRunning should be turned on
+  
+- [x] Removing AllPlayers from main code — design doc written and rollout implemented
+  2026-08-27/30, see `documents/ALLPLAYERS_REMOVAL_DESIGN.md`. `Robots` is now read fresh from
+  the DB per broadcast; `AllPlayers` remains only where the doc identifies it's still needed
+  (command creation, connection registry).
+
+- [ ] Manual verification pass for the AllPlayers removal (`ALLPLAYERS_REMOVAL_DESIGN.md` §10 —
+  written but unchecked):
+  - [ ] Phones' displayed position/damage/status/cards update every broadcast
+  - [ ] `CommandList` descriptions ("played card: X") still render correctly
+  - [ ] `/api/admin/diagnostics` still reports `robotsConnected`
+  - [ ] Robot disconnect/reconnect mid-game still works
+  - [ ] Re-check `UpdateCardPlayed` specifically through a full programming→lock→execute cycle
+  - [ ] Play a multi-turn game confirming pit-death/Damage-threshold behavior holds turn after turn
+
+## Section 9 - Robot Connection Screen
+
+- Update the IsConnected flag in Robots to ConnectStatus
+  - Add the needed statuses to the RobotStatus table
+  - Link ConnectStatus to the RobotStatus table
+  - Update all references to IsConnected
+
+Create a small form.  Data should be pulled using the same subscription as index.html
+- [ ] Header buttons
+  - [ ] Connect All
+  - [ ] Disconnect All
+  - [ ] Search (search all IP addresses for matching Mac addresses)
+
+  - [ ] Update IP (Allow user to enter the IP address into the box where the name was)
+- [ ] Show rows for all robots
+  - [ ] Colored Button next to a box with a Robot Name and colored background (colors will match the robot) - Button will toggle connection (try to connect/dsiconnect)
+    - [ ] Red (not connected)
+    - [ ] Yellow (Connecting)
+    - [ ] Green (Connected)
+    - [ ] Purple (Searching)
+    - [ ] Unknown (0)
 
 ---
 
@@ -352,3 +566,14 @@ Home Router (192.168.1.x)
 - [x] One game-wide `TotalFlags` 2026-08-22 — `CurrentGameData` iKey 7, set from the board
       at game start; removed the hardcoded `Player.TotalFlags`
 - [x] Dead code removed 2026-08-22: `ApplyRobotBeforeUpdateRules`, `MoveCardsCheckProgrammed`
+- [x] Fixed 2026-08-30: `clearpause` GM action (`Program.cs`) used raw SQL that a live
+  `PendingCommands` loop never saw, so its next `SaveChanges()` on the stale in-memory copy
+  silently reverted the fix. Added `GameController.ClearPausedCommands()` /
+  `PendingCommands.ClearStuckCommands()`, routed through the live loop when one exists —
+  same bug class as `documents/DB_SYNC_ISSUES.md`.
+- [x] Fixed 2026-08-30: `DataService.ProcessDbCommand(int, int)` — the player's "continue"
+  button REST path (`/api/player/3/...`) — read from `DataService.ListOfCommands`, a public
+  property nothing ever populated, so it always returned -1 and never completed the command.
+  Added `GameController.ProcessDbCommand(int, int)` / `PendingCommands.ProcessDbCommand(int, int)`
+  to look the command up in the live turn's in-memory list instead; removed the dead
+  `ListOfCommands` property.

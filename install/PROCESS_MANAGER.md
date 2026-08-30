@@ -168,11 +168,11 @@ Two URLs the probe deliberately does **not** use:
 
 - **`/api/alldata`** calls `hubContext.Clients.All.SendAsync(...)`, so probing it every
   30 s would broadcast an `AllDataUpdate` to every phone, forever.
-- **`/`** on the game host returns **404**. [MRR/Program.cs](../MRR/Program.cs) calls
-  `UseStaticFiles()` *before* `UseDefaultFiles()`, so `/` is never rewritten to
-  `index.html`, and phones have to be pointed at the explicit filename. Swapping those two
-  lines is still worth doing; `MRR.Config` already registers them in the correct order, so
-  `http://<host>:5001/` serves the board editor directly.
+- **`/`** on the game host. This used to return 404 because `UseStaticFiles()` was
+  registered before `UseDefaultFiles()`; [MRR/Program.cs](../MRR/Program.cs) now registers
+  `UseDefaultFiles()` first, so `/` correctly serves `index.html` (fixed; confirmed 2026-08-30).
+  `MRR.Config` has always registered them in the correct order, so `http://<host>:5001/` serves
+  the board editor directly.
 
 ---
 

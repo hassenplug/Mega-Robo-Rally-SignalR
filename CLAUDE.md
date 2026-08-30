@@ -43,7 +43,7 @@ wwwroot/             Static web assets for phone UI
 | [install/PROCESS_MANAGER.md](install/PROCESS_MANAGER.md) | systemd supervision, `mrrctl`, deploy/rollback. Implementation in [install/service/](install/service/) |
 | [DB_SYNC_ISSUES.md](documents/DB_SYNC_ISSUES.md) | Open: DB deletes that don't clear the matching in-memory collections |
 | ~~[ALLPLAYERS_REFACTOR_PLAN.md](documents/ALLPLAYERS_REFACTOR_PLAN.md)~~ | **Superseded** by ALLPLAYERS_REMOVAL_DESIGN.md — decided 2026-08-27 to remove the in-memory mirror rather than keep it synced. Kept for its inventory of the sync problems |
-| [ALLPLAYERS_REMOVAL_DESIGN.md](documents/ALLPLAYERS_REMOVAL_DESIGN.md) | **Partially implemented** 2026-08-27 (dead write-through mirrors removed from `ProcessDbCommand`/`UpdateCardPlayed`/`CommandProcess.cs`; build-verified). Paused pending a decision on a newly-found, pre-existing bug: `Damage`/`Lives` are never reloaded from the DB into turn planning (§11) |
+| [ALLPLAYERS_REMOVAL_DESIGN.md](documents/ALLPLAYERS_REMOVAL_DESIGN.md) | **Implemented** 2026-08-27 — all of §9's rollout steps done and build-verified. The §11 `Damage`/`Lives` question was resolved as correct behavior, not a bug (see [install/todo.md](install/todo.md) Section 1). §10's manual verification checklist is still open — see todo.md Section 8 |
 
 ## Key Architecture Patterns
 - **State machine** in `GameController.NextState()` (states 0–16) — do not bypass it
