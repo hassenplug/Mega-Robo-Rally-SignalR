@@ -85,8 +85,6 @@ namespace MRR.Services
         public int TotalFlags       { get => _state.TotalFlags;       set => _state.TotalFlags = value; }
         public bool IsOptionsEnabled { get => _state.IsOptionsEnabled; set => _state.IsOptionsEnabled = value; }
 
-        public CommandList ListOfCommands { get; set; } = new CommandList();
-
         public CardList GameCards { get; set; } = new CardList();
 
         public OptionCardList OptionCards { get; set; } = new OptionCardList();

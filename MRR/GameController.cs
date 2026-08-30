@@ -150,6 +150,41 @@ namespace MRR.Controller
         }
 
         /// <summary>
+        /// GM recovery action (e.g. "clearpause"): forces stuck commands of one type from one
+        /// status to another. Routed through the live PendingCommands instance when one
+        /// exists, so its in-memory command list is updated too -- otherwise the loop's next
+        /// SaveChanges() on its stale copy silently reverts this fix. Falls back to a direct
+        /// DB update when no ProcessCommands loop is running.
+        /// </summary>
+        public int ClearPausedCommands(SquareAction commandType, int fromStatus, int toStatus)
+        {
+            lock (_processCommandsLock)
+            {
+                if (_pendingCommands != null)
+                    return _pendingCommands.ClearStuckCommands(commandType, fromStatus, toStatus);
+            }
+
+            return _dataService.ExecuteSQL(
+                $"UPDATE CommandList SET StatusID = {toStatus} WHERE CommandTypeID = {(int)commandType} AND StatusID = {fromStatus}");
+        }
+
+        /// <summary>
+        /// Completes one command by ID (e.g. a player's "continue" click on a User Input
+        /// command). Routed through the live PendingCommands instance when one exists, for
+        /// the same reason as ClearPausedCommands above.
+        /// </summary>
+        public int ProcessDbCommand(int commandId, int newStatus)
+        {
+            lock (_processCommandsLock)
+            {
+                if (_pendingCommands != null)
+                    return _pendingCommands.ProcessDbCommand(commandId, newStatus);
+            }
+
+            return _dataService.ProcessDbCommand(commandId, newStatus);
+        }
+
+        /// <summary>
         /// Stops the turn in progress. Returns false if nothing was running.
         ///
         /// Commands already sent to a robot cannot be recalled -- the robot is physically

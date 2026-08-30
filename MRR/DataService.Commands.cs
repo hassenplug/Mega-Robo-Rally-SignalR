@@ -84,16 +84,20 @@ namespace MRR.Services
             return commands.Count;
         }
 
+        /// <summary>
+        /// Fallback used only when no PendingCommands loop is live (GameController.
+        /// ProcessDbCommand routes there first). Loads the command straight from the DB --
+        /// there is no in-memory copy to keep in sync when nothing is iterating one.
+        /// </summary>
         public int ProcessDbCommand(int p_CommandID, int p_NewStatus)
         {
-            var command = ListOfCommands.FirstOrDefault(c => c.CommandID == p_CommandID);
+            using var db = CreateDbContext();
+            var command = db.CommandItems.FirstOrDefault(c => c.CommandID == p_CommandID);
             Console.WriteLine($"ProcessDbCommand: commandID={p_CommandID}, newStatus={p_NewStatus}, command={command}");
             if (command == null)
                 return -1; // or throw an exception if preferred
 
-            var statusid = ProcessDbCommand(command, p_NewStatus);
-            command.StatusID = statusid; // update in-memory status to match DB changes
-            return statusid;
+            return ProcessDbCommand(command, p_NewStatus);
         }
         /// <summary>
         /// C# equivalent of funcProcessCommand(p_CommandID, p_NewStatus).

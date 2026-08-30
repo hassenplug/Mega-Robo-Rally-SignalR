@@ -135,7 +135,7 @@ app.MapGet("/api/state/{newstate?}/{parameter1?}", async (string? newstate, stri
 
             return Results.Content(dataService.GetTableDataAsHTML("CurrentGameData/Robots/CommandList"), "text/html");
         case "clearpause":
-            dataService.ExecuteSQL("UPDATE CommandList SET StatusID = 6 WHERE CommandTypeID = 92 AND StatusID = 4");
+            gameController.ClearPausedCommands(SquareAction.SetButtonText, fromStatus: 4, toStatus: 6);
             gameController.NextState();
             break;
         default:
@@ -178,7 +178,7 @@ app.MapGet("/api/player/{command:int}/{playerId:int?}/{data1:int?}/{data2:int?}"
             int markCommand = dataService.GetIntFromDB(
                 $"SELECT MessageCommandID FROM Robots WHERE RobotID={pid}");
             //Console.WriteLine($"Mark command for robot {pid} is {markCommand}");
-            dataService.ProcessDbCommand(markCommand,-1);
+            gameController.ProcessDbCommand(markCommand,-1);
             break;
     }
 

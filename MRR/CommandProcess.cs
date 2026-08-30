@@ -211,6 +211,46 @@ namespace MRR
             return affected;
         }
 
+        /// <summary>
+        /// GM recovery action (e.g. "clearpause"): forces stuck commands of one type from
+        /// one status to another, in both the DB and this instance's in-memory list.
+        ///
+        /// Without the in-memory sync, a live ProcessCommands loop never sees the DB change
+        /// -- it keeps iterating its stale copy of the CommandItem -- and the next
+        /// Db.SaveChanges() on that same object (e.g. ProcessCommand's StatusID=4 branch)
+        /// silently overwrites the GM's fix. See DB_SYNC_ISSUES.md for the general pattern.
+        /// </summary>
+        public int ClearStuckCommands(SquareAction commandType, int fromStatus, int toStatus)
+        {
+            using var db = _dataService.CreateDbContext();
+            var affected = db.CommandItems
+                .Where(c => c.CommandType == commandType && c.StatusID == fromStatus)
+                .ExecuteUpdate(s => s.SetProperty(b => b.StatusID, toStatus));
+
+            foreach (var item in _commandList.Where(c => c.CommandType == commandType && c.StatusID == fromStatus))
+                item.StatusID = toStatus;
+
+            return affected;
+        }
+
+        /// <summary>
+        /// Looks up a command by ID in this instance's in-memory list (the live turn's
+        /// working set) rather than the DB, so the status DataService.ProcessDbCommand
+        /// writes lands on the same object this loop is iterating -- otherwise the loop's
+        /// next SaveChanges() on its stale copy would overwrite it. Used by the "player
+        /// clicked continue" REST path (Program.cs, /api/player/3) to complete a User Input
+        /// command.
+        /// </summary>
+        public int ProcessDbCommand(int commandId, int newStatus)
+        {
+            var command = _commandList.FirstOrDefault(c => c.CommandID == commandId);
+            if (command == null) return -1;
+
+            var statusId = _dataService.ProcessDbCommand(command, newStatus);
+            command.StatusID = statusId;
+            return statusId;
+        }
+
         /*
         1	Robot wReply	1	0	0
         2	Robot No Reply	1	0	0
