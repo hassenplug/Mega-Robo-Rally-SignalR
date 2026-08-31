@@ -460,12 +460,12 @@ namespace MRR.Controller
             return "";
         }
 
+        /// <summary>Connects every robot. Awaits all of them together (not fire-and-forget --
+        /// see DisconnectAllRobots for why that silently drops DB writes on failure) so the
+        /// call doesn't return until every robot's ConnectStatusID reflects the outcome.</summary>
         public bool ConnectToAllRobots()
         {
-            foreach (Player thisplayer in AllPlayers)
-            {
-                _ = ConnectPlayerWithScreen(thisplayer);
-            }
+            Task.WhenAll(AllPlayers.Select(ConnectPlayerWithScreen)).Wait();
             return true;
         }
 
@@ -663,27 +663,51 @@ namespace MRR.Controller
             DisconnectAllRobots();
         }
 
+        /// <summary>Disconnects every robot. Awaits all of them together rather than
+        /// fire-and-forget: the previous "_ = DisconnectPlayer(...)" returned before the
+        /// disconnect finished, and if DisposeAsync threw (e.g. closing a socket to a robot
+        /// that already dropped off WiFi) the exception was never observed and
+        /// ConnectStatusID was never written -- this is why "disconnect does not update the
+        /// database" could happen with no visible error.</summary>
         public bool DisconnectAllRobots()
         {
-            foreach (Player thisplayer in AllPlayers)
-            {
-                _ = DisconnectPlayer(thisplayer);
-            }
+            Task.WhenAll(AllPlayers.Select(DisconnectPlayer)).Wait();
             return true;
         }
 
         public bool DisconnectRobot(int playerID)
         {
             Player? thisplayer = AllPlayers.GetPlayer(playerID);
-            if (thisplayer == null) return false;
+            if (thisplayer == null)
+            {
+                // No live Player object for this robot (e.g. never connected this process
+                // lifetime) -- there's nothing to dispose, but the row should still say
+                // Not Connected rather than silently leaving whatever it said before.
+                SetRobotConnectStatus(playerID, tConnectStatus.NotConnected);
+                return true;
+            }
             DisconnectPlayer(thisplayer).Wait();
             return true;
         }
 
+        /// <summary>Always writes ConnectStatusID, even if closing the sockets throws --
+        /// DisposeAsync (unlike Player.Connect/ConnectAsync) has no internal try/catch, so a
+        /// robot that already dropped its connection could throw here on close, and the write
+        /// below would never run without this try/finally.</summary>
         private async Task DisconnectPlayer(Player player)
         {
-            await player.DisposeAsync();
-            SetRobotConnectStatus(player.ID, tConnectStatus.NotConnected);
+            try
+            {
+                await player.DisposeAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[{player.Name}] DisposeAsync error during disconnect: {ex.Message}");
+            }
+            finally
+            {
+                SetRobotConnectStatus(player.ID, tConnectStatus.NotConnected);
+            }
         }
 
     }

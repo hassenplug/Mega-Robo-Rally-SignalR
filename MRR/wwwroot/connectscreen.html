@@ -7,13 +7,27 @@
 
 <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
 <script src="js/signalr.min.js"></script>
+<script src="js/connectscreen.js" type="text/javascript" charset="utf-8"></script>
 
 <title>MRR Robot Connections</title>
 
 <style>
 body { font-family: sans-serif; }
-#header td { padding: 4px; }
-#header button { padding: 6px 12px; }
+#menuBar { position: relative; margin-bottom: 10px; }
+#btnMenu { width: 44px; font-size: 18px; }
+#menuDropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background: #ffffff;
+    border: 1px solid #999;
+    z-index: 10;
+    min-width: 160px;
+    flex-direction: column;
+}
+#menuDropdown.open { display: flex; }
+#menuDropdown button { padding: 8px 12px; text-align: left; }
 table.robots { border-collapse: collapse; width: 100%; max-width: 400px; }
 table.robots td { border-bottom: 1px solid #ccc; }
 </style>
@@ -21,18 +35,17 @@ table.robots td { border-bottom: 1px solid #ccc; }
 </head>
 <body id='body' style='padding:10px;'>
 
-<h3>Robot Connections</h3>
 
-<table id="header">
-<tr>
-<td><button class="button" onclick="connectAll();">Connect All</button></td>
-<td><button class="button" onclick="disconnectAll();">Disconnect All</button></td>
-<td><button class="button" id="btnSearch" onclick="searchRobots();">Search</button></td>
-<td><button class="button" id="btnUpdateIp" onclick="toggleEditMode();">Update IP</button></td>
-</tr>
-</table>
+<div id="menuBar">
+<button class="button" id="btnMenu" onclick="toggleMenu();">&#9776;</button>
+<div id="menuDropdown">
+<button class="button" onclick="connectAll(); closeMenu();">Connect All</button>
+<button class="button" onclick="disconnectAll(); closeMenu();">Disconnect All</button>
+<button class="button" id="btnSearch" onclick="searchRobots(); closeMenu();">Search</button>
+<button class="button" id="btnUpdateIp" onclick="toggleEditMode(); closeMenu();">Update IP</button>
+</div>
+</div><h3>Connections</h3>
 
-<br>
 
 <table class="robots">
 <tbody id="robotRows"></tbody>

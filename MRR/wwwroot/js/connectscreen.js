@@ -14,8 +14,8 @@ function buildRows(robots) {
     for (var i = 0; i < robots.length; i++) {
         var rid = robots[i].RobotID;
         html += "<tr id='row" + rid + "'>" +
-            "<td><button class='button' id='connbtn" + rid + "' onclick='toggleConnect(" + rid + ");'>--</button></td>" +
-            "<td id='namecell" + rid + "' style='padding:6px; min-width:160px;'>--</td>" +
+            "<td><button class='button' id='connbtn" + rid + "' onclick='toggleConnect(" + rid + ");'></button></td>" +
+            "<td id='namecell" + rid + "' style='padding:6px; min-width:80px;'>--</td>" +
             "</tr>";
     }
     document.getElementById("robotRows").innerHTML = html;
@@ -30,7 +30,7 @@ function showAll() {
 
         var btn = document.getElementById("connbtn" + r.RobotID);
         btn.style.backgroundColor = "#" + r.ConnectStatusColor;
-        btn.textContent = r.ConnectStatusDesc || "Unknown";
+        btn.title = r.ConnectStatusDesc || "Unknown";
         btn.dataset.status = r.ConnectStatusID;
 
         var cell = document.getElementById("namecell" + r.RobotID);
@@ -115,6 +115,19 @@ function toggleEditMode() {
     document.getElementById('btnUpdateIp').textContent = editMode ? 'Done Editing IPs' : 'Update IP';
     if (datapacket) showAll();
 }
+
+function toggleMenu() {
+    document.getElementById('menuDropdown').classList.toggle('open');
+}
+
+function closeMenu() {
+    document.getElementById('menuDropdown').classList.remove('open');
+}
+
+document.addEventListener('click', function (ev) {
+    var menuBar = document.getElementById('menuBar');
+    if (menuBar && !menuBar.contains(ev.target)) closeMenu();
+});
 
 // signalR part with automatic reconnect -- same subscription index.html uses (js/loadrobots.js)
 const connection = new signalR.HubConnectionBuilder()
