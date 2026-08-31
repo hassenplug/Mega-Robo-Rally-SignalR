@@ -1,0 +1,42 @@
+<html>
+<head>
+
+<meta name='viewport' content='width=device-width, initial-scale=1'>
+<link rel="stylesheet" type="text/css" href="style/button.css">
+<link rel="stylesheet" type="text/css" href="style/w3.css">
+
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+<script src="js/signalr.min.js"></script>
+
+<title>MRR Robot Connections</title>
+
+<style>
+body { font-family: sans-serif; }
+#header td { padding: 4px; }
+#header button { padding: 6px 12px; }
+table.robots { border-collapse: collapse; width: 100%; max-width: 400px; }
+table.robots td { border-bottom: 1px solid #ccc; }
+</style>
+
+</head>
+<body id='body' style='padding:10px;'>
+
+<h3>Robot Connections</h3>
+
+<table id="header">
+<tr>
+<td><button class="button" onclick="connectAll();">Connect All</button></td>
+<td><button class="button" onclick="disconnectAll();">Disconnect All</button></td>
+<td><button class="button" id="btnSearch" onclick="searchRobots();">Search</button></td>
+<td><button class="button" id="btnUpdateIp" onclick="toggleEditMode();">Update IP</button></td>
+</tr>
+</table>
+
+<br>
+
+<table class="robots">
+<tbody id="robotRows"></tbody>
+</table>
+
+</body>
+</html>

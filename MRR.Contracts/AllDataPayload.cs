@@ -43,6 +43,10 @@ namespace MRR
         public string StatusToShow { get; set; } = "";
         public string PlayerMsg { get; set; } = "";
         public int CardCount { get; set; } = 0;
+        public int ConnectStatusID { get; set; }
+        public string ConnectStatusColor { get; set; } = "";
+        public string ConnectStatusDesc { get; set; } = "";
+        public string IPAddress { get; set; } = "";
 
         public override string ToString() =>
             $"[{RobotID}] {RobotName} ({PlayerStatus}) X={X} Y={Y} Cards={CardsDealt} Played={CardsPlayed} Status={StatusToShow}";

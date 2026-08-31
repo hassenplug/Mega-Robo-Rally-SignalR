@@ -360,7 +360,7 @@ CREATE TABLE `Robots` (
   `ArchivePosRow` int(11) DEFAULT 0,
   `ArchivePosCol` int(11) DEFAULT 0,
   `ArchivePosDir` int(11) DEFAULT 0,
-  `IsConnected` int(11) DEFAULT 1,
+  `ConnectStatusID` int(11) DEFAULT 0,
   `RobotBatteries` int(11) DEFAULT 0,
   `PhoneBatteries` int(11) DEFAULT 0,
   `Priority` int(11) DEFAULT 0,
@@ -380,6 +380,9 @@ CREATE TABLE `Robots` (
   `LEDColor` varchar(8) DEFAULT NULL,
   `PlayerStatus` varchar(20) DEFAULT NULL,
 
+  `ConnectStatusColor` varchar(8) DEFAULT NULL,
+  `ConnectStatusDesc` varchar(20) DEFAULT NULL,
+
   `sDir` varchar(5) DEFAULT NULL,
   `FlagEnergy` varchar(10) DEFAULT NULL,
   `DirectionAdjustment` int(11) DEFAULT 1,
@@ -392,10 +395,12 @@ CREATE TABLE `Robots` (
   KEY `fk_Players_RobotBodies1_idx` (`RobotBodyID`),
   KEY `fk_Players_PlayerStatus1_idx` (`Status`),
   KEY `fk_Robots_RobotShutdown_idx` (`ShutDown`),
+  KEY `fk_Robots_ConnectStatus_idx` (`ConnectStatusID`),
   CONSTRAINT `fk_Players_PlayerStatus1` FOREIGN KEY (`Status`) REFERENCES `RobotStatus` (`RobotStatusID`) ON DELETE NO ACTION ON UPDATE NO ACTION,
   CONSTRAINT `fk_Players_RobotBases` FOREIGN KEY (`RobotBaseID`) REFERENCES `RobotBases` (`RobotBaseID`) ON DELETE NO ACTION ON UPDATE NO ACTION,
   CONSTRAINT `fk_Players_RobotBodies1` FOREIGN KEY (`RobotBodyID`) REFERENCES `RobotBodies` (`RobotBodyID`) ON DELETE NO ACTION ON UPDATE NO ACTION,
-  CONSTRAINT `fk_Robot_RobotShutDown` FOREIGN KEY (`ShutDown`) REFERENCES `RobotShutDown` (`ShutDownID`) ON DELETE NO ACTION ON UPDATE NO ACTION
+  CONSTRAINT `fk_Robot_RobotShutDown` FOREIGN KEY (`ShutDown`) REFERENCES `RobotShutDown` (`ShutDownID`) ON DELETE NO ACTION ON UPDATE NO ACTION,
+  CONSTRAINT `fk_Robots_ConnectStatus` FOREIGN KEY (`ConnectStatusID`) REFERENCES `RobotStatus` (`RobotStatusID`) ON DELETE NO ACTION ON UPDATE NO ACTION
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
 -- MoveCards (live game table)
@@ -894,7 +899,14 @@ INSERT INTO `RobotStatus` VALUES
 (11,'Dead','Dead',0,0,'FF0000','FF0000'),
 (12,'Move Complete','Done',1,0,'88FF88','88FF88'),
 (13,'Program Locked','Locked In',1,0,'55FF55','55FF55'),
-(14,'Laser Fired','Laser',1,0,'FFFF00','FFFF00');
+(14,'Laser Fired','Laser',1,0,'FFFF00','FFFF00'),
+-- Section 9 (install/todo.md): Robots.ConnectStatusID values, distinct from the gameplay
+-- Robots.Status values above. IDs 20-23 chosen to avoid colliding with the gameplay range;
+-- ConnectStatusID 0 reuses 'Unknown' above rather than adding a duplicate row.
+(20,'Not Connected','Not Conn',0,0,'FF0000','FF0000'),
+(21,'Connecting','Connecting',0,0,'FFFF00','FFFF00'),
+(22,'Robot Connected','Connected',1,0,'00FF00','00FF00'),
+(23,'Searching','Searching',0,0,'800080','800080');
 
 -- SeatOrientation
 INSERT INTO `SeatOrientation` VALUES (1,1),(2,1),(3,1),(4,2),(5,2),(6,3),(7,3),(8,3);

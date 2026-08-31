@@ -264,6 +264,54 @@ app.MapGet("/api/robot/{function?}/{parameter1?}", async (string? function, stri
     return Results.Ok(dataout);
 });
 
+// Section 9 (install/todo.md) connection screen: "Update IP" -- lets the operator type a new
+// address into the box where the robot's name was, without going through the board/DB editor.
+// Writes to both RobotBases.IPAddress (the column actually read for connecting) and
+// Robots.IPAddress, so they stay in sync. Parameterized in DataService.UpdateRobotIPAddress
+// since this value is user-typed.
+app.MapGet("/api/robot/setip/{robotId:int}/{ipAddress}", (int robotId, string ipAddress, DataService dataService, IHubContext<DataHub> hubContext, GameController gameController) =>
+{
+    if (!System.Net.IPAddress.TryParse(ipAddress, out _))
+        return Results.BadRequest(new { error = $"'{ipAddress}' is not a valid IP address" });
+
+    bool updated = dataService.UpdateRobotIPAddress(robotId, ipAddress);
+    if (!updated)
+        return Results.NotFound(new { error = $"Robot {robotId} not found" });
+
+    gameController.UpdateGameState();
+    return Results.Ok(new { robotId, ipAddress });
+});
+
+// Section 9 (install/todo.md) connection screen: "Search" -- sweeps the game LAN for live AIM
+// robots. See RobotDiscovery.cs for why this can report "something answered at this IP" but
+// not which physical robot it is (ws_status has no identity field); the operator confirms and
+// assigns unmatched hits with "Update IP" above.
+app.MapGet("/api/robot/search", async (DataService dataService, GameController gameController) =>
+{
+    var bases = dataService.GetQueryResults(
+        "SELECT r.RobotID, r.RobotBaseID, rbase.IPAddress FROM Robots r JOIN RobotBases rbase ON r.RobotBaseID = rbase.RobotBaseID;")
+        .Rows.Cast<System.Data.DataRow>()
+        .Select(row => new KnownRobotBase((int)row["RobotID"], (int)row["RobotBaseID"], row["IPAddress"] as string))
+        .ToList();
+
+    var robotIds = bases.Select(b => b.RobotID).ToList();
+    gameController.SetAllConnectStatus(robotIds, tConnectStatus.Searching);
+
+    List<DiscoveredDevice> found;
+    try
+    {
+        found = await RobotDiscovery.ScanAsync(bases);
+    }
+    finally
+    {
+        // Search only discovers/matches IPs; it doesn't establish the persistent game
+        // connection, so status returns to Not Connected rather than Connected either way.
+        gameController.SetAllConnectStatus(robotIds, tConnectStatus.NotConnected);
+    }
+
+    return Results.Ok(new { found });
+});
+
 app.MapGet("/api/board/{boardID?}", (int? boardID, DataService dataService, IHubContext<DataHub> hubContext, GameController gameController) =>
 {
     if (boardID == null) boardID = dataService.BoardID;

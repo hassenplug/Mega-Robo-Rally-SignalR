@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using MRR.Data;
 using MRR.Data.Entities;
 using System.Xml.Serialization;
+using MRR;
 
 namespace MRR.Services
 {
@@ -173,12 +174,17 @@ namespace MRR.Services
         }
 
         // Denormalizes the RobotStatus/RobotDirections/MoveCards/CommandList joins onto Robots itself
-        // (StatusColor, LEDColor, PlayerStatus, sDir, FlagEnergy, StatusToShow, PlayerMsg) so other
-        // reads (GetRobotsFromTable, SetStatus) can use the plain Robots columns instead of re-joining.
-        private void RefreshRobotDenormalizedFields()
+        // (StatusColor, LEDColor, PlayerStatus, sDir, FlagEnergy, StatusToShow, PlayerMsg,
+        // ConnectStatusColor, ConnectStatusDesc) so other reads (GetRobotsFromTable, SetStatus)
+        // can use the plain Robots columns instead of re-joining. RobotStatus is joined twice --
+        // once (rs) for the folded gameplay status IF(connected, Status, NotActive) that
+        // StatusColor/LEDColor/PlayerStatus/StatusToShow reflect, and once (cs) for
+        // ConnectStatusID's own color/description, which is never folded with anything.
+        public void RefreshRobotDenormalizedFields()
         {
-            string updateSQL = @"UPDATE Robots r
-                JOIN RobotStatus rs ON IF(r.IsConnected = 1, r.Status, 10) = rs.RobotStatusID
+            string updateSQL = $@"UPDATE Robots r
+                JOIN RobotStatus rs ON IF(r.ConnectStatusID = {(int)tConnectStatus.Connected}, r.Status, 10) = rs.RobotStatusID
+                JOIN RobotStatus cs ON r.ConnectStatusID = cs.RobotStatusID
                 JOIN RobotDirections rd ON r.CurrentPosDir = rd.DirID
                 LEFT JOIN (
                     SELECT mc.Owner,
@@ -190,13 +196,15 @@ namespace MRR.Services
                     GROUP BY mc.Owner
                 ) played ON r.RobotID = played.Owner
                 LEFT JOIN CommandList cl ON r.MessageCommandID = cl.CommandID
-                SET r.StatusColor  = rs.StatusColor,
-                    r.LEDColor     = rs.LEDColor,
-                    r.PlayerStatus = rs.ShortDescription,
-                    r.sDir         = rd.ShortDirDesc,
-                    r.FlagEnergy   = CONCAT(r.CurrentFlag,'/',r.Energy),
-                    r.StatusToShow = IF(played.ShowCardsPlayed IS NULL OR rs.Active = 0, rs.ShortDescription, played.ShowCardsPlayed),
-                    r.PlayerMsg    = cl.Description";
+                SET r.StatusColor        = rs.StatusColor,
+                    r.LEDColor           = rs.LEDColor,
+                    r.PlayerStatus       = rs.ShortDescription,
+                    r.sDir               = rd.ShortDirDesc,
+                    r.FlagEnergy         = CONCAT(r.CurrentFlag,'/',r.Energy),
+                    r.StatusToShow       = IF(played.ShowCardsPlayed IS NULL OR rs.Active = 0, rs.ShortDescription, played.ShowCardsPlayed),
+                    r.PlayerMsg          = cl.Description,
+                    r.ConnectStatusColor = cs.StatusColor,
+                    r.ConnectStatusDesc  = cs.ShortDescription";
             this.ExecuteSQL(updateSQL);
         }
 
@@ -208,6 +216,11 @@ namespace MRR.Services
         // just duplicated DirectionAdjustment -- and is kept in the payload for compatibility
         // with existing clients rather than dropping it. CardCount is a real column, kept
         // current by RefreshCardCount (DataService.Cards.cs) whenever a robot's cards change.
+        // ConnectStatusColor/ConnectStatusDesc are likewise real columns now, kept current by
+        // RefreshRobotDenormalizedFields -- no join needed here for them. IPAddress reads
+        // Robots.IPAddress directly; UpdateRobotIPAddress keeps it in sync with the
+        // RobotBases.IPAddress that Player.Connect() actually dials, so no join is needed here
+        // either.
         public List<RobotData> GetRobotsFromTable()
         {
             //RefreshRobotDenormalizedFields();
@@ -248,6 +261,10 @@ namespace MRR.Services
                     StatusToShow        = row["StatusToShow"].ToString() ?? "",
                     PlayerMsg           = row["PlayerMsg"].ToString() ?? "",
                     CardCount           = (int)row["CardCount"],
+                    ConnectStatusID     = (int)row["ConnectStatusID"],
+                    ConnectStatusColor  = row["ConnectStatusColor"].ToString() ?? "",
+                    ConnectStatusDesc   = row["ConnectStatusDesc"].ToString() ?? "",
+                    IPAddress           = row["IPAddress"].ToString() ?? "",
                 });
             }
 
@@ -299,6 +316,29 @@ namespace MRR.Services
                 if (ownConnection)
                     connection!.Dispose();
             }
+        }
+
+        /// <summary>
+        /// Section 9 (install/todo.md) "Update IP": writes the robot's IP address to both
+        /// RobotBases.IPAddress -- the column Player.Connect()/GetAllPlayers() actually read --
+        /// and Robots.IPAddress, so the two stay in sync instead of the latter going stale.
+        /// Parameterized because the value comes straight from a form field on the connection
+        /// screen.
+        /// </summary>
+        public bool UpdateRobotIPAddress(int robotId, string ipAddress)
+        {
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+            using var update = new MySqlCommand(
+                @"UPDATE RobotBases rb
+                  JOIN Robots r ON r.RobotBaseID = rb.RobotBaseID
+                  SET rb.IPAddress = @ip,
+                      r.IPAddress = @ip
+                  WHERE r.RobotID = @robotId",
+                connection);
+            update.Parameters.AddWithValue("@ip", ipAddress);
+            update.Parameters.AddWithValue("@robotId", robotId);
+            return update.ExecuteNonQuery() > 0;
         }
 
         // =====================================================================

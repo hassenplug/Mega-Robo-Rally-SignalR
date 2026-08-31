@@ -10,6 +10,7 @@ using MRR.Services;
 using Microsoft.AspNetCore.SignalR;
 using MRR.Hubs;
 using MRR.Data;
+using MRR;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using System.Threading;
 //using MRR.Data.Entities;
@@ -470,8 +471,9 @@ namespace MRR.Controller
 
         private async Task ConnectPlayerWithScreen(Player player)
         {
+            SetRobotConnectStatus(player.ID, tConnectStatus.Connecting);
             await player.Connect();
-            SetRobotConnected(player.ID, player.isConnected);
+            SetRobotConnectStatus(player.ID, player.isConnected ? tConnectStatus.Connected : tConnectStatus.NotConnected);
 
             if (UseRobotScreen && player.isConnected)
             {
@@ -479,11 +481,38 @@ namespace MRR.Controller
             }
         }
 
-        /// <summary>Writes through to Robots.IsConnected so status displays (viewRobots-style
-        /// joins on IsConnected) reflect whether we actually have a live socket to the robot.</summary>
-        private void SetRobotConnected(int robotID, bool connected)
+        /// <summary>Writes through to Robots.ConnectStatusID -- and, in the same statement,
+        /// ConnectStatusColor/ConnectStatusDesc from the matching RobotStatus row -- so the
+        /// connection screen reflects whether we actually have a live socket to the robot.
+        /// Sets all three itself rather than calling RefreshRobotDenormalizedFields: that method
+        /// recomputes the *gameplay* denormalized columns (StatusColor, LEDColor, PlayerStatus,
+        /// sDir, FlagEnergy, StatusToShow, PlayerMsg) for every robot via several joins, which is
+        /// far more than a single robot's connect-status change needs. Broadcasts immediately so
+        /// the Connecting -> Connected/NotConnected transition is visible live rather than only
+        /// on the next unrelated broadcast (see install/todo.md Section 9).</summary>
+        private void SetRobotConnectStatus(int robotID, tConnectStatus status)
         {
-            _dataService.ExecuteSQL($"Update Robots set IsConnected={(connected ? 1 : 0)} where RobotID={robotID};");
+            _dataService.ExecuteSQL($@"
+                UPDATE Robots r
+                JOIN RobotStatus cs ON cs.RobotStatusID = {(int)status}
+                SET r.ConnectStatusID    = {(int)status},
+                    r.ConnectStatusColor = cs.StatusColor,
+                    r.ConnectStatusDesc  = cs.ShortDescription
+                WHERE r.RobotID = {robotID};");
+            UpdateGameState();
+        }
+
+        /// <summary>Batch form of SetRobotConnectStatus for the connection screen's "Connect
+        /// All"/"Disconnect All"/"Search" (install/todo.md Section 9). Each robot gets its own
+        /// SetRobotConnectStatus call -- and so its own broadcast -- rather than one shared
+        /// UPDATE across all of them: this is a between-games action (game setup/robot
+        /// assignment), not a per-turn one, so the API_DECOMPOSITION_DESIGN.md tempo table (§2)
+        /// puts its latency budget in seconds and treats extra hops/round-trips here as cheap,
+        /// unlike the per-command tempo GameController's turn-execution path has to protect.</summary>
+        public void SetAllConnectStatus(IEnumerable<int> robotIDs, tConnectStatus status)
+        {
+            foreach (var robotID in robotIDs)
+                SetRobotConnectStatus(robotID, status);
         }
 
         /// <summary>
@@ -620,8 +649,9 @@ namespace MRR.Controller
         public bool ConnectToRobot(int playerID)
         {
             Player? thisplayer = AllPlayers.GetPlayer(playerID);
+            SetRobotConnectStatus(playerID, tConnectStatus.Connecting);
             thisplayer?.Connect().Wait();
-            SetRobotConnected(playerID, thisplayer?.isConnected ?? false);
+            SetRobotConnectStatus(playerID, thisplayer?.isConnected == true ? tConnectStatus.Connected : tConnectStatus.NotConnected);
             return true;
         }
 
@@ -653,7 +683,7 @@ namespace MRR.Controller
         private async Task DisconnectPlayer(Player player)
         {
             await player.DisposeAsync();
-            SetRobotConnected(player.ID, false);
+            SetRobotConnectStatus(player.ID, tConnectStatus.NotConnected);
         }
 
     }
