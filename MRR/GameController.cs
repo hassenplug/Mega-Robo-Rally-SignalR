@@ -471,9 +471,9 @@ namespace MRR.Controller
 
         private async Task ConnectPlayerWithScreen(Player player)
         {
-            SetRobotConnectStatus(player.ID, tConnectStatus.Connecting);
+            SetRobotConnectStatus(player.ID, tPlayerStatus.Connecting);
             await player.Connect();
-            SetRobotConnectStatus(player.ID, player.isConnected ? tConnectStatus.Connected : tConnectStatus.NotConnected);
+            SetRobotConnectStatus(player.ID, player.isConnected ? tPlayerStatus.RobotConnected : tPlayerStatus.NotConnected);
 
             if (UseRobotScreen && player.isConnected)
             {
@@ -490,7 +490,7 @@ namespace MRR.Controller
         /// far more than a single robot's connect-status change needs. Broadcasts immediately so
         /// the Connecting -> Connected/NotConnected transition is visible live rather than only
         /// on the next unrelated broadcast (see install/todo.md Section 9).</summary>
-        private void SetRobotConnectStatus(int robotID, tConnectStatus status)
+        private void SetRobotConnectStatus(int robotID, tPlayerStatus status)
         {
             _dataService.ExecuteSQL($@"
                 UPDATE Robots r
@@ -509,7 +509,7 @@ namespace MRR.Controller
         /// assignment), not a per-turn one, so the API_DECOMPOSITION_DESIGN.md tempo table (§2)
         /// puts its latency budget in seconds and treats extra hops/round-trips here as cheap,
         /// unlike the per-command tempo GameController's turn-execution path has to protect.</summary>
-        public void SetAllConnectStatus(IEnumerable<int> robotIDs, tConnectStatus status)
+        public void SetAllConnectStatus(IEnumerable<int> robotIDs, tPlayerStatus status)
         {
             foreach (var robotID in robotIDs)
                 SetRobotConnectStatus(robotID, status);
@@ -649,9 +649,9 @@ namespace MRR.Controller
         public bool ConnectToRobot(int playerID)
         {
             Player? thisplayer = AllPlayers.GetPlayer(playerID);
-            SetRobotConnectStatus(playerID, tConnectStatus.Connecting);
+            SetRobotConnectStatus(playerID, tPlayerStatus.Connecting);
             thisplayer?.Connect().Wait();
-            SetRobotConnectStatus(playerID, thisplayer?.isConnected == true ? tConnectStatus.Connected : tConnectStatus.NotConnected);
+            SetRobotConnectStatus(playerID, thisplayer?.isConnected == true ? tPlayerStatus.RobotConnected : tPlayerStatus.NotConnected);
             return true;
         }
 
@@ -683,7 +683,7 @@ namespace MRR.Controller
                 // No live Player object for this robot (e.g. never connected this process
                 // lifetime) -- there's nothing to dispose, but the row should still say
                 // Not Connected rather than silently leaving whatever it said before.
-                SetRobotConnectStatus(playerID, tConnectStatus.NotConnected);
+                SetRobotConnectStatus(playerID, tPlayerStatus.NotConnected);
                 return true;
             }
             DisconnectPlayer(thisplayer).Wait();
@@ -706,7 +706,7 @@ namespace MRR.Controller
             }
             finally
             {
-                SetRobotConnectStatus(player.ID, tConnectStatus.NotConnected);
+                SetRobotConnectStatus(player.ID, tPlayerStatus.NotConnected);
             }
         }
 

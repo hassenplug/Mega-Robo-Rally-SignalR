@@ -295,7 +295,7 @@ app.MapGet("/api/robot/search", async (DataService dataService, GameController g
         .ToList();
 
     var robotIds = bases.Select(b => b.RobotID).ToList();
-    gameController.SetAllConnectStatus(robotIds, tConnectStatus.Searching);
+    gameController.SetAllConnectStatus(robotIds, tPlayerStatus.Searching);
 
     List<DiscoveredDevice> found;
     try
@@ -306,7 +306,7 @@ app.MapGet("/api/robot/search", async (DataService dataService, GameController g
     {
         // Search only discovers/matches IPs; it doesn't establish the persistent game
         // connection, so status returns to Not Connected rather than Connected either way.
-        gameController.SetAllConnectStatus(robotIds, tConnectStatus.NotConnected);
+        gameController.SetAllConnectStatus(robotIds, tPlayerStatus.NotConnected);
     }
 
     return Results.Ok(new { found });

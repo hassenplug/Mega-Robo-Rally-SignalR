@@ -183,7 +183,7 @@ namespace MRR.Services
         public void RefreshRobotDenormalizedFields()
         {
             string updateSQL = $@"UPDATE Robots r
-                JOIN RobotStatus rs ON IF(r.ConnectStatusID = {(int)tConnectStatus.Connected}, r.Status, 10) = rs.RobotStatusID
+                JOIN RobotStatus rs ON IF(r.ConnectStatusID = {(int)tPlayerStatus.RobotConnected}, r.Status, 10) = rs.RobotStatusID
                 JOIN RobotStatus cs ON r.ConnectStatusID = cs.RobotStatusID
                 JOIN RobotDirections rd ON r.CurrentPosDir = rd.DirID
                 LEFT JOIN (
