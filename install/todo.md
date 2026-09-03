@@ -526,19 +526,19 @@ copy silently reverts it, or a broadcast reads stale data. Numbering below match
   - Update all references to IsConnected
 
 Create a small form.  Data should be pulled using the same subscription as index.html
-- [ ] Header buttons
-  - [ ] Connect All
-  - [ ] Disconnect All
-  - [ ] Search (search all IP addresses for matching Mac addresses)
+- [x] Header buttons
+  - [x] Connect All
+  - [x] Disconnect All
+  - [x] Search (search all IP addresses for matching Mac addresses)
 
-  - [ ] Update IP (Allow user to enter the IP address into the box where the name was)
-- [ ] Show rows for all robots
-  - [ ] Colored Button next to a box with a Robot Name and colored background (colors will match the robot) - Button will toggle connection (try to connect/dsiconnect)
-    - [ ] Red (not connected)
-    - [ ] Yellow (Connecting)
-    - [ ] Green (Connected)
-    - [ ] Purple (Searching)
-    - [ ] Unknown (0)
+  - [x] Update IP (Allow user to enter the IP address into the box where the name was)
+- [x] Show rows for all robots
+  - [x] Colored Button next to a box with a Robot Name and colored background (colors will match the robot) - Button will toggle connection (try to connect/dsiconnect)
+    - [x] Red (not connected)
+    - [x] Yellow (Connecting)
+    - [x] Green (Connected)
+    - [x] Purple (Searching)
+    - [x] Unknown (0)
 
 ---
 

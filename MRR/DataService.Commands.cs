@@ -119,8 +119,6 @@ namespace MRR.Services
             if (p_NewStatus == -1)
                 p_NewStatus = 6; // command complete
 
-            using var db = CreateDbContext();
-
             // Process side-effects by CommandTypeID
             switch (p_Command.CommandType)
             {
@@ -129,21 +127,21 @@ namespace MRR.Services
                     break;
 
                 case SquareAction.Damage: // Set Damage
-                    db.Robots.Where(r => r.ID == cRobotID)
-                        .ExecuteUpdate(s => s.SetProperty(r => r.Damage, cParameter));
+                    ExecuteSQL($"Update Robots set Damage = {cParameter} " +
+                        $" where RobotID = {cRobotID}");
                     break;
 
                 case SquareAction.Archive: // Set Archive position
-                    db.Robots.Where(r => r.ID == cRobotID)
-                        .ExecuteUpdate(s => s
-                            .SetProperty(r => r.ArchivePosRow, cRow)
-                            .SetProperty(r => r.ArchivePosCol, cCol)
-                            .SetProperty(r => r.ArchivePosDir, cDir));
+                    ExecuteSQL($"Update Robots set Damage = {cParameter}, " +
+                        $" ArchivePosRow = {cRow}, " +
+                        $" ArchivePosCol = {cCol}, " +
+                        $" ArchivePosDir = {cDir}, " +
+                        $" where RobotID = {cRobotID}");
                     break;
 
                 case SquareAction.Flag: // Set Current Flag
-                    db.Robots.Where(r => r.ID == cRobotID)
-                        .ExecuteUpdate(s => s.SetProperty(r => r.LastFlag, cParameter));
+                    ExecuteSQL($"UPDATE Robots SET CurrentFlag = {cParameter} " +
+                        $" WHERE RobotID = {cRobotID}");
                     break;
 
                 case SquareAction.Option: // Deal option card to robot
@@ -159,8 +157,8 @@ namespace MRR.Services
                 }
 
                 case SquareAction.LostLife: // Set Lives
-                    db.Robots.Where(r => r.ID == cRobotID)
-                        .ExecuteUpdate(s => s.SetProperty(r => r.Lives, cParameter));
+                    ExecuteSQL($"UPDATE Robots SET Lives = {cParameter} " +
+                        $" WHERE RobotID = {cRobotID}");
                     break;
 
                 case SquareAction.DealCard: // Deal card to player (assign card owner)
@@ -182,8 +180,8 @@ namespace MRR.Services
                     break;
 
                 case SquareAction.SetPlayerStatus: // Set robot Status
-                    db.Robots.Where(r => r.ID == cRobotID)
-                        .ExecuteUpdate(s => s.SetProperty(r => r.PlayerStatus, (tPlayerStatus)cParameter));
+                    ExecuteSQL($"UPDATE Robots SET Status = {cParameter} " +
+                        $" WHERE RobotID = {cRobotID}");
                     break;
 
                 case SquareAction.DeathPoints: // Set DamagePoints — column does not exist in schema; log and skip
@@ -213,8 +211,8 @@ namespace MRR.Services
                     break;
 
                 case SquareAction.SetShutDownMode: // Set ShutDown
-                    db.Robots.Where(r => r.ID == cRobotID)
-                        .ExecuteUpdate(s => s.SetProperty(r => r.ShutDown, (tShutDown)cParameter));
+                    ExecuteSQL($"UPDATE Robots SET ShutDown = {cParameter} " +
+                        $" WHERE RobotID = {cRobotID}");
                     break;
 
                 case SquareAction.SetCurrentGameData: // Set CurrentGameData iValue by iKey
@@ -227,7 +225,7 @@ namespace MRR.Services
                     break;
 
                 case SquareAction.DeleteRobot: // Delete robot
-                    db.Robots.Where(r => r.ID == cRobotID).ExecuteDelete();
+                    ExecuteSQL($"DELETE FROM Robots WHERE RobotID = {cRobotID}");
                     break;
 
                 case SquareAction.SetGameState: // Set GameState
@@ -247,15 +245,13 @@ namespace MRR.Services
                 case SquareAction.FireCannon:
                     break;
                 case SquareAction.SetButtonText:
-//                            onecommand.StatusID = _dataService.ProcessDbCommand(onecommand, -1);
-//                            Db.SaveChanges();
-                    db.Robots.Where(r => r.ID == cRobotID)
-                        .ExecuteUpdate(s => s.SetProperty(r => r.PlayerMsg, ""));
+                    ExecuteSQL($"UPDATE Robots SET PlayerMsg = '' " +
+                        $" WHERE RobotID = {cRobotID}");
                     break;
 
                 case SquareAction.SetEnergy:
-                    db.Robots.Where(r => r.ID == cRobotID)
-                        .ExecuteUpdate(s => s.SetProperty(r => r.Energy, cParameter));
+                    ExecuteSQL($"UPDATE Robots SET Energy = {cParameter} " +
+                        $" WHERE RobotID = {cRobotID}");
                     break;
 
                 default:
@@ -268,12 +264,12 @@ namespace MRR.Services
             {
                 if (cCol >= 0 && cRow >= 0)
                 {
-                    db.Robots.Where(r => r.ID == cRobotID)
-                        .ExecuteUpdate(s => s
-                            .SetProperty(r => r.CurrentPosRow, cRow)
-                            .SetProperty(r => r.CurrentPosCol, cCol)
-                            .SetProperty(r => r.CurrentPosDir, cDir)
-                            .SetProperty(r => r.Score, cParameterB));
+                    ExecuteSQL($"UPDATE Robots SET CurrentPosRow = {cRow}, " +
+                        $" CurrentPosCol = {cCol}, " +
+                        $" CurrentPosDir = {cDir}, " +
+                        $" Score = {cParameterB} " +
+                        $" WHERE RobotID = {cRobotID}");
+                    //Console.WriteLine($"ProcessDbCommand: Robot {cRobotID} moved to row={cRow}, col={cCol}, dir={cDir}, score={cParameterB}");
                 }
                 p_NewStatus = 6; // command complete
             }

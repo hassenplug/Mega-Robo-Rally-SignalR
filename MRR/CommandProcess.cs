@@ -301,7 +301,6 @@ namespace MRR
                     {
                         LogCommand(onecommand, "Robot not connected for Command");
                         onecommand.StatusID = _dataService.ProcessDbCommand(onecommand, 5);
-                        Db.SaveChanges();
                         return true;
                     }
 
@@ -362,7 +361,6 @@ namespace MRR
                     {
                         // no reply expected
                         onecommand.StatusID = _dataService.ProcessDbCommand(onecommand, 5);
-                        Db.SaveChanges();
                     }
                     return true;
 
@@ -370,7 +368,6 @@ namespace MRR
                 case 3: // DB
                     //LogCommand(onecommand, "Database Command ");
                     onecommand.StatusID = _dataService.ProcessDbCommand(onecommand, -1);
-                    Db.SaveChanges();
                     return true;
 
                 case 6: // User Input
@@ -387,10 +384,11 @@ namespace MRR
                             // directly rather than relying on RefreshRobotDenormalizedFields() to
                             // join and populate PlayerMsg later, since that join is not run on
                             // every broadcast (see DataService.Players.cs's GetRobotsFromTable()).
-                            Db.Robots.Where(r => r.ID == onecommand.RobotID)
-                                .ExecuteUpdate(s => s
-                                    .SetProperty(r => r.MessageCommandID, onecommand.CommandID)
-                                    .SetProperty(r => r.PlayerMsg, onecommand.Description));
+                            var escapedMsg = onecommand.Description.Replace("'", "''");
+                            _dataService.ExecuteSQL(
+                                $"UPDATE Robots SET MessageCommandID = {onecommand.CommandID}, " +
+                                $" PlayerMsg = '{escapedMsg}' " +
+                                $" WHERE RobotID = {onecommand.RobotID}");
 
                             onecommand.StatusID = 4;
                             Db.SaveChanges();
@@ -402,7 +400,6 @@ namespace MRR
                 default:
                     LogCommand(onecommand, "Not processed here");
                     onecommand.StatusID = _dataService.ProcessDbCommand(onecommand, -1);
-                    Db.SaveChanges();
                     break;
             }
 
