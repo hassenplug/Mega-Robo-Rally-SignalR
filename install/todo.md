@@ -491,6 +491,7 @@ copy silently reverts it, or a broadcast reads stale data. Numbering below match
 - [ ] `AdminApi.cs:155` computes `players = data.AllPlayers.Count` — cosmetic only, could become
   a `COUNT(*)` now that `AllPlayers` isn't the source of truth elsewhere; no correctness need
 
+---
 ## Section 8 — Game Screen
 
 - GM screen needs a way to end the current game.
@@ -518,6 +519,7 @@ copy silently reverts it, or a broadcast reads stale data. Numbering below match
   - [ ] Re-check `UpdateCardPlayed` specifically through a full programming→lock→execute cycle
   - [ ] Play a multi-turn game confirming pit-death/Damage-threshold behavior holds turn after turn
 
+---
 ## Section 9 - Robot Connection Screen
 
 - Update the IsConnected flag in Robots to ConnectStatus
@@ -539,6 +541,17 @@ Create a small form.  Data should be pulled using the same subscription as index
     - [x] Green (Connected)
     - [x] Purple (Searching)
     - [x] Unknown (0)
+
+---
+## Section 10 - Update index to create a GM screen
+
+ - [ ] copy "connections" functionality into the index page
+   - [ ] set the status field to be a button that the GM can use to connect when a robot is not connected.
+   - [ ] background of Status should be red when not connected, but only on the gm screen
+ - [ ] Gm screen will have a "Next" button at the bottom of the program commands table
+ - [ ] GM screen will show all buttons players see
+ - [ ] Tap on the game message (like "Turn 2") will toggle between the player view and the GM view (only when GM mode is enabled)
+ - [ ] Players will have to log in and the browser will hold a cookie of the player login
 
 ---
 

@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using MRR.Data;
 using MRR.Data.Entities;
 using System.Xml.Serialization;
+using MRR;
 
 namespace MRR.Services
 {
@@ -53,10 +54,13 @@ namespace MRR.Services
         }
 
         /// <summary>
-        /// Rebuilds Robots.CardsDealt (CSV of hand CardTypeIDs, desc) and Robots.CardsPlayed
-        /// (CSV of each register's CardTypeID by PhaseCounter slot, 0 = empty) from MoveCards.
-        /// Pass playerId to rebuild a single robot (e.g. after UpdateCardPlayed); omit to
-        /// rebuild every robot at once (e.g. after MoveCardsShuffleAndDeal).
+        /// Rebuilds Robots.CardsDealt (CSV of hand CardTypeIDs, desc), Robots.CardsPlayed
+        /// (CSV of each register's CardTypeID by PhaseCounter slot, 0 = empty), and
+        /// Robots.StatusToShow (the folded gameplay status, or the register-by-register played
+        /// summary once the robot is active and has played anything -- same rule as the retired
+        /// RefreshRobotDenormalizedFields) from MoveCards. Pass playerId to rebuild a single
+        /// robot (e.g. after UpdateCardPlayed); omit to rebuild every robot at once (e.g. after
+        /// MoveCardsShuffleAndDeal).
         /// </summary>
         private void RebuildRobotCardsSummary(MySqlConnection connection, int? playerId = null)
         {
@@ -66,19 +70,26 @@ namespace MRR.Services
 
             string sql =
                 "UPDATE Robots rb " +
+                $"JOIN RobotStatus rs ON IF(rb.ConnectStatusID = {(int)tPlayerStatus.RobotConnected}, rb.Status, 10) = rs.RobotStatusID " +
                 "LEFT JOIN (" +
                 "  SELECT mc.Owner, GROUP_CONCAT(mc.CardTypeID ORDER BY mc.CardTypeID DESC) AS gctl " +
                 $"  FROM MoveCards mc WHERE mc.CardLocation = 1 {dealtFilter} " +
                 "  GROUP BY mc.Owner" +
                 ") dealt ON rb.RobotID = dealt.Owner " +
                 "LEFT JOIN (" +
-                "  SELECT r2.RobotID AS Owner, GROUP_CONCAT(IFNULL(mc.CardTypeID, 0) ORDER BY pc.ID) AS gctp " +
+                "  SELECT r2.RobotID AS Owner, " +
+                "         GROUP_CONCAT(IFNULL(mc.CardTypeID, 0) ORDER BY pc.ID) AS gctp, " +
+                "         GROUP_CONCAT(IF(mc.CardID IS NULL, '-', IF(mc.Executed, mct.ShortDescription, 'X')) ORDER BY pc.ID) AS ShowCardsPlayed " +
                 "  FROM Robots r2 CROSS JOIN PhaseCounter pc " +
                 "  LEFT JOIN MoveCards mc ON pc.ID = mc.PhasePlayed AND mc.Owner = r2.RobotID " +
+                "  LEFT JOIN MoveCardTypes mct ON mc.CardTypeID = mct.CardTypeID " +
                 $"  {playedFilter} " +
                 "  GROUP BY r2.RobotID" +
                 ") played ON rb.RobotID = played.Owner " +
-                $"SET rb.CardsDealt = dealt.gctl, rb.CardsPlayed = played.gctp {whereClause}";
+                "SET rb.CardsDealt   = dealt.gctl, " +
+                "    rb.CardsPlayed  = played.gctp, " +
+                "    rb.StatusToShow = IF(played.ShowCardsPlayed IS NULL, rs.ShortDescription, played.ShowCardsPlayed) " +
+                $"{whereClause}";
 
             using var cmd = new MySqlCommand(sql, connection);
             if (playerId.HasValue)

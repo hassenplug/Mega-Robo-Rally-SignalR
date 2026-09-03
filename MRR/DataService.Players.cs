@@ -201,11 +201,11 @@ namespace MRR.Services
                     r.PlayerStatus       = rs.ShortDescription,
                     r.sDir               = rd.ShortDirDesc,
                     r.FlagEnergy         = CONCAT(r.CurrentFlag,'/',r.Energy),
-                    r.StatusToShow       = IF(played.ShowCardsPlayed IS NULL OR rs.Active = 0, rs.ShortDescription, played.ShowCardsPlayed),
                     r.PlayerMsg          = cl.Description,
                     r.ConnectStatusColor = cs.StatusColor,
                     r.ConnectStatusDesc  = cs.ShortDescription";
             this.ExecuteSQL(updateSQL);
+//                    r.StatusToShow       = IF(played.ShowCardsPlayed IS NULL OR rs.Active = 0, rs.ShortDescription, played.ShowCardsPlayed),
         }
 
         // Reads Robots directly (after freshening the denormalized columns above) and maps it
