@@ -565,6 +565,30 @@ Create a small form.  Data should be pulled using the same subscription as index
 
 ---
 
+## Section 11 - Testing
+
+- [x] `MRR.Tests` (xUnit) added 2026-09-04 — references `MRR.Contracts` and `MRR.Rules` only
+  (the pure turn-planning libraries, no DB/ASP.NET), so tests run without a database or robots.
+  Run all tests from the repo root:
+  ```
+  dotnet test MRR.Tests
+  ```
+  Or run the whole solution's tests (currently just this project):
+  ```
+  dotnet test Mega-Robo-Rally-SignalR.sln
+  ```
+  Current coverage: the `CommandItem.EndPos`/`RobotLocation` position bug fixed 2026-09-04
+  (`RobotLocationTests.cs`, `CommandItemPositionTests.cs`, `CreateCommandsZeroSquareTests.cs`
+  — the last one plans a full turn through `CreateCommands.ExecuteTurn()` and checks the
+  planned `Move` command's `EndPos`, the value `ProcessDbCommand` writes into
+  `Robots.CurrentPosCol/CurrentPosRow`).
+
+- [ ] Add test coverage for other `CreateCommands` rules as they're touched (conveyor belts,
+  pushers, lasers, option cards) — none of that is covered yet; `MRR.Tests` only has the
+  position-bug regression tests above so far.
+
+---
+
 ## Done *(reference)*
 
 - [x] CommandProcess background execution thread
