@@ -185,14 +185,16 @@ namespace MRR
                 Robot = p_Robot;
                 //RobotID = p_Robot.ID;
                 StartPos = new RobotLocation(p_Robot.CurrentPos);
-                if (p_Robot.NextPos.X == 0 && p_Robot.NextPos.Y == 0)
-                {
-                    EndPos = new RobotLocation(p_Robot.CurrentPos);
-                }
-                else
-                {
-                    EndPos = new RobotLocation(p_Robot.NextPos);
-                }
+                // NextPos always reflects the robot's true state at this point in planning:
+                // equal to CurrentPos when no move is in flight (DataService.
+                // GetPlayerStatesFromDB now loads it that way), or the real destination
+                // once MoveRobot/RotateRobot has set it for this step. This used to special-
+                // case "NextPos.X==0 && NextPos.Y==0" as meaning "not set yet" and fall back
+                // to CurrentPos -- but (0,0) is also a real board square, so any command
+                // whose robot was genuinely moving to/rotating on square (0,0) got the wrong
+                // EndPos (the OLD position), which is what CommandProcess/ProcessDbCommand
+                // then wrote into Robots.CurrentPosRow/Col.
+                EndPos = new RobotLocation(p_Robot.NextPos);
             }
             else
             {

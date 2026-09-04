@@ -147,6 +147,7 @@ namespace MRR.Services
             var rows = GetQueryResults(strSQL);
             foreach (DataRow row in rows.Rows)
             {
+                var loadedPos = new RobotLocation((Direction)(int)row["Dir"], (int)row["X"], (int)row["Y"]);
                 result.Add(new PlayerState
                 {
                     ID                  = (int)row["RobotID"],
@@ -158,7 +159,13 @@ namespace MRR.Services
                     LastFlag            = (int)row["CurrentFlag"],
                     ShutDown            = (tShutDown)(int)row["ShutDown"],
                     PlayerStatus        = (tPlayerStatus)(int)row["StatusID"],
-                    CurrentPos          = new RobotLocation((Direction)(int)row["Dir"], (int)row["X"], (int)row["Y"]),
+                    CurrentPos          = loadedPos,
+                    // NextPos starts equal to CurrentPos ("no move planned yet") rather than
+                    // the RobotLocation() default -- CommandItem's constructor trusts NextPos
+                    // to reflect "not moving" whenever no move is in flight (see
+                    // CommandList.cs), so it must never start out looking like an unset
+                    // sentinel while CurrentPos already holds a real position.
+                    NextPos             = new RobotLocation(loadedPos),
                     ArchivePosCol       = (int)row["AX"],
                     ArchivePosRow       = (int)row["AY"],
                     Priority            = (int)row["Priority"],

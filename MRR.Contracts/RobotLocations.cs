@@ -72,11 +72,15 @@ namespace MRR
 
         public Direction Direction { get; set; }
 
-        private int l_x = -1;
-        public int X { get { return l_x; } set { l_x = value; if (l_x < 0) l_x = 0;  } }
-
-        private int l_y = -1;
-        public int Y { get { return l_y; } set { l_y = value; if (l_y < 0) l_y = 0;  } }
+        // No clamping here: -1 is the deliberate "unset" sentinel the parameterless
+        // constructor uses (see below), and a genuinely negative position (a robot moving
+        // off the left/top edge of the board) has to stay distinguishable from square 0 --
+        // clamping both to 0 collided the two and corrupted CommandItem.EndPos (see
+        // CommandList.cs). DamageSpread (CreateCommands.cs) already relies on negative X/Y
+        // being observable to detect leaving the board; bounds-checking belongs to callers
+        // like it and CalcMoveDistance, not to this setter.
+        public int X { get; set; } = -1;
+        public int Y { get; set; } = -1;
 
         private int l_index = 0;
         public int Index { get { return l_index; } set { l_index = value;   } }
