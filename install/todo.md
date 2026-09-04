@@ -1,6 +1,6 @@
 # Mega Robo Rally — Project TODO
 
-**Last updated:** 2026-08-30
+**Last updated:** 2026-09-04
 **Legend:** `[x]` Done &nbsp; `[-]` Partial / In Progress &nbsp; `[ ]` Not started
 
 ---
@@ -369,6 +369,16 @@ Home Router (192.168.1.x)
   empty results instead of surfacing them (`PROJECT_STATUS.md` §6.6) — a bad connection string
   or a bad query currently shows up later as an unrelated NullReferenceException instead of a
   clear DB error at the source
+
+- [ ] Add the new `FieldEnclosed` `CurrentGameData` row (iKey 21) to the test MySQL copy —
+  `install/MRRDatabase.sql` only seeds a fresh install, so the running `rally` database on
+  `mrobopi` (or wherever the test copy lives) needs it inserted by hand:
+  ```sql
+  INSERT INTO CurrentGameData (sKey, iValue, sValue, Category, iKey) VALUES ('FieldEnclosed', 0, NULL, 'Game', 21);
+  ```
+  Backs the "field walled in on all sides" boundary check added to
+  `CreateCommands.CalcMoveDistance` (`GameStateStore.cs`, `DataService.cs`,
+  `TurnRequest.cs`) — until this row exists, toggling it via the DB grid editor won't work.
 
 - [ ] Board editor `PUT` does its replace as a DELETE+INSERT with no surrounding transaction,
   and builds SQL by string concatenation rather than parameters (`Program.cs:453`,

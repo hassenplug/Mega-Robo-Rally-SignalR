@@ -689,13 +689,14 @@ INSERT INTO `CommandLookup` VALUES
 (97,'Set Game State',1),
 (98,'Shut Down Game',1);
 
--- CurrentGameData (25 static configuration rows)
+-- CurrentGameData (26 static configuration rows)
 INSERT INTO `CurrentGameData` VALUES
 ('BoardCols',5,NULL,'Game',18),
 ('BoardID',7,'3x3x2x2','Game',20),
 ('BoardRows',5,NULL,'Game',19),
 ('Command',0,'none','x',4),
 ('CommandParameter',0,NULL,'Status',13),
+('FieldEnclosed',0,NULL,'Game',21),
 ('GameDataID',2,NULL,'Config',26),
 ('GameState',2,'Next Turn','Status',10),
 ('GameType',0,'Standard','Game',1),

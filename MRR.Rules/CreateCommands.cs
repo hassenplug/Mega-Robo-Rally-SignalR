@@ -54,6 +54,9 @@ namespace MRR
 
         public int TotalFlags => _request.TotalFlags;
 
+        /// <summary>Whether the field is walled in on all sides -- see CalcMoveDistance.</summary>
+        public bool FieldEnclosed => _request.FieldEnclosed;
+
         public int LaserDamage => _request.LaserDamage;
 
         public PlayerStates AllPlayers => _request.Players;
@@ -235,6 +238,16 @@ namespace MRR
             // calc new square
             //RobotLocation l_newsquare = thisplayer.CalcNewLocation(l_MoveDistance, p_Direction);
             RobotLocation l_newsquare = thisplayer.CurrentPos.CalcNewLocation(l_MoveDistance, p_Direction);
+
+            // Field enclosed by walls (CurrentGameData iKey 21) -- the board boundary itself
+            // blocks movement, same as running into a BlockDirection wall.
+            if (FieldEnclosed && (l_newsquare.X < 0 || l_newsquare.Y < 0
+                || l_newsquare.X > g_BoardElements.BoardCols - 1 || l_newsquare.Y > g_BoardElements.BoardRows - 1))
+            {
+                ListOfCommands.AddCommand(thisplayer, SquareAction.BlockDirection);
+                return 0; // do not move
+            }
+
             // actions for new square
             BoardActionsCollection l_TargetActions = g_BoardElements.GetSquare(l_newsquare.X, l_newsquare.Y)?.ActionList ?? new BoardActionsCollection();
 

@@ -47,6 +47,7 @@ namespace MRR.Services
                 BoardID          = BoardID,
                 BoardFileName    = BoardFileName,
                 TotalFlags       = TotalFlags,
+                FieldEnclosed    = FieldEnclosed,
                 LaserDamage      = LaserDamage,
                 GameType         = GameType,
                 OptionsOnStartup = OptionsOnStartup,

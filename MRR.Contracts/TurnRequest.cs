@@ -16,6 +16,13 @@ namespace MRR
 
         /// <summary>Game-wide flag count, from the board (CurrentGameData iKey 7).</summary>
         public int TotalFlags { get; set; }
+
+        /// <summary>
+        /// Whether the whole field is walled in (CurrentGameData iKey 21). When true, no
+        /// robot can move below 0 or above BoardCols-1/BoardRows-1 -- see
+        /// CreateCommands.CalcMoveDistance.
+        /// </summary>
+        public bool FieldEnclosed { get; set; }
         public int LaserDamage { get; set; } = 1;
         public GameTypes GameType { get; set; }
 

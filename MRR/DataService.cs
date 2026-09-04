@@ -73,6 +73,7 @@ namespace MRR.Services
 
         public int RobotsActive     { get => _state.RobotsActive;     set => _state.RobotsActive = value; }
         public bool IsRunning       { get => _state.IsRunning;        set => _state.IsRunning = value; }
+        public bool FieldEnclosed   { get => _state.FieldEnclosed;    set => _state.FieldEnclosed = value; }
         public string BoardFileName { get => _state.BoardFileName;    set => _state.BoardFileName = value; }
         public int BoardID          { get => _state.BoardID;          set => _state.BoardID = value; }
         public int GameState        { get => _state.GameState;        set => _state.GameState = value; }

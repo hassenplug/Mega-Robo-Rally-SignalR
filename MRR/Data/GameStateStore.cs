@@ -24,6 +24,7 @@ namespace MRR.Services
         private const int KeyGameState   = 10;
         private const int KeyPhaseCount  = 16;
         private const int KeyBoardID     = 20;
+        private const int KeyFieldEnclosed = 21;
         private const int KeyOptionCount = 22;
 
         private readonly SqlGateway _sql;
@@ -79,6 +80,19 @@ namespace MRR.Services
             set { _isRunning = value; WriteThrough(KeyIsRunning, value ? 1 : 0); }
         }
 
+        private bool _fieldEnclosed;
+        /// <summary>
+        /// Whether the whole field is walled in (e.g. the game is set up inside a building),
+        /// so no robot can ever leave the board grid. When true, CreateCommands.CalcMoveDistance
+        /// blocks any move that would take a robot below 0 or above BoardCols-1/BoardRows-1,
+        /// the same as running into a wall. Written through to iKey 21.
+        /// </summary>
+        public bool FieldEnclosed
+        {
+            get => _fieldEnclosed;
+            set { _fieldEnclosed = value; WriteThrough(KeyFieldEnclosed, value ? 1 : 0); }
+        }
+
         private void WriteThrough(int iKey, int value)
         {
             using var ctx = _sql.CreateDbContext();
@@ -109,6 +123,7 @@ namespace MRR.Services
                     case KeyTotalFlags:   _totalFlags = value; break;
                     case KeyRobotsActive: RobotsActive = value; break;
                     case KeyIsRunning:    _isRunning = value != 0; break;
+                    case KeyFieldEnclosed: _fieldEnclosed = value != 0; break;
                     case KeyGameState:    _gameState = value; break;
                     case KeyPhaseCount:   PhaseCount = value; break;
                     case KeyOptionCount:  OptionsOnStartup = value; break;

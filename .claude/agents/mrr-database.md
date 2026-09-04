@@ -216,6 +216,7 @@ Key-value store for live game state. Dual-keyed: `sKey` (string) and `iKey` (int
 | BoardCols | 18 | 1 | Board X size |
 | BoardRows | 19 | 1 | Board Y size |
 | BoardID | 20 | 1 | Active board |
+| FieldEnclosed | 21 | 0 | 1 = field walled in on all sides; robots can't move off the board grid |
 | OptionCount | 22 | -1 | Options per player (-1 = none) |
 | Players | 23 | 6 | Player count |
 | PlayerListID | 25 | 1 | Active player list |
