@@ -109,6 +109,8 @@ namespace MRR
 
                 //Console.WriteLine("Process Commands:Done ");
                 // update to next state (post execute state)
+                _dataService.ReloadAllData();
+
             }
 
             if (_aborted) AbandonTurn();
