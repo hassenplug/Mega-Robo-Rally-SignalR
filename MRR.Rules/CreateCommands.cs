@@ -260,7 +260,7 @@ namespace MRR
 
 
             //   check for robot on target square
-            PlayerState? l_PushPlayer = AllPlayers.GetPlayer(l_newsquare);
+            PlayerState? l_PushPlayer = workingPlayers.GetPlayer(l_newsquare);
             if (l_PushPlayer != null)
             {
                 ListOfCommands.AddCommand(l_PushPlayer, SquareAction.RobotPush, thisplayer.ID);
@@ -415,7 +415,7 @@ namespace MRR
 
         public void ClearThisSpot(int currentX, int currentY, int changeX, int changeY, Direction changeD)
         {
-            PlayerState? blockingPlayer = AllPlayers.FirstOrDefault(wp => wp.CurrentPos.X == currentX && wp.CurrentPos.Y == currentY);
+            PlayerState? blockingPlayer = workingPlayers.FirstOrDefault(wp => wp.CurrentPos.X == currentX && wp.CurrentPos.Y == currentY);
             if (blockingPlayer!= null)
             {
                 if (currentX + changeX < 0)
@@ -988,7 +988,7 @@ namespace MRR
 
                 foreach (OptionCard currentCard in LocalOptionList)
                 {
-                    PlayerState? currentPlayer = AllPlayers.GetPlayer(currentCard.Owner);
+                    PlayerState? currentPlayer = workingPlayers.GetPlayer(currentCard.Owner);
                     if (currentPlayer != null && currentPlayer.IsRunning)
                     {
                         BoardElement? currentBoardSquare = g_BoardElements.GetSquare(currentPlayer.CurrentPos);
@@ -1168,7 +1168,7 @@ namespace MRR
                     // need to create a list of players to iderate through, but add to while iderating
                     List<PlayerState> liveplayers = [];
                     
-                    foreach (PlayerState thisplayer in AllPlayers.Where(wp => wp.IsRunning))
+                    foreach (PlayerState thisplayer in workingPlayers.Where(wp => wp.IsRunning))
                     {
                         liveplayers.Add(thisplayer);
                         OptionCard? RearLaser = OptionCards.GetOption(tOptionCardCommandType.RearLaser, thisplayer);
@@ -1342,7 +1342,7 @@ namespace MRR
 
                 foreach (BoardAction thisaction in l_CurrentActions)
                 {
-                    PlayerState? thisplayer = AllPlayers.GetPlayer(thisaction.RobotID);
+                    PlayerState? thisplayer = workingPlayers.GetPlayer(thisaction.RobotID);
                     if (thisplayer == null) continue;
                     switch (thisaction.SquareAction)
                     {
@@ -1401,7 +1401,7 @@ namespace MRR
                             AddFlag(thisplayer, thisaction.Parameter);
                             break;
                         case SquareAction.TouchLastManFlag:
-                            foreach (PlayerState oneplayer in AllPlayers.Where(op => op.LastFlag > 0))
+                            foreach (PlayerState oneplayer in workingPlayers.Where(op => op.LastFlag > 0))
                             {
                                 ListOfCommands.AddCommand(oneplayer, SquareAction.Flag, 0);
                                 oneplayer.LastFlag = 0;
@@ -1511,8 +1511,8 @@ namespace MRR
                 do
                 {
 
-                    var OverlappingRobots = from rob in AllPlayers.Where(wr=>wr.Active)
-                                            join rob2 in AllPlayers.Where(wr => wr.Active) on rob.CurrentPos.Location equals rob2.CurrentPos.Location
+                    var OverlappingRobots = from rob in workingPlayers.Where(wr=>wr.Active)
+                                            join rob2 in workingPlayers.Where(wr => wr.Active) on rob.CurrentPos.Location equals rob2.CurrentPos.Location
                                             select new { PlayerID = rob.ID, Player2ID = rob2.ID, CurrentPos = rob.CurrentPos };
 
                     var OL2 = OverlappingRobots.Where(olr => olr.PlayerID != olr.Player2ID);
@@ -1553,7 +1553,7 @@ namespace MRR
                             if (BM2.Count(bm => bm.RobotID == thisplayer.PlayerID) > 0)
                             {
                                 CommandItem firstmove = BM2.First(bm => bm.RobotID == thisplayer.PlayerID);
-                                PlayerState? thisWorkingPlayer = AllPlayers.GetPlayer(thisplayer.PlayerID);
+                                PlayerState? thisWorkingPlayer = workingPlayers.GetPlayer(thisplayer.PlayerID);
                                 thisWorkingPlayer?.SetLocation(firstmove.StartPos);
                                 thisWorkingPlayer?.NextPos.SetLocation(thisWorkingPlayer.CurrentPos);
                             }
@@ -1625,7 +1625,7 @@ namespace MRR
         {
             if (currentCard.Use())
             {
-                if (currentPlayer == null) currentPlayer = AllPlayers.GetPlayer(currentCard.Owner);
+                if (currentPlayer == null) currentPlayer = workingPlayers.GetPlayer(currentCard.Owner);
                 ListOfCommands.AddCommand(currentPlayer, currentCard);
                 ListOfCommands.AddCommand(currentPlayer, currentCard.ID, currentCard.Quantity, Direction.None, SquareAction.OptionCountSet);
                 if (currentCard.Quantity==0)
@@ -1757,7 +1757,7 @@ namespace MRR
                 AddDeathPoints(p_thisrobot, -10);
                 if (p_thisrobot.DamagedBy > 0)
                 {
-                    AddDeathPoints(AllPlayers.GetPlayer(p_thisrobot.DamagedBy)!, 10);
+                    AddDeathPoints(workingPlayers.GetPlayer(p_thisrobot.DamagedBy)!, 10);
                 }
 
                 // if died by pushing, credit others in DM game.
@@ -1785,7 +1785,7 @@ namespace MRR
                 if (pushedPlayer != p_thisrobot.ID)
                 {
                     
-                    AddDeathPoints(AllPlayers.GetPlayer(pushedPlayer)!, 10); // pushing caused this player to die
+                    AddDeathPoints(workingPlayers.GetPlayer(pushedPlayer)!, 10); // pushing caused this player to die
                 }
 
 /*
@@ -1828,7 +1828,7 @@ namespace MRR
             //    AddDamage(PlayerDamage.WP, PlayerDamage.Index);
             //}
 
-            var DamagedPlayerList = AllPlayers.Join(DamageSquareList, player => player.CurrentPos.Location, ds => ds.Location, (player, ds) => new { WPlayer = player, Damage = ds.Index });
+            var DamagedPlayerList = workingPlayers.Join(DamageSquareList, player => player.CurrentPos.Location, ds => ds.Location, (player, ds) => new { WPlayer = player, Damage = ds.Index });
 
             foreach (var PlayerDamage in DamagedPlayerList)
             {
