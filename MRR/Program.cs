@@ -192,32 +192,22 @@ app.MapGet("/api/player/{command:int}/{playerId:int?}/{data1:int?}/{data2:int?}"
 // Grid-alignment endpoint: download a camera frame, detect black grid lines,
 // and nudge the robot until it is centered on its board square.
 // GET /api/robot/align/{robotId}
-app.MapGet("/api/robot/alignthis/{robotId:int}", async (int robotId, DataService dataService) =>
+app.MapGet("/api/robot/alignthis/{robotId:int}", async (int robotId, DataService dataService, GameController gameController) =>
 {
-    var dt = dataService.GetQueryResults(
-        $"SELECT rb.IPAddress FROM Robots r JOIN RobotBases rb ON r.RobotBaseID = rb.RobotBaseID WHERE r.RobotID={robotId};");
-    if (dt.Rows.Count == 0)
+    // Use the shared AllPlayers connection registry instead of dialing a second,
+    // throwaway socket to the same robot -- see Players.cs / DataService.AllPlayers.
+    var robot = dataService.AllPlayers.GetPlayer(robotId);
+    if (robot == null)
         return Results.NotFound(new { error = $"Robot {robotId} not found" });
 
-    var ipAddress = dt.Rows[0]["IPAddress"]?.ToString();
-    if (string.IsNullOrWhiteSpace(ipAddress))
-        return Results.BadRequest(new { error = $"Robot {robotId} has no IP address configured" });
-
-    var robot = new Player { IPAddress = ipAddress };
-    await robot.ConnectAsync();
+    if (!robot.isConnected)
+        gameController.ConnectToRobot(robotId);
 
     if (!robot.isConnected)
-        return Results.Problem($"Could not connect to robot {robotId} at {ipAddress}");
+        return Results.Problem($"Could not connect to robot {robotId} at {robot.IPAddress}");
 
-    try
-    {
-        var result = await robot.AlignAsync();
-        return Results.Ok(result);
-    }
-    finally
-    {
-        await robot.DisposeAsync();
-    }
+    var result = await robot.AlignAsync();
+    return Results.Ok(result);
 });
 
 app.MapGet("/api/robot/{function?}/{parameter1?}", async (string? function, string? parameter1, DataService dataService, IHubContext<DataHub> hubContext, GameController gameController) =>
@@ -230,8 +220,19 @@ app.MapGet("/api/robot/{function?}/{parameter1?}", async (string? function, stri
     switch (function)
     {
         case "align":
-            var robot1 = await new Player().Connect(parameter1 ?? "");
-            await (robot1?.AlignAsync() ?? Task.CompletedTask);
+            // Use the shared AllPlayers connection registry (same one "connect"/"disconnect"
+            // use below) instead of dialing a second, throwaway socket to the robot.
+            if (int.TryParse(parameter1, out var alignRobotId))
+            {
+                var robotToAlign = dataService.AllPlayers.GetPlayer(alignRobotId);
+                if (robotToAlign != null)
+                {
+                    if (!robotToAlign.isConnected)
+                        gameController.ConnectToRobot(robotToAlign.ID);
+                    if (robotToAlign.isConnected)
+                        await robotToAlign.AlignAsync();
+                }
+            }
             break;
         case "connect":
             if (parameter1 == "all")

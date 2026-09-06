@@ -77,6 +77,14 @@ namespace MRR.Services
         {
             if (_allPlayers == null || forceRefresh)
             {
+                // Close any live robot sockets before discarding the old registry --
+                // otherwise ConnectToAllRobots() opens a second connection to the same
+                // physical robot on top of the one this list is about to orphan.
+                if (_allPlayers != null)
+                {
+                    Task.WhenAll(_allPlayers.Where(p => p.isConnected).Select(p => p.DisposeAsync().AsTask())).Wait();
+                }
+
                 var players = new Players();
 
                 string strSQL = @"SELECT r.RobotID, rb.Name AS RobotName, rb.Color AS RobotColor, rb.ColorFG AS RobotColorFG,
