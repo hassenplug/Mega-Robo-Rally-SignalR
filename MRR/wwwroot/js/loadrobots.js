@@ -145,55 +145,11 @@ function SendUpdate(command, playerid=0, data1=0, data2=0)
         .catch(err => console.error(err.toString()));
 }
 
-// signalR part with automatic reconnect
-const connection = new signalR.HubConnectionBuilder()
-    .withUrl("/datahub")
-    .withAutomaticReconnect()
-    .build();
-
-connection.on("AllDataUpdate", function (data) {
-    //console.log("Data received from server:", data);
-
-    // The server may now send a JSON string (or an object). Normalize to an object.
-    if (typeof data === 'string') {
-        try {
-            data = JSON.parse(data);
-        } catch (err) {
-            console.error('Failed to parse AllDataUpdate payload as JSON', err, data);
-            return;
-        }
-    }
-
-    datapacket = data;
+// connection/reconnect handling lives in js/datahub-connection.js; this listens for
+// the payload it dispatches.
+document.addEventListener('datapacket', function (ev) {
+    datapacket = ev.detail;
     showall();
     showplayerprogram(CurrentLine);
 });
-
-// handle reconnect lifecycle events
-connection.onreconnecting(error => {
-    console.warn('SignalR connection lost. Reconnecting...', error);
-});
-
-connection.onreconnected(connectionId => {
-    console.log('SignalR reconnected. ConnectionId:', connectionId);
-});
-
-connection.onclose(error => {
-    console.error('SignalR connection closed.', error);
-    // try to restart the connection after a short delay
-    setTimeout(() => startConnection(), 2000);
-});
-
-function startConnection() {
-    connection.start().then(() => {
-        console.log("SignalR Connected!");
-        fetch('/api/alldata').catch(err => console.error('Initial data fetch failed', err));
-    }).catch(function (err) {
-        console.error('SignalR failed to connect, retrying in 2s', err.toString());
-        setTimeout(() => startConnection(), 2000);
-    });
-}
-
-// start initially
-startConnection();
 

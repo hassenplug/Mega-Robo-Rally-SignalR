@@ -129,46 +129,9 @@ document.addEventListener('click', function (ev) {
     if (menuBar && !menuBar.contains(ev.target)) closeMenu();
 });
 
-// signalR part with automatic reconnect -- same subscription index.html uses (js/loadrobots.js)
-const connection = new signalR.HubConnectionBuilder()
-    .withUrl("/datahub")
-    .withAutomaticReconnect()
-    .build();
-
-connection.on("AllDataUpdate", function (data) {
-    if (typeof data === 'string') {
-        try {
-            data = JSON.parse(data);
-        } catch (err) {
-            console.error('Failed to parse AllDataUpdate payload as JSON', err, data);
-            return;
-        }
-    }
-    datapacket = data;
+// connection/reconnect handling lives in js/datahub-connection.js; this listens for
+// the payload it dispatches.
+document.addEventListener('datapacket', function (ev) {
+    datapacket = ev.detail;
     showAll();
 });
-
-connection.onreconnecting(function (error) {
-    console.warn('SignalR connection lost. Reconnecting...', error);
-});
-
-connection.onreconnected(function (connectionId) {
-    console.log('SignalR reconnected. ConnectionId:', connectionId);
-});
-
-connection.onclose(function (error) {
-    console.error('SignalR connection closed.', error);
-    setTimeout(function () { startConnection(); }, 2000);
-});
-
-function startConnection() {
-    connection.start().then(function () {
-        console.log("SignalR Connected!");
-        fetch('/api/alldata').catch(function (err) { console.error('Initial data fetch failed', err); });
-    }).catch(function (err) {
-        console.error('SignalR failed to connect, retrying in 2s', err.toString());
-        setTimeout(function () { startConnection(); }, 2000);
-    });
-}
-
-startConnection();

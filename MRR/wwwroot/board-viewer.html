@@ -84,6 +84,7 @@
 <body>
     <div id="boardContainer" style="width:fit-content;margin:auto;"></div>
     <script src="js/signalr.min.js"></script>
+    <script src="js/datahub-connection.js" type="text/javascript" charset="utf-8"></script>
     <script>
     const SA_FLAG = 16, SA_START = 19;
 
@@ -171,35 +172,17 @@
         container.innerHTML = '';
         container.appendChild(boardDiv);
 
-        // Connect to SignalR and listen for robot updates
-        connectToHub();
+        // Robot updates arrive via the shared connection in js/datahub-connection.js
     }
 
-    function connectToHub() {
-        const connection = new signalR.HubConnectionBuilder()
-            .withUrl("/datahub")
-            .withAutomaticReconnect()
-            .build();
-
-        connection.on("AllDataUpdate", function(data) {
-            // Normalize data if it's a string
-            if (typeof data === 'string') {
-                try {
-                    data = JSON.parse(data);
-                } catch (err) {
-                    console.error('Failed to parse AllDataUpdate:', err);
-                    return;
-                }
-            }
-
-            // Update robot positions on board
-            if (data.robots && Array.isArray(data.robots)) {
-                updateRobotPositions(data.robots);
-            }
-        });
-
-        connection.start().catch(err => console.error('SignalR connection error:', err));
-    }
+    // connection/reconnect handling lives in js/datahub-connection.js; this listens
+    // for the payload it dispatches.
+    document.addEventListener('datapacket', function (ev) {
+        const data = ev.detail;
+        if (data.robots && Array.isArray(data.robots)) {
+            updateRobotPositions(data.robots);
+        }
+    });
 
     function updateRobotPositions(robots) {
         // Clear existing robot markers
