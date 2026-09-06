@@ -12,6 +12,10 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// RobotConnections holds no game state and needs nothing but the AllData rows passed to
+// Refresh(), so it has no dependency on DataService -- register before it.
+builder.Services.AddSingleton<MRR.Devices.RobotConnections>();
+
 // Register DataService first so we can use its connection string
 builder.Services.AddSingleton<DataService>();
 

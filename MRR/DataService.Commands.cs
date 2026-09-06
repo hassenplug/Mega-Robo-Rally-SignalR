@@ -246,7 +246,7 @@ namespace MRR.Services
                 case SquareAction.FireCannon:
                     break;
                 case SquareAction.SetButtonText:
-                    ExecuteSQL($"UPDATE Robots SET PlayerMsg = '', MessageCommandID = '' " +
+                    ExecuteSQL($"UPDATE Robots SET PlayerMsg = '', MessageCommandID = NULL " +
                         $" WHERE RobotID = {cRobotID}");
                     break;
 

@@ -3,6 +3,7 @@ using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using System.IO;
 using System.Text.Json;
+using MRR.Devices;
 
 namespace MRR;
 
@@ -72,7 +73,7 @@ public static class GridAlignmentAgent
 
     // Capture image → detect lines → correct in order: rotation, lateral, forward/back.
     // Loops until aligned or maxIterations exhausted.
-    public static async Task<GridLineAnalysis> AlignAsync(Player robot, int maxIterations = 10)
+    public static async Task<GridLineAnalysis> AlignAsync(RobotConnection robot, int maxIterations = 10)
     {
         var last = new GridLineAnalysis(false, 0, 0, -1, -1, false);
 

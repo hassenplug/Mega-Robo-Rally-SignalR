@@ -9,6 +9,7 @@ using MRR.Data;
 using MRR.Data.Entities;
 using System.Xml.Serialization;
 using MRR;
+using MRR.Devices;
 
 namespace MRR.Services
 {
@@ -77,13 +78,12 @@ namespace MRR.Services
         {
             if (_allPlayers == null || forceRefresh)
             {
-                // Close any live robot sockets before discarding the old registry --
-                // otherwise ConnectToAllRobots() opens a second connection to the same
-                // physical robot on top of the one this list is about to orphan.
-                if (_allPlayers != null)
-                {
-                    Task.WhenAll(_allPlayers.Where(p => p.isConnected).Select(p => p.DisposeAsync().AsTask())).Wait();
-                }
+                // Reconcile the robot connection registry from the same rows AllDataPayload
+                // sends to every client -- no separate query for IP. Refresh() keeps a live
+                // socket alive across this rebuild (it lives on RobotConnections, not on the
+                // Player objects below), so discarding _allPlayers here can no longer orphan or
+                // duplicate a connection.
+                _robotConnections.Refresh(GetRobotsFromTable());
 
                 var players = new Players();
 
@@ -100,9 +100,10 @@ namespace MRR.Services
                 var loadplayers = this.GetQueryResults(strSQL);
                 foreach (DataRow row in loadplayers.Rows)
                 {
+                    int robotId = (int)row["RobotID"];
                     players.Add(new Player()
                     {
-                        ID                  = (int)row["RobotID"],
+                        ID                  = robotId,
                         PlayerSeat          = (int)row["PlayerSeat"],
                         Name                = row["RobotName"].ToString() ?? "",
                         Color               = row["RobotColor"].ToString() ?? "FFFFFF",
@@ -110,7 +111,8 @@ namespace MRR.Services
                         Password            = row["Password"]?.ToString() ?? "",
                         IPAddress           = row["IPAddress"].ToString(),
                         PlayerViewDirection = Convert.ToInt32(row["PlayerViewDirection"]),
-                        AllGameCards        = GameCards
+                        AllGameCards        = GameCards,
+                        Connection          = _robotConnections.Get(robotId),
                     });
                     //Console.WriteLine("Loaded player ID:" + row["RobotID"].ToString() + " Name:" + row["RobotName"].ToString() + " IP:" + IPAddress);
                 }

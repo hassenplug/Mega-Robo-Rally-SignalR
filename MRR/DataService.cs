@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using MRR.Data;
 using MRR.Data.Entities;
 using System.Xml.Serialization;
+using MRR.Devices;
 
 namespace MRR.Services
 {
@@ -21,13 +22,15 @@ namespace MRR.Services
 
         private readonly string _connectionString;
         private string DatabaseName => _sql.DatabaseName;
+        private readonly RobotConnections _robotConnections;
 
-        public DataService(IConfiguration configuration)
+        public DataService(IConfiguration configuration, RobotConnections robotConnections)
         {
             _connectionString = configuration.GetConnectionString("Rally")
                 ?? throw new InvalidOperationException("Connection string 'Rally' not found in configuration.");
             _sql = new SqlGateway(_connectionString);
             _state = new GameStateStore(_sql);
+            _robotConnections = robotConnections;
         }
 
         public string ConnectionString => _sql.ConnectionString;
