@@ -195,7 +195,12 @@ namespace MRR
 
                     break;
                 case MoveCard.tCardType.PowerUp:
+                    
+                    ListOfCommands.AddCommand(thisplayer, SquareAction.StartBotMove, 1);
                     ListOfCommands.SetEnergy(thisplayer, thisplayer.Energy+1);
+                    ListOfCommands.AddCommand(thisplayer, SquareAction.StopBotMove,0);
+                    ListOfCommands.AddCommand(thisplayer, SquareAction.SetPlayerStatus, 12);
+
                     break;
                 case MoveCard.tCardType.Option:
                 case MoveCard.tCardType.Unknown:
