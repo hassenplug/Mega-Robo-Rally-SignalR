@@ -527,6 +527,8 @@ namespace MRR
             /// 2) change all steps between turns to new direction
             /// 3) return all robots to correct direction
             ///
+            /// 
+            /*
 
             //PlayerStates PlayerDirections = new PlayerStates(AllPlayers);
             // Note: Don't refresh real AllPlayers; we're working on copy only
@@ -587,6 +589,8 @@ namespace MRR
                 }
                 lastcommand = null;
             }
+
+            */
 
 
 
