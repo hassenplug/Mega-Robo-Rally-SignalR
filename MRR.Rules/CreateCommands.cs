@@ -291,6 +291,7 @@ namespace MRR
                 {
                 }
             }
+            /*
             else if ((l_newsquare.X == 0 
                     || l_newsquare.Y == 0 
                     || l_newsquare.X == g_BoardElements.BoardCols - 1 
@@ -320,7 +321,7 @@ namespace MRR
                 // move
                 ClearThisSpot(l_newsquare.X, l_newsquare.Y, xChange, yChange, dChange);
 
-            }
+            }*/
 
 
             // move robot...  (make actual move)
