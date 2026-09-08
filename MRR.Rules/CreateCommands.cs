@@ -791,6 +791,7 @@ namespace MRR
         public int TurnRobot(PlayerState p_thisplayer, CommandItem? p_OnMove, tCommandSequence p_Sequence)
         {
             // return number of commands added
+            return 0;
 
             if (p_OnMove == null) return 0;
 
@@ -800,6 +801,13 @@ namespace MRR
             switch (newdir)
             {
                 case 0:
+                    // Robot's own facing already matches the command's absolute travel
+                    // direction, so the drive angle is "straight ahead" (ValueB=1) --
+                    // regardless of how MoveRobot originally built this command. A pushed
+                    // robot's ValueB is set from the *pusher's* distance sign (see
+                    // MoveRobot), which has no relation to the pushed robot's own facing, so
+                    // it can be wrong here (e.g. left at 3/reverse) unless we recompute it.
+                    //p_OnMove.ValueB = 1;
                     return 0;
                 case -1:
                     p_OnMove.ValueB = 4;

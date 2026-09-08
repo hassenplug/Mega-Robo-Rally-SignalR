@@ -587,6 +587,25 @@ Create a small form.  Data should be pulled using the same subscription as index
   pushers, lasers, option cards) — none of that is covered yet; `MRR.Tests` only has the
   position-bug regression tests above so far.
 
+- [x] Test-game DB snapshot added 2026-09-07 — `install/testgame-snapshot.sql` holds a data-only
+  dump of `Robots`, `MoveCards`, `CurrentGameData` (schema must already exist, from
+  `install/MRRDatabase.sql`) for quickly resetting the live `rally` database to a known
+  mid-game state instead of playing a game by hand each time. Reimport is idempotent (each
+  table's section starts with `DELETE FROM`, so re-running it re-applies the same snapshot
+  cleanly):
+  ```
+  mysql -h localhost -u mrr -prallypass rally < install/testgame-snapshot.sql
+  ```
+  Regenerate it from the live database when you want to capture a new test state:
+  ```
+  mysqldump -h localhost -u mrr -prallypass \
+    --no-create-info --skip-triggers --complete-insert --skip-extended-insert \
+    rally Robots MoveCards CurrentGameData > install/testgame-snapshot.sql
+  ```
+  then re-add the three `DELETE FROM <table>;` lines (one before each table's `LOCK TABLES`)
+  that mysqldump itself doesn't emit, so a re-import doesn't hit duplicate-key errors against
+  whatever is already in those tables.
+
 ---
 
 ## Done *(reference)*

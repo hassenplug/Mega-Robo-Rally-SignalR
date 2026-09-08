@@ -162,7 +162,7 @@ namespace MRR
         /// How long to wait for a robot to finish a command before giving up on it. Generous:
         /// a full-square move plus an IMU-corrected turn takes a few seconds.
         /// </summary>
-        private static readonly TimeSpan CommandDeadline = TimeSpan.FromSeconds(30);
+        private static readonly TimeSpan CommandDeadline = TimeSpan.FromSeconds(10);
 
         /// <summary>Gap between polls of the in-flight command set.</summary>
         private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(20);
@@ -276,7 +276,9 @@ namespace MRR
 
         */
         private static void LogCommand(CommandItem command, string text)
-            => Console.WriteLine($"{text}({command.RobotID})[{command.CommandCatID}]{{{command.CommandType}}}-{command.Value},{command.ValueB}:{command.Description}");
+            => Console.WriteLine($"");
+//        private static void LogCommand(CommandItem command, string text)
+//            => Console.WriteLine($"{text}({command.RobotID})[{command.CommandCatID}]{{{command.CommandType}}}-{command.Value},{command.ValueB}:{command.Description}");
 
 //        public async Task<bool> ExecuteCommand(CommandItem onecommand)
 

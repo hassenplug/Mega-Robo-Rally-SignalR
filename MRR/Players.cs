@@ -232,7 +232,8 @@ namespace MRR
         internal void UpdateStatusLEDs()
         {
             int CPCount = CardsPlayedStr.Split(',').Count(s => s != "0" && s != "") ;
-            SendColorStatus(CPCount==5?0:1);
+            Console.WriteLine($"Player {ID} played {CPCount} cards {CardsPlayedStr}");
+            SendColorStatus(CPCount==5?1:0);
         }
     }
 }

@@ -95,6 +95,7 @@ namespace MRR.Devices
             }
 
             var jsonCommand = JsonSerializer.Serialize(command);
+            //Console.WriteLine($"[{RobotID}] cmd: {jsonCommand}");
             var bytes = Encoding.UTF8.GetBytes(jsonCommand);
 
             await wsCmd.SendAsync(
@@ -113,7 +114,7 @@ namespace MRR.Devices
                 var response = Encoding.UTF8.GetString(buffer, 0, result.Count);
                 var responseObj = JsonSerializer.Deserialize<Dictionary<string, object>>(response);
 
-                Console.WriteLine($"[{RobotID}] cmd ACK: {response}");
+                //Console.WriteLine($"[{RobotID}] cmd ACK: {response}");
 
                 if (responseObj != null && responseObj.ContainsKey("status"))
                 {
@@ -152,7 +153,7 @@ namespace MRR.Devices
                     return new RobotStatus();
 
                 var json = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                Console.WriteLine($"[{RobotID}] status: {json}");
+                //Console.WriteLine($"[{RobotID}] status: {json}");
                 var status = JsonSerializer.Deserialize<RobotStatus>(json) ?? new RobotStatus();
                 return status;
             }
@@ -265,8 +266,10 @@ namespace MRR.Devices
             int newX_mm = (int)(distance * mmPerSquare * Math.Sin(newDir));
             int newY_mm = (int)(distance * mmPerSquare * Math.Cos(newDir));
             await SetPoseAsync(-newX_mm, -newY_mm);
+            //Console.WriteLine($"[MoveAndWait] angle={angle}, preHeading={preHeading}, newDir={newDir}, newX_mm={newX_mm}, newY_mm={newY_mm}");
 
             // main move
+            Console.WriteLine($"[MoveAndWait] MoveAsync(distance={distance * mmShortMove}, direction={RotationFunctions.Degrees(angle)}, preHeading={preHeading})");
             await MoveAsync(distance * mmShortMove, RotationFunctions.Degrees(angle), preHeading);
 
             // wait for the move to complete
