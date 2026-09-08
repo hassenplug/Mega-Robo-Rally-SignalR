@@ -75,4 +75,63 @@ public class PushedRobotDriveDirectionTests
         // matches the travel direction, so it should drive straight ahead (1).
         Assert.Equal(1, pushedMove.ValueB);
     }
+
+    [Fact]
+    public void RobotPushedSidewaysToItsFacing_DrivesLeftNotStraight()
+    {
+        // Pusher backs up (Back1) from (2,2) facing Right -- travels Left, into (1,2).
+        var pusher = new PlayerState
+        {
+            ID = PusherId,
+            Active = true,
+            Priority = 1,
+            CurrentPos = new RobotLocation(Direction.Right, 2, 2),
+        };
+        pusher.NextPos = new RobotLocation(pusher.CurrentPos);
+
+        // Pushed robot sits at (1,2), facing Up -- perpendicular to the push's travel
+        // direction (Left, toward (0,2)). Its own facing never rotates during a push, so
+        // TurnRobot must recompute the drive angle as a 90-degree skew (strafe left),
+        // not straight ahead.
+        var pushed = new PlayerState
+        {
+            ID = PushedId,
+            Active = true,
+            Priority = 2,
+            CurrentPos = new RobotLocation(Direction.Up, 1, 2),
+        };
+        pushed.NextPos = new RobotLocation(pushed.CurrentPos);
+
+        var card = new MoveCard(1, MoveCard.tCardType.Back1) { Owner = PusherId, PhasePlayed = 1 };
+
+        var request = new TurnRequest
+        {
+            Turn = 1,
+            Phase = 0,
+            PhaseCount = 1,
+            GameState = 6, // CreateCommands.ExecuteTurn refuses to plan in any other state
+            Board = new BoardElementCollection(5, 5),
+            Players = [pusher, pushed],
+            GameCards = [card],
+        };
+
+        var plan = new CreateCommands(request).ExecuteTurn();
+
+        Assert.True(plan.Planned, plan.Summary);
+
+        var pushedMove = plan.Commands.Single(c => c.RobotID == PushedId && c.CommandType == SquareAction.PushedMove);
+
+        // Sanity: the pushed robot really did end up one square further Left, still facing Up.
+        Assert.Equal(0, pushedMove.EndPos.X);
+        Assert.Equal(2, pushedMove.EndPos.Y);
+
+        // The bug: TurnRobot's "Before" pass correctly computes ValueB=4 (strafe left) from
+        // CommandDirection, but the "After" pass that runs at the end of every player's
+        // command list re-derives ValueB from EndPos.Direction -- which for a translate-only
+        // move is just the robot's own unchanged facing (Up), not the travel direction (Left).
+        // That recomputes RotationDifference(Up, Up) = 0 and stomps ValueB back to 1 (straight
+        // ahead), so the robot would drive forward into whatever is Up instead of strafing
+        // left into the square it was actually pushed to.
+        Assert.Equal(4, pushedMove.ValueB);
+    }
 }

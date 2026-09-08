@@ -792,12 +792,21 @@ namespace MRR
         public int TurnRobot(PlayerState p_thisplayer, CommandItem? p_OnMove, tCommandSequence p_Sequence)
         {
             // return number of commands added
-            return 0;
+            //return 0;
 
             if (p_OnMove == null) return 0;
 
+            // Always reconcile against CommandDirection (the move's actual absolute travel
+            // direction), never EndPos.Direction. p_OnMove here is always a Move/PushedMove-type
+            // command (Rotate-type commands clear lastcommand before this runs -- see call
+            // sites), and translation never changes a robot's own facing, so EndPos.Direction
+            // is just a snapshot of that facing -- unrelated to which way the move travels. The
+            // "After" sequence used to read targetdir from EndPos.Direction, which for a pushed
+            // robot whose facing differs from the push direction meant RotationDifference came
+            // back 0 (facing compared to itself) and stomped a correctly-computed ValueB back to
+            // 1/straight-ahead, even though the robot actually needed to strafe or reverse.
             Direction targetdir = p_OnMove.CommandDirection;
-            if (p_Sequence == tCommandSequence.After) targetdir = p_OnMove.EndPos.Direction;
+            //if (p_Sequence == tCommandSequence.After) targetdir = p_OnMove.EndPos.Direction;
             int newdir = RotationFunctions.RotationDifference(p_thisplayer.CurrentPos.Direction, targetdir);
             switch (newdir)
             {
@@ -808,7 +817,7 @@ namespace MRR
                     // robot's ValueB is set from the *pusher's* distance sign (see
                     // MoveRobot), which has no relation to the pushed robot's own facing, so
                     // it can be wrong here (e.g. left at 3/reverse) unless we recompute it.
-                    //p_OnMove.ValueB = 1;
+                    p_OnMove.ValueB = 1;
                     return 0;
                 case -1:
                     p_OnMove.ValueB = 4;
