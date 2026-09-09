@@ -98,9 +98,15 @@ namespace MRR
         /// <param name="p_Direction"></param>
         /// <param name="p_Action"></param>
         /// <returns></returns>
-        public CommandItem AddCommand(PlayerState? p_Player, Direction p_Direction, SquareAction p_Action)
+        public CommandItem AddCommand(PlayerState p_Player, Direction p_Direction, SquareAction p_Action)
         {
-            CommandItem newCommand = new CommandItem(Phase, PhaseStep, p_Player, 1, (int)p_Direction, p_Direction, p_Action);
+            // holddir is p_Direction (the move's absolute board direction) expressed relative
+            // to the robot's own facing -- 1=straight ahead, 2=right, 3=back, 4=left -- using
+            // the same reconciliation TurnRobot performs (CreateCommands.cs TurnRobot()).
+            int holddir = (int)RotationFunctions.Rotate(
+                RotationFunctions.RotationDifference(p_Player.CurrentPos.Direction, p_Direction),
+                Direction.Up);
+            CommandItem newCommand = new CommandItem(Phase, PhaseStep, p_Player, 1, holddir, p_Direction, p_Action);
             this.Add(newCommand);
             //newCommand.RunningCounter = this.Count();
             //if (p_Player.ID ==
