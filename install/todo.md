@@ -33,6 +33,10 @@
   - [x] Express belts move first (2 squares), then all belts (1 square)
   - [x] Chained movement: robot landing on a second belt also moves
   - [ ] Merge conveyor belts (splitting paths converge)
+  - [ ] Conveyor belts can push a robot off the board (into a pit/off the edge) and through
+    walls — belt movement doesn't appear to respect the same wall/boundary checks as normal
+    moves (see `CalcMoveDistance`'s wall check and the `FieldEnclosed` boundary check,
+    Section 6)
 
 - [ ] Pushers (`CreateCommands.cs`)
   - Activate only on specific phases (odd or even, marked per pusher)
