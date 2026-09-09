@@ -1,6 +1,6 @@
 # Mega Robo Rally — Project Status & Operations Handbook
 
-**Last updated:** 2026-08-22
+**Last updated:** 2026-09-09
 **Target host:** `mrobopi` — Raspberry Pi 5, Debian 13 (trixie), aarch64, kernel 6.18.34
 
 This is the practical document: how to rebuild the machine, how to run the parts, how to
@@ -10,9 +10,9 @@ see [API_DECOMPOSITION_DESIGN.md](documents/API_DECOMPOSITION_DESIGN.md); for su
 
 > **Read this first.** The architecture was substantially rebuilt on 2026-08-22 — four
 > projects, two processes, and changes to the turn planner, card handling and robot
-> dispatch. **None of it has been exercised by a played turn.** It builds clean and the
-> pieces were tested individually against the live database, but the game as a whole is
-> unproven since the rework. Treat the first game as a test, and see §4.
+> dispatch. Turns have since been played against it and several movement/direction bugs
+> were found and fixed (see §4.1) — but Spam resolution specifically has not been confirmed
+> exercised, so watch it closely on the next played turn. See §4 for what's still open.
 
 ---
 
@@ -353,15 +353,18 @@ where the turn started, or **Create Program (state 15)** to reprogram.
 
 ## 4. Known issues
 
-### 4.1 Nothing has been played since the rework — the big one
+### 4.1 Exercised since the rework, bugs found and fixed
 
 The planner (`MRR.Rules`), the pre-drawn Spam deck, the debounced SignalR publishing and the
-robot dispatch changes are all new as of 2026-08-22 and **have never run a real turn**. The
-riskiest area is Spam resolution: replacement cards are now drawn up front by Master rather
-than pulled from the database mid-simulation. Watch the first game closely, particularly a
-turn where someone plays a Spam card.
+robot dispatch changes were new as of 2026-08-22. Since then a game has been run through at
+least 5 turns (`HistoryRobots`, GameID 1), surfacing and fixing several movement/direction
+bugs (commits "Fixing movement errors", "Trying to fix the robot direction", "Fix Move
+Command to move the correct direction", 2026-09-07/08). The riskiest area is still Spam
+resolution: replacement cards are now drawn up front by Master rather than pulled from the
+database mid-simulation, and that path has not been confirmed exercised. Watch it closely on
+the next turn where someone plays a Spam card.
 
-### 4.2 Twelve of the 89 boards are unplayable
+### 4.2 At least twelve boards are unplayable
 
 - **6 boards have gaps in flag numbering** (board 3 is `1,4`; board 42 is `1,2,4`). A robot
   only advances when it reaches `LastFlag + 1`, so nothing bridges a gap and the board
@@ -369,10 +372,12 @@ turn where someone plays a Spam card.
 - **6 boards have duplicate player start positions** (two robots assigned the same square).
   Boards: **20, 40, 41, 59, 67, 71**.
 
-> `SELECT COUNT(*) FROM Boards` returns **90**, not 89. `BoardID 0` is the editor's
-> square-type palette template, not a playable board — it is what the palette reads, and it
-> is seeded by `POST /api/boardeditor/template/seed`. Counts of playable boards should use
-> `WHERE BoardID > 0`.
+> `SELECT COUNT(*) FROM Boards` returns **91** as of 2026-09-09 (was 90 as of 2026-08-22 —
+> one board has been added since). `BoardID 0` is the editor's square-type palette template,
+> not a playable board — it is what the palette reads, and it is seeded by `POST
+> /api/boardeditor/template/seed`. Counts of playable boards should use `WHERE BoardID > 0`.
+> The newly added board has not been checked against the two failure modes above — validate
+> it (§3.1 step 2) before assuming it's clean.
 
 All 6 gap boards are `GameType 1` (KingOfTheHill), where the numbering may be deliberate —
 worth checking before "fixing" them. Validate any board before using it.
@@ -399,10 +404,11 @@ attempt fails and is logged — but that seat cannot use a physical robot.
 committed. Consider moving to `appsettings.Production.json` outside the repo before making
 the repository public.
 
-### 4.7 No automated tests
+### 4.7 Test coverage is thin
 
-There is no test project. Every change is verified by building and, ultimately, by playing.
-This is a deliberate decision, but it is why §4.1 matters so much.
+`MRR.Tests` now exists (added 2026-09-04) with a handful of unit tests (e.g.
+`CommandItemPositionTests.cs`, `RobotLocationTests.cs`) covering movement/position logic.
+Most of the app is still verified by building and, ultimately, by playing — see §4.1.
 
 ---
 
@@ -435,11 +441,12 @@ architecture.
 
 ### 5.3 Housekeeping
 
-- Push the branch. `pre-decomposition-cleanup` is well ahead of `origin` and the name stopped
-  being accurate long ago — consider renaming it.
+- `pre-decomposition-cleanup` is now pushed and up to date with `origin` — the name stopped
+  being accurate long ago; consider renaming it.
 - Re-run `install/service/install.sh` on any machine that has the old layout: deploy
   directories moved from `/srv/mrr/app` to `/srv/mrr/game` and `/srv/mrr/config`.
-- Decide about the 12 invalid boards (§4.2).
+- Decide about the invalid boards (§4.2) — now possibly 13 pending validation of the newly
+  added board.
 
 ---
 
@@ -545,4 +552,4 @@ label on the robot.
 | Robots do not connect | `RobotBases.IPAddress`, robots powered and on the right network |
 | Odd startup crash / NRE | Check the database connection first. `SqlGateway` swallows database errors and returns empty results, so a bad connection string surfaces later as a null reference somewhere unrelated |
 | Game acts on stale data | `GET /api/admin/diagnostics` for memory-vs-database drift |
-| A turn hangs | A robot stopped responding; commands now time out after 30s and are logged. `POST /api/execution/abort` to stop the turn |
+| A turn hangs | A robot stopped responding; commands now time out after 10s (`CommandProcess.CommandDeadline`) and are logged. `POST /api/execution/abort` to stop the turn |

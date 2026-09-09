@@ -16,6 +16,12 @@ namespace MRR.Devices
     /// </summary>
     public class RobotConnections : List<RobotConnection>
     {
+        // Guards this list's own Add/Remove/lookup against concurrent Refresh() calls -- Refresh()
+        // runs both on the command-processing background thread (via CommandProcess.ReloadAllData)
+        // and on HTTP request threads (e.g. GameController.LoadCurrentGame), so two callers can
+        // otherwise mutate the underlying List<T> at the same time.
+        private readonly object _listLock = new object();
+
         /// <summary>
         /// Reconciles the registry against the current robot roster. A robot already present at
         /// the same IP keeps its connection untouched (including a live socket); a robot whose
@@ -25,46 +31,64 @@ namespace MRR.Devices
         /// </summary>
         public void Refresh(List<RobotData> robots)
         {
-            var seenIds = new HashSet<int>();
-
-            foreach (var row in robots)
+            lock (_listLock)
             {
-                seenIds.Add(row.RobotID);
-                var existing = this.Find(c => c.RobotID == row.RobotID);
+                var seenIds = new HashSet<int>();
 
-                if (existing == null)
+                foreach (var row in robots)
                 {
-                    Console.WriteLine($"RobotConnections.Refresh: new robot {row.RobotID} at {row.IPAddress}");
-                    Add(new RobotConnection(row.RobotID, row.IPAddress));
-                }
-                else if (existing.IPAddress != row.IPAddress)
-                {
-                    Console.WriteLine($"RobotConnections.Refresh: robot {row.RobotID} changed IP from {existing.IPAddress} to {row.IPAddress}");
-                    DisposeQuietly(existing);
-                    Remove(existing);
-                    Add(new RobotConnection(row.RobotID, row.IPAddress));
-                }
-                // else: same robot, same IP -- leave it alone, connected or not.
-            }
+                    seenIds.Add(row.RobotID);
+                    var existing = this.Find(c => c.RobotID == row.RobotID);
 
-            var stale = this.Where(c => !seenIds.Contains(c.RobotID)).ToList();
-            foreach (var connection in stale)
-            {
-                Console.WriteLine($"RobotConnections.Refresh: robot {connection.RobotID} removed");
-                DisposeQuietly(connection);
-                Remove(connection);
+                    if (existing == null)
+                    {
+                        Console.WriteLine($"RobotConnections.Refresh: new robot {row.RobotID} at {row.IPAddress}");
+                        Add(new RobotConnection(row.RobotID, row.IPAddress));
+                    }
+                    else if (existing.IPAddress != row.IPAddress)
+                    {
+                        Console.WriteLine($"RobotConnections.Refresh: robot {row.RobotID} changed IP from {existing.IPAddress} to {row.IPAddress}");
+                        DisposeQuietly(existing);
+                        Remove(existing);
+                        Add(new RobotConnection(row.RobotID, row.IPAddress));
+                    }
+                    // else: same robot, same IP -- leave it alone, connected or not.
+                }
+
+                var stale = this.Where(c => !seenIds.Contains(c.RobotID)).ToList();
+                foreach (var connection in stale)
+                {
+                    Console.WriteLine($"RobotConnections.Refresh: robot {connection.RobotID} removed");
+                    DisposeQuietly(connection);
+                    Remove(connection);
+                }
             }
         }
 
-        public RobotConnection? Get(int robotId) => this.Find(c => c.RobotID == robotId);
+        public RobotConnection? Get(int robotId)
+        {
+            lock (_listLock)
+            {
+                return this.Find(c => c.RobotID == robotId);
+            }
+        }
 
-        // DisposeAsync itself never throws (see RobotConnection.DisposeAsync), but Refresh() runs
-        // synchronously from GetAllPlayers(), so the async call still needs blocking here -- same
-        // sync-over-async pattern GameController already uses for connect/disconnect.
+        // RobotConnection.DisposeAsync is idempotent and safe to call concurrently (it no-ops
+        // past the first call), so this really can't throw from a double-dispose anymore -- but
+        // it still guards the call rather than trusting that promise a second time, since that
+        // exact assumption ("DisposeAsync itself never throws") is what let a double-dispose
+        // crash the process before DisposeAsync gained its own internal guard.
         private static void DisposeQuietly(RobotConnection connection)
         {
             if (!connection.IsConnected) return;
-            connection.DisposeAsync().AsTask().Wait();
+            try
+            {
+                connection.DisposeAsync().AsTask().Wait();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[{connection.RobotID}] DisposeAsync error during Refresh(): {ex.Message}");
+            }
         }
     }
 }

@@ -31,6 +31,14 @@ namespace MRR.Devices
         private CancellationTokenSource? _statusCts;
         // Guards concurrent access to wsStatus from both ListenStatusAsync and GetStatusAsync
         private readonly SemaphoreSlim _statusSocketSemaphore = new SemaphoreSlim(1, 1);
+        // Guards DisposeAsync itself: RobotConnections.Refresh() and GameController's
+        // DisconnectRobot/DisconnectAllRobots can both reach the same RobotConnection instance
+        // (Player.Connection and the RobotConnections registry entry are the same object) from
+        // different threads with no coordination between them. Without this, a second concurrent
+        // call re-cancels/re-disposes _statusCts and throws ObjectDisposedException, uncaught,
+        // which crashes the process.
+        private readonly SemaphoreSlim _disposeLock = new SemaphoreSlim(1, 1);
+        private bool _disposed;
 
         // ── AIMRobot methods (moved from Players.cs) ─────────────────────────
 
@@ -181,9 +189,23 @@ namespace MRR.Devices
         /// its socket closed on the remote end without a close handshake, which makes
         /// CloseAsync throw; that is expected here, not exceptional, so each socket's close is
         /// wrapped individually rather than leaving the caller to guard the whole call.
+        /// Idempotent and safe to call concurrently from multiple callers (e.g. a manual
+        /// disconnect racing RobotConnections.Refresh() tearing down the same connection) --
+        /// only the first call actually runs; the rest are no-ops.
         /// </summary>
         public async ValueTask DisposeAsync()
         {
+            await _disposeLock.WaitAsync();
+            try
+            {
+                if (_disposed) return;
+                _disposed = true;
+            }
+            finally
+            {
+                _disposeLock.Release();
+            }
+
             _statusCts?.Cancel();
             _statusCts?.Dispose();
             _statusCts = null;
