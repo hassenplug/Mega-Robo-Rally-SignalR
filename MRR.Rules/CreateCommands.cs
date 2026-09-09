@@ -328,9 +328,9 @@ namespace MRR
 
             }*/
 
-
             // move robot...  (make actual move)
-            if (!MoveRobot(thisplayer, l_newsquare, l_MoveDistance, p_Direction, p_MoveType))
+            //if (!MoveRobot(thisplayer, l_newsquare, l_MoveDistance, p_Direction, p_MoveType))
+            if (!MoveRobot(thisplayer, l_newsquare, l_ActualMoveDirection, p_MoveType))
             {
                 // robot died
                 return l_MoveDistance;
@@ -374,13 +374,17 @@ namespace MRR
 
         }
 
-        public bool MoveRobot(PlayerState p_Robot, RobotLocation p_NewLocation, int p_Distance, Direction p_Direction, SquareAction p_MoveType)
+        public bool MoveRobot(PlayerState p_Robot, RobotLocation p_NewLocation, Direction p_Direction, SquareAction p_MoveType)
         {
             bool StillAlive = true;
 
             // move robot...
             p_Robot.NextPos.SetLocation(p_NewLocation); // end location?
 
+            // always move one square at a time, even if distance is more than 1
+            ListOfCommands.AddCommand(p_Robot, p_Direction, p_MoveType);
+
+/*
             if (p_Distance >= 0)
             {
                 ListOfCommands.AddCommand(p_Robot, p_Distance, 1, p_Direction, p_MoveType);
@@ -389,6 +393,7 @@ namespace MRR
             {
                 ListOfCommands.AddCommand(p_Robot, -p_Distance, 3, RotationFunctions.Rotate(2, p_Direction), p_MoveType);
             }
+            */
 
             //   check for damage on entering
 
@@ -467,7 +472,7 @@ namespace MRR
                 // check where this player will move to
                 ClearThisSpot(currentX + changeX, currentY + changeY, changeX, changeY, changeD);
                 // move one
-                MoveRobot(blockingPlayer, new RobotLocation(changeD, currentX + changeX, currentY + changeY), 1, changeD, SquareAction.PushedMove);
+                MoveRobot(blockingPlayer, new RobotLocation(changeD, currentX + changeX, currentY + changeY), changeD, SquareAction.PushedMove);
                 if (rotated)
                 {
                     // insert step
@@ -1439,7 +1444,7 @@ namespace MRR
                             break;
                         case SquareAction.Move:
                             // move robot...
-                            MoveRobot(thisplayer, thisplayer.CalcNewLocation(1, (Direction)thisaction.Parameter), 1, (Direction)thisaction.Parameter, SquareAction.BoardMove); // sub step = 2
+                            MoveRobot(thisplayer, thisplayer.CalcNewLocation(1, (Direction)thisaction.Parameter), (Direction)thisaction.Parameter, SquareAction.BoardMove); // sub step = 2
                             //MoveRobot(thisplayer, thisplayer.CurrentPos.CalcNewLocation(1, (Direction)thisaction.Parameter), 1, (Direction)thisaction.Parameter, SquareAction.BoardMove); // sub step = 2
 
                             break;

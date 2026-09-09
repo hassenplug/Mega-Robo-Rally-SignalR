@@ -73,7 +73,7 @@ namespace MRR
         }
 
         /// <summary>
-        /// Add "move" command
+        /// Add command used in the game, with player, value, direction and action
         /// </summary>
         /// <param name="p_Player"></param>
         /// <param name="p_Value"></param>
@@ -88,6 +88,25 @@ namespace MRR
             //if (p_Player.ID ==
             return newCommand;
         }
+
+
+        /// <summary>
+        /// Add "move" command
+        /// </summary>
+        /// <param name="p_Player"></param>
+        /// <param name="p_Value"></param>
+        /// <param name="p_Direction"></param>
+        /// <param name="p_Action"></param>
+        /// <returns></returns>
+        public CommandItem AddCommand(PlayerState? p_Player, Direction p_Direction, SquareAction p_Action)
+        {
+            CommandItem newCommand = new CommandItem(Phase, PhaseStep, p_Player, 1, (int)p_Direction, p_Direction, p_Action);
+            this.Add(newCommand);
+            //newCommand.RunningCounter = this.Count();
+            //if (p_Player.ID ==
+            return newCommand;
+        }
+
 
         /// <summary>
         /// Set CurrentGameData for ParameterA to ParameterB
