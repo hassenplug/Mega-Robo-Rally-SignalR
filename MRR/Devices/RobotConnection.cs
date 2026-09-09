@@ -42,6 +42,7 @@ namespace MRR.Devices
 
             var (bgR, bgG, bgB) = ColorHelper.ParseHex(color);
             var (fgR, fgG, fgB) = ColorHelper.ParseHex(foreColor, 255, 255, 255);
+            Console.WriteLine($"[{RobotID}] ConnectAsync: name={name}, color={color} ({bgR},{bgG},{bgB}), foreColor={foreColor} ({fgR},{fgG},{fgB})");
 
             try
             {
@@ -269,7 +270,7 @@ namespace MRR.Devices
             //Console.WriteLine($"[MoveAndWait] angle={angle}, preHeading={preHeading}, newDir={newDir}, newX_mm={newX_mm}, newY_mm={newY_mm}");
 
             // main move
-            Console.WriteLine($"[MoveAndWait] MoveAsync(distance={distance * mmShortMove}, direction={RotationFunctions.Degrees(angle)}, preHeading={preHeading})");
+            //Console.WriteLine($"[MoveAndWait] MoveAsync(distance={distance * mmShortMove}, direction={RotationFunctions.Degrees(angle)}, preHeading={preHeading})");
             await MoveAsync(distance * mmShortMove, RotationFunctions.Degrees(angle), preHeading);
 
             // wait for the move to complete

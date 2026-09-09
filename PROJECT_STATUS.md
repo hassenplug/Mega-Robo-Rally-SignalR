@@ -388,24 +388,18 @@ Fixing it needs per-seat SignalR groups plus phone-UI changes.
 `CreateCommands.AddFlag` correctly detects a win, but only posts a `"Game Winner:"`
 message — `SquareAction.GameWinner` is commented out, so play continues.
 
-### 4.5 `RefreshPlayerCards` does nothing
-
-Its body is disabled by an early `return`, yet it has seven callers that read as though
-they refresh card state. Probably redundant (the sync moved inline into `UpdateCardPlayed`)
-but it should be deleted or restored, not left as a silent no-op.
-
-### 4.6 Robot 6 has no address
+### 4.5 Robot 6 has no address
 
 `RobotBases` row 6 is a placeholder (`192.168.1.` / `AIM-??`). Harmless — the connect
 attempt fails and is logged — but that seat cannot use a physical robot.
 
-### 4.7 The database password is in a tracked file
+### 4.6 The database password is in a tracked file
 
 `MRR/appsettings.json` and `MRR.Config/appsettings.json` contain `pwd=rallypass` and are
 committed. Consider moving to `appsettings.Production.json` outside the repo before making
 the repository public.
 
-### 4.8 No automated tests
+### 4.7 No automated tests
 
 There is no test project. Every change is verified by building and, ultimately, by playing.
 This is a deliberate decision, but it is why §4.1 matters so much.
@@ -445,7 +439,7 @@ architecture.
   being accurate long ago — consider renaming it.
 - Re-run `install/service/install.sh` on any machine that has the old layout: deploy
   directories moved from `/srv/mrr/app` to `/srv/mrr/game` and `/srv/mrr/config`.
-- Decide about `RefreshPlayerCards` (§4.5) and the 12 invalid boards (§4.2).
+- Decide about the 12 invalid boards (§4.2).
 
 ---
 

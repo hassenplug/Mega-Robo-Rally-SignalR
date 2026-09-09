@@ -696,7 +696,7 @@ INSERT INTO `CurrentGameData` VALUES
 ('BoardRows',5,NULL,'Game',19),
 ('Command',0,'none','x',4),
 ('CommandParameter',0,NULL,'Status',13),
-('FieldEnclosed',0,NULL,'Game',21),
+('FieldEnclosed',1,NULL,'Game',21),
 ('GameDataID',2,NULL,'Config',26),
 ('GameState',2,'Next Turn','Status',10),
 ('GameType',0,'Standard','Game',1),

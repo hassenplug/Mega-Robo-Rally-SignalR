@@ -635,7 +635,6 @@ namespace MRR.Controller
             var player = AllPlayers.GetPlayer(playerId);
             if (player?.ScreenUI == null) return;
 
-            _dataService.RefreshPlayerCards(playerId);
             _ = Task.Run(async () =>
             {
                 try { await player.ScreenUI.RenderAsync(); }

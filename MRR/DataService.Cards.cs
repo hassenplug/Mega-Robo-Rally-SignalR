@@ -24,36 +24,6 @@ namespace MRR.Services
     {
 
         /// <summary>
-        /// DOES NOTHING. Retained only so its seven call sites keep compiling.
-        ///
-        /// It was meant to reload a player's MoveCards from the database into the in-memory
-        /// GameCards. UpdateCardPlayed now does that inline (step 8 below), for exactly the
-        /// two cards it moved, so re-reading the player's whole hand on every keypress became
-        /// redundant and someone disabled this with an early return.
-        ///
-        /// The problem is that it is silent: Program.cs, GameController and RobotScreenUI all
-        /// call it as though it refreshes something. Either delete it and its callers, or
-        /// restore it -- but it should not stay a no-op that reads like a refresh. Tracked in
-        /// install/todo.md, Section 7.
-        /// </summary>
-        public void RefreshPlayerCards(int robotID)
-        {
-            return;   // intentional: see remarks above. The body below is unreachable.
-#pragma warning disable CS0162
-            var dt = GetQueryResults(
-                $"SELECT CardID, PhasePlayed, CardLocation, Executed FROM MoveCards WHERE Owner = {robotID};");
-            foreach (DataRow row in dt.Rows)
-            {
-                var card = GameCards.FirstOrDefault(c => c.Owner == robotID && c.ID == (int)row["CardID"]);
-                if (card == null) continue;
-                card.PhasePlayed  = (int)row["PhasePlayed"];
-                card.CardLocation = (int)row["CardLocation"];
-                card.Executed     = (int)row["Executed"] == 1;
-            }
-#pragma warning restore CS0162
-        }
-
-        /// <summary>
         /// Rebuilds Robots.CardsDealt (CSV of hand CardTypeIDs, desc), Robots.CardsPlayed
         /// (CSV of each register's CardTypeID by PhaseCounter slot, 0 = empty), and
         /// Robots.StatusToShow (the folded gameplay status, or the register-by-register played

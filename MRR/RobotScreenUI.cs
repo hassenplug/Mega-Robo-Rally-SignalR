@@ -257,7 +257,6 @@ namespace MRR
             _currentGameState = gameState;
             _isLocked = false;
             _clearOnNextRender = true;
-            _dataService.RefreshPlayerCards(_player.ID);
             await RenderAsync();
         }
 
@@ -268,7 +267,6 @@ namespace MRR
         public async Task LockAsync()
         {
             _isLocked = true;
-            _dataService.RefreshPlayerCards(_player.ID);
             await RenderAsync();
         }
 
@@ -336,8 +334,6 @@ namespace MRR
             if (_isLocked)
                 return;
 
-            // Refresh state from DB before acting on a tap
-            _dataService.RefreshPlayerCards(_player.ID);
             RefreshFromPlayer();
 
             // Check hand buttons H1–H9
@@ -355,7 +351,6 @@ namespace MRR
                 _dataService.UpdateCardPlayed(_player.ID, typeId, -1);
 
                 // Broadcast update so phones stay in sync
-                _dataService.RefreshPlayerCards(_player.ID);
                 var allDataJson = _dataService.GetAllDataJson();
                 await _hubContext.Clients.All.SendAsync("AllDataUpdate", allDataJson);
 
@@ -377,7 +372,6 @@ namespace MRR
                 _dataService.UpdateCardPlayed(_player.ID, -1, i + 1);
 
                 // Broadcast update
-                _dataService.RefreshPlayerCards(_player.ID);
                 var allDataJson = _dataService.GetAllDataJson();
                 await _hubContext.Clients.All.SendAsync("AllDataUpdate", allDataJson);
 

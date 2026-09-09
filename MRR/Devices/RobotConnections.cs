@@ -34,10 +34,12 @@ namespace MRR.Devices
 
                 if (existing == null)
                 {
+                    Console.WriteLine($"RobotConnections.Refresh: new robot {row.RobotID} at {row.IPAddress}");
                     Add(new RobotConnection(row.RobotID, row.IPAddress));
                 }
                 else if (existing.IPAddress != row.IPAddress)
                 {
+                    Console.WriteLine($"RobotConnections.Refresh: robot {row.RobotID} changed IP from {existing.IPAddress} to {row.IPAddress}");
                     DisposeQuietly(existing);
                     Remove(existing);
                     Add(new RobotConnection(row.RobotID, row.IPAddress));
@@ -48,6 +50,7 @@ namespace MRR.Devices
             var stale = this.Where(c => !seenIds.Contains(c.RobotID)).ToList();
             foreach (var connection in stale)
             {
+                Console.WriteLine($"RobotConnections.Refresh: robot {connection.RobotID} removed");
                 DisposeQuietly(connection);
                 Remove(connection);
             }

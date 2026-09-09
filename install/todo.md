@@ -355,7 +355,7 @@ Home Router (192.168.1.x)
 
 ## Section 6 — Infrastructure / Setup
 
-- [ ] Entity Framework for game setup / initialization
+- [x] Entity Framework for game setup / initialization
   - Use EF (`MRRDbContext` already exists) for initial game setup steps
   - `GameController.StartGame()` / `LoadGameData()` still use raw SQL string building
 
@@ -487,11 +487,9 @@ copy silently reverts it, or a broadcast reads stale data. Numbering below match
 
 ## Section 7 — Dead Code Removal
 
-- [ ] `RefreshPlayerCards` (`DataService.Cards.cs`) — **does nothing**, but has seven callers
-  in `Program.cs`, `GameController.cs` and `RobotScreenUI.cs` that read as though it refreshes
-  card state. Its body is disabled by an early `return`, apparently because
-  `UpdateCardPlayed` step 8 now syncs the moved cards in memory directly. Decide: delete it
-  and the seven calls, or restore it. It should not stay a silent no-op.
+- [x] `RefreshPlayerCards` (`DataService.Cards.cs`) — deleted, along with its seven call sites
+  in `Program.cs`, `GameController.cs` and `RobotScreenUI.cs`. It was a no-op; `UpdateCardPlayed`
+  step 8 already syncs the moved cards in memory directly.
 - [ ] `SetArchiveToCurrent` (`Players.cs:87`) — no callers; updates archive pos from current pos
 - [ ] `HasOptionCard` (`Players.cs`) — no callers; stub that always returns false
 - [ ] `MoveUnlimitedAsync` (`Players.cs`) — no callers; sends continuous drive command
