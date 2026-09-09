@@ -388,6 +388,16 @@ const DIR_NAMES = ['None','Up','Right','Down','Left'];
 const SA_NAMES = {12:'Move', 13:'Rotate', 14:'Damage', 15:'Archive', 16:'Flag', 17:'Option', 18:'BlockDirection', 19:'PlayerStart', 60:'FireCannon'};
 const SA_SORTED = Object.entries(SA_NAMES).sort((a,b) => parseInt(a[0])-parseInt(b[0]));
 
+// Flag (100) and StartSquare (110) ship one PNG per number rather than one per type.
+function imageSrcForType(typeId, actions) {
+    if (typeId === 100 || typeId === 110) {
+        const sa = typeId === 100 ? SA.Flag : SA.PlayerStart;
+        const act = (actions || []).find(a => a.squareAction === sa);
+        return `images/element${typeId}-${act ? act.parameter : 1}_top.png`;
+    }
+    return `images/element${typeId}_top.png`;
+}
+
 // ── State ──────────────────────────────────────────────────────────────────
 let squareTypes = [];
 let boards = [];
@@ -463,8 +473,8 @@ function buildPalette() {
         div.onclick = () => selectPaletteType(t.typeId, t.defaultRotation);
 
         const img = document.createElement('img');
-        img.src = `images/Element${t.typeId}.jpg`;
-        img.onerror = () => { img.src = 'images/Element0.jpg'; };
+        img.src = imageSrcForType(t.typeId, t.actions);
+        img.onerror = () => { img.src = 'images/element0_top.png'; };
 
         const span = document.createElement('span');
         span.textContent = t.name;
@@ -614,8 +624,8 @@ function fillCell(div, x, y) {
     div.innerHTML = '';
 
     const img = document.createElement('img');
-    img.src = `images/Element${cell.squareType}.jpg`;
-    img.onerror = () => { img.src = 'images/Element0.jpg'; };
+    img.src = imageSrcForType(cell.squareType, cell.actions);
+    img.onerror = () => { img.src = 'images/element0_top.png'; };
     const deg = rotationToDeg(cell.rotation);
     img.style.transform = `rotate(${deg}deg)`;
     div.appendChild(img);
@@ -820,7 +830,7 @@ function showPropsForCell(cell, x, y, keepEditingActions) {
 
     // Header
     html += `<div class="prop-row">
-        <img class="prop-img" id="propTypeImg" src="images/Element${cell.squareType}.jpg" onerror="this.src='images/Element0.jpg'" style="transform:rotate(${rotationToDeg(cell.rotation)}deg)">
+        <img class="prop-img" id="propTypeImg" src="${imageSrcForType(cell.squareType, cell.actions)}" onerror="this.src='images/element0_top.png'" style="transform:rotate(${rotationToDeg(cell.rotation)}deg)">
         <div>
             <div class="prop-value" id="propTypeName" style="font-weight:bold">${typeInfo.name}</div>
             <div id="propTypeId" style="font-size:11px;color:#888">Type ID: ${cell.squareType}</div>
@@ -956,7 +966,7 @@ function onPropTypeChange() {
     const newTypeId = parseInt(sel.value);
     const typeInfo = squareTypes.find(t => t.typeId === newTypeId) || { name: 'Unknown', typeId: newTypeId };
     const img = document.getElementById('propTypeImg');
-    if (img) { img.src = `images/Element${newTypeId}.jpg`; img.onerror = function(){ this.src='images/Element0.jpg'; }; }
+    if (img) { img.src = imageSrcForType(newTypeId, typeInfo.actions); img.onerror = function(){ this.src='images/element0_top.png'; }; }
     const nm = document.getElementById('propTypeName');
     if (nm) nm.textContent = typeInfo.name;
     const ti = document.getElementById('propTypeId');
@@ -1018,29 +1028,6 @@ function applyProps() {
 }
 
 // ── Size change ────────────────────────────────────────────────────────────
-function addBorderWalls(w, h) {
-    // Element 200: wall stripe at bottom by default (rotation 1 = 0° = south face)
-    // rotation 1 → south wall  |  rotation 2 → east wall
-    // rotation 3 → north wall  |  rotation 4 → west wall
-    // BlockDirection parameter matches the wall face direction
-    const place = (x, y, rotation, blockDir) => {
-        const cell = grid[y][x];
-        if (cell.squareType === 0) {
-            cell.squareType = 200;
-            cell.rotation = rotation;
-            cell.actions = [{ squareAction: SA.BlockDirection, sequence: 0, phase: 31, parameter: blockDir }];
-        }
-    };
-    for (let x = 0; x < w; x++) {
-        place(x, 0,     1, DIR.Down);  // top edge: south wall, block Down
-        place(x, h - 1, 3, DIR.Up);   // bottom edge: north wall, block Up
-    }
-    for (let y = 1; y < h - 1; y++) {
-        place(0,     y, 4, DIR.Left);  // left edge: west wall, block Left
-        place(w - 1, y, 2, DIR.Right); // right edge: east wall, block Right
-    }
-}
-
 function applySizeChange() {
     const newW = parseInt(document.getElementById('boardW').value);
     const newH = parseInt(document.getElementById('boardH').value);
@@ -1063,7 +1050,6 @@ function applySizeChange() {
         }
     }
     grid = newGrid;
-    addBorderWalls(newW, newH);
     if (selectedCell && (selectedCell.x >= newW || selectedCell.y >= newH)) {
         selectedCell = null;
         showNoSelection();
