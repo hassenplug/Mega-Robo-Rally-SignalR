@@ -143,7 +143,7 @@ namespace MRR.Services
                 case SquareAction.Flag: // Set Current Flag
                     ExecuteSQL($"UPDATE Robots SET CurrentFlag = {cParameter} " +
                         $" WHERE RobotID = {cRobotID}");
-                    RefreshFlagEnergy(cRobotID);
+                    RefreshFlagEnergyCards(cRobotID);
                     break;
 
                 case SquareAction.Option: // Deal option card to robot
@@ -254,7 +254,7 @@ namespace MRR.Services
                 case SquareAction.SetEnergy:
                     ExecuteSQL($"UPDATE Robots SET Energy = {cParameter} " +
                         $" WHERE RobotID = {cRobotID}");
-                    RefreshFlagEnergy(cRobotID);
+                    RefreshFlagEnergyCards(cRobotID);
                     break;
 
                 default:
@@ -285,13 +285,15 @@ namespace MRR.Services
         }
 
         /// <summary>
-        /// Recomputes Robots.FlagEnergy ("CurrentFlag/Energy") for one robot. Call whenever
-        /// either value changes -- CurrentFlag (SquareAction.Flag) or Energy
-        /// (SquareAction.SetEnergy) above -- so the denormalized column doesn't wait on the
-        /// next full RefreshRobotDenormalizedFields sweep (DataService.Players.cs) to catch up.
+        /// Recomputes Robots.FlagEnergyCards ("CurrentFlag/Energy/CardCount") for one robot.
+        /// Call whenever any of those three values changes -- CurrentFlag (SquareAction.Flag)
+        /// or Energy (SquareAction.SetEnergy) above -- so the denormalized column doesn't wait
+        /// on the next full RefreshRobotDenormalizedFields sweep (DataService.Players.cs) to
+        /// catch up. See the connection-scoped overload (DataService.Cards.cs) for the
+        /// CardCount-driven call sites (DealSpamToPlayer, MoveCardsShuffleAndDeal).
         /// </summary>
-        private void RefreshFlagEnergy(int p_RobotID) =>
-            ExecuteSQL($"UPDATE Robots SET FlagEnergy = CONCAT(CurrentFlag, '/', Energy) " +
+        private void RefreshFlagEnergyCards(int p_RobotID) =>
+            ExecuteSQL($"UPDATE Robots SET FlagEnergyCards = CONCAT(CurrentFlag, '/', Energy, '/', CardCount) " +
                 $" WHERE RobotID = {p_RobotID}");
     }
 }

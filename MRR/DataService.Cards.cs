@@ -91,6 +91,25 @@ namespace MRR.Services
             cmd.ExecuteNonQuery();
         }
 
+        /// <summary>
+        /// Connection-scoped overload of DataService.Commands.cs's RefreshFlagEnergyCards, for
+        /// callers that already have an open connection and just changed CardCount via
+        /// RefreshCardCount above (DealSpamToPlayer, MoveCardsShuffleAndDeal) -- reuses that
+        /// connection instead of opening a new one per robot. Pass playerId to refresh a single
+        /// robot; omit to refresh all.
+        /// </summary>
+        private void RefreshFlagEnergyCards(MySqlConnection connection, int? playerId = null)
+        {
+            string whereClause = playerId.HasValue ? "WHERE RobotID = @player" : "";
+
+            using var cmd = new MySqlCommand(
+                $"UPDATE Robots SET FlagEnergyCards = CONCAT(CurrentFlag, '/', Energy, '/', CardCount) {whereClause}",
+                connection);
+            if (playerId.HasValue)
+                cmd.Parameters.AddWithValue("@player", playerId.Value);
+            cmd.ExecuteNonQuery();
+        }
+
         public void LoadGameCardsFromDatabase()
         {
             GameCards.Clear();
@@ -373,8 +392,10 @@ namespace MRR.Services
                 cmd.ExecuteNonQuery();
             }
 
-            // A new Spam card just entered this robot's collection; keep CardCount in sync.
+            // A new Spam card just entered this robot's collection; keep CardCount (and the
+            // FlagEnergyCards summary derived from it) in sync.
             RefreshCardCount(connection, robotID);
+            RefreshFlagEnergyCards(connection, robotID);
 
             return maxId;
         }
@@ -535,6 +556,7 @@ namespace MRR.Services
                 // Refresh CardCount for everyone: step 1 above deleted expired Spam cards and
                 // step 6 dealt cards, both of which can change how many cards a robot owns.
                 RefreshCardCount(connection);
+                RefreshFlagEnergyCards(connection);
 
                 UpdatePlayerPriority(connection);
             }

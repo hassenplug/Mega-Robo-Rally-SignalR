@@ -35,7 +35,7 @@ namespace MRR
         // loads from the Robots table; it just does not leave the server.
         public int PlayerSeat { get; set; }
         public int Energy { get; set; }
-        public string FlagEnergy { get; set; } = "";
+        public string FlagEnergyCards { get; set; } = "";
         public int PlayerViewDirection { get; set; }
         public int DirectionAdjustment { get; set; }
         public string CardsDealt { get; set; } = "";

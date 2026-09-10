@@ -393,7 +393,7 @@ namespace MRR
             ShutDown            = (int)ShutDown,
             PlayerSeat          = PlayerSeat,
             Energy              = Energy,
-            FlagEnergy          = $"{LastFlag}/{CardsPlayer.Count}",
+            FlagEnergyCards     = $"{LastFlag}/{Energy}/{CardsPlayer.Count}",
             PlayerViewDirection = PlayerViewDirection,
             DirectionAdjustment = PlayerViewDirection,
             CardsDealt          = CardsDealtStr,

@@ -384,7 +384,7 @@ CREATE TABLE `Robots` (
   `ConnectStatusDesc` varchar(20) DEFAULT NULL,
 
   `sDir` varchar(5) DEFAULT NULL,
-  `FlagEnergy` varchar(10) DEFAULT NULL,
+  `FlagEnergyCards` varchar(15) DEFAULT NULL,
   `DirectionAdjustment` int(11) DEFAULT 1,
   `StatusToShow` varchar(20) DEFAULT NULL,
   `PlayerMsg` varchar(50) DEFAULT NULL,

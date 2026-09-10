@@ -112,7 +112,7 @@ function showall()
         var btn = document.getElementById("button" + rid);
         btn.style = "background-color:" + robots[i].RobotColor + "; color:" + robots[i].RobotColorFG;
         btn.textContent = robots[i].RobotName;
-        document.getElementById("flags" + rid).innerText = robots[i].FlagEnergy;
+        document.getElementById("flags" + rid).innerText = robots[i].FlagEnergyCards;
         var statusbox = document.getElementById("playerstatus" + rid);
         statusbox.innerText = robots[i].StatusToShow;
         statusbox.style.backgroundColor = robots[i].StatusColor;
