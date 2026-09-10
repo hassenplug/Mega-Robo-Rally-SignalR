@@ -52,10 +52,10 @@ function showplayerprogram(pl) // show program for this line
             cardimg = "images/type" + played[i] + ".png";
             cardtag = played[i];
             //console.log(executed);
-            if (executed.length == 1 && executed[i] != "X" && executed[i] != null)
-            {
+            //if (executed[i].length == 1 && executed[i] != "X" && executed[i] != null)
+            //{
                 //document.getElementById("CardCell" + i).style.backgroundColor = "ccccff";
-            }
+            //}
         }
         card.src = cardimg;
         card.tag = cardtag;

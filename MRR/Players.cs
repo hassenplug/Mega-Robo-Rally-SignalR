@@ -225,6 +225,7 @@ namespace MRR
             int CPCount = CardsPlayedStr.Split(',').Count(s => s != "0" && s != "") ;
             Console.WriteLine($"Player {ID} played {CPCount} cards {CardsPlayedStr}");
             SendColorStatus(CPCount==5?1:0);
+            //SetLightsAsync(CPCount == 5).Wait();
         }
     }
 }

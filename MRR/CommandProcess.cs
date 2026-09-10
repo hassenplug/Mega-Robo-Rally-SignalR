@@ -275,10 +275,10 @@ namespace MRR
 #8 - Running Phase (in process)
 
         */
-        private static void LogCommand(CommandItem command, string text)
-            => Console.WriteLine($"");
 //        private static void LogCommand(CommandItem command, string text)
-//            => Console.WriteLine($"{text}({command.RobotID})[{command.CommandCatID}]{{{command.CommandType}}}-{command.Value},{command.ValueB}:{command.Description}");
+//            => Console.WriteLine($"");
+        private static void LogCommand(CommandItem command, string text)
+            => Console.WriteLine($"{text}({command.RobotID})[{command.CommandCatID}]{{{command.CommandType}}}-{command.Value},{command.ValueB}:{command.Description}");
 
 //        public async Task<bool> ExecuteCommand(CommandItem onecommand)
 

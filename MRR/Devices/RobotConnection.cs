@@ -131,7 +131,8 @@ namespace MRR.Devices
                 await SendCommandAsync(new { cmd_id = "imu_calibrate" });
                 await SendCommandAsync(new { cmd_id = "set_pose", x = 0, y = 0 });
                 await SendCommandAsync(new { cmd_id = "lcd_clear_screen", r = bgR, g = bgG, b = bgB });
-                await SetLedAsync("all", bgR, bgG, bgB);
+                //await SetLedAsync("all", bgR, bgG, bgB);
+                await SetLightsAsync(true);
 
                 await SendCommandAsync(new { cmd_id = "lcd_set_pen_color", r = fgR, g = fgG, b = fgB });
                 await SendCommandAsync(new { cmd_id = "lcd_set_fill_color", r = bgR, g = bgG, b = bgB, transparent = false });
@@ -150,7 +151,7 @@ namespace MRR.Devices
                 //await SendCommandAsync(new { cmd_id = "lcd_set_font", fontname = "MONO60" });  //This doesn't seem to work
                 await SetCursorAsync(6, Math.Max(0, (15 - name.Length) / 2));
                 await PrintAsync(name);
-                await SetLedAsync("all", bgR, bgG, bgB); // robot-color LED, same as SendColorStatus()'s default case
+                //await SetLedAsync("all", bgR, bgG, bgB); // robot-color LED, same as SendColorStatus()'s default case
 
                 _statusCts = new CancellationTokenSource();
                 //_ = ListenStatusAsync(_statusCts.Token);
@@ -431,6 +432,15 @@ namespace MRR.Devices
                 { led, new { r, g, b } }
             };
             return SendCommandAsync(ledData);
+        }
+
+        /// <summary>
+        /// Turns all LEDs on (in this robot's own color) or off.
+        /// </summary>
+        public Task SetLightsAsync(bool on)
+        {
+            var (r, g, b) = on ? ColorHelper.ParseHex(_color) : (0, 0, 0);
+            return SetLedAsync("all", r, g, b);
         }
 
         public Task ShowAIAsync() =>

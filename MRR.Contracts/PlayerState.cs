@@ -350,7 +350,8 @@ namespace MRR
             {
                 var cards = CardsPlayed;
                 string? showCardsPlayed = cards.Count == 0 ? null
-                    : string.Join(",", cards.Select(c => c.Executed ? cards.GetCardText(c) : "X"));
+                    : string.Join("", cards.Select(c => c.Executed ? cards.GetCardText(c) : "X"));
+                    //: string.Join(",", cards.Select(c => c.Executed ? cards.GetCardText(c) : "X"));
                 return (showCardsPlayed == null || !Active)
                     ? PlayerStatus.Info().ShortDescription
                     : showCardsPlayed;

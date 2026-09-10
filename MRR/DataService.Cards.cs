@@ -49,7 +49,7 @@ namespace MRR.Services
                 "LEFT JOIN (" +
                 "  SELECT r2.RobotID AS Owner, " +
                 "         GROUP_CONCAT(IFNULL(mc.CardTypeID, 0) ORDER BY pc.ID) AS gctp, " +
-                "         GROUP_CONCAT(IF(mc.CardID IS NULL, '-', IF(mc.Executed, mct.ShortDescription, 'X')) ORDER BY pc.ID) AS ShowCardsPlayed " +
+                "         GROUP_CONCAT(IF(mc.CardID IS NULL, '-', IF(mc.Executed, mct.ShortDescription, 'X')) ORDER BY pc.ID SEPARATOR '') AS ShowCardsPlayed " +
                 "  FROM Robots r2 CROSS JOIN PhaseCounter pc " +
                 "  LEFT JOIN MoveCards mc ON pc.ID = mc.PhasePlayed AND mc.Owner = r2.RobotID " +
                 "  LEFT JOIN MoveCardTypes mct ON mc.CardTypeID = mct.CardTypeID " +
@@ -273,6 +273,11 @@ namespace MRR.Services
                 programCount = Convert.ToInt32(cmd.ExecuteScalar() ?? 0);
             }
             int newStatus = (programCount == phaseCount) ? 4 : 3;
+
+            // LEDs stay on while the player is still programming, off once every register up
+            // to PhaseCount is filled -- compared by count, not by whether slot 5 specifically
+            // is filled, since PhaseCount can be less than 5 (e.g. damage).
+            _robotConnections.Get(p_Player)?.SetLightsAsync(programCount < phaseCount).Wait();
 
             // 7. Rebuild CardsDealt and CardsPlayed CSV strings (procUpdateRobotCards).
             RebuildRobotCardsSummary(connection, p_Player);
