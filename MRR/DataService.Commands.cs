@@ -209,7 +209,10 @@ namespace MRR.Services
                     break;
 
                 case SquareAction.DealSpamCard: // Deal Spam card to player
-                    DealSpamToPlayer(cRobotID);
+                    int cardcount = DealSpamToPlayer(cRobotID);
+                    ExecuteSQL($"UPDATE Robots SET CardCount = {cardcount} " +
+                        $" WHERE RobotID = {cRobotID}");
+                    RefreshFlagEnergyCards(cRobotID);
                     break;
 
                 case SquareAction.SetShutDownMode: // Set ShutDown
