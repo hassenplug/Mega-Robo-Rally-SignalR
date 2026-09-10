@@ -96,17 +96,6 @@ namespace MRR
         [XmlIgnore]
         public RobotScreenUI? ScreenUI { get; set; }
 
-        public async Task<Player?> Connect(string ipAddress = "")
-        {
-            if (Connection == null || string.IsNullOrEmpty(Connection.IPAddress))
-            {
-                return null;
-            }
-
-            await ConnectAsync();
-            return this;
-        }
-
         public bool SendColorStatus(int Status = 1)
         {
             if (!isConnected || Connection == null) return false;
@@ -135,9 +124,11 @@ namespace MRR
         }
 
         // ── Transport forwarders (real implementation moved to RobotConnection) ──────
-
-        public Task ConnectAsync() =>
-            Connection == null ? Task.CompletedTask : Connection.ConnectAsync(Name, Color, ForeColor);
+        // No Connect()/ConnectAsync() forwarder here: RobotConnection connects itself once,
+        // from its own constructor, using name/color/address it polls from the database
+        // itself. Reconnecting a robot means replacing its RobotConnection (see
+        // RobotConnections.Reconnect/ReconnectAll, driven from GameController), never calling
+        // back into an existing one through Player.
 
         public Task SendCommandAsync(object command) =>
             Connection == null ? Task.CompletedTask : Connection.SendCommandAsync(command);

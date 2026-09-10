@@ -12,8 +12,9 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// RobotConnections holds no game state and needs nothing but the AllData rows passed to
-// Refresh(), so it has no dependency on DataService -- register before it.
+// RobotConnections has no dependency on DataService -- it dials the Robots/RobotBodies/
+// RobotBases tables itself via IConfiguration's connection string -- so it can register
+// before it.
 builder.Services.AddSingleton<MRR.Devices.RobotConnections>();
 
 // Register DataService first so we can use its connection string
@@ -204,10 +205,15 @@ app.MapGet("/api/robot/alignthis/{robotId:int}", async (int robotId, DataService
         return Results.NotFound(new { error = $"Robot {robotId} not found" });
 
     if (!robot.isConnected)
+    {
         gameController.ConnectToRobot(robotId);
+        // ConnectToRobot replaces the robot's connection and force-refreshes AllPlayers, so
+        // the Player instance captured above is stale -- re-fetch it to see the outcome.
+        robot = dataService.AllPlayers.GetPlayer(robotId);
+    }
 
-    if (!robot.isConnected)
-        return Results.Problem($"Could not connect to robot {robotId} at {robot.IPAddress}");
+    if (robot == null || !robot.isConnected)
+        return Results.Problem($"Could not connect to robot {robotId}");
 
     var result = await robot.AlignAsync();
     return Results.Ok(result);
@@ -231,8 +237,13 @@ app.MapGet("/api/robot/{function?}/{parameter1?}", async (string? function, stri
                 if (robotToAlign != null)
                 {
                     if (!robotToAlign.isConnected)
+                    {
                         gameController.ConnectToRobot(robotToAlign.ID);
-                    if (robotToAlign.isConnected)
+                        // ConnectToRobot replaces the connection and force-refreshes
+                        // AllPlayers, so re-fetch rather than trust the stale reference above.
+                        robotToAlign = dataService.AllPlayers.GetPlayer(alignRobotId);
+                    }
+                    if (robotToAlign?.isConnected == true)
                         await robotToAlign.AlignAsync();
                 }
             }

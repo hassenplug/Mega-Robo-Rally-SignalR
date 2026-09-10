@@ -1,5 +1,6 @@
 using System;
 using System.Data;
+using System.Linq;
 using System.Text;
 using System.IO;
 using MySqlConnector;
@@ -78,13 +79,6 @@ namespace MRR.Services
         {
             if (_allPlayers == null || forceRefresh)
             {
-                // Reconcile the robot connection registry from the same rows AllDataPayload
-                // sends to every client -- no separate query for IP. Refresh() keeps a live
-                // socket alive across this rebuild (it lives on RobotConnections, not on the
-                // Player objects below), so discarding _allPlayers here can no longer orphan or
-                // duplicate a connection.
-                _robotConnections.Refresh(GetRobotsFromTable());
-
                 var players = new Players();
 
                 string strSQL = @"SELECT r.RobotID, rb.Name AS RobotName, rb.Color AS RobotColor, rb.ColorFG AS RobotColorFG,
@@ -98,6 +92,17 @@ namespace MRR.Services
                 ORDER BY r.RobotID";
 
                 var loadplayers = this.GetQueryResults(strSQL);
+
+                // Prune the robot connection registry against this same roster, by RobotID
+                // alone -- no separate query, and no new connections opened here. Refresh()
+                // only drops entries for robots no longer present; a robot only ever gets
+                // (re)connected through an explicit action (GameController's Connect/Connect
+                // All, or a new game's start -- see RobotConnections.Reconnect/ReconnectAll).
+                // Refresh() keeps a live socket alive across this rebuild (it lives on
+                // RobotConnections, not on the Player objects below), so discarding
+                // _allPlayers here can no longer orphan or duplicate a connection.
+                _robotConnections.Refresh(loadplayers.Rows.Cast<DataRow>().Select(r => (int)r["RobotID"]));
+
                 foreach (DataRow row in loadplayers.Rows)
                 {
                     int robotId = (int)row["RobotID"];
@@ -236,8 +241,8 @@ namespace MRR.Services
         // ConnectStatusColor/ConnectStatusDesc are likewise real columns now, kept current by
         // RefreshRobotDenormalizedFields -- no join needed here for them. IPAddress reads
         // Robots.IPAddress directly; UpdateRobotIPAddress keeps it in sync with the
-        // RobotBases.IPAddress that Player.Connect() actually dials, so no join is needed here
-        // either.
+        // RobotBases.IPAddress that RobotConnection actually dials (it polls for its own copy
+        // by RobotID), so no join is needed here either.
         public List<RobotData> GetRobotsFromTable()
         {
             //RefreshRobotDenormalizedFields();
@@ -337,7 +342,7 @@ namespace MRR.Services
 
         /// <summary>
         /// Section 9 (install/todo.md) "Update IP": writes the robot's IP address to both
-        /// RobotBases.IPAddress -- the column Player.Connect()/GetAllPlayers() actually read --
+        /// RobotBases.IPAddress -- the column RobotConnection actually reads when it (re)dials --
         /// and Robots.IPAddress, so the two stay in sync instead of the latter going stale.
         /// Parameterized because the value comes straight from a form field on the connection
         /// screen.

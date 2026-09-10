@@ -1,6 +1,6 @@
 # Mega Robo Rally — Project Status & Operations Handbook
 
-**Last updated:** 2026-09-09
+**Last updated:** 2026-09-10
 **Target host:** `mrobopi` — Raspberry Pi 5, Debian 13 (trixie), aarch64, kernel 6.18.34
 
 This is the practical document: how to rebuild the machine, how to run the parts, how to
@@ -460,6 +460,13 @@ hostname. Keep it accurate — it is the first thing any assistant reads.
 
 ### 6.2 Key invariants that are easy to break
 
+- **`RobotConnections` is the only place a robot socket lives.** `Player` never opens a
+  `ClientWebSocket` itself — it forwards to whichever `RobotConnection` is attached to it.
+  Turn planning (`MRR.Rules`) works from a connection-free `PlayerState` snapshot instead
+  (`GetPlayerStatesFromDB()`); it cannot reach a socket even by accident, since the project
+  has no reference that could provide one. See
+  [documents/RobotConnections.md](documents/RobotConnections.md) for how programming,
+  simulation, and processing mode each use the right list.
 - **`TotalFlags` is per game, not per player.** It lives in `CurrentGameData` iKey 7, taken
   from the board at game start. A `Player.TotalFlags` hardcoded to 5 caused every non-5-flag
   board to score wrong.

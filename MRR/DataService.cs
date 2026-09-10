@@ -196,6 +196,21 @@ namespace MRR.Services
             LoadOptionCardsFromDatabase();
         }
 
+        /// <summary>
+        /// Closes the given robot's current connection (if any) and opens a fresh one -- the
+        /// only way a robot (re)connects, since RobotConnection.ConnectAsync is private and
+        /// only ever runs from its own constructor. The caller must force-refresh AllPlayers
+        /// afterward so Player.Connection re-attaches to the new instance.
+        /// </summary>
+        public RobotConnection ReconnectRobot(int robotId) => _robotConnections.Reconnect(robotId);
+
+        /// <summary>
+        /// Closes every current connection and opens a fresh one for each robot in
+        /// <paramref name="robotIds"/>. Used both for the GM's "Connect All" action and for a
+        /// new game start, where old sockets/LED state/LCD screens must not carry over.
+        /// </summary>
+        public List<RobotConnection> ReconnectAllRobots(IEnumerable<int> robotIds) => _robotConnections.ReconnectAll(robotIds);
+
         public int UpdateGameState() => _state.Reload();
 
         /// <summary>

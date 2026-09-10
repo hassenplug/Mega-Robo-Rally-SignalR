@@ -460,25 +460,36 @@ namespace MRR.Controller
             return "";
         }
 
-        /// <summary>Connects every robot. Awaits all of them together (not fire-and-forget --
-        /// see DisconnectAllRobots for why that silently drops DB writes on failure) so the
-        /// call doesn't return until every robot's ConnectStatusID reflects the outcome.</summary>
+        /// <summary>Closes and reopens every robot's connection together -- RobotConnection's
+        /// ConnectAsync is private and only ever runs from its own constructor (see
+        /// RobotConnections.ReconnectAll), so "connect" always means "replace with a fresh,
+        /// self-connecting instance," never "call back into the existing one." This is also
+        /// what LoadCurrentGame() relies on at the end of StartGame() to guarantee no robot
+        /// carries a stale socket, LED state, or LCD screen into a new game. Awaits every
+        /// connect attempt before returning, then force-refreshes AllPlayers so each
+        /// Player.Connection re-attaches to its fresh RobotConnection.</summary>
         public bool ConnectToAllRobots()
         {
-            Task.WhenAll(AllPlayers.Select(ConnectPlayerWithScreen)).Wait();
-            return true;
-        }
+            var ids = AllPlayers.Select(p => p.ID).ToList();
+            foreach (var id in ids) SetRobotConnectStatus(id, tPlayerStatus.Connecting);
 
-        private async Task ConnectPlayerWithScreen(Player player)
-        {
-            SetRobotConnectStatus(player.ID, tPlayerStatus.Connecting);
-            await player.Connect();
-            SetRobotConnectStatus(player.ID, player.isConnected ? tPlayerStatus.RobotConnected : tPlayerStatus.NotConnected);
+            var connections = _dataService.ReconnectAllRobots(ids);
+            Task.WhenAll(connections.Select(c => c.Ready)).Wait();
 
-            if (UseRobotScreen && player.isConnected)
+            _dataService.GetAllPlayers(true); // re-attach Player.Connection to each fresh RobotConnection
+
+            foreach (var id in ids)
             {
-                InitScreenUI(player);
+                var player = AllPlayers.GetPlayer(id);
+                bool connected = player?.isConnected == true;
+                SetRobotConnectStatus(id, connected ? tPlayerStatus.RobotConnected : tPlayerStatus.NotConnected);
+
+                if (UseRobotScreen && connected)
+                {
+                    InitScreenUI(player!);
+                }
             }
+            return true;
         }
 
         /// <summary>Writes through to Robots.ConnectStatusID -- and, in the same statement,
@@ -645,11 +656,16 @@ namespace MRR.Controller
             });
         }
 
+        /// <summary>Closes this robot's current connection (if any) and opens a fresh one --
+        /// see ConnectToAllRobots for why reconnecting always means replacing the
+        /// RobotConnection instance rather than calling back into it.</summary>
         public bool ConnectToRobot(int playerID)
         {
-            Player? thisplayer = AllPlayers.GetPlayer(playerID);
             SetRobotConnectStatus(playerID, tPlayerStatus.Connecting);
-            thisplayer?.Connect().Wait();
+            var connection = _dataService.ReconnectRobot(playerID);
+            connection.Ready.Wait();
+            _dataService.GetAllPlayers(true); // re-attach Player.Connection to the fresh RobotConnection
+            var thisplayer = AllPlayers.GetPlayer(playerID);
             SetRobotConnectStatus(playerID, thisplayer?.isConnected == true ? tPlayerStatus.RobotConnected : tPlayerStatus.NotConnected);
             return true;
         }
@@ -690,9 +706,9 @@ namespace MRR.Controller
         }
 
         /// <summary>Always writes ConnectStatusID, even if closing the sockets throws --
-        /// DisposeAsync (unlike Player.Connect/ConnectAsync) has no internal try/catch, so a
-        /// robot that already dropped its connection could throw here on close, and the write
-        /// below would never run without this try/finally.</summary>
+        /// DisposeAsync has no internal try/catch, so a robot that already dropped its
+        /// connection could throw here on close, and the write below would never run without
+        /// this try/finally.</summary>
         private async Task DisconnectPlayer(Player player)
         {
             try

@@ -1,29 +1,89 @@
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using MySqlConnector;
 using MRR;
 
 namespace MRR.Devices
 {
     /// <summary>
     /// One robot's live transport: the three AIM WebSockets (ws_cmd, ws_status, ws_img) and the
-    /// commands that ride them. No game state (Energy, Damage, CardsPlayed, ...) and no SQL --
-    /// see API_DECOMPOSITION_DESIGN.md section 5.5 ("Device Gateway ... transport only, no game
-    /// rules, no database"). Owned exclusively by <see cref="RobotConnections"/>; <see
+    /// commands that ride them. Owned exclusively by <see cref="RobotConnections"/>; <see
     /// cref="MRR.Player"/> forwards to whichever instance is attached to it rather than opening a
     /// socket itself.
+    ///
+    /// Connects itself: the constructor polls the <c>Robots</c> table (joined to
+    /// <c>RobotBodies</c>/<c>RobotBases</c>) for this robot's name, color, and IP address --
+    /// the caller passes nothing but the <see cref="RobotID"/> -- and then dials the robot.
+    /// <see cref="ConnectAsync"/> is private for exactly this reason: it is never called again
+    /// after construction. To reconnect a robot, replace its <see cref="RobotConnection"/> (see
+    /// <see cref="RobotConnections.Reconnect"/>) rather than calling back into an existing one.
     /// </summary>
     public class RobotConnection
     {
-        public RobotConnection(int robotId, string? ipAddress)
+        public RobotConnection(int robotId, string connectionString)
         {
             RobotID = robotId;
-            IPAddress = ipAddress;
+            _connectionString = connectionString;
+            Ready = InitializeAsync();
         }
 
+        /// <summary>
+        /// Completes once the constructor's DB poll and connect attempt are done (success or
+        /// failure) -- await this after creating a <see cref="RobotConnection"/> to know when
+        /// <see cref="IsConnected"/> reflects the outcome, without <see cref="ConnectAsync"/>
+        /// ever being callable directly.
+        /// </summary>
+        public Task Ready { get; }
+
+        private readonly string _connectionString;
+        private string _name = "";
+        private string _color = "FFFFFF";
+        private string _foreColor = "000000";
+
         public int RobotID { get; }
-        public string? IPAddress { get; internal set; }
+        public string? IPAddress { get; private set; }
         public bool IsConnected { get; set; }
+
+        private async Task InitializeAsync()
+        {
+            if (!LoadFromDatabase())
+            {
+                Console.WriteLine($"[{RobotID}] RobotConnection: no matching Robots row -- not connecting.");
+                return;
+            }
+
+            await ConnectAsync();
+        }
+
+        /// <summary>
+        /// Polls <c>Robots</c> (joined to <c>RobotBodies</c> for display fields and
+        /// <c>RobotBases</c> for the dial address) for this robot alone -- the only value read
+        /// from anywhere else is <see cref="RobotID"/>. Field-for-field, this is the same join
+        /// <c>DataService.GetAllPlayers()</c> uses to build the roster.
+        /// </summary>
+        private bool LoadFromDatabase()
+        {
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+            using var cmd = new MySqlCommand(@"
+                SELECT rb.Name AS RobotName, rb.Color AS RobotColor, rb.ColorFG AS RobotColorFG,
+                       rbase.IPAddress
+                FROM Robots r
+                JOIN RobotBodies rb ON r.RobotBodyID = rb.RobotBodyID
+                JOIN RobotBases rbase ON r.RobotBaseID = rbase.RobotBaseID
+                WHERE r.RobotID = @id", connection);
+            cmd.Parameters.AddWithValue("@id", RobotID);
+
+            using var reader = cmd.ExecuteReader();
+            if (!reader.Read()) return false;
+
+            _name = reader["RobotName"]?.ToString() ?? "";
+            _color = reader["RobotColor"]?.ToString() ?? "FFFFFF";
+            _foreColor = reader["RobotColorFG"]?.ToString() ?? "000000";
+            IPAddress = reader["IPAddress"]?.ToString();
+            return true;
+        }
 
         private ClientWebSocket? wsCmd;
         private ClientWebSocket? wsStatus;
@@ -31,19 +91,26 @@ namespace MRR.Devices
         private CancellationTokenSource? _statusCts;
         // Guards concurrent access to wsStatus from both ListenStatusAsync and GetStatusAsync
         private readonly SemaphoreSlim _statusSocketSemaphore = new SemaphoreSlim(1, 1);
-        // Guards DisposeAsync itself: RobotConnections.Refresh() and GameController's
-        // DisconnectRobot/DisconnectAllRobots can both reach the same RobotConnection instance
-        // (Player.Connection and the RobotConnections registry entry are the same object) from
-        // different threads with no coordination between them. Without this, a second concurrent
-        // call re-cancels/re-disposes _statusCts and throws ObjectDisposedException, uncaught,
-        // which crashes the process.
+        // Guards DisposeAsync itself: RobotConnections.Refresh()/Reconnect()/ReconnectAll() and
+        // GameController's DisconnectRobot/DisconnectAllRobots can all reach the same
+        // RobotConnection instance (Player.Connection and the RobotConnections registry entry
+        // are the same object) from different threads with no coordination between them.
+        // Without this, a second concurrent call re-cancels/re-disposes _statusCts and throws
+        // ObjectDisposedException, uncaught, which crashes the process.
         private readonly SemaphoreSlim _disposeLock = new SemaphoreSlim(1, 1);
         private bool _disposed;
 
         // ── AIMRobot methods (moved from Players.cs) ─────────────────────────
 
-        public async Task ConnectAsync(string name, string color, string foreColor)
+        /// <summary>
+        /// Dials the robot using the name/color/address <see cref="LoadFromDatabase"/> just
+        /// read. Private: only <see cref="InitializeAsync"/> (i.e. construction) ever calls
+        /// this, so a live connection is never re-dialed in place -- see the class remarks.
+        /// </summary>
+        private async Task ConnectAsync()
         {
+            string name = _name, color = _color, foreColor = _foreColor;
+
             wsCmd = new ClientWebSocket();
             wsStatus = new ClientWebSocket();
             wsImage = new ClientWebSocket();
