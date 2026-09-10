@@ -94,7 +94,6 @@ namespace MRR
         /// Add "move" command
         /// </summary>
         /// <param name="p_Player"></param>
-        /// <param name="p_Value"></param>
         /// <param name="p_Direction"></param>
         /// <param name="p_Action"></param>
         /// <returns></returns>
