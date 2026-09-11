@@ -45,6 +45,7 @@ wwwroot/             Static web assets for phone UI
 | ~~[ALLPLAYERS_REFACTOR_PLAN.md](documents/ALLPLAYERS_REFACTOR_PLAN.md)~~ | **Superseded** by ALLPLAYERS_REMOVAL_DESIGN.md — decided 2026-08-27 to remove the in-memory mirror rather than keep it synced. Kept for its inventory of the sync problems |
 | [ALLPLAYERS_REMOVAL_DESIGN.md](documents/ALLPLAYERS_REMOVAL_DESIGN.md) | **Implemented** 2026-08-27 — all of §9's rollout steps done and build-verified. The §11 `Damage`/`Lives` question was resolved as correct behavior, not a bug (see [install/todo.md](install/todo.md) Section 1). §10's manual verification checklist is still open — see todo.md Section 8 |
 | [RobotConnections.md](documents/RobotConnections.md) | **Implemented** — confirms `RobotConnections` is the only place a robot socket is opened, and traces programming/simulation/processing mode each to the right (connected or connection-free) player list |
+| [PHONE_LOGIN_DESIGN.md](documents/PHONE_LOGIN_DESIGN.md) | **Design — not yet implemented.** Phone login (PIN from `Robots.Password`) + a cookie-backed session so the server can track which phone is connected to which robot. Track-only, not enforced on the existing `/api/player/...` endpoints; per-seat broadcast filtering explicitly deferred |
 
 ## Key Architecture Patterns
 - **State machine** in `GameController.NextState()` (states 0–16) — do not bypass it
