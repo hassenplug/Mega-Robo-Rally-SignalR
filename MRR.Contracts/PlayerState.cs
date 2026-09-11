@@ -350,7 +350,8 @@ namespace MRR
             {
                 var cards = CardsPlayed;
                 string? showCardsPlayed = cards.Count == 0 ? null
-                    : string.Join(",", cards.Select(c => c.Executed ? cards.GetCardText(c) : "X"));
+                    : string.Join("", cards.Select(c => c.Executed ? cards.GetCardText(c) : "X"));
+                    //: string.Join(",", cards.Select(c => c.Executed ? cards.GetCardText(c) : "X"));
                 return (showCardsPlayed == null || !Active)
                     ? PlayerStatus.Info().ShortDescription
                     : showCardsPlayed;
@@ -392,7 +393,7 @@ namespace MRR
             ShutDown            = (int)ShutDown,
             PlayerSeat          = PlayerSeat,
             Energy              = Energy,
-            FlagEnergy          = $"{LastFlag}/{CardsPlayer.Count}",
+            FlagEnergyCards     = $"{LastFlag}/{Energy}/{CardsPlayer.Count}",
             PlayerViewDirection = PlayerViewDirection,
             DirectionAdjustment = PlayerViewDirection,
             CardsDealt          = CardsDealtStr,

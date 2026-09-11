@@ -196,7 +196,7 @@ namespace MRR.Services
         }
 
         // Denormalizes the RobotStatus/RobotDirections/MoveCards/CommandList joins onto Robots itself
-        // (StatusColor, LEDColor, PlayerStatus, sDir, FlagEnergy, StatusToShow, PlayerMsg,
+        // (StatusColor, LEDColor, PlayerStatus, sDir, FlagEnergyCards, StatusToShow, PlayerMsg,
         // ConnectStatusColor, ConnectStatusDesc) so other reads (GetRobotsFromTable, SetStatus)
         // can use the plain Robots columns instead of re-joining. RobotStatus is joined twice --
         // once (rs) for the folded gameplay status IF(connected, Status, NotActive) that
@@ -222,7 +222,7 @@ namespace MRR.Services
                     r.LEDColor           = rs.LEDColor,
                     r.PlayerStatus       = rs.ShortDescription,
                     r.sDir               = rd.ShortDirDesc,
-                    r.FlagEnergy         = CONCAT(r.CurrentFlag,'/',r.Energy),
+                    r.FlagEnergyCards    = CONCAT(r.CurrentFlag,'/',r.Energy,'/',r.CardCount),
                     r.PlayerMsg          = cl.Description,
                     r.ConnectStatusColor = cs.StatusColor,
                     r.ConnectStatusDesc  = cs.ShortDescription";
@@ -275,7 +275,7 @@ namespace MRR.Services
                     ShutDown            = (int)row["ShutDown"],
                     PlayerSeat          = (int)row["PlayerSeat"],
                     Energy              = (int)row["Energy"],
-                    FlagEnergy          = row["FlagEnergy"].ToString() ?? "",
+                    FlagEnergyCards     = row["FlagEnergyCards"].ToString() ?? "",
                     PlayerViewDirection = directionAdjustment,
                     DirectionAdjustment = directionAdjustment,
                     CardsDealt          = cardsDealt,

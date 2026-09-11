@@ -210,6 +210,11 @@ namespace MRR
             }
         }
 
+        public bool InValidPos( RobotLocation l_newsquare)
+        {
+            return (l_newsquare.X < 0 || l_newsquare.Y < 0 || l_newsquare.X > g_BoardElements.BoardCols - 1 || l_newsquare.Y > g_BoardElements.BoardRows - 1);
+        }
+
         public int CalcMoveDistance(PlayerState p_Player, int p_Distance, Direction p_Direction, SquareAction p_MoveType)
         {
             // check to see if this robot can move 1 square
@@ -246,8 +251,7 @@ namespace MRR
 
             // Field enclosed by walls (CurrentGameData iKey 21) -- the board boundary itself
             // blocks movement, same as running into a BlockDirection wall.
-            if (FieldEnclosed && (l_newsquare.X < 0 || l_newsquare.Y < 0
-                || l_newsquare.X > g_BoardElements.BoardCols - 1 || l_newsquare.Y > g_BoardElements.BoardRows - 1))
+            if (FieldEnclosed && InValidPos(l_newsquare))
             {
                 ListOfCommands.AddCommand(thisplayer, SquareAction.BlockDirection);
                 return 0; // do not move
@@ -1444,7 +1448,9 @@ namespace MRR
                             break;
                         case SquareAction.Move:
                             // move robot...
-                            MoveRobot(thisplayer, thisplayer.CalcNewLocation(1, (Direction)thisaction.Parameter), (Direction)thisaction.Parameter, SquareAction.BoardMove); // sub step = 2
+                            RobotLocation newloc = thisplayer.CalcNewLocation(1, (Direction)thisaction.Parameter);
+                            if (InValidPos(newloc)) break; // invalid position, don't move
+                            MoveRobot(thisplayer, newloc, (Direction)thisaction.Parameter, SquareAction.BoardMove); // sub step = 2
                             //MoveRobot(thisplayer, thisplayer.CurrentPos.CalcNewLocation(1, (Direction)thisaction.Parameter), 1, (Direction)thisaction.Parameter, SquareAction.BoardMove); // sub step = 2
 
                             break;

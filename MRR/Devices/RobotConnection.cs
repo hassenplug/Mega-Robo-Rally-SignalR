@@ -85,6 +85,43 @@ namespace MRR.Devices
             return true;
         }
 
+        /// <summary>
+        /// Whether LEDs should be on right after connecting. Mirrors
+        /// DataService.UpdateCardPlayed's on-while-programming / off-once-full rule: if this
+        /// robot is mid-programming (RobotStatus.Programming=1 -- covers "Waiting For Cards"
+        /// through "Ready to Run"), lights reflect how many of its PhaseCount registers
+        /// (MoveCards.CardLocation=2) are already filled rather than defaulting to on. Any
+        /// other status (running, connected-only, shut down, ...) just defaults to on, same as
+        /// before this check existed.
+        /// </summary>
+        private bool ShouldLightsBeOnAtConnect()
+        {
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+
+            using var statusCmd = new MySqlCommand(
+                "SELECT rs.Programming " +
+                "FROM Robots r " +
+                "INNER JOIN RobotStatus rs ON r.`Status` = rs.RobotStatusID " +
+                "WHERE r.RobotID = @id", connection);
+            statusCmd.Parameters.AddWithValue("@id", RobotID);
+            var statusResult = statusCmd.ExecuteScalar();
+            bool inProgramming = statusResult != null && statusResult != DBNull.Value
+                && Convert.ToInt32(statusResult) == 1;
+            if (!inProgramming) return true;
+
+            using var countCmd = new MySqlCommand(
+                "SELECT COUNT(*) FROM MoveCards WHERE Owner = @id AND CardLocation = 2", connection);
+            countCmd.Parameters.AddWithValue("@id", RobotID);
+            int programCount = Convert.ToInt32(countCmd.ExecuteScalar() ?? 0);
+
+            using var phaseCmd = new MySqlCommand(
+                "SELECT iValue FROM CurrentGameData WHERE sKey = 'PhaseCount'", connection);
+            int phaseCount = Convert.ToInt32(phaseCmd.ExecuteScalar() ?? 5);
+
+            return programCount < phaseCount;
+        }
+
         private ClientWebSocket? wsCmd;
         private ClientWebSocket? wsStatus;
         private ClientWebSocket? wsImage;
@@ -131,7 +168,7 @@ namespace MRR.Devices
                 await SendCommandAsync(new { cmd_id = "imu_calibrate" });
                 await SendCommandAsync(new { cmd_id = "set_pose", x = 0, y = 0 });
                 await SendCommandAsync(new { cmd_id = "lcd_clear_screen", r = bgR, g = bgG, b = bgB });
-                await SetLedAsync("all", bgR, bgG, bgB);
+                await SetLightsAsync(ShouldLightsBeOnAtConnect());
 
                 await SendCommandAsync(new { cmd_id = "lcd_set_pen_color", r = fgR, g = fgG, b = fgB });
                 await SendCommandAsync(new { cmd_id = "lcd_set_fill_color", r = bgR, g = bgG, b = bgB, transparent = false });
@@ -150,7 +187,7 @@ namespace MRR.Devices
                 //await SendCommandAsync(new { cmd_id = "lcd_set_font", fontname = "MONO60" });  //This doesn't seem to work
                 await SetCursorAsync(6, Math.Max(0, (15 - name.Length) / 2));
                 await PrintAsync(name);
-                await SetLedAsync("all", bgR, bgG, bgB); // robot-color LED, same as SendColorStatus()'s default case
+                //await SetLedAsync("all", bgR, bgG, bgB); // robot-color LED, same as SendColorStatus()'s default case
 
                 _statusCts = new CancellationTokenSource();
                 //_ = ListenStatusAsync(_statusCts.Token);
@@ -431,6 +468,15 @@ namespace MRR.Devices
                 { led, new { r, g, b } }
             };
             return SendCommandAsync(ledData);
+        }
+
+        /// <summary>
+        /// Turns all LEDs on (in this robot's own color) or off.
+        /// </summary>
+        public Task SetLightsAsync(bool on)
+        {
+            var (r, g, b) = on ? ColorHelper.ParseHex(_color) : (0, 0, 0);
+            return SetLedAsync("all", r, g, b);
         }
 
         public Task ShowAIAsync() =>

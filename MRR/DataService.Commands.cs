@@ -136,13 +136,14 @@ namespace MRR.Services
                     ExecuteSQL($"Update Robots set Damage = {cParameter}, " +
                         $" ArchivePosRow = {cRow}, " +
                         $" ArchivePosCol = {cCol}, " +
-                        $" ArchivePosDir = {cDir}, " +
+                        $" ArchivePosDir = {cDir} " +
                         $" where RobotID = {cRobotID}");
                     break;
 
                 case SquareAction.Flag: // Set Current Flag
                     ExecuteSQL($"UPDATE Robots SET CurrentFlag = {cParameter} " +
                         $" WHERE RobotID = {cRobotID}");
+                    RefreshFlagEnergyCards(cRobotID);
                     break;
 
                 case SquareAction.Option: // Deal option card to robot
@@ -208,7 +209,10 @@ namespace MRR.Services
                     break;
 
                 case SquareAction.DealSpamCard: // Deal Spam card to player
-                    DealSpamToPlayer(cRobotID);
+                    int cardcount = DealSpamToPlayer(cRobotID);
+                    ExecuteSQL($"UPDATE Robots SET CardCount = {cardcount} " +
+                        $" WHERE RobotID = {cRobotID}");
+                    RefreshFlagEnergyCards(cRobotID);
                     break;
 
                 case SquareAction.SetShutDownMode: // Set ShutDown
@@ -253,6 +257,7 @@ namespace MRR.Services
                 case SquareAction.SetEnergy:
                     ExecuteSQL($"UPDATE Robots SET Energy = {cParameter} " +
                         $" WHERE RobotID = {cRobotID}");
+                    RefreshFlagEnergyCards(cRobotID);
                     break;
 
                 default:
@@ -281,5 +286,17 @@ namespace MRR.Services
 
             return p_NewStatus;
         }
+
+        /// <summary>
+        /// Recomputes Robots.FlagEnergyCards ("CurrentFlag/Energy/CardCount") for one robot.
+        /// Call whenever any of those three values changes -- CurrentFlag (SquareAction.Flag)
+        /// or Energy (SquareAction.SetEnergy) above -- so the denormalized column doesn't wait
+        /// on the next full RefreshRobotDenormalizedFields sweep (DataService.Players.cs) to
+        /// catch up. See the connection-scoped overload (DataService.Cards.cs) for the
+        /// CardCount-driven call sites (DealSpamToPlayer, MoveCardsShuffleAndDeal).
+        /// </summary>
+        private void RefreshFlagEnergyCards(int p_RobotID) =>
+            ExecuteSQL($"UPDATE Robots SET FlagEnergyCards = CONCAT(CurrentFlag, '/', Energy, '/', CardCount) " +
+                $" WHERE RobotID = {p_RobotID}");
     }
 }

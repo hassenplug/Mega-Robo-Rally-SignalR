@@ -352,7 +352,7 @@ namespace MRR.Controller
                             //_dataService.ExecuteSQL("call procUpdateRobotCards();");
                             //UpdateGameState(); // ensure DB changes are visible before next command
                             _dataService.ExecuteSQL("update CurrentGameData set iValue=iValue+1 where iKey=2;"); // next turn
-                            foreach (var p in AllPlayers) p.UpdateStatusLEDs();
+                            //foreach (var p in AllPlayers) p.UpdateStatusLEDs();
                             ScreenUiLoadHand(2);
                             SetGameState(3);
                             break;
@@ -497,7 +497,7 @@ namespace MRR.Controller
         /// connection screen reflects whether we actually have a live socket to the robot.
         /// Sets all three itself rather than calling RefreshRobotDenormalizedFields: that method
         /// recomputes the *gameplay* denormalized columns (StatusColor, LEDColor, PlayerStatus,
-        /// sDir, FlagEnergy, StatusToShow, PlayerMsg) for every robot via several joins, which is
+        /// sDir, FlagEnergyCards, StatusToShow, PlayerMsg) for every robot via several joins, which is
         /// far more than a single robot's connect-status change needs. Broadcasts immediately so
         /// the Connecting -> Connected/NotConnected transition is visible live rather than only
         /// on the next unrelated broadcast (see install/todo.md Section 9).</summary>

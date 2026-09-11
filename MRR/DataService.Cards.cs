@@ -49,7 +49,7 @@ namespace MRR.Services
                 "LEFT JOIN (" +
                 "  SELECT r2.RobotID AS Owner, " +
                 "         GROUP_CONCAT(IFNULL(mc.CardTypeID, 0) ORDER BY pc.ID) AS gctp, " +
-                "         GROUP_CONCAT(IF(mc.CardID IS NULL, '-', IF(mc.Executed, mct.ShortDescription, 'X')) ORDER BY pc.ID) AS ShowCardsPlayed " +
+                "         GROUP_CONCAT(IF(mc.CardID IS NULL, '-', IF(mc.Executed, mct.ShortDescription, 'X')) ORDER BY pc.ID SEPARATOR '') AS ShowCardsPlayed " +
                 "  FROM Robots r2 CROSS JOIN PhaseCounter pc " +
                 "  LEFT JOIN MoveCards mc ON pc.ID = mc.PhasePlayed AND mc.Owner = r2.RobotID " +
                 "  LEFT JOIN MoveCardTypes mct ON mc.CardTypeID = mct.CardTypeID " +
@@ -86,6 +86,25 @@ namespace MRR.Services
                 $"SET rb.CardCount = IFNULL(mc.cnt, 0) {whereClause}";
 
             using var cmd = new MySqlCommand(sql, connection);
+            if (playerId.HasValue)
+                cmd.Parameters.AddWithValue("@player", playerId.Value);
+            cmd.ExecuteNonQuery();
+        }
+
+        /// <summary>
+        /// Connection-scoped overload of DataService.Commands.cs's RefreshFlagEnergyCards, for
+        /// callers that already have an open connection and just changed CardCount via
+        /// RefreshCardCount above (DealSpamToPlayer, MoveCardsShuffleAndDeal) -- reuses that
+        /// connection instead of opening a new one per robot. Pass playerId to refresh a single
+        /// robot; omit to refresh all.
+        /// </summary>
+        private void RefreshFlagEnergyCards(MySqlConnection connection, int? playerId = null)
+        {
+            string whereClause = playerId.HasValue ? "WHERE RobotID = @player" : "";
+
+            using var cmd = new MySqlCommand(
+                $"UPDATE Robots SET FlagEnergyCards = CONCAT(CurrentFlag, '/', Energy, '/', CardCount) {whereClause}",
+                connection);
             if (playerId.HasValue)
                 cmd.Parameters.AddWithValue("@player", playerId.Value);
             cmd.ExecuteNonQuery();
@@ -274,6 +293,11 @@ namespace MRR.Services
             }
             int newStatus = (programCount == phaseCount) ? 4 : 3;
 
+            // LEDs stay on while the player is still programming, off once every register up
+            // to PhaseCount is filled -- compared by count, not by whether slot 5 specifically
+            // is filled, since PhaseCount can be less than 5 (e.g. damage).
+            _robotConnections.Get(p_Player)?.SetLightsAsync(programCount < phaseCount).Wait();
+
             // 7. Rebuild CardsDealt and CardsPlayed CSV strings (procUpdateRobotCards).
             RebuildRobotCardsSummary(connection, p_Player);
 
@@ -368,8 +392,10 @@ namespace MRR.Services
                 cmd.ExecuteNonQuery();
             }
 
-            // A new Spam card just entered this robot's collection; keep CardCount in sync.
+            // A new Spam card just entered this robot's collection; keep CardCount (and the
+            // FlagEnergyCards summary derived from it) in sync.
             RefreshCardCount(connection, robotID);
+            RefreshFlagEnergyCards(connection, robotID);
 
             return maxId;
         }
@@ -530,6 +556,7 @@ namespace MRR.Services
                 // Refresh CardCount for everyone: step 1 above deleted expired Spam cards and
                 // step 6 dealt cards, both of which can change how many cards a robot owns.
                 RefreshCardCount(connection);
+                RefreshFlagEnergyCards(connection);
 
                 UpdatePlayerPriority(connection);
             }
