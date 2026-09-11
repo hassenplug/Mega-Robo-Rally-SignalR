@@ -901,7 +901,7 @@ INSERT INTO `RobotStatus` VALUES
 (12,'Move Complete','Done',1,0,'88FF88','88FF88'),
 (13,'Program Locked','Locked In',1,0,'55FF55','55FF55'),
 (14,'Laser Fired','Laser',1,0,'FFFF00','FFFF00'),
--- Section 9 (install/todo.md): Robots.ConnectStatusID values, distinct from the gameplay
+-- Section 8 (install/todo.md): Robots.ConnectStatusID values, distinct from the gameplay
 -- Robots.Status values above. IDs 20-23 chosen to avoid colliding with the gameplay range;
 -- ConnectStatusID 0 reuses 'Unknown' above rather than adding a duplicate row.
 (20,'Not Connected','Not Conn',0,0,'FF0000','FF0000'),

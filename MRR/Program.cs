@@ -279,7 +279,7 @@ app.MapGet("/api/robot/{function?}/{parameter1?}", async (string? function, stri
     return Results.Ok(dataout);
 });
 
-// Section 9 (install/todo.md) connection screen: "Update IP" -- lets the operator type a new
+// Section 8 (install/todo.md) connection screen: "Update IP" -- lets the operator type a new
 // address into the box where the robot's name was, without going through the board/DB editor.
 // Writes to both RobotBases.IPAddress (the column actually read for connecting) and
 // Robots.IPAddress, so they stay in sync. Parameterized in DataService.UpdateRobotIPAddress
@@ -297,7 +297,7 @@ app.MapGet("/api/robot/setip/{robotId:int}/{ipAddress}", (int robotId, string ip
     return Results.Ok(new { robotId, ipAddress });
 });
 
-// Section 9 (install/todo.md) connection screen: "Search" -- sweeps the game LAN for live AIM
+// Section 8 (install/todo.md) connection screen: "Search" -- sweeps the game LAN for live AIM
 // robots. See RobotDiscovery.cs for why this can report "something answered at this IP" but
 // not which physical robot it is (ws_status has no identity field); the operator confirms and
 // assigns unmatched hits with "Update IP" above.

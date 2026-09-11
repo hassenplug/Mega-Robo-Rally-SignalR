@@ -18,7 +18,7 @@ namespace MRR.Services
     }
 
     /// <summary>
-    /// Section 9 (install/todo.md) "Search": scans the game LAN for live AIM robots.
+    /// Section 8 (install/todo.md) "Search": scans the game LAN for live AIM robots.
     ///
     /// Limitation: the AIM ws_status wire format (see RobotStatus.cs) carries no hardware/MAC
     /// identity field, so a live device found at an IP cannot be matched to a specific

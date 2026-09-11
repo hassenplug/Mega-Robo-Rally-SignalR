@@ -111,6 +111,7 @@ namespace MRR.Services
             {
                 titlemsg  = titlemessage,
                 gamestate = GameState,
+                IsRunning = IsRunning,
                 robots    = GetRobotsFromTable(),
             };
         }

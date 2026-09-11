@@ -1,6 +1,6 @@
 # Mega Robo Rally — Project TODO
 
-**Last updated:** 2026-09-04
+**Last updated:** 2026-09-11
 **Legend:** `[x]` Done &nbsp; `[-]` Partial / In Progress &nbsp; `[ ]` Not started
 
 ---
@@ -33,10 +33,12 @@
   - [x] Express belts move first (2 squares), then all belts (1 square)
   - [x] Chained movement: robot landing on a second belt also moves
   - [ ] Merge conveyor belts (splitting paths converge)
-  - [ ] Conveyor belts can push a robot off the board (into a pit/off the edge) and through
-    walls — belt movement doesn't appear to respect the same wall/boundary checks as normal
-    moves (see `CalcMoveDistance`'s wall check and the `FieldEnclosed` boundary check,
-    Section 6)
+  - [-] Conveyor belts can push a robot off the board (into a pit/off the edge) and through
+    walls — off-board half fixed 2026-09-10: `InValidPos()` now guards the `SquareAction.Move`
+    case in `CreateCommands.cs`, so a belt push toward an out-of-range square is skipped instead
+    of writing a negative/out-of-bounds position. Still open: belt movement passing through a
+    wall — it doesn't appear to run the same wall check as normal moves (see
+    `CalcMoveDistance`'s wall check, Section 6).
 
 - [ ] Pushers (`CreateCommands.cs`)
   - Activate only on specific phases (odd or even, marked per pusher)
@@ -182,11 +184,22 @@
 - [ ] Display robot status on phone (damage, energy, position) — not lives; this rules
   version doesn't track lives (confirmed 2026-08-27, see Section 1 note above)
 
-- [ ] Show deck size on player UI
+- [-] Show deck size on player UI — mostly done 2026-09-10 ("Add Card Count" / "count spam
+  cards"): `Robots.CardCount` is now a real column kept current by `RefreshCardCount`/
+  `RefreshFlagEnergyCards` (`MRR/DataService.Cards.cs`) on every path that changes a robot's
+  cards (deal, shuffle, expire, `DealSpamToPlayer`), surfaced as `FlagEnergyCards`
+  ("LastFlag/Energy/CardCount") on `AllDataPayload` and rendered by `loadrobots.js` on
+  `index.html`.
   - Display total cards in the player's personal deck (all MoveCards owned by that robot across all locations except Played Spam / CardLocation=5)
   - Includes accumulated Spam cards so players can see how damage bloats their deck
+  - Gap: `RefreshCardCount`'s query (`DataService.Cards.cs:77-92`) counts every `MoveCards` row
+    for the robot regardless of `CardLocation` — it does not exclude `CardLocation=5` (played/
+    discarded Spam) as this item originally specced. Confirm whether that still matters before
+    closing this out.
   - Source: `COUNT(*) FROM MoveCards WHERE Owner=robotID AND CardLocation != 5`
-  - Expose via a new column in `viewRobots` or `viewRobotsMicro`, then surface in `CardsDealt`/`AllDataUpdate` JSON
+  - Landed on `Robots.CardCount` directly rather than a `viewRobots`/`viewRobotsMicro` column
+    (no views exist in this schema per project conventions), surfaced via `AllDataPayload`
+    same as planned.
 
 - [ ] Handle Haywire / Spam / option card notifications on phone
 
@@ -374,7 +387,7 @@ Home Router (192.168.1.x)
   or a bad query currently shows up later as an unrelated NullReferenceException instead of a
   clear DB error at the source
 
-- [ ] Add the new `FieldEnclosed` `CurrentGameData` row (iKey 21) to the test MySQL copy —
+- [x] Add the new `FieldEnclosed` `CurrentGameData` row (iKey 21) to the test MySQL copy —
   `install/MRRDatabase.sql` only seeds a fresh install, so the running `rally` database on
   `mrobopi` (or wherever the test copy lives) needs it inserted by hand:
   ```sql
@@ -504,19 +517,24 @@ copy silently reverts it, or a broadcast reads stale data. Numbering below match
   a `COUNT(*)` now that `AllPlayers` isn't the source of truth elsewhere; no correctness need
 
 ---
-## Section 8 — Game Screen
+## Section 8 — Game Screen / GM UI
+
+*Combined 2026-09-11 from the former Section 8 (Game Screen), Section 9 (Robot Connection
+Screen), and Section 10 (Update index to create a GM screen) — all three described the same
+evolving GM screen.*
+
+### Game Lifecycle
 
 - GM screen needs a way to end the current game.
 - `CurrentGameData` should have a flag to determine:
   - Whether a game is currently in progress (and whether we need to connect to the robots)
   - What should be displayed on the player interface (e.g. "Game setup in progress")
 
-
-  Using the IsRunning flag in CurrentGameData
+  Using the IsRunning flag in CurrentGameData:
   When the pi boots, or app starts, if IsRunning, connect to the robots, and store that robots are connected.
-  When IsRunning is turned off, disconnect from robots
-  When a game is started, IsRunning should be turned on
-  
+  When IsRunning is turned off, disconnect from robots.
+  When a game is started, IsRunning should be turned on.
+
 - [x] Removing AllPlayers from main code — design doc written and rollout implemented
   2026-08-27/30, see `documents/ALLPLAYERS_REMOVAL_DESIGN.md`. `Robots` is now read fresh from
   the DB per broadcast; `AllPlayers` remains only where the doc identifies it's still needed
@@ -531,20 +549,18 @@ copy silently reverts it, or a broadcast reads stale data. Numbering below match
   - [ ] Re-check `UpdateCardPlayed` specifically through a full programming→lock→execute cycle
   - [ ] Play a multi-turn game confirming pit-death/Damage-threshold behavior holds turn after turn
 
----
-## Section 9 - Robot Connection Screen
+### Robot Connection Screen
 
 - Update the IsConnected flag in Robots to ConnectStatus
   - Add the needed statuses to the RobotStatus table
   - Link ConnectStatus to the RobotStatus table
   - Update all references to IsConnected
 
-Create a small form.  Data should be pulled using the same subscription as index.html
+Create a small form. Data should be pulled using the same subscription as index.html
 - [x] Header buttons
   - [x] Connect All
   - [x] Disconnect All
   - [x] Search (search all IP addresses for matching Mac addresses)
-
   - [x] Update IP (Allow user to enter the IP address into the box where the name was)
 - [x] Show rows for all robots
   - [x] Colored Button next to a box with a Robot Name and colored background (colors will match the robot) - Button will toggle connection (try to connect/dsiconnect)
@@ -554,8 +570,7 @@ Create a small form.  Data should be pulled using the same subscription as index
     - [x] Purple (Searching)
     - [x] Unknown (0)
 
----
-## Section 10 - Update index to create a GM screen
+### Merge Connections Into the Index / GM Screen
 
  - [ ] copy "connections" functionality into the index page
    - [ ] set the status field to be a button that the GM can use to connect when a robot is not connected.
@@ -567,7 +582,7 @@ Create a small form.  Data should be pulled using the same subscription as index
 
 ---
 
-## Section 11 - Testing
+## Section 9 - Testing
 
 - [x] `MRR.Tests` (xUnit) added 2026-09-04 — references `MRR.Contracts` and `MRR.Rules` only
   (the pure turn-planning libraries, no DB/ASP.NET), so tests run without a database or robots.

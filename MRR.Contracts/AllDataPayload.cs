@@ -4,6 +4,7 @@ namespace MRR
     {
         public string titlemsg { get; set; } = "";
         public int gamestate { get; set; }
+        public bool IsRunning { get; set; }
         public List<RobotData> robots { get; set; } = new();
     }
 

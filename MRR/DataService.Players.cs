@@ -341,7 +341,7 @@ namespace MRR.Services
         }
 
         /// <summary>
-        /// Section 9 (install/todo.md) "Update IP": writes the robot's IP address to both
+        /// Section 8 (install/todo.md) "Update IP": writes the robot's IP address to both
         /// RobotBases.IPAddress -- the column RobotConnection actually reads when it (re)dials --
         /// and Robots.IPAddress, so the two stay in sync instead of the latter going stale.
         /// Parameterized because the value comes straight from a form field on the connection

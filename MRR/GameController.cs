@@ -500,7 +500,7 @@ namespace MRR.Controller
         /// sDir, FlagEnergyCards, StatusToShow, PlayerMsg) for every robot via several joins, which is
         /// far more than a single robot's connect-status change needs. Broadcasts immediately so
         /// the Connecting -> Connected/NotConnected transition is visible live rather than only
-        /// on the next unrelated broadcast (see install/todo.md Section 9).</summary>
+        /// on the next unrelated broadcast (see install/todo.md Section 8).</summary>
         private void SetRobotConnectStatus(int robotID, tPlayerStatus status)
         {
             _dataService.ExecuteSQL($@"
@@ -514,7 +514,7 @@ namespace MRR.Controller
         }
 
         /// <summary>Batch form of SetRobotConnectStatus for the connection screen's "Connect
-        /// All"/"Disconnect All"/"Search" (install/todo.md Section 9). Each robot gets its own
+        /// All"/"Disconnect All"/"Search" (install/todo.md Section 8). Each robot gets its own
         /// SetRobotConnectStatus call -- and so its own broadcast -- rather than one shared
         /// UPDATE across all of them: this is a between-games action (game setup/robot
         /// assignment), not a per-turn one, so the API_DECOMPOSITION_DESIGN.md tempo table (§2)
