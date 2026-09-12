@@ -141,6 +141,13 @@ namespace MRR
 
         private volatile bool _aborted;
 
+        /// <summary>
+        /// Whether Abort() was called during this run. GameController checks this after
+        /// ProcessCommands() returns to decide whether to auto-advance the state machine --
+        /// an aborted turn leaves that to the GM (see AbandonTurn's remarks).
+        /// </summary>
+        public bool Aborted => _aborted;
+
         /// <summary>How many commands were still pending when the turn was aborted.</summary>
         public int AbandonedCount { get; private set; }
 

@@ -184,9 +184,9 @@ namespace MRR.Devices
                 //await SendCommandAsync(new { cmd_id = "lcd_draw_image_from_file", filename = $"arrow_{foreColor}.png", x = 0, y = 0 });
                 //await SendCommandAsync(new { cmd_id = "lcd_draw_image_from_file", filename = $"arrow_{foreColor}", x = 0, y = 0 });
 
-                //await SendCommandAsync(new { cmd_id = "lcd_set_font", fontname = "MONO60" });  //This doesn't seem to work
-                await SetCursorAsync(6, Math.Max(0, (15 - name.Length) / 2));
-                await PrintAsync(name);
+                await SendCommandAsync(new { cmd_id = "lcd_set_font", fontname = "mono40" });
+                //await PrintAtAsync(name, Math.Max(0, (240 - name.Length * 24) / 2), 105);
+                await SendCommandAsync(new { cmd_id = "lcd_print_at", @string = name,  x = Math.Max(0, (240 - name.Length * 20) / 2), y = 165, b_opaque = true });
                 //await SetLedAsync("all", bgR, bgG, bgB); // robot-color LED, same as SendColorStatus()'s default case
 
                 _statusCts = new CancellationTokenSource();
@@ -207,39 +207,48 @@ namespace MRR.Devices
                 return;
             }
 
-            var jsonCommand = JsonSerializer.Serialize(command);
-            //Console.WriteLine($"[{RobotID}] cmd: {jsonCommand}");
-            var bytes = Encoding.UTF8.GetBytes(jsonCommand);
-
-            await wsCmd.SendAsync(
-                new ArraySegment<byte>(bytes),
-                WebSocketMessageType.Binary,
-                true,
-                CancellationToken.None);
-
-            var buffer = new byte[4096];
-            var result = await wsCmd.ReceiveAsync(
-                new ArraySegment<byte>(buffer),
-                CancellationToken.None);
-
-            if (result.MessageType == WebSocketMessageType.Binary)
+            try
             {
-                var response = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                var responseObj = JsonSerializer.Deserialize<Dictionary<string, object>>(response);
+                var jsonCommand = JsonSerializer.Serialize(command);
+                //Console.WriteLine($"[{RobotID}] cmd: {jsonCommand}");
+                var bytes = Encoding.UTF8.GetBytes(jsonCommand);
 
-                //Console.WriteLine($"[{RobotID}] cmd ACK: {response}");
+                await wsCmd.SendAsync(
+                    new ArraySegment<byte>(bytes),
+                    WebSocketMessageType.Binary,
+                    true,
+                    CancellationToken.None);
 
-                if (responseObj != null && responseObj.ContainsKey("status"))
+                var buffer = new byte[4096];
+                var result = await wsCmd.ReceiveAsync(
+                    new ArraySegment<byte>(buffer),
+                    CancellationToken.None);
+
+                if (result.MessageType == WebSocketMessageType.Binary)
                 {
-                    var status = responseObj["status"].ToString();
-                    if (status == "in_progress")
-                    { }
-                    else if (status == "error")
+                    var response = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                    var responseObj = JsonSerializer.Deserialize<Dictionary<string, object>>(response);
+
+                    //Console.WriteLine($"[{RobotID}] cmd ACK: {response}");
+
+                    if (responseObj != null && responseObj.ContainsKey("status"))
                     {
-                        var errorInfo = responseObj.ContainsKey("error_info") ? responseObj["error_info"].ToString() : "Unknown error";
-                        Console.WriteLine("Robot error: " + errorInfo);
+                        var status = responseObj["status"].ToString();
+                        if (status == "in_progress")
+                        { }
+                        else if (status == "error")
+                        {
+                            var errorInfo = responseObj.ContainsKey("error_info") ? responseObj["error_info"].ToString() : "Unknown error";
+                            Console.WriteLine("Robot error: " + errorInfo);
+                        }
                     }
                 }
+            }
+            catch (Exception ex)
+            {
+                IsConnected = false;
+                Console.WriteLine($"[{RobotID}] SendCommandAsync failed: {ex.Message}");
+                //throw;
             }
         }
 

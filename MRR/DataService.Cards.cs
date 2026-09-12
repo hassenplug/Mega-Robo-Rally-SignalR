@@ -491,7 +491,7 @@ namespace MRR.Services
                 // 2. Move all remaining hand (1) and played (2) cards to discard (3).
                 using (var cmd = new MySqlCommand(
                     "UPDATE MoveCards SET CardLocation = 3, PhasePlayed = 0 " +
-                    "WHERE CardLocation = 1 OR CardLocation = 2",
+                    "WHERE (CardLocation = 1 and CardTypeID != 10) OR CardLocation = 2",
                     connection))
                 {
                     cmd.ExecuteNonQuery();

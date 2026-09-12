@@ -125,10 +125,11 @@ namespace MRR.Controller
                     _pendingCommands = new PendingCommands(_dataService, _hubContext);
                     _processCommandsThread = new Thread(() =>
                     {
+                        bool aborted;
                         try
                         {
-                            var result = _pendingCommands.ProcessCommands();
-                            //Console.WriteLine("Process Commands Result: " + result);
+                            _pendingCommands.ProcessCommands();
+                            aborted = _pendingCommands.Aborted;
                         }
                         finally
                         {
@@ -139,6 +140,15 @@ namespace MRR.Controller
                                 _processCommandsThread = null;
                             }
                         }
+
+                        // CreateCommands always appends a SetGameState command at the end of
+                        // the turn's command list, which lands GameState off 8 (e.g. back to
+                        // 2) via ProcessDbCommand directly -- bypassing NextState()'s cascade.
+                        // Drive that cascade here so the turn rolls into programming for the
+                        // next one on its own, instead of leaving the GM to click Next State.
+                        // An aborted turn deliberately leaves the state machine alone (see
+                        // AbandonTurn's remarks) -- what happens next is the GM's call.
+                        if (!aborted) NextState();
                     });
                     _processCommandsThread.IsBackground = true;
                     _processCommandsThread.Start();
@@ -358,6 +368,7 @@ namespace MRR.Controller
                             break;
                         case 3: // Verify Position
                             ScreenUiLoadHand(3);
+                            SetAllRobotLights(true);
                             SetGameState(4);
                             break;
                         case 4: // still programming
@@ -379,11 +390,13 @@ namespace MRR.Controller
                             SetGameState(6);
                             break;
                         case 6: // execute turn
+                            SetAllRobotLights(true);
                             ScreenUiRenderIdle(6);
                             Task.Run(async () => await ExecuteTurn());
                             break;
                         case 7: // executing turn
                             ScreenUiRenderIdle(7);
+                            SetAllRobotLights(false);
                             SetGameState(8);
                             break;
                         case 8: // running phase
@@ -406,6 +419,7 @@ namespace MRR.Controller
                             SetGameState(0);
                             break;
                         case 15: // Create program
+                            SetAllRobotLights(true);
                             SetGameState(4);
                             break;
                         case 16: // Reload Position
@@ -555,6 +569,28 @@ namespace MRR.Controller
                     Console.WriteLine($"[ScreenUI {player.ID}] Polling task faulted: {ex.Message}");
                 }
             });
+        }
+
+        /// <summary>
+        /// Turns every connected robot's LEDs on (in its own color) or off. Used to mark two
+        /// phases visually: on when programming starts (states 3/15 entering state 4) and again
+        /// at execute-turn (state 6 entry), off once execute-turn finishes (state 7 exit). Note
+        /// individual robots may also flip their own LED off earlier, once that player finishes
+        /// programming -- see DataService.Cards.cs.
+        /// </summary>
+        private void SetAllRobotLights(bool on)
+        {
+            foreach (var player in AllPlayers)
+            {
+                _ = Task.Run(async () =>
+                {
+                    try { await player.SetLightsAsync(on); }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[{player.ID}] SetLightsAsync error: {ex.Message}");
+                    }
+                });
+            }
         }
 
         /// <summary>

@@ -197,6 +197,9 @@ namespace MRR
         public Task SetLedAsync(string led, int r, int g, int b) =>
             Connection == null ? Task.CompletedTask : Connection.SetLedAsync(led, r, g, b);
 
+        public Task SetLightsAsync(bool on) =>
+            Connection == null ? Task.CompletedTask : Connection.SetLightsAsync(on);
+
         public Task ShowAIAsync() =>
             Connection == null ? Task.CompletedTask : Connection.ShowAIAsync();
 
@@ -220,12 +223,5 @@ namespace MRR
             */
         }
 
-        internal void UpdateStatusLEDs()
-        {
-            int CPCount = CardsPlayedStr.Split(',').Count(s => s != "0" && s != "") ;
-            Console.WriteLine($"Player {ID} played {CPCount} cards {CardsPlayedStr}");
-            SendColorStatus(CPCount==5?1:0);
-            //SetLightsAsync(CPCount == 5).Wait();
-        }
     }
 }
