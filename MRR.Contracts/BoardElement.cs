@@ -608,6 +608,10 @@ namespace MRR
         TrapDoor = 41,
         Edge = 42,
         CornerEdge = 43,
+        // Solid obstacle occupying the whole square -- impassable from every direction, unlike
+        // BlockDirection walls (SquareAction.BlockDirection / SquareType.Walls) which only
+        // block one edge. See CreateCommands.CalcMoveDistance.
+        Block = 44,
         Pusher = 50,
         Water = 55,
         Cannon = 60,  // laser

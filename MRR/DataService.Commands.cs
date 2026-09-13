@@ -155,6 +155,10 @@ namespace MRR.Services
                         $"INSERT INTO RobotOptions (RobotID, OptionID, DestroyWhenDamaged, Quantity, IsActive, PhasePlayed, DataValue) " +
                         $"SELECT {cRobotID}, OptionID, false, Quantity, false, 0, 0 " +
                         $"FROM `Options` WHERE OptionID = {optionID}");
+                    // Sync in-memory OptionCards to match the INSERT above -- otherwise the
+                    // next turn's BuildTurnRequest plans against a hand missing this option
+                    // until some other reload happens to run first.
+                    LoadOptionCardsFromDatabase();
                     break;
                 }
 
@@ -166,6 +170,11 @@ namespace MRR.Services
                 case SquareAction.DealCard: // Deal card to player (assign card owner)
                     ExecuteSQL(
                         $"UPDATE MoveCards SET Owner = {cRobotID} WHERE CardID = {cParameter}");
+                    // Sync the matching GameCards entry -- Player.CardsPlayer is computed live
+                    // off this shared collection (see PlayerState.CardsPlayer), so leaving it
+                    // stale here would show the card under its old owner until the next reload.
+                    var dealtCard = GameCards.FirstOrDefault(c => c.ID == cParameter);
+                    if (dealtCard != null) dealtCard.Owner = cRobotID;
                     break;
 
                 case SquareAction.GameWinner: // Game Winner
@@ -223,6 +232,10 @@ namespace MRR.Services
                 case SquareAction.SetCurrentGameData: // Set CurrentGameData iValue by iKey
                     ExecuteSQL(
                         $"UPDATE CurrentGameData SET iValue = {cParameterB} WHERE iKey = {cParameter}");
+                    // iKey is caller-chosen (PhaseCount, LaserDamage, FieldEnclosed, ...), so
+                    // there's no single cached field to target -- refresh every GameStateStore
+                    // scalar from the DB instead of leaving whichever one this touched stale.
+                    UpdateGameState();
                     break;
 
                 case SquareAction.EndOfGame: // End of game

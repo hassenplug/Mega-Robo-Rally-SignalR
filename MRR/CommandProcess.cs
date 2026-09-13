@@ -243,6 +243,26 @@ namespace MRR
         }
 
         /// <summary>
+        /// GameController.LoadCurrentGame's startup/new-game sweep: resets any command stuck
+        /// "In Progress" (3) or "Script Complete" (4) back to "Ready" (2), across every command
+        /// type, in both the DB and this instance's in-memory list. Same reason as
+        /// ClearStuckCommands above -- without the in-memory sync, a live ProcessCommands loop
+        /// keeps iterating its stale copy and its next SaveChanges() would overwrite the reset.
+        /// </summary>
+        public int ResetStuckCommands()
+        {
+            using var db = _dataService.CreateDbContext();
+            var affected = db.CommandItems
+                .Where(c => c.StatusID == 3 || c.StatusID == 4)
+                .ExecuteUpdate(s => s.SetProperty(b => b.StatusID, 2));
+
+            foreach (var item in _commandList.Where(c => c.StatusID == 3 || c.StatusID == 4))
+                item.StatusID = 2;
+
+            return affected;
+        }
+
+        /// <summary>
         /// Looks up a command by ID in this instance's in-memory list (the live turn's
         /// working set) rather than the DB, so the status DataService.ProcessDbCommand
         /// writes lands on the same object this loop is iterating -- otherwise the loop's

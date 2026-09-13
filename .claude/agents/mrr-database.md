@@ -562,6 +562,7 @@ Additional boards are loaded via state 21 ("Load XML Boards").
 | 41 | Trap Door |
 | 42 | Edge |
 | 43 | Corner Edge |
+| 44 | Block (solid obstacle, impassable from every direction) |
 | 50 | Pusher |
 | 55 | Water |
 | 60 | Cannon |

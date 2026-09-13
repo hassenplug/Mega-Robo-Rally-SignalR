@@ -701,6 +701,12 @@ namespace MRR.Services
                 tx2.Rollback();
                 throw;
             }
+
+            // The rebuild above (GameNewAddCards, then the MoveCards/RobotOptions restores)
+            // touches MoveCards and RobotOptions directly via raw SQL, leaving the in-memory
+            // GameCards/OptionCards collections stale -- reload everything rather than hand-sync
+            // three separate tables' worth of restored rows.
+            ReloadAllData();
         }
 
         // =====================================================================

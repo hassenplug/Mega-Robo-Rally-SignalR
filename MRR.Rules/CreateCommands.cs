@@ -258,7 +258,17 @@ namespace MRR
             }
 
             // actions for new square
-            BoardActionsCollection l_TargetActions = g_BoardElements.GetSquare(l_newsquare.X, l_newsquare.Y)?.ActionList ?? new BoardActionsCollection();
+            BoardElement? l_TargetSquare = g_BoardElements.GetSquare(l_newsquare.X, l_newsquare.Y);
+            BoardActionsCollection l_TargetActions = l_TargetSquare?.ActionList ?? new BoardActionsCollection();
+
+            // A Block square is solid from every direction (unlike a BlockDirection wall,
+            // which only blocks the one edge it's placed on) -- entering one is the same as
+            // running into a wall.
+            if (l_TargetSquare?.Type == SquareType.Block)
+            {
+                ListOfCommands.AddCommand(thisplayer, SquareAction.BlockDirection);
+                return 0; // do not move
+            }
 
             if (l_TargetActions.Count(al => ((al.SquareAction == SquareAction.BlockDirection) && (al.Parameter == (int)l_ActualMoveDirection))) > 0)
             {

@@ -181,10 +181,10 @@
 - [ ] Shutdown toggle on phone UI
   - Player can choose to shut down during programming phase
 
-- [ ] Display robot status on phone (damage, energy, position) — not lives; this rules
+- [x] Display robot status on phone (damage, energy, position) — not lives; this rules
   version doesn't track lives (confirmed 2026-08-27, see Section 1 note above)
 
-- [-] Show deck size on player UI — mostly done 2026-09-10 ("Add Card Count" / "count spam
+- [x] Show deck size on player UI — mostly done 2026-09-10 ("Add Card Count" / "count spam
   cards"): `Robots.CardCount` is now a real column kept current by `RefreshCardCount`/
   `RefreshFlagEnergyCards` (`MRR/DataService.Cards.cs`) on every path that changes a robot's
   cards (deal, shuffle, expire, `DealSpamToPlayer`), surfaced as `FlagEnergyCards`
@@ -428,26 +428,51 @@ matching in-memory collection is never updated, so the next unrelated write from
 copy silently reverts it, or a broadcast reads stale data. Numbering below matches the doc
 (items 1/2/3/5 were the `AllPlayers` mirror, already resolved by its removal).
 
-- [ ] #4 — Turn counter incremented in DB (`CurrentGameData` iKey=2) but not `_dataService.Turn`
-  (`GameController.NextState()`)
-- [ ] #6 — Bulk `CommandList` `StatusID` update not reflected in `DataService.ListOfCommands`
-  (`GameController.NextState()`) — note: `ListOfCommands` itself was removed 2026-08-30 as dead
-  code (see Done below); re-check whether this item still applies to whatever now holds that
-  bulk-updated set, or is moot
-- [ ] #7 — `CreateCommands.ExecuteTurn()` writes `GameState` directly via raw SQL, bypassing the
-  `GameState` property setter
-- [ ] #8 — `CommandList` phase rows deleted in DB but the matching in-memory list not cleared
-  (`CreateCommands.ExecuteTurn()`)
-- [ ] #9 — `MoveCards` table cleared in DB but the `GameCards` collection not cleared
-  (`DataService.GameNewAddCards()`)
-- [ ] #10 — `ProcessDbCommand`'s `Option.Option` case inserts into `RobotOptions` but doesn't
-  update the in-memory `OptionCards` collection
-- [ ] #11 — `ProcessDbCommand`'s `DealCard` case updates a `MoveCard`'s `Owner` in the DB but
-  leaves the matching `GameCards` entry stale
-- [ ] #13 — `ProcessDbCommand`'s `SetCurrentGameData` case doesn't refresh `PhaseCount`/
-  `LaserDamage` in memory after writing them to the DB
-- [ ] #14 — `UpdateCardPlayed()` leaves `Player.CardsDealt`/`CardsPlayed` stale after its DB
-  update
+All items in this list are now closed — fixed, found moot by an earlier refactor, or confirmed
+not to be a real bug. See `documents/DB_SYNC_ISSUES.md` for the full writeup of each.
+
+- [x] #4 — Turn counter incremented in DB (`CurrentGameData` iKey=2) but not `_dataService.Turn`
+  (`GameController.NextState()`) — **fixed 2026-09-13**. Real and player-visible: the broadcast
+  right after this write showed the previous turn's number for the whole programming phase (states
+  3/4), since nothing reloaded `_dataService.Turn` before it. Added `_dataService.UpdateGameState()`
+  (the `DataService`-level DB reload) right after the raw SQL.
+- [x] #6 — Bulk `CommandList` `StatusID` update not reflected in `DataService.ListOfCommands`
+  (`GameController.NextState()`) — **fixed 2026-09-12**. `ListOfCommands` was already gone
+  (removed 2026-08-30); the live in-memory set is `PendingCommands._commandList`, rebuilt fresh
+  from the DB per turn, so the original staleness risk was mostly closed already. The remaining
+  gap: `GameController.LoadCurrentGame()`'s raw-SQL reset of stuck commands ran even while a
+  `PendingCommands` loop was live (e.g. a GM reset mid-turn), bypassing its EF tracking the same
+  way the `ClearPausedCommands`/"clearpause" bug did. Added `PendingCommands.ResetStuckCommands()`
+  and routed `LoadCurrentGame()` through it when `_pendingCommands != null`, same pattern as
+  `ClearPausedCommands`. See `documents/DB_SYNC_ISSUES.md` #6.
+- [x] #7 — `CreateCommands.ExecuteTurn()` writes `GameState` directly via raw SQL, bypassing the
+  `GameState` property setter — **moot, checked 2026-09-13**. Already resolved by the Master/
+  planner split: the planner returns `TurnPlan.NextGameState` instead of writing DB itself, and
+  `GameController.ExecuteTurn()` applies it via the write-through `GameState` property.
+- [x] #8 — `CommandList` phase rows deleted in DB but the matching in-memory list not cleared
+  (`CreateCommands.ExecuteTurn()`) — **moot, checked 2026-09-13**. Same Master/planner split moved
+  this delete into `DataService.PersistCommands()`, always called before that turn's
+  `PendingCommands` exists, so there's no live in-memory list for it to leave stale under normal
+  state-machine timing. See `documents/DB_SYNC_ISSUES.md` #8 for the (very narrow) case this
+  doesn't cover.
+- [x] #9 — `MoveCards` table cleared in DB but the `GameCards` collection not cleared
+  (`DataService.GameNewAddCards()`) — **fixed 2026-09-13**. `GameController.StartGame()`'s call
+  site was already safe (`LoadCurrentGame()` reloads right after). `CurrentPosLoad()`'s call site
+  (the "Reload Position" GM action) was not — added `ReloadAllData()` at the end of that method.
+- [x] #10 — `ProcessDbCommand`'s `Option.Option` case inserts into `RobotOptions` but doesn't
+  update the in-memory `OptionCards` collection — **fixed 2026-09-13**. Added
+  `LoadOptionCardsFromDatabase()` right after the insert.
+- [x] #11 — `ProcessDbCommand`'s `DealCard` case updates a `MoveCard`'s `Owner` in the DB but
+  leaves the matching `GameCards` entry stale — **fixed 2026-09-13**. Added a targeted
+  `GameCards` field update, same idiom `UpdateCardPlayed()` already uses.
+- [x] #13 — `ProcessDbCommand`'s `SetCurrentGameData` case doesn't refresh `PhaseCount`/
+  `LaserDamage` in memory after writing them to the DB — **fixed 2026-09-13**. The iKey is
+  caller-chosen so no single field can be targeted; added `UpdateGameState()` (full
+  `GameStateStore` reload) after the write.
+- [x] #14 — `UpdateCardPlayed()` leaves `Player.CardsDealt`/`CardsPlayed` stale after its DB
+  update — **already fixed, undated; confirmed 2026-09-13**. `UpdateCardPlayed` already has an
+  explicit in-memory `GameCards` sync step, and `Player.CardsDealt`/`CardsPlayed` no longer exist
+  as stored fields — they're computed live off the shared `GameCards` reference.
 
 ### Doc housekeeping (found while auditing docs 2026-08-30, not yet independently re-verified in code)
 

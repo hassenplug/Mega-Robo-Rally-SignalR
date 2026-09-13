@@ -360,8 +360,13 @@ namespace MRR.Controller
                             _dataService.ResetPlayers();
                             _dataService.MoveCardsShuffleAndDeal();
                             //_dataService.ExecuteSQL("call procUpdateRobotCards();");
-                            //UpdateGameState(); // ensure DB changes are visible before next command
                             _dataService.ExecuteSQL("update CurrentGameData set iValue=iValue+1 where iKey=2;"); // next turn
+                            // Raw SQL above bypasses the Turn property, so _dataService.Turn is
+                            // still the old value -- refresh it (DataService.UpdateGameState(),
+                            // not the broadcast-only GameController.UpdateGameState() below) so
+                            // the broadcast at the end of this loop shows the right turn number
+                            // instead of stale data for the whole programming phase.
+                            _dataService.UpdateGameState();
                             //foreach (var p in AllPlayers) p.UpdateStatusLEDs();
                             ScreenUiLoadHand(2);
                             SetGameState(3);
@@ -463,14 +468,23 @@ namespace MRR.Controller
             //UpdateGameState();
             //_dataService.UpdateGameState(); // ensure C# state reflects any DB changes from UpdateGameState logic
             _dataService.ReloadAllData();
-            
+
             if (RobotsActive != 0 && IsRunning)
             {
                 ConnectToAllRobots();
             }
 
-            // reset commands in process
-            _dataService.ExecuteSQL("Update CommandList set StatusID = 2 where StatusID=4 or StatusID=3;");
+            // reset commands in process -- routed through the live PendingCommands instance
+            // when one exists (same reason as ClearPausedCommands: otherwise its next
+            // SaveChanges() on a stale in-memory copy would silently revert this reset), else a
+            // direct DB update since there's no in-memory list to go stale.
+            lock (_processCommandsLock)
+            {
+                if (_pendingCommands != null)
+                    _pendingCommands.ResetStuckCommands();
+                else
+                    _dataService.ExecuteSQL("Update CommandList set StatusID = 2 where StatusID=4 or StatusID=3;");
+            }
             return "";
         }
 
