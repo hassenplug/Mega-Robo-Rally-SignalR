@@ -4,6 +4,119 @@ var CurrentLine = 0;
 var datapacket = null;
 var lastPlayerCount = 0;
 
+// Tap the "F/E/C" column header to spell it out, tap again to abbreviate.
+var flagsHeaderExpanded = false;
+
+function toggleFlagsHeader() {
+    flagsHeaderExpanded = !flagsHeaderExpanded;
+    document.getElementById('flagsHeader').innerText = flagsHeaderExpanded ? 'Flag Energy Cards' : 'F/E/C';
+}
+
+// ── Phone login ──────────────────────────────────────────────────────────────
+// Closed system: the cookie itself is the identity (a RobotID, or the GM code) --
+// no server round trip, no password. It just remembers which physical phone is which
+// robot across reloads, and gates the card UI so a phone only ever shows/plays its own
+// robot's hand. GM is unrestricted, same as before this existed.
+var LOGIN_COOKIE = "mrr_player";
+var GM_CODE = "0555";
+var IsGM = false;
+var LoggedInRobotID = null; // set once the cookie matches a robot in the current game
+
+function getCookie(name) {
+    var match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+    return match ? decodeURIComponent(match[1]) : null;
+}
+
+function setLoginCookie(value) {
+    var oneYear = 60 * 60 * 24 * 365;
+    document.cookie = LOGIN_COOKIE + '=' + encodeURIComponent(value) + '; path=/; max-age=' + oneYear + '; samesite=lax';
+}
+
+function showLogin() {
+    document.getElementById('loginModal').style.display = 'block';
+}
+
+function hideLogin() {
+    document.getElementById('loginModal').style.display = 'none';
+}
+
+// Robot colors (RobotColor) come from the DB as bare hex ("ff0000"), no leading '#'.
+// Pass null/undefined to fall back to the page's default background (GM, or not logged in).
+function setPageBackground(hexColor) {
+    document.body.style.backgroundColor = hexColor ? ('#' + hexColor) : '';
+}
+
+function buildLoginButtons(robots) {
+    var html = '';
+    for (var i = 0; i < robots.length; i++) {
+        var r = robots[i];
+        html += "<button class='button' style='margin-bottom:6px; background-color:" + r.RobotColor +
+            "; color:" + r.RobotColorFG + ";' onclick='chooseRobotLogin(" + r.RobotID + ");'>" +
+            r.RobotName + "</button>";
+    }
+    document.getElementById('loginRobotButtons').innerHTML = html;
+}
+
+function chooseRobotLogin(robotId) {
+    setLoginCookie(String(robotId));
+    applyLogin();
+    showplayerprogram(CurrentLine); // render our own hand immediately, don't wait for the next broadcast
+}
+
+function attemptGmLogin() {
+    var code = document.getElementById('gmCodeInput').value;
+    var errorMsg = document.getElementById('loginError');
+    if (code !== GM_CODE) {
+        errorMsg.style.display = '';
+        return;
+    }
+    errorMsg.style.display = 'none';
+    setLoginCookie(GM_CODE);
+    applyLogin();
+}
+
+// Reconciles the login cookie against the robots in the *current* game -- called on every
+// datapacket update, not just once, since a new game can start with a different roster and
+// leave a phone's old cookie pointing at a robot that no longer exists.
+function applyLogin() {
+    if (!datapacket || !datapacket.robots) return;
+
+    var cookieVal = getCookie(LOGIN_COOKIE);
+
+    if (cookieVal === GM_CODE) {
+        IsGM = true;
+        LoggedInRobotID = null;
+        hideLogin();
+        setPageBackground(null); // GM isn't any one robot's color
+        return;
+    }
+
+    var rbt = cookieVal !== null ? datapacket.robots.find(r => String(r.RobotID) === cookieVal) : null;
+    if (rbt) {
+        IsGM = false;
+        LoggedInRobotID = rbt.RobotID;
+        hideLogin();
+        setPageBackground(rbt.RobotColor);
+        // Just point CurrentLine at our own row -- don't render here. On a fresh page load
+        // with an already-matching cookie, this runs on the very first datapacket, before
+        // buildPlayerRows() (called from showall(), right after this) has ever cloned the
+        // card <img> elements out of <template id="showProgramTemplate">; calling
+        // showplayerprogram() this early would hit null elements and throw, aborting the
+        // rest of the datapacket listener (including showall() itself). The listener's own
+        // trailing showplayerprogram(CurrentLine) call renders once those elements exist.
+        CurrentLine = rbt.Priority;
+        CurrentPlayer = rbt.RobotID;
+        return;
+    }
+
+    // No cookie, or it names a robot that isn't part of the current game -- log in again.
+    IsGM = false;
+    LoggedInRobotID = null;
+    setPageBackground(null);
+    buildLoginButtons(datapacket.robots);
+    showLogin();
+}
+
 function buildPlayerRows(robots) {
     if (robots.length === lastPlayerCount) return;
     lastPlayerCount = robots.length;
@@ -28,9 +141,14 @@ function buildPlayerRows(robots) {
 function showplayerprogram(pl) // show program for this line
 {
     robots = datapacket.robots;
-    CurrentLine = pl;
     var rbt = robots.find(r => r.Priority === pl);
     if (!rbt) return;
+
+    // Closed system, but still only show a phone its own hand: GM can look at any row,
+    // a logged-in player cannot switch away from theirs.
+    if (!IsGM && LoggedInRobotID !== null && rbt.RobotID !== LoggedInRobotID) return;
+
+    CurrentLine = pl;
     CurrentPlayer = rbt.RobotID;
     var dealt = rbt.CardsDealt.split(",");
     var played = rbt.CardsPlayed.split(",");
@@ -149,6 +267,7 @@ function SendUpdate(command, playerid=0, data1=0, data2=0)
 // the payload it dispatches.
 document.addEventListener('datapacket', function (ev) {
     datapacket = ev.detail;
+    applyLogin();
     showall();
     showplayerprogram(CurrentLine);
 });

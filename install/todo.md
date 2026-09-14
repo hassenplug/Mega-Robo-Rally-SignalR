@@ -201,11 +201,25 @@
     (no views exist in this schema per project conventions), surfaced via `AllDataPayload`
     same as planned.
 
+- [ ] Show what cards were played last turn (phone/GM UI) — right now only the *current*
+  turn's registers are visible (`CardsPlayed`/`CardsPlayedStr` on `PlayerState`, computed live
+  from `GameCards`); once the next turn starts (`MoveCardsShuffleAndDeal()` at state 2), that's
+  gone. The data already exists: `DataService.Players.cs`'s `CurrentPosSave()` (called at state
+  5, just before locking programs and executing) snapshots that turn's `MoveCards` into
+  `HistoryMoveCards` keyed by `GameID`/`Turn`/`CardID`/`Owner`/`PhasePlayed`/`Locked` — so this
+  is a display gap, not new tracking. Needs: a query by `GameID`+`Turn`-1 (or whatever turn was
+  last locked) per robot, and somewhere to show it — e.g. a small "last turn" strip under the
+  current registers, shown on tap like the F/E/C header toggle.
+
 - [ ] Handle Haywire / Spam / option card notifications on phone
 
 - [ ] Every phone still receives every player's hand in the broadcast payload, not just its
   own (`documents/API_DECOMPOSITION_DESIGN.md` §7, Medium; the password leak this item used to
   also cover is already fixed). Needs per-seat SignalR groups or payload filtering.
+- [ ] Add a cookie to each phone. The cookie is either the RobotID (from the json data file) or "0555" which is the GM login.  
+     When index.html isloaded, match to the cookie.  If it doesn't mach the GM login on one of the current RobotIDs, request a new login.If it nmatches a RobotID, only allow the player to see cards for that ID.  DThis is a closed system.  Do not worry about sending all cards to all robots
+
+
 
 ### GM Control Page *(new page needed)*
 
@@ -603,7 +617,17 @@ Create a small form. Data should be pulled using the same subscription as index.
  - [ ] Gm screen will have a "Next" button at the bottom of the program commands table
  - [ ] GM screen will show all buttons players see
  - [ ] Tap on the game message (like "Turn 2") will toggle between the player view and the GM view (only when GM mode is enabled)
- - [ ] Players will have to log in and the browser will hold a cookie of the player login
+ - [x] Players will have to log in and the browser will hold a cookie of the player login —
+   done 2026-09-14, `index.html`/`js/loadrobots.js` only (no server changes): the cookie itself
+   is the identity (a RobotID, or GM code `0555`), matched client-side against
+   `datapacket.robots` on every broadcast; no match shows a login modal (tap your robot, or
+   type the GM code). A logged-in player's `showplayerprogram()` call refuses to switch to
+   another robot's row; GM is unrestricted. Deliberately simpler than
+   `documents/PHONE_LOGIN_DESIGN.md`'s design (no PIN/password check, no server-side session
+   registry, no per-seat broadcast filtering) — explicitly out of scope per this task ("closed
+   system... do not worry about sending all cards to all robots"). That doc's tracking/
+   enforcement pieces (`PhoneConnected`, `whoami`, SignalR connect tracking) are still undone
+   if wanted later.
 
 ---
 
@@ -685,3 +709,18 @@ Create a small form. Data should be pulled using the same subscription as index.
   Added `GameController.ProcessDbCommand(int, int)` / `PendingCommands.ProcessDbCommand(int, int)`
   to look the command up in the live turn's in-memory list instead; removed the dead
   `ListOfCommands` property.
+- [x] Fixed 2026-09-14: A "User Input" command (e.g. a continue-button prompt) left StatusID
+  stuck at 4 until the player clicks it, and `PendingCommands.ProcessCommands()` treated that
+  exactly like "nothing left to do" — it exited, and `StartProcessCommandsThread`'s background
+  thread disposed that instance and called `NextState()` to try again, which recreated a brand
+  new `PendingCommands` (fresh EF DbContext + DB query) and a brand new `Thread` roughly every
+  `PollInterval` (20ms) for as long as the human took to click. Symptom: clicking the button
+  often logged "ProcessCommands thread is already running." and needed a manual "Next State" to
+  actually unstick — the click's write could land in the gap between one incarnation disposing
+  and the next constructing itself, falling through to the DB-only fallback path
+  (`GameController.ProcessDbCommand` only syncs a *live* instance's in-memory copy), and the next
+  incarnation's fresh query could still lose that race and spin again. Reworked
+  `PendingCommands.ProcessCommands()`'s loop to end purely on `active.Count` (removed the
+  `stillRunning` no-progress bailout) so one instance just keeps polling in place while blocked
+  — `GameController.ProcessDbCommand` then always finds it non-null and the click lands directly
+  on the in-memory `CommandItem` this same loop is already checking, no gap, no respawn.

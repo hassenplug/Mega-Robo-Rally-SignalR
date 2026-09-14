@@ -78,26 +78,46 @@ namespace MRR
 
         public bool ProcessCommands() // make sure state = 7 or 8
         {
-            bool stillRunning = true;
-
-            while (!_aborted && MarkCommandsReady() > 0 && stillRunning)
+            // Both loops below end purely on active.Count (plus _aborted) -- a command blocked
+            // on something outside this loop (a "User Input" continue-button command, StatusID
+            // stuck at 4) looks no different from one still in flight, so this instance just
+            // keeps polling in place until it's unblocked.
+            //
+            // An earlier version bailed out as soon as one full pass made no progress, on the
+            // theory that GameController's background thread would notice, dispose this
+            // instance, and call NextState() to try again. In practice that recreated a brand
+            // new PendingCommands (a fresh EF DbContext + DB query) and a brand new Thread every
+            // ~PollInterval for as long as the wait lasted -- burning a thread and a DB round
+            // trip per cycle, spamming "ProcessCommands thread is already running." whenever an
+            // external call (the player's continue click) landed while one of those short-lived
+            // threads happened to be alive, and occasionally losing outright: GameController.
+            // ProcessDbCommand only syncs a *live* PendingCommands' in-memory copy when it finds
+            // one, so a write landing in the gap between one incarnation disposing and the next
+            // constructing itself fell through to the DB-only fallback, and the next
+            // incarnation's fresh query could still lose that race and spin again.
+            //
+            // Staying alive removes the gap: GameController.ProcessDbCommand always finds this
+            // instance non-null while it waits, so a completion lands directly on the same
+            // in-memory CommandItem this loop is already polling -- no recreation, no race.
+            while (!_aborted && MarkCommandsReady() > 0)
             {
                 var active = GetActiveCommandList();
-                while (!_aborted && active.Count > 0 && stillRunning)
+                while (!_aborted && active.Count > 0)
                 {
-                    stillRunning = false;
                     foreach (CommandItem onecommand in active)
                     {
                         //Console.WriteLine($"{active.Count} Active Command: {onecommand.CommandID}, Robot: {onecommand.RobotID}, Type: {onecommand.CommandType}");
 
-                        stillRunning = ProcessCommand(onecommand) || stillRunning;
+                        ProcessCommand(onecommand);
                     }
                     // refresh active set for the next inner loop iteration
                     active = GetActiveCommandList();
                     PublishSnapshot();
 
-                    // Commands in flight complete on their own threads, so without this the
-                    // loop spins a core polling them while the robots move.
+                    // Commands in flight complete on their own threads, and a "User Input"
+                    // command completes whenever GameController.ProcessDbCommand is called from
+                    // outside this loop -- without this sleep the loop would spin a core polling
+                    // either kind of wait.
                     if (active.Count > 0) Thread.Sleep(PollInterval);
                 }
 

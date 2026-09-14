@@ -33,9 +33,24 @@ a:visited {
 </head>
 <body id='body' style='padding:5px; padding-top:0px'>
 
+<!-- Login gate: this phone must be tied to one robot (or the GM code) before it can see
+     any cards. See js/loadrobots.js (applyLogin/chooseRobotLogin/attemptGmLogin). -->
+<div id="loginModal" class="w3-modal">
+    <div class="w3-modal-content w3-round w3-white" style="max-width:320px; padding:16px;">
+        <h3 style="margin-top:0;">Who are you?</h3>
+        <p>Tap your robot:</p>
+        <div id="loginRobotButtons"></div>
+        <hr>
+        <p>GM login code:</p>
+        <input type="text" id="gmCodeInput" class="w3-input" inputmode="numeric" autocomplete="off">
+        <button class="button" style="margin-top:8px; background-color:#444444; color:#ffffff;" onclick="attemptGmLogin();">Log In as GM</button>
+        <p id="loginError" style="color:#cc0000; display:none;">Incorrect code.</p>
+    </div>
+</div>
+
 <table bgcolor="ffffff" border=0 width=100%>
 <tr bgcolor="#d0d0d0"><td>Robot</td>
-<td align=center>Flags</td>
+<td align=center id="flagsHeader" style="cursor:pointer;" onclick="toggleFlagsHeader();">F/E/C</td>
 <td align=center>Status</td>
 <td align=center width = 40% id="title">---</td>
 </tr>
