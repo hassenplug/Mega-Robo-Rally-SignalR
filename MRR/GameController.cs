@@ -248,6 +248,12 @@ namespace MRR.Controller
                 "  END;");
             //_dataService.ExecuteSQL("call procResetGame();");
 
+            // The raw SQL above bypasses GameStateStore's cached properties (BoardID,
+            // OptionsOnStartup, etc.), so without this, StartGame() -- called right after via
+            // NextState()'s state-0 case -- reads stale values and builds the Robots table
+            // against the previous board/option count. Refresh now so the very next StartGame()
+            // call sees the new GameData, not just the one after that.
+            _dataService.UpdateGameState();
         }
 
         public void StartGame() // pass board elements and players // find start positions for each player

@@ -13,6 +13,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MRR.Rules", "MRR.Rules\MRR.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MRR.Tests", "MRR.Tests\MRR.Tests.csproj", "{4A60C530-4932-45BC-8715-771B1CAD2CB0}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MRR.Tools.FirmwareCompare", "MRR.Tools.FirmwareCompare\MRR.Tools.FirmwareCompare.csproj", "{AD731B3E-EB0D-4AA6-9552-BB206B4B1466}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -83,6 +85,18 @@ Global
 		{4A60C530-4932-45BC-8715-771B1CAD2CB0}.Release|x64.Build.0 = Release|Any CPU
 		{4A60C530-4932-45BC-8715-771B1CAD2CB0}.Release|x86.ActiveCfg = Release|Any CPU
 		{4A60C530-4932-45BC-8715-771B1CAD2CB0}.Release|x86.Build.0 = Release|Any CPU
+		{AD731B3E-EB0D-4AA6-9552-BB206B4B1466}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AD731B3E-EB0D-4AA6-9552-BB206B4B1466}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AD731B3E-EB0D-4AA6-9552-BB206B4B1466}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{AD731B3E-EB0D-4AA6-9552-BB206B4B1466}.Debug|x64.Build.0 = Debug|Any CPU
+		{AD731B3E-EB0D-4AA6-9552-BB206B4B1466}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{AD731B3E-EB0D-4AA6-9552-BB206B4B1466}.Debug|x86.Build.0 = Debug|Any CPU
+		{AD731B3E-EB0D-4AA6-9552-BB206B4B1466}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AD731B3E-EB0D-4AA6-9552-BB206B4B1466}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AD731B3E-EB0D-4AA6-9552-BB206B4B1466}.Release|x64.ActiveCfg = Release|Any CPU
+		{AD731B3E-EB0D-4AA6-9552-BB206B4B1466}.Release|x64.Build.0 = Release|Any CPU
+		{AD731B3E-EB0D-4AA6-9552-BB206B4B1466}.Release|x86.ActiveCfg = Release|Any CPU
+		{AD731B3E-EB0D-4AA6-9552-BB206B4B1466}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
