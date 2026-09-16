@@ -136,6 +136,14 @@ app.MapGet("/api/state/{newstate?}/{parameter1?}", async (string? newstate, stri
             await hubContext.Clients.All.SendAsync("AllDataUpdate", alldataout);
 
             return Results.Ok(alldataout);
+        case "clearcookies":
+            // Broadcasts an AllDataUpdate with no robots listed, so every phone's
+            // applyLogin() (js/loadrobots.js) finds nothing matching its login cookie and
+            // shows the login screen again -- see DataService.GetAllDataJsonWithNoRobots().
+            var clearedout = dataService.GetAllDataJsonWithNoRobots();
+            await hubContext.Clients.All.SendAsync("AllDataUpdate", clearedout);
+
+            return Results.Content(clearedout, "application/json");
         case "gametables":
 
             return Results.Content(dataService.GetTableDataAsHTML("CurrentGameData/Robots/CommandList"), "text/html");
@@ -183,6 +191,13 @@ app.MapGet("/api/player/{command:int}/{playerId:int?}/{data1:int?}/{data2:int?}"
                 $"SELECT MessageCommandID FROM Robots WHERE RobotID={pid}");
             //Console.WriteLine($"Mark command for robot {pid} is {markCommand}");
             gameController.ProcessDbCommand(markCommand,-1);
+            break;
+        case 4: // Set facing direction (direction-picker arrow) -- d1 is a Direction int
+            dataService.SetRobotDirection(pid, d1);
+            break;
+        case 5: // Set facing-chosen flag ("Set Direction" button) -- d1 is the PositionValid
+                // value to write (1 to confirm; GM's button can also toggle back to 0)
+            dataService.ConfirmRobotDirection(pid, d1);
             break;
     }
 

@@ -24,8 +24,12 @@
 - [ ] Reboot mechanic
   - Triggered when robot moves into a pit or off the board
   - Robot placed at chosen reboot token; receives 2 Spam cards; continues this turn
-  - Player must choose the direction the robot faces when placed at the reboot token
-  - Needs: pit/edge detection in `CreateCommands` + `DataService` respawn logic; direction picker on phone UI; `procSetRobotDirection` equivalent (see Section 6)
+  - Player must choose the direction the robot faces when placed at the reboot token —
+    **the picker itself is done (2026-09-15), see Section 3.** Once respawn logic exists and
+    sets `PositionValid = 0` the same way game start already does, the phone UI will show the
+    direction picker with no further wiring needed here.
+  - Needs: pit/edge detection in `CreateCommands` + `DataService` respawn logic; ~~direction
+    picker on phone UI~~ (done); ~~`procSetRobotDirection` equivalent~~ (done, see Section 6)
 
 ### Board Element Activation
 
@@ -173,10 +177,24 @@
 - [x] Card programming interface — players see hand and place cards into registers
 - [x] Show player hand and register state in real time via SignalR
 
-- [ ] Allow player to set facing direction after reboot
-  - When a robot reboots, the player must choose which direction it faces
-  - Need a direction-picker UI on the player's phone (`index.html`)
-  - Ties into the reboot mechanic (Section 1)
+- [x] Allow player to set facing direction after reboot — **done 2026-09-15, revised same
+  day.** The `Direction1.png` arrow (recolored purple) loops through the 4 facing directions
+  for whichever robot's hand is showing (`js/loadrobots.js`: `cycleDirection`/
+  `renderDirectionArrow`/`updateDirectionPicker`), drawn rotated relative to that seat's own
+  orientation (`DirectionAdjustment`/`PlayerViewDirection`, from `SeatOrientation`) rather than
+  raw board-absolute Up/Right/Down/Left, so "arrow points up" always means "facing the way I
+  am" regardless of which side of the table the phone is on. Cycling writes `CurrentPosDir`
+  immediately (`/api/player/4/...` → `DataService.SetRobotDirection`, the fixed C# port of the
+  buggy `procSetRobotDirection`) but does **not** mark the position valid — a separate "Set
+  Direction" button (`/api/player/5/...` → `DataService.ConfirmRobotDirection`) does that, so a
+  player can freely cycle before committing. Shown/hidden by `Robots.PositionValid` (now
+  surfaced on `AllDataPayload`, previously commented out): 0 until "Set Direction" is tapped.
+  Wired at game start, since `CurrentPosDir` starts as the board's `PlayerStart` rotation — a
+  default, not a choice — and `PositionValid`'s schema default is already 0, so no
+  `StartGame()` change was needed. Not
+  wired to an actual reboot yet since the reboot mechanic itself doesn't exist (Section 1) —
+  nothing further to do here once it lands; it just needs to set `PositionValid = 0` the same
+  way a fresh robot already starts.
 
 - [ ] Shutdown toggle on phone UI
   - Player can choose to shut down during programming phase
@@ -216,23 +234,35 @@
 - [ ] Every phone still receives every player's hand in the broadcast payload, not just its
   own (`documents/API_DECOMPOSITION_DESIGN.md` §7, Medium; the password leak this item used to
   also cover is already fixed). Needs per-seat SignalR groups or payload filtering.
-- [ ] Add a cookie to each phone. The cookie is either the RobotID (from the json data file) or "0555" which is the GM login.  
-     When index.html isloaded, match to the cookie.  If it doesn't mach the GM login on one of the current RobotIDs, request a new login.If it nmatches a RobotID, only allow the player to see cards for that ID.  DThis is a closed system.  Do not worry about sending all cards to all robots
+- [x] Add a cookie to each phone. The cookie is either the RobotID (from the json data file) or "0555" which is the GM login.
+     When index.html isloaded, match to the cookie.  If it doesn't mach the GM login on one of the current RobotIDs, request a new login.If it nmatches a RobotID, only allow the player to see cards for that ID.  This is a closed system.  Do not worry about sending all cards to all robots
+     — done 2026-09-14, same item as Section 8's "Players will have to log in..." line below; see
+     that entry for the implementation writeup.
 
 
 
-### GM Control Page *(new page needed)*
+### GM Control Page *(in program section of index.html)*
 
-- [ ] Game selection — dropdown/list from GameData table; button to load selected game
+- [ ] Game selection — dropdown/list from GameData table; button to load selected game.  Dropdown will show description
 
-- [ ] Game controls — Start, Restart, Reboot buttons (mapped to game state transitions)
+- [-] Game controls — Start, Restart, Reboot buttons (mapped to game state transitions) on a menu that appears when clicking on "Robots" — **partial, 2026-09-15.** The "Robot" header
+  is now tappable (GM view only, see below) and opens a menu (`#gmMenu` in `index.html`,
+  `toggleGmMenu()`/`gmAction()` in `js/loadrobots.js`) hitting the same `/api/state/{action}`
+  routes `gmindex.html`'s links already use. Built with the game-state actions that actually
+  exist today — Start Game, Next State, End Game — rather than literal "Restart"/"Reboot"
+  buttons, since neither of those is a real distinct action in the codebase (no "restart game"
+  endpoint, and "Reboot" is the still-unbuilt per-robot mechanic in Section 1, not a game-level
+  control).
 
 - [ ] Dynamic button area — display any buttons/actions that appear based on game state
   - e.g. "Advance Phase", "Skip Robot", admin overrides
 
 - [ ] Link to board viewer showing current robot positions
 
-- [ ] Controls to manually set a robot's facing direction
+- [x] Controls to manually set a robot's facing direction — **done 2026-09-15**, same
+  direction-picker button as the player UI item above (Section 3 top): GM isn't restricted
+  from viewing/acting as any robot, so it's the same control, not a separate GM-only one.
+  `DataService.SetRobotDirection` is the `procSetRobotDirection` equivalent.
   - Needed at game start when robots are placed on the board
   - Calls `procSetRobotDirection` equivalent in C#
 
@@ -546,7 +576,7 @@ not to be a real bug. See `documents/DB_SYNC_ISSUES.md` for the full writeup of 
 - [x] `RefreshPlayerCards` (`DataService.Cards.cs`) — deleted, along with its seven call sites
   in `Program.cs`, `GameController.cs` and `RobotScreenUI.cs`. It was a no-op; `UpdateCardPlayed`
   step 8 already syncs the moved cards in memory directly.
-- [ ] `SetArchiveToCurrent` (`Players.cs:87`) — no callers; updates archive pos from current pos
+- [ ] `SetArchiveToCurrent` (`Players.cs:87`) — no callers; updates archive pos from current pos - This is no longer required
 - [ ] `HasOptionCard` (`Players.cs`) — no callers; stub that always returns false
 - [ ] `MoveUnlimitedAsync` (`Players.cs`) — no callers; sends continuous drive command
 - [ ] `ShowAIAsync` (`Players.cs`) — no callers; triggers AI vision overlay on robot LCD
@@ -581,7 +611,7 @@ evolving GM screen.*
 
 - [ ] Manual verification pass for the AllPlayers removal (`ALLPLAYERS_REMOVAL_DESIGN.md` §10 —
   written but unchecked):
-  - [ ] Phones' displayed position/damage/status/cards update every broadcast
+  - [ ] Phones' displayed status/cards update every broadcast
   - [ ] `CommandList` descriptions ("played card: X") still render correctly
   - [ ] `/api/admin/diagnostics` still reports `robotsConnected`
   - [ ] Robot disconnect/reconnect mid-game still works
@@ -611,12 +641,23 @@ Create a small form. Data should be pulled using the same subscription as index.
 
 ### Merge Connections Into the Index / GM Screen
 
- - [ ] copy "connections" functionality into the index page
-   - [ ] set the status field to be a button that the GM can use to connect when a robot is not connected.
-   - [ ] background of Status should be red when not connected, but only on the gm screen
- - [ ] Gm screen will have a "Next" button at the bottom of the program commands table
- - [ ] GM screen will show all buttons players see
- - [ ] Tap on the game message (like "Turn 2") will toggle between the player view and the GM view (only when GM mode is enabled)
+ - [-] copy "connections" functionality into the index page — **partial, 2026-09-15.** Connect/
+   disconnect is in (`js/loadrobots.js`'s `showall()`, hitting the existing
+   `/api/robot/connect|disconnect/{id}` routes). `connectscreen.js`'s Search (scan IPs for MAC
+   matches) and Update IP are not copied over — `connectscreen.html` is still the only place
+   for those.
+   - [x] set the status field to be a button that the GM can use to connect when a robot is not connected.
+   - [x] background of Status should be red when not connected, but only on the gm screen —
+     driven by `RobotData.ConnectStatusColor` (the DB's own `RobotStatus.StatusColor` for
+     `NotConnected`/20), not a hardcoded color, so it stays in sync with the Robot Connection
+     Screen's own red/yellow/green/purple scheme.
+ - [ ] ~~Gm screen will have a "Next" button at the bottom of the program commands table~~
+ - [x] GM screen will show all buttons players see — GM view is additive (`gmViewActive` in
+   `js/loadrobots.js`): it reveals the Robot-header menu and the Connect status column on top
+   of the same card-programming UI every player already sees, never hides or replaces it.
+ - [x] Tap on the game message (like "Turn 2") will toggle between the player view and the GM
+   view (only when GM mode is enabled) — done 2026-09-15, `toggleGmView()` in
+   `js/loadrobots.js`, gated on `IsGM` (a no-op tap for anyone not logged in as GM).
  - [x] Players will have to log in and the browser will hold a cookie of the player login —
    done 2026-09-14, `index.html`/`js/loadrobots.js` only (no server changes): the cookie itself
    is the identity (a RobotID, or GM code `0555`), matched client-side against

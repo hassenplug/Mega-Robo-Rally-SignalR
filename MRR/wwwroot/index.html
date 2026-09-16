@@ -49,10 +49,20 @@ a:visited {
 </div>
 
 <table bgcolor="ffffff" border=0 width=100%>
-<tr bgcolor="#d0d0d0"><td>Robot</td>
+<tr bgcolor="#d0d0d0">
+<td id="robotHeader" style="cursor:pointer; position:relative;" onclick="toggleGmMenu();">Robot
+    <!-- GM-only game controls, shown on tap while logged in as GM. See toggleGmMenu()/
+         gmAction() in js/loadrobots.js. Positioned relative to this <td> so it drops down
+         right under the header regardless of scroll position. -->
+    <div id="gmMenu" class="w3-card-4" style="display:none; position:absolute; top:100%; left:0; z-index:5; background:#ffffff; padding:6px; min-width:140px;">
+        <button class="button" style="margin-bottom:4px;" onclick="event.stopPropagation(); gmAction('startgame');">Start Game</button>
+        <button class="button" style="margin-bottom:4px;" onclick="event.stopPropagation(); gmAction('nextstate');">Next State</button>
+        <button class="button" style="background-color:#cc0000; color:#ffffff;" onclick="event.stopPropagation(); if(confirm('End the current game and disconnect from robots?')) gmAction('endgame');">End Game</button>
+    </div>
+</td>
 <td align=center id="flagsHeader" style="cursor:pointer;" onclick="toggleFlagsHeader();">F/E/C</td>
-<td align=center>Status</td>
-<td align=center width = 40% id="title">---</td>
+<td align=center id="statusHeader">Status</td>
+<td align=center width = 40% id="title" style="cursor:pointer;" onclick="toggleGmView();">---</td>
 </tr>
 <tbody id="playerRows"></tbody>
 </table>
@@ -67,6 +77,13 @@ a:visited {
             </td>
         </tr>
         <tr id="messagetablespace" style="display: none;"><td colspan="5"><br></td></tr>
+        <tr id="directionPickerRow" style="display: none;">
+            <td colspan="5" align="center">
+                <div></div>
+                <img id="directionBtn" src="images/Direction1.png" onclick="cycleDirection();" style="width:40px; height:40px; cursor:pointer;">
+                <button id="directionConfirmBtn" class="button" style="margin-top:6px; background-color:#800080; color:#ffffff; width:auto; padding:6px 16px;" onclick="confirmDirection();">Set Direction</button>
+            </td>
+        </tr>
         <tr bgcolor="#d0d0d0">
             <td align=center bgcolor=ffffff id='CardCell0'><img id='Played0' src='images/type0.png' onclick='PlayCard(this);' width='50' tag=1/></td>
             <td align=center bgcolor=ffffff id='CardCell1'><img id='Played1' src='images/type0.png' onclick='PlayCard(this);' width='50'/></td>

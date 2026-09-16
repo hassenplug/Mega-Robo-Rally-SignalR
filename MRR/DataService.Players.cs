@@ -271,6 +271,7 @@ namespace MRR.Services
                     Dir                 = (int)row["CurrentPosDir"],
                     sDir                = row["sDir"].ToString() ?? "",
                     OperatorName        = row["OperatorName"].ToString() ?? "",
+                    PositionValid       = (int)row["PositionValid"],
                     Priority            = (int)row["Priority"],
                     ShutDown            = (int)row["ShutDown"],
                     PlayerSeat          = (int)row["PlayerSeat"],
@@ -754,6 +755,37 @@ namespace MRR.Services
                 cmd.Parameters.AddWithValue("@id", robotID);
                 cmd.ExecuteNonQuery();
             }
+        }
+
+        // =====================================================================
+        // procSetRobotDirection — C# equivalent (fixed: the original SQL declared
+        // p_RobotID but referenced an undefined p_Robot in its body -- see
+        // .claude/agents/mrr-database.md's "known bug" note).
+        //
+        // Direction-picker arrow (index.html): each tap cycles CurrentPosDir but does NOT
+        // touch PositionValid, so a player can freely cycle through directions before
+        // committing -- see ConfirmRobotDirection below, the "Set Direction" button.
+        // =====================================================================
+        public void SetRobotDirection(int robotID, int direction)
+        {
+            ExecuteSQL(
+                $"UPDATE Robots SET CurrentPosDir = {direction} WHERE RobotID = {robotID}");
+        }
+
+        // =====================================================================
+        // "Set Direction" button (index.html): a robot's CurrentPosDir starts wherever the
+        // board's PlayerStart square rotation puts it (GameController.StartGame()) -- a
+        // default, not a player choice -- so PositionValid starts at its schema default of 0.
+        // This is the only place that ever sets it back to 1, marking that a player has
+        // actively confirmed their robot's facing (as last set by SetRobotDirection above).
+        // Takes the target value rather than hardcoding 1: a normal player's button always
+        // confirms (sends 1), but in GM mode the direction picker stays visible regardless of
+        // PositionValid and the same button toggles it (js/loadrobots.js's confirmDirection),
+        // so GM can flip a robot back to "not yet chosen" too.
+        // =====================================================================
+        public void ConfirmRobotDirection(int robotID, int positionValid)
+        {
+            ExecuteSQL($"UPDATE Robots SET PositionValid = {positionValid} WHERE RobotID = {robotID}");
         }
     }
 }

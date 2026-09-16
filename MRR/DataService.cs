@@ -101,6 +101,21 @@ namespace MRR.Services
 
         public string GetAllDataJson() => JsonConvert.SerializeObject(GetAllDataFromPlayers());
 
+        /// <summary>
+        /// Same payload as GetAllDataJson(), but with an empty robots list. Broadcasting this
+        /// (GM action "clearcookies", Program.cs) makes every phone's applyLogin()
+        /// (js/loadrobots.js) find no robot matching its login cookie -- which now deletes that
+        /// cookie and shows the login screen again, so this is a real logout: a phone doesn't
+        /// log itself back in just because a later broadcast has robots again, the human has to
+        /// tap their robot (or type the GM code) once more.
+        /// </summary>
+        public string GetAllDataJsonWithNoRobots()
+        {
+            var payload = GetAllDataFromPlayers();
+            payload.robots = new List<RobotData>();
+            return JsonConvert.SerializeObject(payload);
+        }
+
         public AllDataPayload GetAllDataFromPlayers()
         {
             string titlemessage = "Turn " + Turn;

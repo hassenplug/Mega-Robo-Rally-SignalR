@@ -27,7 +27,11 @@ namespace MRR
 //        public int AY { get; set; }
 //        public int Score { get; set; }
         public string OperatorName { get; set; } = "";
-//        public int PositionValid { get; set; }
+        // 0 until the player has actively picked a facing direction (SetRobotDirection) --
+        // true from game start, since the board's PlayerStart rotation is a default, not a
+        // choice, until VerifyPosition-era code re-enables the old auto-valid path. Drives
+        // whether the direction-picker button shows on the phone (js/loadrobots.js).
+        public int PositionValid { get; set; }
         public int Priority { get; set; }
         public int ShutDown { get; set; }
         // Password is deliberately NOT here. It was broadcast to every connected client,

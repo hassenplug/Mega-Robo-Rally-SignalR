@@ -32,6 +32,10 @@ function setLoginCookie(value) {
     document.cookie = LOGIN_COOKIE + '=' + encodeURIComponent(value) + '; path=/; max-age=' + oneYear + '; samesite=lax';
 }
 
+function deleteLoginCookie() {
+    document.cookie = LOGIN_COOKIE + '=; path=/; max-age=0; samesite=lax';
+}
+
 function showLogin() {
     document.getElementById('loginModal').style.display = 'block';
 }
@@ -109,12 +113,133 @@ function applyLogin() {
         return;
     }
 
-    // No cookie, or it names a robot that isn't part of the current game -- log in again.
+    // No cookie, or it names a robot that isn't part of the current game -- clear out
+    // whatever stale value is there (e.g. a robot from a finished game, or the "clearcookies"
+    // GM action's empty robots list) and log in again.
     IsGM = false;
     LoggedInRobotID = null;
     setPageBackground(null);
+    deleteLoginCookie();
     buildLoginButtons(datapacket.robots);
     showLogin();
+}
+
+// ── Direction picker ─────────────────────────────────────────────────────────
+// The Direction1.png arrow loops through the 4 facing directions (Up/Right/Down/Left,
+// matching MRR.Contracts.Direction's int values 1-4) for whichever robot's hand is currently
+// shown. For a normal player (and for GM before tapping into GM view, see isGmModeActive
+// below) it's shown only while that robot's PositionValid is 0 -- set at game start
+// (CurrentPosDir starts out as whatever the board's PlayerStart square rotation says, a
+// default rather than a player choice, so PositionValid starts at its schema default of 0)
+// and, once the reboot mechanic exists, after a reboot the same way -- and "Set Direction"
+// always confirms (sends 1). In GM view the row stays visible regardless of PositionValid,
+// and the same button instead toggles it (0<->1), so GM can flip a robot back to "not yet
+// chosen" for testing/admin purposes. Cycling always just writes CurrentPosDir (command 4)
+// without touching PositionValid either way.
+var DIRECTION_DEGREES = { 1: 0, 2: 90, 3: 180, 4: 270 }; // Up, Right, Down, Left
+var pendingDirection = null;         // Direction int (1-4) currently shown on the arrow
+var directionPickerForRobotID = null; // which robot pendingDirection belongs to
+
+// GM's extra powers here only kick in once they've tapped into GM view (see "GM view"
+// section below) -- logged in as GM but still on the plain player view behaves exactly like
+// a player.
+function isGmModeActive() {
+    return IsGM && gmViewActive;
+}
+
+function cycleDirection() {
+    pendingDirection = (pendingDirection % 4) + 1; // 1->2->3->4->1
+    renderDirectionArrow();
+    SendUpdate(4, CurrentPlayer, pendingDirection);
+}
+
+function confirmDirection() {
+    var rbt = datapacket.robots.find(r => r.RobotID === CurrentPlayer);
+    var newValid = (isGmModeActive() && rbt && rbt.PositionValid) ? 0 : 1;
+    SendUpdate(5, CurrentPlayer, newValid);
+}
+
+// Rotates the on-screen arrow relative to this player's own seat orientation
+// (DirectionAdjustment/PlayerViewDirection -- SeatOrientation.Direction, the absolute board
+// direction this seat calls "forward") rather than showing the raw board-absolute direction.
+// So the arrow reads "pointing up" when the robot faces the same way this seat does,
+// whichever physical side of the table the phone is actually on -- the stored value sent to
+// the server is still always the real absolute Direction.
+function renderDirectionArrow() {
+    var rbt = datapacket.robots.find(r => r.RobotID === CurrentPlayer);
+    var seatDir = (rbt && rbt.DirectionAdjustment) || 1;
+    var degrees = (DIRECTION_DEGREES[pendingDirection] - DIRECTION_DEGREES[seatDir] + 360) % 360;
+    document.getElementById('directionBtn').style.transform = 'rotate(' + degrees + 'deg)';
+}
+
+function updateDirectionPicker(rbt) {
+    var row = document.getElementById('directionPickerRow');
+    var gmMode = isGmModeActive();
+    if (!gmMode && rbt.PositionValid) {
+        row.style.display = 'none';
+        pendingDirection = null;
+        directionPickerForRobotID = null;
+        return;
+    }
+    row.style.display = '';
+    document.getElementById('directionConfirmBtn').textContent =
+        (gmMode && rbt.PositionValid) ? 'Clear Direction' : 'Set Direction';
+    // Only (re)seed from the server's CurrentPosDir when we start looking at a different
+    // robot -- otherwise a broadcast landing between two quick taps would snap the button
+    // back to a stale value while the player is still cycling.
+    if (directionPickerForRobotID !== rbt.RobotID) {
+        directionPickerForRobotID = rbt.RobotID;
+        pendingDirection = rbt.Dir || 1;
+    }
+    renderDirectionArrow();
+}
+
+// ── GM view ──────────────────────────────────────────────────────────────────
+// GM logs in the same as any player (js/loadrobots.js login section) and by default sees the
+// plain player view. Tapping the game-message title flips a GM-only "GM view" that reveals
+// extra controls (the Robot-header game-state menu, and Status becoming a per-robot connect
+// button) without hiding anything a player already sees.
+var gmViewActive = false;
+var CONNECT_STATUS_CONNECTED = 22; // tPlayerStatus.RobotConnected (MRR.Contracts/PlayerState.cs)
+
+function toggleGmView() {
+    if (!IsGM) return;
+    gmViewActive = !gmViewActive;
+    if (!gmViewActive) document.getElementById('gmMenu').style.display = 'none';
+    showall();
+    showplayerprogram(CurrentLine); // refresh the direction picker's GM-mode visibility/label immediately
+}
+
+function toggleGmMenu() {
+    if (!IsGM || !gmViewActive) return;
+    var menu = document.getElementById('gmMenu');
+    menu.style.display = (menu.style.display === 'block') ? 'none' : 'block';
+}
+
+// Close the GM menu on an outside tap rather than leaving it open over the rest of the page.
+document.addEventListener('click', function (ev) {
+    var menu = document.getElementById('gmMenu');
+    if (menu && menu.style.display === 'block' && !menu.contains(ev.target) && ev.target.id !== 'robotHeader') {
+        menu.style.display = 'none';
+    }
+});
+
+// Start Game / Next State / End Game -- the same /api/state/{action} routes gmindex.html's
+// links already use.
+function gmAction(action) {
+    document.getElementById('gmMenu').style.display = 'none';
+    fetch('/api/state/' + action).catch(err => console.error(err.toString()));
+}
+
+function toggleRobotConnect(robotId, isConnected) {
+    fetch('/api/robot/' + (isConnected ? 'disconnect' : 'connect') + '/' + robotId)
+        .catch(err => console.error(err.toString()));
+}
+
+// One closure per row's status-cell onclick, so each captures its own robotId/isConnected
+// instead of all rows sharing whatever the loop variable last held.
+function makeConnectHandler(robotId, isConnected) {
+    return function () { toggleRobotConnect(robotId, isConnected); };
 }
 
 function buildPlayerRows(robots) {
@@ -214,6 +339,7 @@ function showplayerprogram(pl) // show program for this line
     document.getElementById("messagetable").style = showmessage;
     document.getElementById("messagetablespace").style = showmessage;
 
+    updateDirectionPicker(rbt);
 }
 
 function showall()
@@ -223,6 +349,12 @@ function showall()
 
     //robotjson = robots;
     document.getElementById("title").innerText = datapacket.titlemsg;
+
+    var showGmControls = IsGM && gmViewActive;
+    document.getElementById('robotHeader').style.cursor = showGmControls ? 'pointer' : 'default';
+    document.getElementById('statusHeader').innerText = showGmControls ? 'Connect' : 'Status';
+    if (!showGmControls) document.getElementById('gmMenu').style.display = 'none';
+
     for(var i = 0;i<robots.length;i++)
     {
         //console.log(robots[i]);
@@ -231,9 +363,23 @@ function showall()
         btn.style = "background-color:" + robots[i].RobotColor + "; color:" + robots[i].RobotColorFG;
         btn.textContent = robots[i].RobotName;
         document.getElementById("flags" + rid).innerText = robots[i].FlagEnergyCards;
+
         var statusbox = document.getElementById("playerstatus" + rid);
-        statusbox.innerText = robots[i].StatusToShow;
-        statusbox.style.backgroundColor = robots[i].StatusColor;
+        if (showGmControls) {
+            // Robot Connection Screen's info, not gameplay status -- red/yellow/green/purple
+            // per RobotStatus already encodes "not connected" as red, so no need to special-
+            // case that color here (see install/todo.md Section 8).
+            statusbox.innerText = robots[i].ConnectStatusDesc;
+            statusbox.style.backgroundColor = robots[i].ConnectStatusColor;
+            statusbox.style.cursor = 'pointer';
+            statusbox.onclick = makeConnectHandler(robots[i].RobotID, robots[i].ConnectStatusID === CONNECT_STATUS_CONNECTED);
+        } else {
+            statusbox.innerText = robots[i].StatusToShow;
+            statusbox.style.backgroundColor = robots[i].StatusColor;
+            statusbox.style.cursor = 'default';
+            statusbox.onclick = null;
+        }
+
         document.getElementById("tr" + rid).style = "";
     }
 
