@@ -92,6 +92,14 @@ app.MapGet("/api/alldata", (DataService dataService, IHubContext<DataHub> hubCon
     return Results.Content(dataout, "application/json");
 });
 
+// GM's "start a game" picker (index.html, GM mode + IsRunning==0): { games: [{GameDataID,
+// Description}, ...] }. Phone-reachable on purpose, unlike /api/admin/tables/GameData --
+// this only ever reads GameDataID/Description, never arbitrary SQL.
+app.MapGet("/api/gamedata", (DataService dataService) =>
+    Results.Content(dataService.GetQueryResultsJson(
+        "SELECT GameDataID, Description FROM GameData ORDER BY GameDataID;", "games"),
+        "application/json"));
+
 app.MapGet("/api/state/{newstate?}/{parameter1?}", async (string? newstate, string? parameter1, DataService dataService, IHubContext<DataHub> hubContext, GameController gameController) =>
 {
 

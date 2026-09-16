@@ -201,12 +201,14 @@
   start executing with a robot still at its unconfirmed default facing, and the picker
   disappears everywhere once that turn is running.
 
-  Wired at game start, since `CurrentPosDir` starts as the board's `PlayerStart` rotation — a
-  default, not a choice — and `PositionValid`'s schema default is already 0, so no
-  `StartGame()` change was needed. Not wired to an actual reboot yet since the reboot
-  mechanic itself doesn't exist (Section 1) — nothing further to do here once it lands; it
-  just needs to set that one robot's `PositionValid` back to 0 the same way a fresh respawn
-  (`ResetPlayers()`) already does.
+  `GameController.StartGame()` explicitly inserts every robot with `PositionValid=1` (revised
+  2026-09-16, was left at the schema default of 0): the board's `PlayerStart` rotation is
+  accepted as a reasonable starting facing without forcing every player through the picker
+  before the game can begin — `PositionValid=0` (needs attention) is reserved for a mid-game
+  respawn (`ResetPlayers()`) or the GM's "Reload Position" action (`CurrentPosLoad()`), both of
+  which restore a robot's facing with no player choice behind it. Not wired to an actual
+  reboot yet since the reboot mechanic itself doesn't exist (Section 1) — nothing further to do
+  here once it lands, since `ResetPlayers()`'s respawn path already sets `PositionValid=0`.
 
 - [ ] Shutdown toggle on phone UI
   - Player can choose to shut down during programming phase
@@ -255,7 +257,16 @@
 
 ### GM Control Page *(in program section of index.html)*
 
-- [ ] Game selection — dropdown/list from GameData table; button to load selected game.  Dropdown will show description
+- [x] Game selection — dropdown/list from GameData table; button to load selected game.
+  Dropdown will show description — **done 2026-09-16.** `#gmtable` (`index.html`, inside the
+  shared program area) shows a `GameData.Description` dropdown + Start button, but only in GM
+  mode while `IsRunning` is falsy (no game currently running) — no point offering to start a
+  new game over a live one. New phone-reachable `GET /api/gamedata` (`Program.cs`) returns
+  `{GameDataID, Description}` for every row (deliberately not `/api/admin/tables/GameData`,
+  which is loopback-only and would refuse every phone on the game WiFi). "Start" calls the
+  existing `/api/state/startgame/{GameDataID}` route (`GameController.LoadGameData`) with the
+  selected row's ID — the same route the GM menu's plain "Start Game" button already hits
+  with no ID.
 
 - [-] Game controls — Start, Restart, Reboot buttons (mapped to game state transitions) on a menu that appears when clicking on "Robots" — **partial, 2026-09-15.** The "Robot" header
   is now tappable (GM view only, see below) and opens a menu (`#gmMenu` in `index.html`,

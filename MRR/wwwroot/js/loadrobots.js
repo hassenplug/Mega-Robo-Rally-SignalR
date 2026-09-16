@@ -250,6 +250,33 @@ function makeConnectHandler(robotId, isConnected) {
     return function () { toggleRobotConnect(robotId, isConnected); };
 }
 
+// ── GM: start a game ─────────────────────────────────────────────────────────
+// #gmtable (shown/hidden by showall() below, only in GM mode while no game is running) lets
+// GM pick a GameData row by its Description and start it. The list rarely changes mid-session,
+// so it's fetched once and cached rather than refetched on every broadcast.
+var gameDataOptions = null; // [{GameDataID, Description}, ...] once loaded
+
+function loadGameDataOptions() {
+    fetch('/api/gamedata')
+        .then(r => r.json())
+        .then(data => {
+            gameDataOptions = data.games || [];
+            document.getElementById('gameDataSelect').innerHTML = gameDataOptions
+                .map(g => "<option value='" + g.GameDataID + "'>" + g.Description + "</option>")
+                .join('');
+        })
+        .catch(err => console.error(err.toString()));
+}
+
+// Same /api/state/{action}/{parameter1} route gmAction() above uses for the plain "Start
+// Game" menu button, just with the selected GameData row's ID as the parameter -- see
+// GameController.LoadGameData, called from Program.cs's "startgame" case.
+function startSelectedGame() {
+    var gameDataID = document.getElementById('gameDataSelect').value;
+    if (!gameDataID) return;
+    fetch('/api/state/startgame/' + gameDataID).catch(err => console.error(err.toString()));
+}
+
 function buildPlayerRows(robots) {
     if (robots.length === lastPlayerCount) return;
     lastPlayerCount = robots.length;
@@ -362,6 +389,11 @@ function showall()
     document.getElementById('robotHeader').style.cursor = showGmControls ? 'pointer' : 'default';
     document.getElementById('statusHeader').innerText = showGmControls ? 'Connect' : 'Status';
     if (!showGmControls) document.getElementById('gmMenu').style.display = 'none';
+
+    // GM mode + no game running: offer to pick a GameData row and start it.
+    var showGmStart = showGmControls && !datapacket.IsRunning;
+    document.getElementById('gmtable').style.display = showGmStart ? '' : 'none';
+    if (showGmStart && gameDataOptions === null) loadGameDataOptions();
 
     for(var i = 0;i<robots.length;i++)
     {

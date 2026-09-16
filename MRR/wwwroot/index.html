@@ -76,7 +76,6 @@ a:visited {
                 </button>
             </td>
         </tr>
-        <tr id="messagetablespace" style="display: none;"><td colspan="5"><br></td></tr>
         <tr id="directionPickerRow" style="display: none;">
             <td colspan="5" align="center">
                 <div></div>
@@ -84,6 +83,15 @@ a:visited {
                 <button id="directionConfirmBtn" class="button" style="margin-top:6px; background-color:#800080; color:#ffffff; width:auto; padding:6px 16px;" onclick="confirmDirection();">Set Direction</button>
             </td>
         </tr>
+        <!-- GM mode + no game running (datapacket.IsRunning falsy): pick a GameData row by
+             its Description and start it. Populated/shown by showall() in js/loadrobots.js. -->
+        <tr id="gmtable" style="display: none;">
+            <td colspan="5" align="center">
+                <button class="button" style="width:auto; padding:6px 16px; background-color:#008000; color:#ffffff;" onclick="startSelectedGame();">Start</button>
+                <select id="gameDataSelect" class="w3-input" style="display:inline-block; width:auto; margin-right:8px;"></select>
+            </td>
+        </tr>
+        <tr id="messagetablespace" style="display: none;"><td colspan="5"><br></td></tr>
         <tr bgcolor="#d0d0d0">
             <td align=center bgcolor=ffffff id='CardCell0'><img id='Played0' src='images/type0.png' onclick='PlayCard(this);' width='50' tag=1/></td>
             <td align=center bgcolor=ffffff id='CardCell1'><img id='Played1' src='images/type0.png' onclick='PlayCard(this);' width='50'/></td>
