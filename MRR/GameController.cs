@@ -216,6 +216,10 @@ namespace MRR.Controller
 
         public void LoadGameData(int gameDataID)
         {
+            _dataService.ExecuteSQL(
+                "UPDATE CurrentGameData Set iValue  = " + gameDataID + " " +
+                " where CurrentGameData.sKey = 'GameDataID'");
+
             // Copy all GameData fields into CurrentGameData
             _dataService.ExecuteSQL(
                 "UPDATE CurrentGameData " +

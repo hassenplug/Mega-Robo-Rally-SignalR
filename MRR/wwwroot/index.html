@@ -55,9 +55,9 @@ a:visited {
          gmAction() in js/loadrobots.js. Positioned relative to this <td> so it drops down
          right under the header regardless of scroll position. -->
     <div id="gmMenu" class="w3-card-4" style="display:none; position:absolute; top:100%; left:0; z-index:5; background:#ffffff; padding:6px; min-width:140px;">
-        <button class="button" style="margin-bottom:4px;" onclick="event.stopPropagation(); gmAction('startgame');">Start Game</button>
         <button class="button" style="margin-bottom:4px;" onclick="event.stopPropagation(); gmAction('nextstate');">Next State</button>
         <button class="button" style="background-color:#cc0000; color:#ffffff;" onclick="event.stopPropagation(); if(confirm('End the current game and disconnect from robots?')) gmAction('endgame');">End Game</button>
+        <button class="button" style="margin-bottom:4px;" onclick="event.stopPropagation(); gmAction('clearcookies');">Clear Cookies</button>
     </div>
 </td>
 <td align=center id="flagsHeader" style="cursor:pointer;" onclick="toggleFlagsHeader();">F/E/C</td>
