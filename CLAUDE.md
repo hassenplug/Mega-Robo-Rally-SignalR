@@ -52,7 +52,7 @@ wwwroot/             Static web assets for phone UI
 - **Command pipeline**: CreateCommands writes rows → CommandProcess reads and executes them sequentially
 - **Robot communication**: dual WebSocket per robot (ws_cmd + ws_status) via `AIMRobot`
 - **Real-time**: SignalR `DataHub` broadcasts to all phones after every state change
-- **Database**: MySQL (`rally`), **tables only** — 37 base tables, and zero stored
+- **Database**: MySQL (`rally`), **tables only** — 38 base tables, and zero stored
   procedures, functions, triggers, or views. All that logic now lives in C#, mostly in
   `DataService` (e.g. `ResetPlayers()`, `MoveCardsShuffleAndDeal()`, `ProcessDbCommand()`).
   Do not add database-side logic, and do not call `proc*`/`func*` — they do not exist.

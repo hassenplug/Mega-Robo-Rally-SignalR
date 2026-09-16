@@ -521,6 +521,26 @@ CREATE TABLE `HistoryRobotOptions` (
   PRIMARY KEY (`GameID`,`Turn`,`RobotID`,`OptionID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
+-- HistoryRobotTurns (history table): one row per robot per turn, recording where it started
+-- that turn's execution and which cards drove it there. Written by DataService.Players.cs's
+-- SaveToHistory(turn) -- a single bulk `INSERT ... SELECT ... FROM Robots`, called from
+-- GameController.ExecuteTurn() right after BuildTurnRequest() and before the planner
+-- simulates the turn and moves anyone, so CurrentPosRow/Col/Dir at that instant are each
+-- robot's starting position for the turn. Unlike its sibling History* tables above, this one
+-- has no GameID column: SaveToHistory's INSERT doesn't supply one, so rows from different
+-- games sharing the same (RobotID, Turn) aren't distinguished. Add GameID to both if that
+-- turns out to matter.
+DROP TABLE IF EXISTS `HistoryRobotTurns`;
+CREATE TABLE `HistoryRobotTurns` (
+  `Turn` int(11) NOT NULL DEFAULT 0,
+  `RobotID` int(11) NOT NULL DEFAULT 0,
+  `StartRow` int(11) DEFAULT 0,
+  `StartCol` int(11) DEFAULT 0,
+  `StartDir` int(11) DEFAULT 0,
+  `MoveCards` varchar(30) DEFAULT NULL,
+  PRIMARY KEY (`RobotID`,`Turn`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
+
 -- ===== SEED DATA =====
 
 -- GameTypes

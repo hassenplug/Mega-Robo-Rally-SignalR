@@ -757,6 +757,16 @@ namespace MRR.Services
             }
         }
 
+        public void SaveToHistory()
+        {
+            ExecuteSQL($@"delete from HistoryRobotTurns where Turn = {Turn}");
+
+            // save to new table HistoryRobotTurns
+            ExecuteSQL($@"INSERT INTO HistoryRobotTurns (Turn, RobotID, StartRow, StartCol, StartDir, MoveCards)
+                    Select {Turn}, RobotID, CurrentPosRow, CurrentPosCol, CurrentPosDir, CardsPlayed FROM Robots ");
+
+        }
+
         // =====================================================================
         // procSetRobotDirection — C# equivalent (fixed: the original SQL declared
         // p_RobotID but referenced an undefined p_Robot in its body -- see

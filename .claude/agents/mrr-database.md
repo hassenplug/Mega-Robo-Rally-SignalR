@@ -2,7 +2,7 @@
 name: mrr-database
 description: >
   Expert on the Mega Robo Rally MySQL/MariaDB database schema. Maintains
-  install/MRRDatabase.sql as the single source of truth for the 37 tables and
+  install/MRRDatabase.sql as the single source of truth for the 38 tables and
   seed data. The database is tables-only — it has no views, stored procedures,
   functions, or triggers, and none should be added; that logic lives in C#.
   Use whenever adding or modifying the DB schema, writing new queries, or
@@ -20,7 +20,7 @@ tools:
 
 > ## ⚠️ Sections 4, 6 and the views table are HISTORICAL — 2026-08-22
 >
-> The live `rally` schema and `install/MRRDatabase.sql` contain **37 base tables and nothing
+> The live `rally` schema and `install/MRRDatabase.sql` contain **38 base tables and nothing
 > else** — zero stored procedures, zero functions, zero triggers, zero views. All of that
 > logic is in C# (mostly `DataService`).
 >
@@ -68,7 +68,7 @@ It is organized into these sections (in order):
 
 ```
 -- Header: saves session variables, CREATE DATABASE IF NOT EXISTS rally, USE rally
--- ===== TABLES =====        37 tables, FK-safe order
+-- ===== TABLES =====        38 tables, FK-safe order
 -- ===== SEED DATA =====     All static lookup inserts + board data (boards 1-10)
 -- ===== VIEWS =====         14 views
 -- ===== FUNCTIONS =====     7 functions
@@ -84,7 +84,7 @@ It is organized into these sections (in order):
 - Tables are in FK dependency order (parent first)
 - Seed data covers all static/lookup tables only — live-game tables
   (Robots, MoveCards, CommandList, RobotOptions, StatusLEDs, HistoryRobots,
-  HistoryMoveCards, HistoryRobotOptions) start empty
+  HistoryMoveCards, HistoryRobotOptions, HistoryRobotTurns) start empty
 - `CurrentGameData` 28 config rows **are** included (static config, not runtime state)
 - `BoardItems` and `BoardItemActions` include data for boards 1–10 only
 
@@ -695,6 +695,20 @@ Save snapshots per turn for replay/restore:
 - **HistoryRobotOptions** (GameID, Turn, RobotID, OptionID PK): Option assignments
 
 Saved by `procCurrentPosSave()` at state 5; restored by `procCurrentPosLoad()` at state 16.
+
+- **HistoryRobotTurns** (RobotID, Turn PK): a robot's starting position+direction for one
+  turn (`StartRow`/`StartCol`/`StartDir`) plus that turn's `MoveCards` CSV -- no end position,
+  only where the turn began. Written by `DataService.Players.cs`'s `SaveToHistory(turn)` --
+  one bulk `INSERT ... SELECT ... FROM Robots` for every robot at once, added 2026-09-16 and
+  wired into `GameController.ExecuteTurn()` the same day: called right after
+  `BuildTurnRequest()`, before the planner (`CreateCommands.ExecuteTurn()`) simulates the turn
+  and actually moves anyone, so `Robots.CurrentPosRow/Col/Dir` at that instant are each
+  robot's starting position. Kept on the Master side deliberately -- `CreateCommands.cs` (in
+  `MRR.Rules`) has no reference to `DataService`/DB access at all, by design (the planner
+  stays DB-free; Master applies results as a separate step). Unlike the three tables above,
+  it has no `GameID` column (`SaveToHistory`'s `INSERT` doesn't supply one) -- rows from
+  different games sharing the same `(RobotID, Turn)` aren't distinguished; add `GameID` to
+  both the table and the method together if that turns out to matter.
 
 ---
 

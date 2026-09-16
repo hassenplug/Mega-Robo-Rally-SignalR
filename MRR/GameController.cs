@@ -69,6 +69,13 @@ namespace MRR.Controller
                     // Master assembles the input, the planner reads only that, Master applies
                     // the result. Nothing in between touches the database.
                     TurnRequest request = _dataService.BuildTurnRequest();
+
+                    // HistoryRobotTurns: snapshot every robot's current (i.e. starting-this-turn)
+                    // position + programmed cards straight from Robots, before the planner
+                    // simulates the turn and moves them. Master-side, like PersistCommands/
+                    // RetireSpamCards below -- the planner itself stays DB-free.
+                    _dataService.SaveToHistory();
+
                     CreateCommands createCommands = new CreateCommands(request);
                     TurnPlan plan = createCommands.ExecuteTurn();
                     Console.WriteLine("Execute Turn Result: " + plan.Summary);
