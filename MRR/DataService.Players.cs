@@ -773,19 +773,49 @@ namespace MRR.Services
         }
 
         // =====================================================================
-        // "Set Direction" button (index.html): a robot's CurrentPosDir starts wherever the
-        // board's PlayerStart square rotation puts it (GameController.StartGame()) -- a
-        // default, not a player choice -- so PositionValid starts at its schema default of 0.
-        // This is the only place that ever sets it back to 1, marking that a player has
-        // actively confirmed their robot's facing (as last set by SetRobotDirection above).
-        // Takes the target value rather than hardcoding 1: a normal player's button always
-        // confirms (sends 1), but in GM mode the direction picker stays visible regardless of
-        // PositionValid and the same button toggles it (js/loadrobots.js's confirmDirection),
-        // so GM can flip a robot back to "not yet chosen" too.
+        // PositionValid is a 3-state flag, not a bool:
+        //   0 = not set    -- CurrentPosDir needs a player's attention: set on a fresh respawn
+        //                      (ResetPlayers(), reboot token placement) and by the GM's "Reload
+        //                      Position" action (CurrentPosLoad()), neither of which has any
+        //                      actual player choice behind the restored facing
+        //   1 = user set   -- either a player (or GM) actively picked a direction via "Set
+        //                      Direction", or (at game start, GameController.StartGame()) the
+        //                      board's PlayerStart rotation was accepted as a reasonable
+        //                      default without forcing every player through the picker first
+        //   2 = locked      -- the turn using that direction already started executing
+        //                      (LockAllRobotDirections below); no longer changeable, and the
+        //                      picker stops appearing even in GM mode (js/loadrobots.js's
+        //                      updateDirectionPicker)
+        //
+        // "Set Direction" button (index.html): this is the only place that ever moves a robot
+        // from 0 to 1 (as last set by SetRobotDirection above), and (in GM mode only) the only
+        // place that can move it back from 1 to 0 -- see ConfirmRobotDirection's caller,
+        // js/loadrobots.js's confirmDirection.
         // =====================================================================
         public void ConfirmRobotDirection(int robotID, int positionValid)
         {
             ExecuteSQL($"UPDATE Robots SET PositionValid = {positionValid} WHERE RobotID = {robotID}");
         }
+
+        /// <summary>
+        /// True once every robot has at least picked a facing direction (PositionValid != 0,
+        /// i.e. 1 or 2 -- a robot already locked from a previous turn still counts). Gates the
+        /// state 4 -> 5 transition (GameController.NextState()) so a turn can't be locked and
+        /// executed while a robot's facing hasn't actually been looked at (PositionValid=0).
+        /// StartGame() itself already sets PositionValid=1 for everyone, so in practice this
+        /// only ever blocks after something resets a robot back to 0 later: a respawn
+        /// (ResetPlayers()) or the GM's "Reload Position" action (CurrentPosLoad()).
+        /// </summary>
+        public bool AllRobotDirectionsChosen() =>
+            GetIntFromDB("Select Count(*) from Robots where PositionValid = 0") == 0;
+
+        /// <summary>
+        /// Locks every robot's direction (PositionValid = 2) once AllRobotDirectionsChosen()
+        /// passes and the turn is about to execute (GameController.NextState(), state 4 -> 5).
+        /// The direction picker then stops appearing at all, even in GM mode, until the reboot
+        /// mechanic resets a specific robot back to 0 (the same way ResetPlayers() already does
+        /// for a fresh respawn).
+        /// </summary>
+        public void LockAllRobotDirections() => ExecuteSQL("Update Robots set PositionValid = 2");
     }
 }

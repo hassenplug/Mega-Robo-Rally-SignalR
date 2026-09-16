@@ -178,8 +178,8 @@
 - [x] Show player hand and register state in real time via SignalR
 
 - [x] Allow player to set facing direction after reboot — **done 2026-09-15, revised same
-  day.** The `Direction1.png` arrow (recolored purple) loops through the 4 facing directions
-  for whichever robot's hand is showing (`js/loadrobots.js`: `cycleDirection`/
+  day (twice).** The `Direction1.png` arrow (recolored purple) loops through the 4 facing
+  directions for whichever robot's hand is showing (`js/loadrobots.js`: `cycleDirection`/
   `renderDirectionArrow`/`updateDirectionPicker`), drawn rotated relative to that seat's own
   orientation (`DirectionAdjustment`/`PlayerViewDirection`, from `SeatOrientation`) rather than
   raw board-absolute Up/Right/Down/Left, so "arrow points up" always means "facing the way I
@@ -187,14 +187,26 @@
   immediately (`/api/player/4/...` → `DataService.SetRobotDirection`, the fixed C# port of the
   buggy `procSetRobotDirection`) but does **not** mark the position valid — a separate "Set
   Direction" button (`/api/player/5/...` → `DataService.ConfirmRobotDirection`) does that, so a
-  player can freely cycle before committing. Shown/hidden by `Robots.PositionValid` (now
-  surfaced on `AllDataPayload`, previously commented out): 0 until "Set Direction" is tapped.
+  player can freely cycle before committing.
+
+  `Robots.PositionValid` (now surfaced on `AllDataPayload`, previously commented out) is a
+  3-state flag, not a bool: 0=not set, 1=user set, 2=locked. A normal player sees the picker
+  only at 0; GM (once tapped into GM view, `isGmModeActive()` — logged in as GM alone isn't
+  enough) sees it at 0 or 1 and the same button toggles 0↔1, but never at 2 either way — see
+  `DataService.Players.cs`'s comment above `ConfirmRobotDirection` for the full state table.
+  `GameController.NextState()`'s state 4→5 transition ("still programming" → "ready to
+  execute") now refuses to advance while any robot is still at 0
+  (`DataService.AllRobotDirectionsChosen`), then locks every robot to 2
+  (`DataService.LockAllRobotDirections`) the moment it does advance — so a turn can never
+  start executing with a robot still at its unconfirmed default facing, and the picker
+  disappears everywhere once that turn is running.
+
   Wired at game start, since `CurrentPosDir` starts as the board's `PlayerStart` rotation — a
   default, not a choice — and `PositionValid`'s schema default is already 0, so no
-  `StartGame()` change was needed. Not
-  wired to an actual reboot yet since the reboot mechanic itself doesn't exist (Section 1) —
-  nothing further to do here once it lands; it just needs to set `PositionValid = 0` the same
-  way a fresh robot already starts.
+  `StartGame()` change was needed. Not wired to an actual reboot yet since the reboot
+  mechanic itself doesn't exist (Section 1) — nothing further to do here once it lands; it
+  just needs to set that one robot's `PositionValid` back to 0 the same way a fresh respawn
+  (`ResetPlayers()`) already does.
 
 - [ ] Shutdown toggle on phone UI
   - Player can choose to shut down during programming phase

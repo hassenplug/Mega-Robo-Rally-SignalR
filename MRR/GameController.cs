@@ -256,10 +256,14 @@ namespace MRR.Controller
             // Joins to RobotBases/RobotBodies/SeatOrientation denormalize display/lookup fields
             // onto Robots so later reads don't need to re-join every time.
             _dataService.ExecuteSQL(
+                // PositionValid=1: the board's PlayerStart rotation (set below, per robot) counts
+                // as an already-valid facing at game start -- unlike a mid-game respawn
+                // (ResetPlayers() sets PositionValid=0), a fresh game doesn't force every player
+                // through the direction picker before they can begin programming.
                 "insert into Robots (RobotID, OperatorName, RobotBaseID, RobotBodyID, `Status`, Priority, `Password`, PlayerSeat, " +
-                "RobotName, RobotColor, RobotColorFG, IPAddress, DirectionAdjustment) " +
+                "RobotName, RobotColor, RobotColorFG, IPAddress, DirectionAdjustment, PositionValid) " +
                 "Select od.RobotID, od.OperatorName, od.RobotID, od.RobotBodyID, 1, od.PlayerSeat, od.`Password`, od.PlayerSeat, " +
-                "rbody.Name, rbody.Color, rbody.ColorFG, rbase.IPAddress, so.Direction " +
+                "rbody.Name, rbody.Color, rbody.ColorFG, rbase.IPAddress, so.Direction, 1 " +
                 "from OperatorData od " +
                 "inner join CurrentGameData pl on od.OperatorListID = pl.iValue and pl.sKey = 'PlayerListID' " +
                 "inner join RobotBodies rbody on od.RobotBodyID = rbody.RobotBodyID " +
@@ -378,8 +382,9 @@ namespace MRR.Controller
                             break;
                         case 4: // still programming
                             int playersProgramming = _dataService.GetIntFromDB("Select Count(*) from  Robots where (Status <> 4 and Status < 9)");
-                            if (playersProgramming == 0)
+                            if (playersProgramming == 0 && _dataService.AllRobotDirectionsChosen())
                             {
+                                _dataService.LockAllRobotDirections();
                                 SetGameState(5);
                             }
                             else

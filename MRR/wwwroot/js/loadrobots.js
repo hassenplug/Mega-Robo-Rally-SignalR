@@ -127,13 +127,17 @@ function applyLogin() {
 // ── Direction picker ─────────────────────────────────────────────────────────
 // The Direction1.png arrow loops through the 4 facing directions (Up/Right/Down/Left,
 // matching MRR.Contracts.Direction's int values 1-4) for whichever robot's hand is currently
-// shown. For a normal player (and for GM before tapping into GM view, see isGmModeActive
-// below) it's shown only while that robot's PositionValid is 0 -- set at game start
-// (CurrentPosDir starts out as whatever the board's PlayerStart square rotation says, a
-// default rather than a player choice, so PositionValid starts at its schema default of 0)
-// and, once the reboot mechanic exists, after a reboot the same way -- and "Set Direction"
-// always confirms (sends 1). In GM view the row stays visible regardless of PositionValid,
-// and the same button instead toggles it (0<->1), so GM can flip a robot back to "not yet
+// shown. PositionValid is a 3-state flag (DataService.Players.cs has the authoritative
+// comment): 0=not set, 1=user set, 2=locked -- GameController.NextState()'s state 4->5 gate
+// (AllRobotDirectionsChosen/LockAllRobotDirections) refuses to advance while any robot is
+// still 0, then locks every robot to 2 once the turn starts executing, at which point the
+// picker disappears everywhere, even in GM mode, until a reboot resets a specific robot's
+// PositionValid back to 0 the same way a fresh respawn already does.
+//
+// For a normal player (and for GM before tapping into GM view, see isGmModeActive below) the
+// row is shown only while PositionValid is 0, and "Set Direction" always confirms (sends 1).
+// In GM view the row stays visible for 0 or 1 (still hidden at 2, same as everyone), and the
+// same button instead toggles between 0 and 1, so GM can flip a robot back to "not yet
 // chosen" for testing/admin purposes. Cycling always just writes CurrentPosDir (command 4)
 // without touching PositionValid either way.
 var DIRECTION_DEGREES = { 1: 0, 2: 90, 3: 180, 4: 270 }; // Up, Right, Down, Left
@@ -175,7 +179,11 @@ function renderDirectionArrow() {
 function updateDirectionPicker(rbt) {
     var row = document.getElementById('directionPickerRow');
     var gmMode = isGmModeActive();
-    if (!gmMode && rbt.PositionValid) {
+    // PositionValid: 0=not set, 1=user set, 2=locked (the turn using it already started
+    // executing -- GameController.NextState()'s state 4->5 gate). Locked never shows the
+    // picker, even for GM; a normal player also never sees it once set (1) or locked (2).
+    var hide = (rbt.PositionValid === 2) || (!gmMode && rbt.PositionValid);
+    if (hide) {
         row.style.display = 'none';
         pendingDirection = null;
         directionPickerForRobotID = null;
