@@ -271,8 +271,9 @@ list above is exhaustive.
 
 **Affected tables and their in-memory counterparts**:
 - `CurrentGameData` ↔ `DataService.GameState`, `.Turn`, `.Phase`, `.BoardID`, etc. (via
-  `GameStateStore` -- `GameState`/`TotalFlags`/`IsRunning`/`FieldEnclosed` write through on set;
-  everything else needs an explicit `UpdateGameState()`/`Reload()` after a raw write)
+  `GameStateStore` -- `GameState`/`TotalFlags`/`FieldEnclosed` write through on set (`IsRunning`
+  was a fourth one here until 2026-09-17, when it was folded into `GameState==25`); everything
+  else needs an explicit `UpdateGameState()`/`Reload()` after a raw write)
 - `Robots` ↔ `DataService.AllPlayers` -- no longer a data mirror; see `ALLPLAYERS_REMOVAL_DESIGN.md`
 - `MoveCards` ↔ `DataService.GameCards` collection (shared by reference onto every
   `Player`/`PlayerState.AllGameCards`, so an in-place `Clear()`+repopulate or targeted field edit

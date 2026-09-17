@@ -83,7 +83,7 @@ a:visited {
                 <button id="directionConfirmBtn" class="button" style="margin-top:6px; background-color:#800080; color:#ffffff; width:auto; padding:6px 16px;" onclick="confirmDirection();">Set Direction</button>
             </td>
         </tr>
-        <!-- GM mode + no game running (datapacket.IsRunning falsy): pick a GameData row by
+        <!-- GM mode + no game running (datapacket.gamestate===25): pick a GameData row by
              its Description and start it. Populated/shown by showall() in js/loadrobots.js. -->
         <tr id="gmtable" style="display: none;">
             <td colspan="5" align="center">

@@ -3,8 +3,9 @@ namespace MRR
     public class AllDataPayload
     {
         public string titlemsg { get; set; } = "";
+        // 25 means "no game running" (was a separate IsRunning bool, folded in here
+        // 2026-09-17); every other value is a real state-machine position (see CLAUDE.md).
         public int gamestate { get; set; }
-        public bool IsRunning { get; set; }
         public List<RobotData> robots { get; set; } = new();
     }
 

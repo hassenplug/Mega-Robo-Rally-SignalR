@@ -708,10 +708,11 @@ evolving GM screen.*
   - Whether a game is currently in progress (and whether we need to connect to the robots)
   - What should be displayed on the player interface (e.g. "Game setup in progress")
 
-  Using the IsRunning flag in CurrentGameData:
-  When the pi boots, or app starts, if IsRunning, connect to the robots, and store that robots are connected.
-  When IsRunning is turned off, disconnect from robots.
-  When a game is started, IsRunning should be turned on.
+  Using GameState in CurrentGameData (GameState==25 means "no game running" — was a separate
+  IsRunning flag until 2026-09-17, see the checked item below):
+  When the pi boots, or app starts, if GameState!=25, connect to the robots, and store that robots are connected.
+  When GameState is set to 25, disconnect from robots.
+  When a game is started, GameState moves off 25 on its own via the normal state machine.
 
 - [x] Removing AllPlayers from main code — design doc written and rollout implemented
   2026-08-27/30, see `documents/ALLPLAYERS_REMOVAL_DESIGN.md`. `Robots` is now read fresh from
@@ -797,7 +798,26 @@ Create a small form. Data should be pulled using the same subscription as index.
 **Status: requirements being gathered — not ready to build yet.** User will keep updating
 requirements here before implementation starts.
 
-- [ ] Replace "IsRunning" with GameState=25.  Any place IsRunning is set to false, set GameState=25;  Any place we check IsRunning, Check for GameState!=25
+- [x] Replace "IsRunning" with GameState=25.  Any place IsRunning is set to false, set GameState=25;  Any place we check IsRunning, Check for GameState!=25
+  — **done 2026-09-17.** Removed `IsRunning` entirely (`GameStateStore`/`DataService`/
+  `GameController`/`AllDataPayload`) rather than keeping it as a computed alias — every read
+  site now compares `GameState`/`datapacket.gamestate` to 25 directly (`GameController.cs`'s
+  `LoadCurrentGame()`, `js/loadrobots.js`'s `showall()`). `EndGame()` now sets `GameState=25`
+  directly. `StartGame()`'s old `IsRunning=true` line was removed outright rather than
+  replaced with anything: `GameState` already moves off 25 through the normal state machine
+  (the raw SQL a few lines below it, then case 0's `SetGameState(2)` in `NextState()`) by the
+  time that state finishes, so nothing else was needed. This only touches the game-level
+  "is a game running" flag — `PlayerState.IsRunning` (a per-robot "alive and not shut down"
+  property, `Active && ShutDown != Currently`) is a completely different, unrelated concept
+  and was left alone.
+
+  The `CurrentGameData` row at iKey 9 (`IsRunning`) is now orphaned — nothing reads or writes
+  it — but wasn't deleted from the schema; see `.claude/agents/mrr-database.md`'s reference
+  table. Also worth knowing: `GameState`'s seed default in `install/MRRDatabase.sql` is still
+  `2`, not `25` — a truly fresh install (before any game has ever started or ended) will
+  briefly report as "running" in state 2 until a game actually starts or `EndGame()` runs
+  once. Didn't change the seed default since that's a behavior decision, not part of the
+  literal ask; flagging it here rather than deciding it silently.
 
 - [ ] Replace the operatordata table with a new version
 - [ ] When GameState=1 

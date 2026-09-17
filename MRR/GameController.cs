@@ -40,7 +40,6 @@ namespace MRR.Controller
 
 
         public int RobotsActive => _dataService.RobotsActive;
-        public bool IsRunning => _dataService.IsRunning;
         public Players AllPlayers => _dataService.AllPlayers;
 
         public int GameState => _dataService.GameState;
@@ -259,7 +258,9 @@ namespace MRR.Controller
 
         public void StartGame() // pass board elements and players // find start positions for each player
         {
-            _dataService.IsRunning = true;
+            // No explicit "now running" write needed: GameState is about to move off 25 (the
+            // "not running" sentinel) via the raw SQL below and then case 0's SetGameState(2)
+            // in NextState(), so GameState != 25 holds by the time this state finishes.
 
             _dataService.ExecuteSQL("Update CurrentGameData set iValue=0 where sKey='GameState';");
             _dataService.ExecuteSQL("Update CurrentGameData set iValue=0 where sKey='Turn';");
@@ -502,7 +503,7 @@ namespace MRR.Controller
             //_dataService.UpdateGameState(); // ensure C# state reflects any DB changes from UpdateGameState logic
             _dataService.ReloadAllData();
 
-            if (RobotsActive != 0 && IsRunning)
+            if (RobotsActive != 0 && _dataService.GameState != 25)
             {
                 ConnectToAllRobots();
             }
@@ -746,11 +747,12 @@ namespace MRR.Controller
             return true;
         }
 
-        /// <summary>Ends the current game: clears IsRunning (iKey 9) so a restart won't try to
-        /// reconnect to robots, and disconnects from them now.</summary>
+        /// <summary>Ends the current game: sets GameState=25 ("not running", was a separate
+        /// IsRunning flag) so a restart won't try to reconnect to robots, and disconnects from
+        /// them now.</summary>
         public void EndGame()
         {
-            _dataService.IsRunning = false;
+            _dataService.GameState = 25;
             DisconnectAllRobots();
         }
 

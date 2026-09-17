@@ -205,8 +205,8 @@ Key-value store for live game state. Dual-keyed: `sKey` (string) and `iKey` (int
 | LaserDamage | 6 | 0 | Laser damage amount |
 | TotalFlags | 7 | 0 | Flags needed to win |
 | RobotsActive | 8 | 0 | Toggle |
-| IsRunning | 9 | 0 | Toggle |
-| GameState | 10 | 0 | Current state machine state |
+| IsRunning | 9 | 0 | **Unused since 2026-09-17** -- folded into `GameState==25`, see below; nothing reads or writes this row anymore |
+| GameState | 10 | 0 | Current state machine state (0-16, see CLAUDE.md's table) -- 25 means "no game running" (was this row's job before 2026-09-17) |
 | ProgramsReady | 11 | 0 | |
 | RobotsReady | 12 | 0 | |
 | CommandParameter | 13 | 0 | Secondary state parameter (e.g., winner RobotID) |

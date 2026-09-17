@@ -390,8 +390,9 @@ function showall()
     document.getElementById('statusHeader').innerText = showGmControls ? 'Connect' : 'Status';
     if (!showGmControls) document.getElementById('gmMenu').style.display = 'none';
 
-    // GM mode + no game running: offer to pick a GameData row and start it.
-    var showGmStart = showGmControls && !datapacket.IsRunning;
+    // GM mode + no game running (gamestate===25, was a separate IsRunning flag): offer to
+    // pick a GameData row and start it.
+    var showGmStart = showGmControls && datapacket.gamestate === 25;
     document.getElementById('gmtable').style.display = showGmStart ? '' : 'none';
     if (showGmStart && gameDataOptions === null) loadGameDataOptions();
 

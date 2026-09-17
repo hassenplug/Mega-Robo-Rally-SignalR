@@ -99,8 +99,9 @@ than opened per-phase and closed again:
 
 - `GameController.LoadCurrentGame()` calls `ConnectToAllRobots()` only when a game is
   actually running and the physical robots are wanted:
-  `if (RobotsActive != 0 && IsRunning) ConnectToAllRobots();`
-  ([GameController.cs:453](../MRR/GameController.cs#L453)). This runs both at process
+  `if (RobotsActive != 0 && _dataService.GameState != 25) ConnectToAllRobots();`
+  ([GameController.cs:453](../MRR/GameController.cs#L453)) -- `GameState==25` means "not
+  running" (folded in 2026-09-17 from a separate `IsRunning` flag). This runs both at process
   startup (so a Pi reboot mid-game reconnects automatically) and at the end of `StartGame()`.
 - **A new game closes every previous connection and opens fresh ones.**
   `ConnectToAllRobots()` ([GameController.cs:471-497](../MRR/GameController.cs#L471)) calls
@@ -113,7 +114,7 @@ than opened per-phase and closed again:
   `RobotConnections` entries — `Refresh()` only prunes robots that disappeared; it never
   disturbs a still-valid connection just because the caller rebuilt its own player list
   around it.
-- `EndGame()` clears `IsRunning` and calls `DisconnectAllRobots()`
+- `EndGame()` sets `GameState=25` ("not running") and calls `DisconnectAllRobots()`
   ([GameController.cs:657-671](../MRR/GameController.cs#L657)), so connections do not
   outlive the game they belong to.
 - The GM's manual "Connect"/"Disconnect" controls (`connectscreen.html`,

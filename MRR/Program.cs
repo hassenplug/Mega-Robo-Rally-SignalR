@@ -92,9 +92,9 @@ app.MapGet("/api/alldata", (DataService dataService, IHubContext<DataHub> hubCon
     return Results.Content(dataout, "application/json");
 });
 
-// GM's "start a game" picker (index.html, GM mode + IsRunning==0): { games: [{GameDataID,
-// Description}, ...] }. Phone-reachable on purpose, unlike /api/admin/tables/GameData --
-// this only ever reads GameDataID/Description, never arbitrary SQL.
+// GM's "start a game" picker (index.html, GM mode + GameState==25 i.e. not running):
+// { games: [{GameDataID, Description}, ...] }. Phone-reachable on purpose, unlike
+// /api/admin/tables/GameData -- this only ever reads GameDataID/Description, never arbitrary SQL.
 app.MapGet("/api/gamedata", (DataService dataService) =>
     Results.Content(dataService.GetQueryResultsJson(
         "SELECT GameDataID, Description FROM GameData ORDER BY GameDataID;", "games"),
