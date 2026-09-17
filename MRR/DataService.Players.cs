@@ -202,10 +202,12 @@ namespace MRR.Services
         // once (rs) for the folded gameplay status IF(connected, Status, NotActive) that
         // StatusColor/LEDColor/PlayerStatus/StatusToShow reflect, and once (cs) for
         // ConnectStatusID's own color/description, which is never folded with anything.
+//                JOIN RobotStatus rs ON IF(r.ConnectStatusID = {(int)tPlayerStatus.RobotConnected}, r.Status, 10) = rs.RobotStatusID
+
         public void RefreshRobotDenormalizedFields()
         {
             string updateSQL = $@"UPDATE Robots r
-                JOIN RobotStatus rs ON IF(r.ConnectStatusID = {(int)tPlayerStatus.RobotConnected}, r.Status, 10) = rs.RobotStatusID
+                JOIN RobotStatus rs ON r.Status = rs.RobotStatusID
                 JOIN RobotStatus cs ON r.ConnectStatusID = cs.RobotStatusID
                 JOIN RobotDirections rd ON r.CurrentPosDir = rd.DirID
                 LEFT JOIN (
@@ -362,6 +364,27 @@ namespace MRR.Services
             update.Parameters.AddWithValue("@ip", ipAddress);
             update.Parameters.AddWithValue("@robotId", robotId);
             return update.ExecuteNonQuery() > 0;
+        }
+
+        /// <summary>
+        /// Writes through to Robots.ConnectStatusID -- and, in the same statement,
+        /// ConnectStatusColor/ConnectStatusDesc from the matching RobotStatus row -- so the
+        /// connection screen reflects whether we actually have a live socket to the robot.
+        /// Deliberately narrower than RefreshRobotDenormalizedFields: this touches only the
+        /// three connect-status columns for one robot, never the gameplay Status/StatusColor/
+        /// LEDColor columns -- a connection dropping or recovering must never look like a
+        /// gameplay status change. Callers that also want the change broadcast immediately
+        /// (e.g. GameController.SetRobotConnectStatus) do that themselves afterward.
+        /// </summary>
+        public void SetRobotConnectStatus(int robotID, tPlayerStatus status)
+        {
+            ExecuteSQL($@"
+                UPDATE Robots r
+                JOIN RobotStatus cs ON cs.RobotStatusID = {(int)status}
+                SET r.ConnectStatusID    = {(int)status},
+                    r.ConnectStatusColor = cs.StatusColor,
+                    r.ConnectStatusDesc  = cs.ShortDescription
+                WHERE r.RobotID = {robotID};");
         }
 
         // =====================================================================

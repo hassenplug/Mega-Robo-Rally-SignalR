@@ -1,7 +1,46 @@
 # Mega Robo Rally — Project TODO
 
-**Last updated:** 2026-09-11
+**Last updated:** 2026-09-16
 **Legend:** `[x]` Done &nbsp; `[-]` Partial / In Progress &nbsp; `[ ]` Not started
+
+---
+
+## Current Priorities
+
+Sections below are organized by feature area, not urgency. Ranked pull of what actually
+matters for a real game, re-derived 2026-09-16. Items 1–6 are genuine open gaps; 7–8 stay on
+the list but rank last because this is a closed system with no public exposure, per user
+2026-09-16 — see each item's note. Re-check before trusting this if much time has passed.
+
+1. **Failed robot send silently applies the move anyway** (Section 2). A send that fails still
+   advances the robot's DB position as if it succeeded — the game state and the physical board
+   quietly diverge, and nothing about it is visible to the GM. Tagged High in
+   `API_DECOMPOSITION_DESIGN.md` §7.
+2. **Reboot mechanic** (Section 1). Core Renegade rule for a robot that falls in a pit or off
+   the board. The direction-picker half is done; pit/edge detection and the respawn itself are
+   not — any board with pits can't be played correctly yet.
+3. **Shutdown mechanic** (Section 1). Not started. Also a core Renegade rule.
+4. **Damage card draw mechanic** (Section 1). Not started: drawing from the damage stack, Spam/
+   Haywire/Trojan Horse execution. Beyond the basic damage → dealt-Spam-card conversion that
+   already works, none of the special-card executions are implemented.
+5. **Pushers** (Section 1). Board element type not implemented at all — activate on specific
+   phases (odd/even), push a robot one square, chain-push if another robot is in the way.
+6. **Board data cleanup** (Section 1). 6 boards have flag-numbering gaps and are unwinnable;
+   16 have a stale `Boards.TotalFlags` value.
+7. **DB password committed in tracked `appsettings.json`** (Section 6) — lower priority: closed
+   system, no public exposure, per user 2026-09-16.
+8. **Every phone receives every player's hand** (Section 3) — lower priority, same reasoning;
+   the cookie-login item already decided not to worry about this for the raw broadcast payload.
+
+Also resolved since the last pass, no longer tracked as open:
+- Win condition only announcing the winner and continuing play (Section 1) — confirmed
+  *intended* 2026-09-16, not a gap; `SquareAction.GameWinner` stays commented out on purpose.
+- `drive_for` distance calibration, the systemd install on `mrobopi`, and the `AllPlayers`
+  manual verification pass (Sections 2, 4, 8) — all validated done by user 2026-09-16.
+
+Everything else in the sections below is real but lower-stakes: UI polish, dead-code removal,
+doc reconciliation, and the network-setup checklist (Section 5 — unverified whether it's still
+literally all open, or just not updated after being done by hand).
 
 ---
 
@@ -64,17 +103,33 @@
 - [x] Flag / checkpoint detection (`CreateCommands.cs` + `GameController.cs`)
   - End of each phase: robot on flag N (where N == LastFlag+1) touches it
 
-- [-] Win condition (`CreateCommands.AddFlag`)
+- [x] Win condition (`CreateCommands.AddFlag`)
   - [x] Flag comparison fixed 2026-08-22. Was comparing against a hardcoded 5
     (`Player.TotalFlags` was `get => 5; set {}`), so any board without exactly 5 flags
     scored wrong. Now one game-wide `TotalFlags` in `CurrentGameData` (iKey 7), taken from
     the board at game start; `AddFlag` returns true on `LastFlag >= TotalFlags`.
-  - [ ] Still only *announces* the winner — [CreateCommands.cs:1346](../MRR.Rules/CreateCommands.cs)
-    adds a `"Game Winner:"` text command, with `SquareAction.GameWinner` commented out. The
-    game does not actually end. Issue the `GameWinner` command so `ProcessDbCommand` handles it.
-    Related: even once issued, `ProcessDbCommand`'s `GameWinner` case only writes
-    `CurrentGameData` — it never calls `UpdateGameState()`, so C# state stays stale until the
-    next unrelated refresh (`documents/DB_SYNC_ISSUES.md` #12).
+  - [x] Only *announces* the winner, does not end the game — **confirmed intended 2026-09-16,
+    not a bug**: [CreateCommands.cs:1346](../MRR.Rules/CreateCommands.cs) adds a
+    `"Game Winner:"` text command with `SquareAction.GameWinner` left commented out, on purpose.
+    User wants play to continue for the fully allotted time after the win is announced, not have
+    the game cut short — the current behavior (message only, keep playing) is exactly that.
+    `ProcessDbCommand`'s unreachable `GameWinner` case (`DataService.Commands.cs:180-184`, sets
+    `GameState = 11`) stays dead code deliberately; do not wire it up. `documents/DB_SYNC_ISSUES.md`
+    #12 (about that same dead case) is likewise moot, not something to fix.
+
+- [ ] `MoveCards.Executed` is never actually set, so the currently-executing card's short
+  description never displays — found 2026-09-16 in
+  [`DataService.RebuildRobotCardsSummary`](../MRR/DataService.Cards.cs#L52): the
+  `ShowCardsPlayed` GROUP_CONCAT reads `IF(mc.Executed, mct.ShortDescription, 'X')`, but cards
+  are not marked as executed in the database, so it always falls through to `'X'` instead of
+  showing e.g. "M1"/"TR" for the card currently running. The write side exists —
+  `DataService.Commands.cs`'s `SquareAction.Card` case sets `Executed = 1`, and `CreateCommands`
+  does add that command per played card (`CreateCommands.cs:117`, `:1099`, `:1110`) — so this
+  needs tracing why it isn't landing rather than being built from scratch: check
+  `SqlGateway.ExecuteSQL`'s known silent-error-swallowing (Section 6) first, then whether the
+  `CardID`/`Owner` pair in the `WHERE` clause still matches by the time this command runs.
+  Same duplicated GROUP_CONCAT logic also appears in `DataService.Players.cs:71` and `:213` —
+  check whether it has the same problem or was already fixed independently there.
 
 - [ ] Board data cleanup (found via `documents/API_DECOMPOSITION_DESIGN.md` §7 /
   `PROJECT_STATUS.md` §4.2, still open)
@@ -98,10 +153,8 @@
 ## Section 2 — Robot Hardware
 *VEX AIM physical integration.*
 
-- [ ] Calibrate `drive_for` distance for one board square
-  - Currently: `distance = value * 77mm` (estimated, not measured)
-  - Must be measured empirically on the actual printed board
-  - See `robo-rally-dev.md §4.6`
+- [x] Calibrate `drive_for` distance for one board square — **validated by user 2026-09-16**
+  against the physical board. (`distance = value * 77mm`, `robo-rally-dev.md §4.6`.)
 
 - [-] Confirm ws_img wire format against live robot
   - [x] Image is downloaded and saved to `images/align/` (`Players.cs` `GetCameraImageAsync` + `SaveAlignImage`)
@@ -247,7 +300,10 @@
 
 - [ ] Every phone still receives every player's hand in the broadcast payload, not just its
   own (`documents/API_DECOMPOSITION_DESIGN.md` §7, Medium; the password leak this item used to
-  also cover is already fixed). Needs per-seat SignalR groups or payload filtering.
+  also cover is already fixed). Needs per-seat SignalR groups or payload filtering. **Lowered to
+  low priority 2026-09-16** — closed system, consistent with the cookie-login item below already
+  deciding "do not worry about sending all cards to all robots." Client-side login already hides
+  it from a casual player; this item is only about the raw broadcast payload still carrying it.
 - [x] Add a cookie to each phone. The cookie is either the RobotID (from the json data file) or "0555" which is the GM login.
      When index.html isloaded, match to the cookie.  If it doesn't mach the GM login on one of the current RobotIDs, request a new login.If it nmatches a RobotID, only allow the player to see cards for that ID.  This is a closed system.  Do not worry about sending all cards to all robots
      — done 2026-09-14, same item as Section 8's "Players will have to log in..." line below; see
@@ -322,7 +378,7 @@
   - Should cover: .NET 9 runtime, MySQL server, project files, `systemd` service for auto-start
   - Store in `install/` directory alongside this file
 
-- [ ] **Install the systemd process manager on `mrobopi`.** Design + reference implementation
+- [x] **Install the systemd process manager on `mrobopi`.** Design + reference implementation
   are code-complete in the repo (`install/PROCESS_MANAGER.md`; every file it describes exists
   in `install/service/` — confirmed 2026-08-30: `mrr.target`, `mrr-server.service`,
   `mrr-config.service`, `mrr-spi.service`, `mrr-health.{service,timer}`,
@@ -350,12 +406,9 @@
   - **`documents/PROCESS_MANAGER_DESIGN.md` is an early draft, explicitly superseded — the doc
     itself says so. `install/PROCESS_MANAGER.md` is the one to read/update.**
 
-  What's actually **not done**: installation on the physical host. Per `PROJECT_STATUS.md`,
-  as of its last update `mrrctl` isn't on `mrobopi`'s `PATH`, no `mrr-*` units are registered,
-  and the game is started by hand (`dotnet run` in a terminal — "Mode A"). Verify current state
-  before assuming otherwise, then: stop the hand-started server, run
-  `sudo install/service/install.sh`, and work through §8.4/§8.5's verification + restart-policy
-  checks in `install/PROCESS_MANAGER.md`.
+  Installation on the physical host — **validated by user 2026-09-16**. `PROJECT_STATUS.md`'s
+  "`mrrctl` isn't on `mrobopi`'s PATH, started by hand" description is now stale; update it
+  next time that doc is touched.
   - If any machine still has the old deploy layout (`/srv/mrr/app`), re-run `install.sh` to
     move it to `/srv/mrr/game` + `/srv/mrr/config`
   - Deliberately out of scope per the doc's own §11 (also listed in Section 3/6 above): a
@@ -446,8 +499,10 @@ Home Router (192.168.1.x)
 - [ ] **Security: DB password committed in tracked `appsettings.json`** (`ConnectionStrings:Rally`,
   `pwd=rallypass`) in both `MRR/appsettings.json` and `MRR.Config/appsettings.json`
   (`PROJECT_STATUS.md` §4.7). Move to an untracked `appsettings.Production.json` or an
-  environment variable before this repo is ever made public. Flagging this one as worth
-  verifying and fixing promptly rather than leaving it queued.
+  environment variable before this repo is ever made public. **Lowered to low priority
+  2026-09-16** — this is a totally closed system (isolated game network, no public exposure),
+  so the "before it's ever public" condition isn't imminent. Still worth doing eventually,
+  just not urgent.
 
 - [ ] `SqlGateway.ExecuteSQL`/`GetQueryResults` silently swallow database errors and return
   empty results instead of surfacing them (`PROJECT_STATUS.md` §6.6) — a bad connection string
@@ -496,7 +551,9 @@ copy silently reverts it, or a broadcast reads stale data. Numbering below match
 (items 1/2/3/5 were the `AllPlayers` mirror, already resolved by its removal).
 
 All items in this list are now closed — fixed, found moot by an earlier refactor, or confirmed
-not to be a real bug. See `documents/DB_SYNC_ISSUES.md` for the full writeup of each.
+not to be a real bug. See `documents/DB_SYNC_ISSUES.md` for the full writeup of each. The pattern
+keeps recurring in new code though (#15 below was found three weeks after this list was first
+written) — don't treat "all closed" as "can't happen again."
 
 - [x] #4 — Turn counter incremented in DB (`CurrentGameData` iKey=2) but not `_dataService.Turn`
   (`GameController.NextState()`) — **fixed 2026-09-13**. Real and player-visible: the broadcast
@@ -540,27 +597,51 @@ not to be a real bug. See `documents/DB_SYNC_ISSUES.md` for the full writeup of 
   update — **already fixed, undated; confirmed 2026-09-13**. `UpdateCardPlayed` already has an
   explicit in-memory `GameCards` sync step, and `Player.CardsDealt`/`CardsPlayed` no longer exist
   as stored fields — they're computed live off the shared `GameCards` reference.
+- [x] #15 — `GameController.LoadGameData()` writes the new `BoardID`/`OptionCount`/`PhaseCount`/
+  etc. into `CurrentGameData` via raw SQL but never refreshed `GameStateStore` — **fixed
+  2026-09-16**. Found via a real bug report: starting a new game with a different player count
+  left the `Robots` table wrong until Start Game was clicked a second time. `LoadGameData()` runs
+  immediately before `StartGame()` (`Program.cs` → `SetGameState(0)` → `NextState()` case 0), and
+  `StartGame()` reads `_dataService.BoardID` to find the board's `PlayerStart` squares — with the
+  stale cache, the first call built the robot table against the *previous* board. Added
+  `_dataService.UpdateGameState()` at the end of `LoadGameData()`, same fix as #4. See
+  `documents/DB_SYNC_ISSUES.md` #15.
 
-### Doc housekeeping (found while auditing docs 2026-08-30, not yet independently re-verified in code)
+### Doc housekeeping (found while auditing docs 2026-08-30; re-verified in code 2026-09-16)
 
-- [ ] `documents/API_DECOMPOSITION_DESIGN.md` §7's defects table has several rows that read as
-  stale against `PROJECT_STATUS.md`: "no abort path" (an abort endpoint now exists), "`/api/table`
-  mutating GET" (replaced by `MRR.Admin` per that doc's own §9 step 5), and "phone receives
-  password" (fixed — only the hand-visibility half above is still open). Worth a pass to confirm
-  and update the table rather than trust either doc blindly.
+- [x] `documents/API_DECOMPOSITION_DESIGN.md` §7's defects table had rows that read as stale
+  against `PROJECT_STATUS.md` — **confirmed stale 2026-09-16, table needs a pass**: grepped
+  `Program.cs` and confirmed `/api/execution/abort` exists (abort path row is stale) and no
+  `/api/table` route remains, only a comment noting it was replaced by `MRR.Admin` (that row is
+  stale too). "Phone receives password" was already correctly noted as fixed, only the
+  hand-visibility half open (see Section 3). Table itself not yet edited — still an actual
+  editing pass to do in `API_DECOMPOSITION_DESIGN.md`, just no longer an open question.
 - [x] **Confirmed fixed 2026-08-30**: "`/` returns 404" — `MRR/Program.cs` now calls
   `UseDefaultFiles()` before `UseStaticFiles()` (with a comment noting exactly this history), so
   `/` does serve `index.html`. `install/PROCESS_MANAGER.md` §6 still described this as an open
   fix to make; corrected there too. One leftover: the `/api/health` comment a few lines below it
   in `Program.cs` still says "UseStaticFiles is registered before UseDefaultFiles above" — now
   false, harmless, but worth a one-line fix next time that function is touched.
-- [ ] Same doc's §9 step 6 (Device Gateway) says "Not started"; `PROJECT_STATUS.md` §5.1 (same
-  date) says "Partial — dispatch bugs fixed; `IRobotTransport` remains." Reconcile.
-- [ ] Same doc's §5.4 still lists "busy-wait, no timeout" as open; `PROJECT_STATUS.md` §6.6 says
-  commands now time out after 30s. The timeout half looks done; confirm whether the busy-wait/
-  poll-interval half is still a real concern.
-- [ ] Git branch `pre-decomposition-cleanup` was well ahead of `origin` as of `PROJECT_STATUS.md`
-  §5.3 — confirm it's been pushed/merged/renamed since
+- [x] Same doc's §9 step 6 (Device Gateway) says "Not started"; `PROJECT_STATUS.md` §5.1 (same
+  date) says "Partial — dispatch bugs fixed; `IRobotTransport` remains." **Reconciled
+  2026-09-16, not actually a conflict**: `grep -rn IRobotTransport MRR/` finds zero matches — the
+  type genuinely doesn't exist in code, so "Not started" is correct for the type extraction
+  itself. "Dispatch bugs fixed" refers to something narrower and separate: the command-hang fix
+  (`CommandProcess.CommandDeadline`, see next item), not the failed-send-applies-anyway bug,
+  which Section 2 above still lists open. Both docs are correct read precisely; worth rewording
+  PROJECT_STATUS.md's line so it doesn't imply more progress than "Not started" next time someone
+  skims just one of the two docs.
+- [x] Same doc's §5.4 still lists "busy-wait, no timeout" as open; `PROJECT_STATUS.md` §6.6 says
+  commands now time out. **Resolved 2026-09-16, no longer a real concern**: confirmed in
+  `CommandProcess.cs` — `CommandDeadline = TimeSpan.FromSeconds(10)`, matching what
+  `PROJECT_STATUS.md` §6.6 already says (this todo item's own paraphrase had drifted to "30s" —
+  that was the error, not the doc), enforces the timeout, and
+  `PollInterval = TimeSpan.FromMilliseconds(20)` means the loop sleeps between checks rather than
+  spinning. Both halves of the original complaint are done; §5.4 can be marked resolved.
+- [x] Git branch `pre-decomposition-cleanup` was well ahead of `origin` as of `PROJECT_STATUS.md`
+  §5.3 — **confirmed merged 2026-09-16**: `git merge-base --is-ancestor origin/pre-decomposition-cleanup
+  origin/main` succeeds and the branch is 0 commits ahead of `origin/main`. Safe to delete the
+  branch and drop this line from `PROJECT_STATUS.md` §5.3.
 
 - [x] **Convert SQL stored procedures to C# — COMPLETE (verified 2026-08-22).**
 
@@ -632,14 +713,14 @@ evolving GM screen.*
   the DB per broadcast; `AllPlayers` remains only where the doc identifies it's still needed
   (command creation, connection registry).
 
-- [ ] Manual verification pass for the AllPlayers removal (`ALLPLAYERS_REMOVAL_DESIGN.md` §10 —
-  written but unchecked):
-  - [ ] Phones' displayed status/cards update every broadcast
-  - [ ] `CommandList` descriptions ("played card: X") still render correctly
-  - [ ] `/api/admin/diagnostics` still reports `robotsConnected`
-  - [ ] Robot disconnect/reconnect mid-game still works
-  - [ ] Re-check `UpdateCardPlayed` specifically through a full programming→lock→execute cycle
-  - [ ] Play a multi-turn game confirming pit-death/Damage-threshold behavior holds turn after turn
+- [x] Manual verification pass for the AllPlayers removal (`ALLPLAYERS_REMOVAL_DESIGN.md` §10) —
+  **validated by user 2026-09-16**:
+  - [x] Phones' displayed status/cards update every broadcast
+  - [x] `CommandList` descriptions ("played card: X") still render correctly
+  - [x] `/api/admin/diagnostics` still reports `robotsConnected`
+  - [x] Robot disconnect/reconnect mid-game still works
+  - [x] Re-check `UpdateCardPlayed` specifically through a full programming→lock→execute cycle
+  - [x] Play a multi-turn game confirming pit-death/Damage-threshold behavior holds turn after turn
 
 ### Robot Connection Screen
 
@@ -661,6 +742,19 @@ Create a small form. Data should be pulled using the same subscription as index.
     - [x] Green (Connected)
     - [x] Purple (Searching)
     - [x] Unknown (0)
+
+- [x] Connection screen kept showing a robot as green/Connected after it silently dropped
+  mid-turn — **fixed 2026-09-16**. `Robots.ConnectStatusID`/`ConnectStatusColor` only ever got
+  written by an explicit Connect/Disconnect action (`GameController.SetRobotConnectStatus`);
+  `RobotConnection.IsConnected` going false on its own (inside `SendCommandAsync`'s catch block,
+  Device Gateway code with no DB access) never told the DB. Extracted the write into
+  `DataService.SetRobotConnectStatus` (`DataService.Players.cs`) and call it from
+  `CommandProcess.ProcessCommand` (`CommandProcess.cs`) the moment it finds `!robot.isConnected`
+  mid-turn -- the existing `PublishSnapshot()` a few lines later in that same polling loop
+  broadcasts it, no new broadcast needed. Deliberately still only touches
+  `ConnectStatusID`/`ConnectStatusColor`/`ConnectStatusDesc`, same as before -- never
+  `Robots.Status`/`StatusColor` (the gameplay columns); a dropped connection must not look like
+  a gameplay status change.
 
 ### Merge Connections Into the Index / GM Screen
 

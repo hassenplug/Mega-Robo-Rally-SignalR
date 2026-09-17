@@ -351,6 +351,17 @@ namespace MRR
                     if (!robot.isConnected)
                     {
                         LogCommand(onecommand, "Robot not connected for Command");
+                        // The socket already dropped (RobotConnection.IsConnected went false
+                        // inside SendCommandAsync/ConnectAsync's own catch blocks -- Device
+                        // Gateway code, no DB access there), but nothing had told Robots.
+                        // ConnectStatusID yet: only an explicit manual Connect/Disconnect used
+                        // to write it, so the connection screen kept showing green/Connected
+                        // for a robot that had actually gone silent mid-turn. This is the first
+                        // point in the turn-execution path that notices, so it's the one that
+                        // writes it -- connect-status columns only, never Robots.Status/
+                        // StatusColor. PublishSnapshot(), called later in this same polling
+                        // loop iteration, broadcasts it; no separate broadcast needed here.
+                        _dataService.SetRobotConnectStatus(onecommand.RobotID, tPlayerStatus.NotConnected);
                         onecommand.StatusID = _dataService.ProcessDbCommand(onecommand, 5);
                         return true;
                     }

@@ -542,24 +542,17 @@ namespace MRR.Controller
             return true;
         }
 
-        /// <summary>Writes through to Robots.ConnectStatusID -- and, in the same statement,
-        /// ConnectStatusColor/ConnectStatusDesc from the matching RobotStatus row -- so the
-        /// connection screen reflects whether we actually have a live socket to the robot.
-        /// Sets all three itself rather than calling RefreshRobotDenormalizedFields: that method
-        /// recomputes the *gameplay* denormalized columns (StatusColor, LEDColor, PlayerStatus,
-        /// sDir, FlagEnergyCards, StatusToShow, PlayerMsg) for every robot via several joins, which is
-        /// far more than a single robot's connect-status change needs. Broadcasts immediately so
-        /// the Connecting -> Connected/NotConnected transition is visible live rather than only
-        /// on the next unrelated broadcast (see install/todo.md Section 8).</summary>
+        /// <summary>Delegates the write to DataService.SetRobotConnectStatus (Robots.ConnectStatusID/
+        /// ConnectStatusColor/ConnectStatusDesc only -- never the gameplay Status/StatusColor
+        /// columns), then broadcasts immediately so the Connecting -> Connected/NotConnected
+        /// transition is visible live rather than only on the next unrelated broadcast (see
+        /// install/todo.md Section 8). CommandProcess.cs calls the DataService method directly
+        /// (no GameController reference there) when it detects a robot dropped its connection
+        /// mid-turn -- that path relies on the turn loop's own PublishSnapshot for the broadcast
+        /// instead of duplicating one here.</summary>
         private void SetRobotConnectStatus(int robotID, tPlayerStatus status)
         {
-            _dataService.ExecuteSQL($@"
-                UPDATE Robots r
-                JOIN RobotStatus cs ON cs.RobotStatusID = {(int)status}
-                SET r.ConnectStatusID    = {(int)status},
-                    r.ConnectStatusColor = cs.StatusColor,
-                    r.ConnectStatusDesc  = cs.ShortDescription
-                WHERE r.RobotID = {robotID};");
+            _dataService.SetRobotConnectStatus(robotID, status);
             UpdateGameState();
         }
 

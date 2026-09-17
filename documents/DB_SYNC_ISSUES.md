@@ -230,6 +230,26 @@ reference. There is no separate list left to desync.
 
 ---
 
+### 15. **GameController.LoadGameData()** — *FIXED 2026-09-16*
+**Location**: MRR/GameController.cs
+**Issue**: Copies a `GameData` row (`BoardID`, `OptionCount`/`OptionsOnStartup`, `PhaseCount`,
+`GameType`, `LaserDamage`) into `CurrentGameData` via raw SQL, but never refreshed
+`GameStateStore`'s cached copies of those same fields.
+
+**Missing**: After this write, should call `UpdateGameState()` (`GameStateStore.Reload()`).
+
+**Resolution**: Confirmed real and player-visible, found while investigating "starting a new game
+with a different player count doesn't update the Robots table until Start Game is clicked twice."
+`LoadGameData()` is always followed immediately by `StartGame()` (`Program.cs` →
+`SetGameState(0)` → `NextState()`'s case 0), and `StartGame()` reads `_dataService.BoardID` to
+load the board's `PlayerStart` squares. With the stale cache, the first `StartGame()` call built
+the `Robots` table against the *previous* game's board, mismatching the newly-selected player
+list; `StartGame()`'s own trailing `LoadCurrentGame() → ReloadAllData() → UpdateGameState()`
+refreshed the cache just in time for a second call to work. Added
+`_dataService.UpdateGameState()` at the end of `LoadGameData()`, same fix as #4.
+
+---
+
 ## Pattern Summary
 
 **Most common issue**: Database writes via `ExecuteSQL()` that directly mutate tables without:
@@ -240,9 +260,14 @@ reference. There is no separate list left to desync.
    `PendingCommands._commandList`)
 3. Updating individual in-memory entity properties
 
-**Status as of 2026-09-13**: every item above is fixed, found moot by an earlier refactor, or
+**Status as of 2026-09-16**: every item above is fixed, found moot by an earlier refactor, or
 confirmed not to need a fix (1/2/3/5 by `ALLPLAYERS_REMOVAL_DESIGN.md`; 4/9/10/11/13 fixed
-2026-09-13; 6 fixed 2026-09-12; 7/8 moot; 12 never a real bug; 14 already fixed, undated).
+2026-09-13; 6 fixed 2026-09-12; 7/8 moot; 12 never a real bug; 14 already fixed, undated; 15
+fixed 2026-09-16). The pattern keeps recurring in new code, though -- #15 was found nearly three
+weeks after this list was first written, in a method none of the other 14 touch. Worth grepping
+for `_dataService.ExecuteSQL(` / `ExecuteSQL(` call sites that write `CurrentGameData` without a
+following `UpdateGameState()` next time this class of bug is suspected, rather than assuming the
+list above is exhaustive.
 
 **Affected tables and their in-memory counterparts**:
 - `CurrentGameData` ↔ `DataService.GameState`, `.Turn`, `.Phase`, `.BoardID`, etc. (via
