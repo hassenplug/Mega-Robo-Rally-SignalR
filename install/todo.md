@@ -148,6 +148,10 @@ literally all open, or just not updated after being done by hand).
   - Circuit Breaker confirmed **not used** in this rules version (2026-08-27) — do not
     implement it; the existing check in `CreateCommands.cs` (line ~604) is dead in practice
 
+**Note (2026-09-17, user instruction):** Option cards and Haywire cards are not being worked
+on yet. Do not remove "dead" code related to either (unwired `tOptionCardCommandType` entries,
+`OptionCard`/`OptionCardList`, Haywire handling in `CardList.cs`, etc.) until this is picked up.
+
 ---
 
 ## Section 2 — Robot Hardware
@@ -681,7 +685,8 @@ written) — don't treat "all closed" as "can't happen again."
   in `Program.cs`, `GameController.cs` and `RobotScreenUI.cs`. It was a no-op; `UpdateCardPlayed`
   step 8 already syncs the moved cards in memory directly.
 - [ ] `SetArchiveToCurrent` (`Players.cs:87`) — no callers; updates archive pos from current pos - This is no longer required
-- [ ] `HasOptionCard` (`Players.cs`) — no callers; stub that always returns false
+- [ ] `HasOptionCard` (`Players.cs`) — no callers; stub that always returns false. **Do not
+  remove yet (2026-09-17)** — Option cards aren't implemented yet; leave this in place.
 - [ ] `MoveUnlimitedAsync` (`Players.cs`) — no callers; sends continuous drive command
 - [ ] `ShowAIAsync` (`Players.cs`) — no callers; triggers AI vision overlay on robot LCD
 - [ ] Dead commented-out line at `CommandList.cs:297` (found during `ALLPLAYERS_REMOVAL_DESIGN.md` review)
@@ -786,6 +791,97 @@ Create a small form. Data should be pulled using the same subscription as index.
    system... do not worry about sending all cards to all robots"). That doc's tracking/
    enforcement pieces (`PhoneConnected`, `whoami`, SignalR connect tracking) are still undone
    if wanted later.
+
+### Operator Data Setup Form (new, 2026-09-17)
+
+**Status: requirements being gathered — not ready to build yet.** User will keep updating
+requirements here before implementation starts.
+
+- [ ] Replace the operatordata table with a new version
+- [x] Identify all existing relationships — **2026-09-17 findings:**
+  - `OperatorData` has **no FK constraints at all** in `install/MRRDatabase.sql` (PK is just
+    the composite `(OperatorListID, RobotID)`). Every link below is enforced only by the SQL
+    in `GameController.StartGame()` (`MRR/GameController.cs:275-289`), not by the schema.
+  - `OperatorListID` ↔ `CurrentGameData` row where `sKey='PlayerListID'` — picks which list is
+    active (List 1 = 10 generic players, List 2 = 6-player MRR w/ `StartPosition` set).
+  - `RobotBodyID` ↔ `RobotBodies.RobotBodyID` — pulls `Name`/`Color`/`ColorFG`.
+  - `RobotID` ↔ `RobotBases.RobotBaseID` — joined as if `RobotID` *is* a `RobotBaseID`, to pull
+    `IPAddress`. This is a naming convention (the two ID ranges are expected to line up 1:1),
+    not a declared relationship — worth deciding explicitly if it's redesigned.
+  - `PlayerSeat` ↔ `SeatOrientation.SeatID` — pulls `Direction`.
+  - `RobotID`, `OperatorName`, `Password`, `PlayerSeat` are copied straight across into the new
+    `Robots` row at game start (`Robots.RobotID`/`OperatorName`/`Password`/`PlayerSeat`).
+  - `StartPosition` is documented (`mrr-database.md`) as "BoardItemActions Parameter for start
+    square" but is **not referenced anywhere in current C# code** — confirmed via repo-wide
+    search, only appears in docs/todo/SQL files. Not joined in `StartGame()` today; wiring it
+    in is part of what this new form/redesign would need to add.
+  - `Paid`/`IsActive` have no joins; `IsActive` is only a `WHERE od.IsActive > 0` filter.
+  - **Discrepancy to resolve:** the requirements sketch above (line ~811, "RobotBaseID from
+    Operator.StartPos") assumes `RobotBaseID` will come from `StartPosition`, but the *current*
+    code derives it from `RobotID` instead (`rbase on od.RobotID = rbase.RobotBaseID`). Decide
+    which becomes the real link when this is redesigned.
+
+- [ ] New GM form to let the GM configure the `OperatorData` table before a game starts
+  (`OperatorListID`, `RobotID`, `OperatorName`, `Paid`, `RobotBodyID`, `IsActive`, `Password`,
+  `PlayerSeat`, `StartPosition` — see `install/MRRDatabase.sql`).
+- [ ] Select OperatorData
+- [ ] Select GameData  
+- [ ] When loading Robots table at the start of the  game
+    - [ ] RobotID from StartPosition
+    - [ ] Operator Name from OperatorData.OperatorName
+    - [ ] RobotBaseID from Operator.StartPos
+    - [ ] RobotBodyID from Operator
+    - [ ] Status = 1
+    - [ ] Priority = StartPosition
+    - [ ] Password from Operator Data
+    - [ ] RobotName from Robot Bodies
+    - [ ] RobotColor from Robot Bodies
+    - [ ] RobotColorFG from Robot Bodies
+    - [ ] IPAddress from RobotBases
+    - [ ] DirectionAdjustment from SeatOrientation,
+    - [ ] PositionValid=1
+    - [ ]     
+
+
+                "insert into Robots (RobotID, OperatorName, RobotBaseID, RobotBodyID, `Status`, Priority, `Password`, PlayerSeat, " +
+                "RobotName, RobotColor, RobotColorFG, IPAddress, DirectionAdjustment, PositionValid) " +
+                "Select od.RobotID, od.OperatorName, od.RobotID, od.RobotBodyID, 1, od.PlayerSeat, od.`Password`, od.PlayerSeat, " +
+                "rbody.Name, rbody.Color, rbody.ColorFG, rbase.IPAddress, so.Direction, 1 " +
+                "from OperatorData od " +
+                "inner join CurrentGameData pl on od.OperatorListID = pl.iValue and pl.sKey = 'PlayerListID' " +
+                "inner join RobotBodies rbody on od.RobotBodyID = rbody.RobotBodyID " +
+                "inner join RobotBases rbase on od.RobotID = rbase.RobotBaseID " +
+                "inner join SeatOrientation so on od.PlayerSeat = so.SeatID " +
+                "where od.IsActive > 0;");  - 
+OperatorListID` int(11) NOT NULL,
+  `RobotID` int(11) NOT NULL, (this number doesn't matter)
+  `OperatorName` varchar(45) DEFAULT NULL, (enter name)
+  `Paid` int(11) DEFAULT 0, (true) (do not edit)
+  `RobotBodyID` int(11) DEFAULT NULL, (can not duplicate) (drag to swap?)
+  `IsActive` int(11) DEFAULT 1, (name not null) (DNE)
+  `Password` varchar(10) DEFAULT NULL, (robotid) (DNE)
+  `PlayerSeat` int(11) DEFAULT 5, (Priority) (also tied to direction adjustment) (Drag to swap)
+  `StartPosition` int(11) DEFAULT NULL, (will be robot id & base ID) (can not duplicate) (Unique #)
+
+Form will show 
+ - Operator Name (disabled if empty)
+ - Player Seat (drag Row)
+ - Robot Body ID (drag Bodies)
+ - Robot Start Position (drag Pos #)
+
+Form will show on each phone.  Players take a seat and can select items in Seat Order.
+ - Enter name
+ - Select Body (from remaining)
+ - Select Robot Starting Position (from remaining)
+
+ New Operator Data Table form - will show on each player's phone
+ - Seat ID (entered via cookie)
+ - Direction to GM (click on arrow until correct)
+ - Player Name
+ -  (Enabled when it's this player's turn)
+ - - RobotBodyID (can select from any unused and can change after save)
+ - - Robot Starting Position (1 to # of positions)
+ - - Save (enabled when above are populated)
 
 ---
 

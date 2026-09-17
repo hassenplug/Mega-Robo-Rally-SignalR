@@ -276,6 +276,7 @@ CREATE TABLE `GameData` (
   `OptionCount` int(11) DEFAULT -1,
   `BoardID` int(11) DEFAULT 0,
   `PlayerListID` int(11) DEFAULT 1,
+  `StartPositions` int(11) DEFAULT 6,
   PRIMARY KEY (`GameDataID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
@@ -555,8 +556,8 @@ INSERT INTO `GameTypes` VALUES
 
 -- GameState
 INSERT INTO `GameState` VALUES
-(0,0,'New Game',1,0,0,'00ff00','Start Game'),
-(1,1,'Set Start Positions',0,1,1,'f0f0f0','[wait for positions]'),
+(0,0,'Pre Game',1,0,0,'00ff00','Pre Game'),
+(1,1,'Set Operator Data',0,1,1,'f0f0f0','[wait for positions]'),
 (2,2,'Next Turn',1,0,1,'00ff00','Next Turn'),
 (3,3,'Verify Positions',1,0,0,'ff8888','Verify Positions'),
 (4,3,'Program Robots',1,1,0,'ffff00','[wait for programs]'),

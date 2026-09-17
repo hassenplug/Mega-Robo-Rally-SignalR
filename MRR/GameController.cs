@@ -244,6 +244,7 @@ namespace MRR.Controller
                 "    WHEN 'BoardID'      THEN GameData.BoardID " +
                 "    WHEN 'OptionCount'  THEN GameData.OptionCount " +
                 "    WHEN 'PlayerListID' THEN GameData.PlayerListID " +
+                "    WHEN 'Players'      THEN GameData.StartPositions " +
                 "    ELSE CurrentGameData.iValue " +
                 "  END;");
             //_dataService.ExecuteSQL("call procResetGame();");
@@ -269,6 +270,17 @@ namespace MRR.Controller
             _dataService.ExecuteSQL("Delete from StatusLEDs;");
             _dataService.ExecuteSQL("Delete from Robots;");
 
+
+            // set the correct operator data
+
+
+
+        }
+
+        public void LoadPlayersIntoGame()
+        {
+// update this to set player-selected parameters
+
             // Populate Robots from the active OperatorData list so positions can be set below.
             // Joins to RobotBases/RobotBodies/SeatOrientation denormalize display/lookup fields
             // onto Robots so later reads don't need to re-join every time.
@@ -288,8 +300,6 @@ namespace MRR.Controller
                 "inner join SeatOrientation so on od.PlayerSeat = so.SeatID " +
                 "where od.IsActive > 0;");
 
-            //NextState();
-
             BoardElementCollection g_BoardElements = _dataService.BoardLoadFromDB(_dataService.BoardID);
 
             // One TotalFlags for the whole game, taken from the board being played.
@@ -298,7 +308,7 @@ namespace MRR.Controller
             _dataService.TotalFlags = g_BoardElements.CalcTotalFlags();
 
             IEnumerable<BoardElement> StartList = g_BoardElements.BoardElements.Where(be => be.ActionList.Count(al => al.SquareAction == SquareAction.PlayerStart) > 0);
-
+            
             int robotCount = 0;
 
             //foreach (Player thisplayer in AllPlayers)
@@ -314,12 +324,8 @@ namespace MRR.Controller
                     int pCol = thisSquare.BoardCol;
                     int pDir = (int)thisSquare.Rotation;
 
+// update this to set any other player-selected parameters
                     _dataService.ExecuteSQL("Update Robots set CurrentPosRow=" + pRow + ", CurrentPosCol=" + pCol + ",CurrentPosDir=" + pDir + ",ArchivePosRow=" + pRow + ",ArchivePosCol=" + pCol + ",ArchivePosDir=" + pDir + "  where RobotID=" + pid + ";");
-                    // add "connect" command, here
-                    // connect to robot
-                    //thisplayer.RobotConnection = new Robots.AIMRobot(thisplayer.IPAddress);
-
-                    //DBConn.Command("call procRobotConnectionStatus(" + thisplayer.ID + ",70);");
 
                     // insert options here...
                     if (_dataService.OptionsOnStartup > 0)
@@ -335,7 +341,7 @@ namespace MRR.Controller
                 else
                 {
                     // remove player from game
-                    _dataService.ExecuteSQL("delete from Robots where RobotID=" + pid + ";");
+//                    _dataService.ExecuteSQL("delete from Robots where RobotID=" + pid + ";");
                 }
 
             }
@@ -351,6 +357,7 @@ namespace MRR.Controller
             LoadCurrentGame();
 
             //SendGameMessage(2,"Start for " + robotCount.ToString() + " robots");
+
         }
 
         public string NextState()
@@ -375,6 +382,10 @@ namespace MRR.Controller
                     {
                         case 0: // start game
                             StartGame();
+                            SetGameState(1);
+                            break;
+                        case 1: // operator data set.  Load players
+                            LoadPlayersIntoGame();
                             SetGameState(2);
                             break;
                         case 2: // Next Turn
