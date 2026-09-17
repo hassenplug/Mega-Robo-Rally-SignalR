@@ -580,7 +580,8 @@ INSERT INTO `GameState` VALUES
 (21,21,'Load XML Boards',1,0,0,'0000ff','Load XML Boards'),
 (22,22,'Test Board Save',1,0,0,'ff0000','Test Load Save'),
 (23,0,'Reset Board',1,0,0,'88ff88','Reset Board'),
-(24,7,'Test Run PTO',0,1,1,'0000ff','Test PTO');
+(24,7,'Test Run PTO',0,1,1,'0000ff','Test PTO'),
+(25,0,'Game Stopped',0,1,1,'0000ff','Stopped');
 
 -- BoardSquares
 INSERT INTO `BoardSquares` VALUES

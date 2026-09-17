@@ -797,7 +797,18 @@ Create a small form. Data should be pulled using the same subscription as index.
 **Status: requirements being gathered — not ready to build yet.** User will keep updating
 requirements here before implementation starts.
 
+- [ ] Replace "IsRunning" with GameState=25.  Any place IsRunning is set to false, set GameState=25;  Any place we check IsRunning, Check for GameState!=25
+
 - [ ] Replace the operatordata table with a new version
+- [ ] When GameState=1 
+  - [ ] send out a modified json
+  - [ ] GameSettings
+    - [ ] PlayerToSelect
+    - [ ] Available Robots (include colors)
+    - [ ] Available Start Positions
+  - [ ] Robots shows seats (in order) w/Robots & colors
+  - [ ] Json include
+  - [ ] 
 - [x] Identify all existing relationships — **2026-09-17 findings:**
   - `OperatorData` has **no FK constraints at all** in `install/MRRDatabase.sql` (PK is just
     the composite `(OperatorListID, RobotID)`). Every link below is enforced only by the SQL
