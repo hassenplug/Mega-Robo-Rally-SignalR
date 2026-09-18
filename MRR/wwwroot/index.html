@@ -33,24 +33,30 @@ a:visited {
 </head>
 <body id='body' style='padding:5px; padding-top:0px'>
 
-<!-- Login gate: this phone must be tied to one robot (or the GM code) before it can see
-     any cards. See js/loadrobots.js (applyLogin/chooseRobotLogin/attemptGmLogin). -->
+<!-- Login gate: GM only now -- a player's identity is their seat (claimed once via the
+     GameState==1 setup screen, see js/loadrobots.js) and never needs this modal, since a seat
+     cookie is matched against the current robots' PlayerSeat automatically. See
+     js/loadrobots.js (applyLogin/attemptGmLogin). To log out (GM or seat), tap the "Robot"
+     header 5 times within 10 seconds -- see handleRobotHeaderTap()/logout.html. -->
 <div id="loginModal" class="w3-modal">
     <div class="w3-modal-content w3-round w3-white" style="max-width:320px; padding:16px;">
-        <h3 style="margin-top:0;">Who are you?</h3>
-        <p>Tap your robot:</p>
-        <div id="loginRobotButtons"></div>
-        <hr>
-        <p>GM login code:</p>
+        <h3 style="margin-top:0;">GM login code:</h3>
         <input type="text" id="gmCodeInput" class="w3-input" inputmode="numeric" autocomplete="off">
         <button class="button" style="margin-top:8px; background-color:#444444; color:#ffffff;" onclick="attemptGmLogin();">Log In as GM</button>
         <p id="loginError" style="color:#cc0000; display:none;">Incorrect code.</p>
     </div>
 </div>
 
-<table bgcolor="ffffff" border=0 width=100%>
+<!-- Setup phase (GameState==1): claim a seat, pick a robot body + starting position. Shown
+     instead of the normal player table/program area -- see showSetupScreen()/hideSetupScreen()
+     in js/loadrobots.js. install/todo.md "Operator Data Setup". -->
+<div id="setupScreen" style="display:none; padding:10px;">
+    <div id="setupContent"></div>
+</div>
+
+<table id="mainTable" bgcolor="ffffff" border=0 width=100%>
 <tr bgcolor="#d0d0d0">
-<td id="robotHeader" style="cursor:pointer; position:relative;" onclick="toggleGmMenu();">Robot
+<td id="robotHeader" style="cursor:pointer; position:relative;" onclick="handleRobotHeaderTap();">Robot
     <!-- GM-only game controls, shown on tap while logged in as GM. See toggleGmMenu()/
          gmAction() in js/loadrobots.js. Positioned relative to this <td> so it drops down
          right under the header regardless of scroll position. -->

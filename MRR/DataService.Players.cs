@@ -81,14 +81,17 @@ namespace MRR.Services
             {
                 var players = new Players();
 
-                string strSQL = @"SELECT r.RobotID, rb.Name AS RobotName, rb.Color AS RobotColor, rb.ColorFG AS RobotColorFG,
-                       r.OperatorName, r.Password, r.PlayerSeat, rbase.IPAddress,
-                       so.Direction AS PlayerViewDirection
+                // Reads straight off Robots' own denormalized RobotName/RobotColor/RobotColorFG/
+                // IPAddress/DirectionAdjustment columns (kept current by RefreshRobotDenormalizedFields/
+                // SelectSeat/UpdateRobotIPAddress) instead of joining RobotBodies/RobotBases/
+                // SeatOrientation fresh -- those were INNER JOINs, so a StartGame() placeholder
+                // row (RobotBodyID NULL, PlayerSeat 0, not yet claimed via SelectSeat) would
+                // silently disappear from AllPlayers and never get connected to its physical
+                // robot. See install/todo.md "Operator Data Setup".
+                string strSQL = @"SELECT r.RobotID, r.RobotName, r.RobotColor, r.RobotColorFG,
+                       r.OperatorName, r.Password, r.PlayerSeat, r.IPAddress,
+                       r.DirectionAdjustment AS PlayerViewDirection
                 FROM Robots r
-                JOIN RobotBodies rb ON r.RobotBodyID = rb.RobotBodyID
-                JOIN RobotDirections rd ON r.CurrentPosDir = rd.DirID
-                JOIN SeatOrientation so ON r.PlayerSeat = so.SeatID
-                JOIN RobotBases rbase ON r.RobotBaseID = rbase.RobotBaseID
                 ORDER BY r.RobotID";
 
                 var loadplayers = this.GetQueryResults(strSQL);
@@ -294,6 +297,105 @@ namespace MRR.Services
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// One placeholder Robots row for a physical robot base, called from StartGame() once per
+        /// RobotBases row that has a matching board start square. RobotBodyID is left NULL (not
+        /// the column's schema default of 0, which has no matching RobotBodies row and would
+        /// fail the FK) until a player claims this seat via SelectSeat.
+        /// </summary>
+        public void InsertPlaceholderRobot(int baseId, string ip, int row, int col, int dir)
+        {
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+            using var insert = new MySqlCommand(
+                @"insert into Robots (RobotID, RobotBaseID, RobotBodyID, OperatorName, RobotName, RobotColor, RobotColorFG,
+                      `Status`, IPAddress, CurrentPosRow, CurrentPosCol, CurrentPosDir, ArchivePosRow, ArchivePosCol, ArchivePosDir, PositionValid)
+                  values (@baseId, @baseId, NULL, 'Seat ?', @robotName, '000000', 'FFFFFF',
+                      0, @ip, @row, @col, @dir, @row, @col, @dir, 0)",
+                connection);
+            insert.Parameters.AddWithValue("@baseId", baseId);
+            insert.Parameters.AddWithValue("@robotName", "Start " + baseId);
+            insert.Parameters.AddWithValue("@ip", ip);
+            insert.Parameters.AddWithValue("@row", row);
+            insert.Parameters.AddWithValue("@col", col);
+            insert.Parameters.AddWithValue("@dir", dir);
+            insert.ExecuteNonQuery();
+        }
+
+        /// <summary>
+        /// Setup-phase (GameState==1) broadcast data: which seat may currently act, which robot
+        /// bodies are still unclaimed, and which placeholder rows (StartGame's one-per-RobotBase
+        /// rows, keyed by RobotID) are still waiting for a player. "Claimed" means Status==1 --
+        /// see SelectSeat below, which is the only thing that sets it during this phase.
+        /// </summary>
+        public GameConfigData BuildGameConfig()
+        {
+            var config = new GameConfigData
+            {
+                PlayerToSelect = GetIntFromDB("Select Coalesce(Min(RobotID),0) from Robots where Status <> 1"),
+                AvailableStartPositions = GetIntList(
+                    "Select RobotID from Robots where Status <> 1 order by RobotID").ToList(),
+            };
+
+            var bodies = GetQueryResults(
+                "Select RobotBodyID, Name, Color, ColorFG from RobotBodies " +
+                "where BodyActive > 0 and RobotBodyID not in (Select RobotBodyID from Robots where Status = 1) " +
+                "order by RobotBodyID");
+            foreach (DataRow row in bodies.Rows)
+            {
+                config.AvailableRobots.Add(new AvailableRobotBody
+                {
+                    RobotBodyID = (int)row["RobotBodyID"],
+                    Name        = row["Name"].ToString() ?? "",
+                    Color       = row["Color"].ToString() ?? "",
+                    ColorFG     = row["ColorFG"].ToString() ?? "",
+                });
+            }
+
+            return config;
+        }
+
+        /// <summary>
+        /// Setup-phase (GameState==1) claim: seat picks a still-open start position (a placeholder
+        /// Robots row, RobotID==the board's starting-square number, created by StartGame) and an
+        /// unclaimed RobotBodyID, and both commit in one step -- there's no separate Save
+        /// (install/todo.md "Operator Data Setup"). The WHERE clause re-checks turn order and
+        /// both uniqueness constraints atomically, so a stale/racing client can't win against a
+        /// faster one: 0 rows affected just means "someone else got there first," not a specific
+        /// error. operatorName is parameterized -- unlike the rest of this file's raw ExecuteSQL
+        /// calls, it's free-text a player typed, not a value this server generated.
+        /// </summary>
+        public bool SelectSeat(int seat, int startPosition, int robotBodyId, string operatorName)
+        {
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+            using var update = new MySqlCommand(
+                @"UPDATE Robots r
+                  JOIN RobotBodies rb ON rb.RobotBodyID = @robotBodyId
+                  SET r.RobotBodyID   = @robotBodyId,
+                      r.RobotName     = rb.Name,
+                      r.RobotColor    = rb.Color,
+                      r.RobotColorFG  = rb.ColorFG,
+                      r.OperatorName  = @operatorName,
+                      r.Priority      = @seat,
+                      r.PlayerSeat    = @seat,
+                      r.PositionValid = 1,
+                      r.Status        = 1
+                  WHERE r.RobotID = @startPosition
+                    AND r.Status <> 1
+                    AND @seat = (Select Coalesce(Min(RobotID),0) from Robots where Status <> 1)
+                    AND NOT EXISTS (Select 1 from Robots r2 where r2.RobotBodyID = @robotBodyId and r2.Status = 1)",
+                connection);
+            update.Parameters.AddWithValue("@robotBodyId", robotBodyId);
+            update.Parameters.AddWithValue("@operatorName", operatorName);
+            update.Parameters.AddWithValue("@seat", seat);
+            update.Parameters.AddWithValue("@startPosition", startPosition);
+            bool claimed = update.ExecuteNonQuery() > 0;
+
+            if (claimed) RefreshRobotDenormalizedFields();
+            return claimed;
         }
 
         /// <summary>

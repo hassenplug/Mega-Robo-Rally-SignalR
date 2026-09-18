@@ -98,7 +98,14 @@ namespace MRR.Services
 
         public AllDataPayload AllData { get; set; } = new AllDataPayload();
 
-        public string GetAllDataJson() => JsonConvert.SerializeObject(GetAllDataFromPlayers());
+        // GameConfig (gamestate==1 only) is null the rest of the time; Ignore keeps it out of
+        // the json entirely then, rather than serializing an explicit "GameConfig":null.
+        private static readonly JsonSerializerSettings s_allDataJsonSettings = new()
+        {
+            NullValueHandling = NullValueHandling.Ignore
+        };
+
+        public string GetAllDataJson() => JsonConvert.SerializeObject(GetAllDataFromPlayers(), s_allDataJsonSettings);
 
         /// <summary>
         /// Same payload as GetAllDataJson(), but with an empty robots list. Broadcasting this
@@ -112,7 +119,7 @@ namespace MRR.Services
         {
             var payload = GetAllDataFromPlayers();
             payload.robots = new List<RobotData>();
-            return JsonConvert.SerializeObject(payload);
+            return JsonConvert.SerializeObject(payload, s_allDataJsonSettings);
         }
 
         public AllDataPayload GetAllDataFromPlayers()
@@ -123,9 +130,10 @@ namespace MRR.Services
 
             return new AllDataPayload
             {
-                titlemsg  = titlemessage,
-                gamestate = GameState,
-                robots    = GetRobotsFromTable(),
+                titlemsg   = titlemessage,
+                gamestate  = GameState,
+                robots     = GetRobotsFromTable(),
+                GameConfig = GameState == 1 ? BuildGameConfig() : null,
             };
         }
 

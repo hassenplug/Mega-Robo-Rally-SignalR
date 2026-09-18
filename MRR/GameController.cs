@@ -13,6 +13,7 @@ using MRR.Data;
 using MRR;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using System.Threading;
+using System.Data;
 //using MRR.Data.Entities;
 
 namespace MRR.Controller
@@ -271,94 +272,40 @@ namespace MRR.Controller
             _dataService.ExecuteSQL("Delete from StatusLEDs;");
             _dataService.ExecuteSQL("Delete from Robots;");
 
-
-            // set the correct operator data
-
-
-
-        }
-
-        public void LoadPlayersIntoGame()
-        {
-// update this to set player-selected parameters
-
-            // Populate Robots from the active OperatorData list so positions can be set below.
-            // Joins to RobotBases/RobotBodies/SeatOrientation denormalize display/lookup fields
-            // onto Robots so later reads don't need to re-join every time.
-            _dataService.ExecuteSQL(
-                // PositionValid=1: the board's PlayerStart rotation (set below, per robot) counts
-                // as an already-valid facing at game start -- unlike a mid-game respawn
-                // (ResetPlayers() sets PositionValid=0), a fresh game doesn't force every player
-                // through the direction picker before they can begin programming.
-                "insert into Robots (RobotID, OperatorName, RobotBaseID, RobotBodyID, `Status`, Priority, `Password`, PlayerSeat, " +
-                "RobotName, RobotColor, RobotColorFG, IPAddress, DirectionAdjustment, PositionValid) " +
-                "Select od.RobotID, od.OperatorName, od.RobotID, od.RobotBodyID, 1, od.PlayerSeat, od.`Password`, od.PlayerSeat, " +
-                "rbody.Name, rbody.Color, rbody.ColorFG, rbase.IPAddress, so.Direction, 1 " +
-                "from OperatorData od " +
-                "inner join CurrentGameData pl on od.OperatorListID = pl.iValue and pl.sKey = 'PlayerListID' " +
-                "inner join RobotBodies rbody on od.RobotBodyID = rbody.RobotBodyID " +
-                "inner join RobotBases rbase on od.RobotID = rbase.RobotBaseID " +
-                "inner join SeatOrientation so on od.PlayerSeat = so.SeatID " +
-                "where od.IsActive > 0;");
-
+            // Bypasses OperatorData entirely (install/todo.md "Operator Data Setup", decided
+            // 2026-09-17): one placeholder row per physical robot base, RobotID==RobotBaseID --
+            // the same 1:1 convention the old OperatorData-driven insert relied on
+            // (RobotBases rbase on od.RobotID = rbase.RobotBaseID). Position/direction come from
+            // the board's own PlayerStart square for that base, same lookup the removed
+            // LoadPlayersIntoGame() did per-player -- it just happens per-base now instead of
+            // per-claimed-seat, since which square a base starts on doesn't depend on who ends up
+            // piloting it. RobotBodyID is left unset (InsertPlaceholderRobot uses NULL, not the
+            // column's schema default of 0, which has no matching RobotBodies row and would fail
+            // the FK) until a player claims the seat -- see DataService.SelectSeat, called from
+            // GameState==1 (below in NextState()).
             BoardElementCollection g_BoardElements = _dataService.BoardLoadFromDB(_dataService.BoardID);
-
-            // One TotalFlags for the whole game, taken from the board being played.
-            // The setter writes through to CurrentGameData (iKey 7), which is the source of
-            // truth from here on — UpdateGameState() reloads it after a restart.
-            _dataService.TotalFlags = g_BoardElements.CalcTotalFlags();
-
             IEnumerable<BoardElement> StartList = g_BoardElements.BoardElements.Where(be => be.ActionList.Count(al => al.SquareAction == SquareAction.PlayerStart) > 0);
-            
-            int robotCount = 0;
 
-            //foreach (Player thisplayer in AllPlayers)
-            for(int pid=1; pid<9; pid++)
+            var bases = _dataService.GetQueryResults("Select RobotBaseID, IPAddress from RobotBases order by RobotBaseID");
+            foreach (DataRow baseRow in bases.Rows)
             {
-                //int pid = thisplayer.ID;
-                // set current location to next starting point...
+                int baseId = Convert.ToInt32(baseRow["RobotBaseID"]);
+                string ip = baseRow["IPAddress"] == DBNull.Value ? "" : (string)baseRow["IPAddress"];
+
                 // Use Any(...) to avoid calling First(...) inside the predicate which can throw if no matching action exists.
-                BoardElement? thisSquare = StartList.FirstOrDefault(be => be.ActionList.Any(al => al.SquareAction == SquareAction.PlayerStart && al.Parameter == pid));
-                if (thisSquare != null)
-                {
-                    int pRow = thisSquare.BoardRow;
-                    int pCol = thisSquare.BoardCol;
-                    int pDir = (int)thisSquare.Rotation;
+                BoardElement? thisSquare = StartList.FirstOrDefault(be => be.ActionList.Any(al => al.SquareAction == SquareAction.PlayerStart && al.Parameter == baseId));
+                if (thisSquare == null) continue; // no start square for this base on the current board -- skip it, same as the old code's "remove player from game" no-op
 
-// update this to set any other player-selected parameters
-                    _dataService.ExecuteSQL("Update Robots set CurrentPosRow=" + pRow + ", CurrentPosCol=" + pCol + ",CurrentPosDir=" + pDir + ",ArchivePosRow=" + pRow + ",ArchivePosCol=" + pCol + ",ArchivePosDir=" + pDir + "  where RobotID=" + pid + ";");
-
-                    // insert options here...
-                    if (_dataService.OptionsOnStartup > 0)
-                    {
-                        for (int opt = 0; opt < _dataService.OptionsOnStartup; opt++)
-                        {
-                            _dataService.DealOptionToRobot(pid);
-                        }
-                    }
-
-                    robotCount++;
-                }
-                else
-                {
-                    // remove player from game
-//                    _dataService.ExecuteSQL("delete from Robots where RobotID=" + pid + ";");
-                }
-
+                _dataService.InsertPlaceholderRobot(baseId, ip, thisSquare.BoardRow, thisSquare.BoardCol, (int)thisSquare.Rotation);
             }
 
-            _dataService.GameNewAddCards();
-            _dataService.UpdatePlayerPriority(null, 1);
+            //_dataService.GameNewAddCards();
+            //_dataService.UpdatePlayerPriority(null, 1);
 
-            // Refresh C# state so BoardID etc. reflect the new values before board load
-            //_dataService.UpdateGameState();
-            _dataService.GetAllPlayers(true); // force refresh of player list after DB changes
-            //_dataService.UpdateGameState();
-//            NextState();
-            LoadCurrentGame();
-
-            //SendGameMessage(2,"Start for " + robotCount.ToString() + " robots");
-
+            _dataService.GetAllPlayers(true); // force refresh so the new rows are visible below
+            if (_dataService.RobotsActive != 0) ConnectToAllRobots();
+            _dataService.RefreshRobotDenormalizedFields(); // StatusColor/PlayerStatus/etc. for the new rows
+            //LoadCurrentGame();
         }
 
         public string NextState()
@@ -385,9 +332,29 @@ namespace MRR.Controller
                             StartGame();
                             SetGameState(1);
                             break;
-                        case 1: // operator data set.  Load players
-                            LoadPlayersIntoGame();
-                            SetGameState(2);
+                        case 1: // waiting for every seat to be claimed (install/todo.md "Operator Data Setup")
+                            int stillOpen = _dataService.GetIntFromDB("Select Count(*) from Robots where Status <> 1");
+                            int totalSeats = _dataService.GetIntFromDB("Select Count(*) from Robots");
+                            if (totalSeats > 0 && stillOpen == 0)
+                            {
+                                // Every placeholder row (StartGame) has been claimed via
+                                // DataService.SelectSeat -- positions were already set at
+                                // placeholder-creation time, so what's left is what
+                                // LoadPlayersIntoGame() used to do once its bulk OperatorData
+                                // insert finished: deal starting options, deal the deck, set
+                                // initial turn order.
+                                if (_dataService.OptionsOnStartup > 0)
+                                {
+                                    foreach (int robotId in _dataService.GetIntList("Select RobotID from Robots"))
+                                        for (int opt = 0; opt < _dataService.OptionsOnStartup; opt++)
+                                            _dataService.DealOptionToRobot(robotId);
+                                }
+                                _dataService.GameNewAddCards();
+                                _dataService.UpdatePlayerPriority(null, 1);
+                                _dataService.GetAllPlayers(true);
+                                SetGameState(2);
+                            }
+                            // else: still waiting on GameConfig.PlayerToSelect -- no state change here, loop exits
                             break;
                         case 2: // Next Turn
                             _dataService.ResetPlayers();

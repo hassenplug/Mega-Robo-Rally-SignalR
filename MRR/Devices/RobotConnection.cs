@@ -57,22 +57,22 @@ namespace MRR.Devices
         }
 
         /// <summary>
-        /// Polls <c>Robots</c> (joined to <c>RobotBodies</c> for display fields and
-        /// <c>RobotBases</c> for the dial address) for this robot alone -- the only value read
-        /// from anywhere else is <see cref="RobotID"/>. Field-for-field, this is the same join
-        /// <c>DataService.GetAllPlayers()</c> uses to build the roster.
+        /// Polls <c>Robots</c>' own denormalized RobotName/RobotColor/RobotColorFG/IPAddress
+        /// columns for this robot alone -- the only value read from anywhere else is <see
+        /// cref="RobotID"/>. Reads straight off Robots rather than joining RobotBodies/RobotBases
+        /// (as DataService.GetAllPlayers() also no longer does, same reason): those were INNER
+        /// JOINs, so a StartGame() placeholder row (RobotBodyID NULL, not yet claimed via
+        /// DataService.SelectSeat) would never match, and this robot would silently never
+        /// connect during setup (install/todo.md "Operator Data Setup").
         /// </summary>
         private bool LoadFromDatabase()
         {
             using var connection = new MySqlConnection(_connectionString);
             connection.Open();
             using var cmd = new MySqlCommand(@"
-                SELECT rb.Name AS RobotName, rb.Color AS RobotColor, rb.ColorFG AS RobotColorFG,
-                       rbase.IPAddress
-                FROM Robots r
-                JOIN RobotBodies rb ON r.RobotBodyID = rb.RobotBodyID
-                JOIN RobotBases rbase ON r.RobotBaseID = rbase.RobotBaseID
-                WHERE r.RobotID = @id", connection);
+                SELECT RobotName, RobotColor, RobotColorFG, IPAddress
+                FROM Robots
+                WHERE RobotID = @id", connection);
             cmd.Parameters.AddWithValue("@id", RobotID);
 
             using var reader = cmd.ExecuteReader();

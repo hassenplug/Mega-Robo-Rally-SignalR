@@ -13,14 +13,15 @@ function toggleFlagsHeader() {
 }
 
 // ── Phone login ──────────────────────────────────────────────────────────────
-// Closed system: the cookie itself is the identity (a RobotID, or the GM code) --
-// no server round trip, no password. It just remembers which physical phone is which
-// robot across reloads, and gates the card UI so a phone only ever shows/plays its own
-// robot's hand. GM is unrestricted, same as before this existed.
-var LOGIN_COOKIE = "mrr_player";
+// Closed system: the cookie itself is the identity (a seat number, or the GM code) -- no
+// server round trip, no password. A player no longer logs into a robot directly -- they claim
+// a seat once, during the GameState==1 setup screen below (chooseSetupSeat()), and that same
+// seat cookie is what this section matches against whichever robot currently has that
+// PlayerSeat, for as long as the game runs. GM is unrestricted, same as before this existed.
+var LOGIN_COOKIE = "mrr_seat";
 var GM_CODE = "0555";
 var IsGM = false;
-var LoggedInRobotID = null; // set once the cookie matches a robot in the current game
+var LoggedInRobotID = null; // set once the cookie's seat matches a robot in the current game
 
 function getCookie(name) {
     var match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
@@ -30,10 +31,6 @@ function getCookie(name) {
 function setLoginCookie(value) {
     var oneYear = 60 * 60 * 24 * 365;
     document.cookie = LOGIN_COOKIE + '=' + encodeURIComponent(value) + '; path=/; max-age=' + oneYear + '; samesite=lax';
-}
-
-function deleteLoginCookie() {
-    document.cookie = LOGIN_COOKIE + '=; path=/; max-age=0; samesite=lax';
 }
 
 function showLogin() {
@@ -50,23 +47,6 @@ function setPageBackground(hexColor) {
     document.body.style.backgroundColor = hexColor ? ('#' + hexColor) : '';
 }
 
-function buildLoginButtons(robots) {
-    var html = '';
-    for (var i = 0; i < robots.length; i++) {
-        var r = robots[i];
-        html += "<button class='button' style='margin-bottom:6px; background-color:" + r.RobotColor +
-            "; color:" + r.RobotColorFG + ";' onclick='chooseRobotLogin(" + r.RobotID + ");'>" +
-            r.RobotName + "</button>";
-    }
-    document.getElementById('loginRobotButtons').innerHTML = html;
-}
-
-function chooseRobotLogin(robotId) {
-    setLoginCookie(String(robotId));
-    applyLogin();
-    showplayerprogram(CurrentLine); // render our own hand immediately, don't wait for the next broadcast
-}
-
 function attemptGmLogin() {
     var code = document.getElementById('gmCodeInput').value;
     var errorMsg = document.getElementById('loginError');
@@ -79,9 +59,10 @@ function attemptGmLogin() {
     applyLogin();
 }
 
-// Reconciles the login cookie against the robots in the *current* game -- called on every
-// datapacket update, not just once, since a new game can start with a different roster and
-// leave a phone's old cookie pointing at a robot that no longer exists.
+// Reconciles the seat cookie against the robots in the *current* game -- called on every
+// datapacket update (outside GameState==1, see the listener at the bottom of this file), not
+// just once, since a new game can hand out seats differently and a phone's cookie needs to
+// track whichever robot its seat currently belongs to, not a fixed RobotID.
 function applyLogin() {
     if (!datapacket || !datapacket.robots) return;
 
@@ -95,7 +76,8 @@ function applyLogin() {
         return;
     }
 
-    var rbt = cookieVal !== null ? datapacket.robots.find(r => String(r.RobotID) === cookieVal) : null;
+    var seat = cookieVal !== null ? parseInt(cookieVal, 10) : null;
+    var rbt = seat !== null ? datapacket.robots.find(r => r.PlayerSeat === seat) : null;
     if (rbt) {
         IsGM = false;
         LoggedInRobotID = rbt.RobotID;
@@ -113,14 +95,15 @@ function applyLogin() {
         return;
     }
 
-    // No cookie, or it names a robot that isn't part of the current game -- clear out
-    // whatever stale value is there (e.g. a robot from a finished game, or the "clearcookies"
-    // GM action's empty robots list) and log in again.
+    // No cookie, or our seat doesn't match any robot in the current game. Unlike the old
+    // RobotID cookie, a seat is claimed once (GameState==1's setup screen) and can't be
+    // re-picked from here, so -- unlike before -- this does NOT delete the cookie; it just
+    // means we're not GM and have nothing to show yet (e.g. a fresh page load arriving between
+    // games, or an actual stale/bad cookie needing the "5 taps on Robot" logout screen). The
+    // modal left here is GM-login only now.
     IsGM = false;
     LoggedInRobotID = null;
     setPageBackground(null);
-    deleteLoginCookie();
-    buildLoginButtons(datapacket.robots);
     showLogin();
 }
 
@@ -222,6 +205,24 @@ function toggleGmMenu() {
     if (!IsGM || !gmViewActive) return;
     var menu = document.getElementById('gmMenu');
     menu.style.display = (menu.style.display === 'block') ? 'none' : 'block';
+}
+
+// Hidden logout gesture: 5 taps on the "Robot" header within 10 seconds opens logout.html.
+// Replaces a visible Log Out button/link -- there's no per-player action to gate it behind
+// otherwise (a seat cookie has no "log out" button of its own), so this stays out of the way
+// for the one normal tap (GM menu toggle, still handled below) while still being reachable by
+// anyone, GM or player.
+var robotHeaderTapTimes = [];
+function handleRobotHeaderTap() {
+    var now = Date.now();
+    robotHeaderTapTimes.push(now);
+    robotHeaderTapTimes = robotHeaderTapTimes.filter(function (t) { return now - t <= 10000; });
+    if (robotHeaderTapTimes.length >= 5) {
+        robotHeaderTapTimes = [];
+        window.location.href = 'logout.html';
+        return;
+    }
+    toggleGmMenu();
 }
 
 // Close the GM menu on an outside tap rather than leaving it open over the rest of the page.
@@ -450,10 +451,104 @@ function SendUpdate(command, playerid=0, data1=0, data2=0)
         .catch(err => console.error(err.toString()));
 }
 
+// ── Setup phase (GameState==1) ────────────────────────────────────────────────
+// This is where the seat cookie (LOGIN_COOKIE, above) is actually claimed: no robot has one
+// yet (Robots holds StartGame's placeholder rows, all OperatorName="Seat ?", PlayerSeat 0), so
+// there's nothing for applyLogin() to match against. Gating the whole normal render path
+// (applyLogin/showall/showplayerprogram) out of this state, rather than trying to make it cope
+// with placeholder rows, also means a phone here always sees the seat-picker below rather than
+// a stale match -- install/todo.md "Operator Data Setup".
+var mySetupSeat = null;
+var setupSelectedBody = null; // RobotBodyID tapped this turn, until a start position commits it
+
+function chooseSetupSeat(seat) {
+    setLoginCookie(String(seat));
+    showSetupScreen();
+}
+
+function selectSetupBody(bodyId) {
+    setupSelectedBody = bodyId;
+    showSetupScreen(); // re-render so the tapped body shows as picked
+}
+
+function selectSetupPosition(startPosition) {
+    if (!setupSelectedBody || !mySetupSeat) return;
+    var nameInput = document.getElementById('setupNameInput');
+    var name = nameInput ? nameInput.value : '';
+    fetch('/api/setup/select/' + mySetupSeat + '/' + startPosition + '/' + setupSelectedBody + '/' + encodeURIComponent(name || ''))
+        .catch(function (err) { console.error(err.toString()); });
+}
+
+function renderSeatPicker(totalSeats) {
+    var html = '<p>Which seat are you?</p>';
+    for (var s = 1; s <= totalSeats; s++) {
+        html += "<button class='button' style='margin:4px;' onclick='chooseSetupSeat(" + s + ");'>Seat " + s + "</button>";
+    }
+    document.getElementById('setupContent').innerHTML = html;
+}
+
+function renderSetupStatus(seat, config) {
+    var html = '<p>You are Seat ' + seat + '.</p>';
+    if (config.PlayerToSelect !== seat) {
+        html += '<p>Waiting for Seat ' + config.PlayerToSelect + ' to finish choosing...</p>';
+        document.getElementById('setupContent').innerHTML = html;
+        return;
+    }
+
+    html += "<p>Your turn! Enter your name, then pick a robot and a starting position.</p>" +
+        "<input type='text' id='setupNameInput' class='w3-input' placeholder='Your name' style='margin-bottom:8px;'>" +
+        '<p>Pick a robot:</p><div>';
+    for (var i = 0; i < config.AvailableRobots.length; i++) {
+        var b = config.AvailableRobots[i];
+        var picked = setupSelectedBody === b.RobotBodyID;
+        html += "<button class='button' style='margin:4px; background-color:#" + b.Color + "; color:#" + b.ColorFG +
+            (picked ? "; border:3px solid #000000;" : "") +
+            "' onclick='selectSetupBody(" + b.RobotBodyID + ");'>" + b.Name + "</button>";
+    }
+    html += '</div><p>Pick a starting position:</p><div>';
+    for (var i = 0; i < config.AvailableStartPositions.length; i++) {
+        var pos = config.AvailableStartPositions[i];
+        html += "<button class='button' style='margin:4px;' onclick='selectSetupPosition(" + pos + ");'>Start " + pos + "</button>";
+    }
+    html += '</div>';
+    document.getElementById('setupContent').innerHTML = html;
+}
+
+function showSetupScreen() {
+    document.getElementById('setupScreen').style.display = '';
+    document.getElementById('mainTable').style.display = 'none';
+
+    var cookieVal = getCookie(LOGIN_COOKIE);
+    mySetupSeat = (cookieVal !== null && cookieVal !== GM_CODE) ? parseInt(cookieVal, 10) : null;
+    var totalSeats = datapacket.robots.length;
+
+    if (!mySetupSeat || mySetupSeat < 1 || mySetupSeat > totalSeats) {
+        renderSeatPicker(totalSeats);
+        return;
+    }
+
+    var config = datapacket.GameConfig || { PlayerToSelect: 0, AvailableRobots: [], AvailableStartPositions: [] };
+    renderSetupStatus(mySetupSeat, config);
+}
+
+function hideSetupScreen() {
+    var setupEl = document.getElementById('setupScreen');
+    if (setupEl) setupEl.style.display = 'none';
+    document.getElementById('mainTable').style.display = '';
+    setupSelectedBody = null; // reset for next time GameState==1 comes around (a new game)
+}
+
 // connection/reconnect handling lives in js/datahub-connection.js; this listens for
 // the payload it dispatches.
 document.addEventListener('datapacket', function (ev) {
     datapacket = ev.detail;
+
+    if (datapacket.gamestate === 1) {
+        showSetupScreen();
+        return;
+    }
+    hideSetupScreen();
+
     applyLogin();
     showall();
     showplayerprogram(CurrentLine);

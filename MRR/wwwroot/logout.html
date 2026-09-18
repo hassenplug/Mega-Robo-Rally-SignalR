@@ -1,0 +1,56 @@
+<html>
+<head>
+
+<meta name='viewport' content='width=device-width, initial-scale=1'>
+<link rel="stylesheet" type="text/css" href="style/button.css">
+<link rel="stylesheet" type="text/css" href="style/w3.css">
+
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+
+<title>MRR Log Out</title>
+
+</head>
+<body id='body' style='padding:16px;'>
+
+<h3>Log Out</h3>
+<p id="status">Checking...</p>
+<button class="button" id="btnLogout" style="background-color:#cc0000; color:#ffffff; width:auto; padding:8px 20px;" onclick="doLogout();">Log Out</button>
+<p><a href="index.html">Back to game</a></p>
+
+<script>
+// Same identity cookie js/loadrobots.js sets (LOGIN_COOKIE there) -- a seat number, or the GM
+// code. Deliberately self-contained (no js/loadrobots.js include, no SignalR/datapacket
+// dependency): this page just needs to read/clear one cookie, not render live game data.
+// Reached via the hidden gesture in index.html (5 taps on "Robot" within 10 seconds,
+// handleRobotHeaderTap() in js/loadrobots.js) rather than a visible button, since a seat cookie
+// has no other per-player action to hang a "Log Out" link off of.
+var LOGIN_COOKIE = "mrr_seat";
+var GM_CODE = "0555";
+
+function getCookie(name) {
+    var match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+    return match ? decodeURIComponent(match[1]) : null;
+}
+
+function deleteCookie(name) {
+    document.cookie = name + '=; path=/; max-age=0; samesite=lax';
+}
+
+function describeStatus() {
+    var val = getCookie(LOGIN_COOKIE);
+    if (val === GM_CODE) return "Logged in as GM.";
+    if (val !== null) return "Seat " + val + ".";
+    return "Not logged in.";
+}
+
+document.getElementById('status').textContent = describeStatus();
+
+function doLogout() {
+    deleteCookie(LOGIN_COOKIE);
+    document.getElementById('status').textContent = "Logged out.";
+    window.location.href = 'index.html';
+}
+</script>
+
+</body>
+</html>

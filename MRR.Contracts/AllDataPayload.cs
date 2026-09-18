@@ -7,6 +7,26 @@ namespace MRR
         // 2026-09-17); every other value is a real state-machine position (see CLAUDE.md).
         public int gamestate { get; set; }
         public List<RobotData> robots { get; set; } = new();
+        // Only set while gamestate==1 (operator/seat setup); DataService serializes with
+        // NullValueHandling.Ignore so this key is genuinely absent from the json the rest of
+        // the time, not just null -- see install/todo.md "Operator Data Setup".
+        public GameConfigData? GameConfig { get; set; }
+    }
+
+    // Setup-phase broadcast: who may currently claim a seat, and what's left to claim.
+    public class GameConfigData
+    {
+        public int PlayerToSelect { get; set; }
+        public List<AvailableRobotBody> AvailableRobots { get; set; } = new();
+        public List<int> AvailableStartPositions { get; set; } = new();
+    }
+
+    public class AvailableRobotBody
+    {
+        public int RobotBodyID { get; set; }
+        public string Name { get; set; } = "";
+        public string Color { get; set; } = "";
+        public string ColorFG { get; set; } = "";
     }
 
     public class RobotData
