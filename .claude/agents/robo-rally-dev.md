@@ -387,13 +387,11 @@ All robot WebSocket methods are on the `Player` class (AIMRobot.cs no longer exi
 |---|---|
 | `ConnectAsync()` | Connect both WebSockets + send program_init |
 | `MoveAsync(distance, angle)` | drive_for: `distance * 77 mm`, `drive_speed = 200` |
-| `MoveUnlimitedAsync(angle, speed)` | Continuous drive |
 | `TurnAsync(direction)` | turn_for: `direction × 90°`, `turn_rate = 200` |
 | `StopAsync()` | drive with speed=0 |
 | `PrintAsync(text)` | lcd_print |
 | `ClearScreenAsync()` | lcd_clear_screen |
 | `SetLedAsync(led, r, g, b)` | light_set |
-| `ShowAIAsync()` | show_aivision |
 | `CheckMovingStatus()` | **No-op stub** — returns Task.CompletedTask immediately; do not rely on it |
 | `GetStatusAsync()` | Poll ws_status once; returns typed `RobotStatus` |
 | `WaitForMotionCompleteAsync(timeoutMs)` | Block until `isMoving` false (set by ListenStatusAsync) |

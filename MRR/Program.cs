@@ -191,7 +191,6 @@ app.MapGet("/api/player/{command:int}/{playerId:int?}/{data1:int?}/{data2:int?}"
     {
         case 1:
             dataService.UpdateCardPlayed(pid, d1, d2);
-            //dataService.AllPlayers.GetPlayer(pid)?.UpdateStatusLEDs();
             gameController.RefreshPlayerScreenUI(pid);
             break;
         case 3:

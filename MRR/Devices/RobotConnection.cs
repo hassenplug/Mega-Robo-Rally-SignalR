@@ -423,15 +423,6 @@ namespace MRR.Devices
             await WaitForStopAsync();
         }
 
-        public Task MoveUnlimitedAsync(double angle, double speed) =>
-            SendCommandAsync(new
-            {
-                cmd_id = "drive",
-                angle,
-                speed,
-                stacking_type = 0
-            });
-
         public Task StopAsync() =>
             SendCommandAsync(new
             {
@@ -487,12 +478,6 @@ namespace MRR.Devices
             var (r, g, b) = on ? ColorHelper.ParseHex(_color) : (0, 0, 0);
             return SetLedAsync("all", r, g, b);
         }
-
-        public Task ShowAIAsync() =>
-            SendCommandAsync(new
-            {
-                cmd_id = "show_aivision"
-            });
 
         public Task<GridLineAnalysis> AlignAsync(int maxIterations = 10) =>
             GridAlignmentAgent.AlignAsync(this, maxIterations);

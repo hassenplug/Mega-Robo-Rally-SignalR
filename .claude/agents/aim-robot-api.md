@@ -151,11 +151,10 @@ await robot.MoveAsync(-1, 0);   // backward one square
 | `speed` | float | 0.0 | Speed in mm/s; `0.0` = stop |
 | `stacking_type` | int | 0 | Stacking behavior |
 
-C# wrappers:
+C# wrapper (only the stop case is wrapped — the continuous-drive wrapper, `MoveUnlimitedAsync`,
+had no callers and was removed as dead code; add it back the same way if a future caller needs
+continuous drive):
 ```csharp
-public Task MoveUnlimitedAsync(double angle, double speed) =>
-    SendCommandAsync(new { cmd_id = "drive", angle, speed, stacking_type = 0 });
-
 public Task StopAsync() =>
     SendCommandAsync(new { cmd_id = "drive", angle = 0.0, speed = 0.0, stacking_type = 0 });
 ```

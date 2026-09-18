@@ -320,7 +320,6 @@ namespace MRR
         private string GetRobotName(int p_RobotID)
         {
             return "";
-            // return MainGame.AllPlayers.GetPlayer(p_RobotID).Name;
         }
 
         [NotMapped]

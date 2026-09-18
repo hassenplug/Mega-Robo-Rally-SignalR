@@ -27,11 +27,6 @@ namespace MRR
             return this.FirstOrDefault(filter);
         }
 
-        public void SetArchiveToCurrent()
-        {
-            this.Select(ts => { ts.ArchivePos.SetLocation(ts.CurrentPos); return ts; }).ToList();
-        }
-
         /// <summary>
         /// Creates a deep copy of all players for turn simulation.
         /// The copy is used for physics/collision checks during turn planning.
@@ -176,9 +171,6 @@ namespace MRR
         public Task TurnAndWaitAsync(int direction) =>
             Connection == null ? Task.CompletedTask : Connection.TurnAndWaitAsync(direction);
 
-        public Task MoveUnlimitedAsync(double angle, double speed) =>
-            Connection == null ? Task.CompletedTask : Connection.MoveUnlimitedAsync(angle, speed);
-
         public Task StopAsync() =>
             Connection == null ? Task.CompletedTask : Connection.StopAsync();
 
@@ -199,9 +191,6 @@ namespace MRR
 
         public Task SetLightsAsync(bool on) =>
             Connection == null ? Task.CompletedTask : Connection.SetLightsAsync(on);
-
-        public Task ShowAIAsync() =>
-            Connection == null ? Task.CompletedTask : Connection.ShowAIAsync();
 
         public Task<GridLineAnalysis> AlignAsync(int maxIterations = 10) =>
             Connection == null
