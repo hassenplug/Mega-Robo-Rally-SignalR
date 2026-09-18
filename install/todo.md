@@ -826,6 +826,19 @@ setup already finished) has no self-service way back in from the main page — t
 is GM-only. Not treated as a regression to fix now, since it wasn't handled under the old design
 either (a robot-based cookie could at least always re-pick from the same modal).
 
+**Updated 2026-09-18, closing the gap above:** `#loginModal` is no longer GM-only — it's one
+text box (`attemptSeatLogin()`) that takes either a seat number or the GM code, so a player
+whose cookie stops matching (cleared, or a new phone) can now type their seat back in from the
+main page instead of being stuck at a GM-only prompt. The `GameState==1` setup screen's old
+button-per-seat `renderSeatPicker()`/`chooseSetupSeat()` was removed in favor of reusing this
+same box (`showSetupScreen()` calls `showLogin()` when the cookie doesn't hold a valid seat for
+the current game) — also fixes a latent bug where a GM-logged-in phone landing on the setup
+screen was asked to pick a seat every time (it now just shows a waiting message instead).
+`setupNameInput` (operator name entry) was removed too — no name is collected anywhere now;
+`DataService.SelectSeat` no longer takes an `operatorName` parameter and just names the claimed
+row `"Seat {seat}"`. `GET /api/setup/select/{seat}/{startPosition}/{robotBodyId}` dropped its
+trailing `{operatorName}` segment accordingly (`Program.cs`).
+
 Two pre-existing bugs surfaced and fixed along the way, both the same class: an `INNER JOIN
 RobotBodies`/`RobotBases` that silently excluded a placeholder row (`RobotBodyID` is `NULL` until
 claimed) — `DataService.GetAllPlayers()` and `RobotConnection.LoadFromDatabase()` both used to
@@ -883,7 +896,9 @@ low-probability given selection is turn-gated, not fixed here.
   - [x] Connect to robots
   - [x] Set GameState to 1
 - [x] When GameState=1 
-  - [x] Player may enter "Operator Name"
+  - [x] ~~Player may enter "Operator Name"~~ — **reversed 2026-09-18:** decided not to require a
+    name after all; the input was removed and `OperatorName` is just `"Seat {seat}"` now (see
+    the "closing the gap" note above)
   - [x] send out a modified json
   - [x] In json, have a section: "GameConfig" (this should not be part of the json file the rest of the time)
     - [x] PlayerToSelect - in seat order, the first player who does not yet have a robot row with

@@ -217,17 +217,18 @@ app.MapGet("/api/player/{command:int}/{playerId:int?}/{data1:int?}/{data2:int?}"
 });
 
 // Setup-phase (GameState==1) seat claim -- install/todo.md "Operator Data Setup". seat is the
-// player's own seat identity (js/loadrobots.js's LOGIN_COOKIE, claimed here via
-// chooseSetupSeat() and reused as the player's identity for the rest of the game -- a robot's
-// PlayerSeat is what applyLogin() matches it against once claimed); startPosition is the RobotID
-// of the still-open placeholder row (StartGame) the player picked; robotBodyId is the
-// still-unclaimed skin they picked. DataService.SelectSeat re-validates turn order and both
-// uniqueness constraints atomically, so a false return just means someone else got there first.
-app.MapGet("/api/setup/select/{seat:int}/{startPosition:int}/{robotBodyId:int}/{operatorName}",
-    async (int seat, int startPosition, int robotBodyId, string operatorName,
+// player's own seat identity (js/loadrobots.js's LOGIN_COOKIE, claimed via the seat-login box
+// and reused as the player's identity for the rest of the game -- a robot's PlayerSeat is what
+// applyLogin() matches it against once claimed); startPosition is the RobotID of the still-open
+// placeholder row (StartGame) the player picked; robotBodyId is the still-unclaimed skin they
+// picked. No operator name is collected -- DataService.SelectSeat names the row "Seat {seat}".
+// DataService.SelectSeat re-validates turn order and both uniqueness constraints atomically, so
+// a false return just means someone else got there first.
+app.MapGet("/api/setup/select/{seat:int}/{startPosition:int}/{robotBodyId:int}",
+    async (int seat, int startPosition, int robotBodyId,
            DataService dataService, IHubContext<DataHub> hubContext, GameController gameController) =>
 {
-    bool claimed = dataService.SelectSeat(seat, startPosition, robotBodyId, operatorName);
+    bool claimed = dataService.SelectSeat(seat, startPosition, robotBodyId);
     if (claimed) gameController.NextState(); // may advance GameState 1 -> 2 if this was the last seat
 
     var dataout = dataService.GetAllDataJson();

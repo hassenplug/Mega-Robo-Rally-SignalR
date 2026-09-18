@@ -364,10 +364,9 @@ namespace MRR.Services
         /// (install/todo.md "Operator Data Setup"). The WHERE clause re-checks turn order and
         /// both uniqueness constraints atomically, so a stale/racing client can't win against a
         /// faster one: 0 rows affected just means "someone else got there first," not a specific
-        /// error. operatorName is parameterized -- unlike the rest of this file's raw ExecuteSQL
-        /// calls, it's free-text a player typed, not a value this server generated.
+        /// error. No player-entered name is collected -- OperatorName is just "Seat {seat}".
         /// </summary>
-        public bool SelectSeat(int seat, int startPosition, int robotBodyId, string operatorName)
+        public bool SelectSeat(int seat, int startPosition, int robotBodyId)
         {
             using var connection = new MySqlConnection(_connectionString);
             connection.Open();
@@ -378,7 +377,7 @@ namespace MRR.Services
                       r.RobotName     = rb.Name,
                       r.RobotColor    = rb.Color,
                       r.RobotColorFG  = rb.ColorFG,
-                      r.OperatorName  = @operatorName,
+                      r.OperatorName  = CONCAT('Seat ', @seat),
                       r.Priority      = @seat,
                       r.PlayerSeat    = @seat,
                       r.PositionValid = 1,
@@ -389,7 +388,6 @@ namespace MRR.Services
                     AND NOT EXISTS (Select 1 from Robots r2 where r2.RobotBodyID = @robotBodyId and r2.Status = 1)",
                 connection);
             update.Parameters.AddWithValue("@robotBodyId", robotBodyId);
-            update.Parameters.AddWithValue("@operatorName", operatorName);
             update.Parameters.AddWithValue("@seat", seat);
             update.Parameters.AddWithValue("@startPosition", startPosition);
             bool claimed = update.ExecuteNonQuery() > 0;

@@ -33,17 +33,18 @@ a:visited {
 </head>
 <body id='body' style='padding:5px; padding-top:0px'>
 
-<!-- Login gate: GM only now -- a player's identity is their seat (claimed once via the
-     GameState==1 setup screen, see js/loadrobots.js) and never needs this modal, since a seat
-     cookie is matched against the current robots' PlayerSeat automatically. See
-     js/loadrobots.js (applyLogin/attemptGmLogin). To log out (GM or seat), tap the "Robot"
-     header 5 times within 10 seconds -- see handleRobotHeaderTap()/logout.html. -->
+<!-- Login gate: a player's identity is their seat number -- typed here once (claimed via the
+     GameState==1 setup screen, or re-entered here any time the cookie doesn't match a robot's
+     PlayerSeat, e.g. after "Clear Cookies" or a fresh phone joining mid-game); the GM code
+     typed into the same box logs in as GM instead. See js/loadrobots.js
+     (applyLogin/attemptSeatLogin). To log out (GM or seat), tap the "Robot" header 5 times
+     within 10 seconds -- see handleRobotHeaderTap()/logout.html. -->
 <div id="loginModal" class="w3-modal">
     <div class="w3-modal-content w3-round w3-white" style="max-width:320px; padding:16px;">
-        <h3 style="margin-top:0;">GM login code:</h3>
-        <input type="text" id="gmCodeInput" class="w3-input" inputmode="numeric" autocomplete="off">
-        <button class="button" style="margin-top:8px; background-color:#444444; color:#ffffff;" onclick="attemptGmLogin();">Log In as GM</button>
-        <p id="loginError" style="color:#cc0000; display:none;">Incorrect code.</p>
+        <h3 style="margin-top:0;">Enter your seat number:</h3>
+        <input type="text" id="seatLoginInput" class="w3-input" inputmode="numeric" autocomplete="off">
+        <button class="button" style="margin-top:8px; background-color:#444444; color:#ffffff;" onclick="attemptSeatLogin();">Log In</button>
+        <p id="loginError" style="color:#cc0000; display:none;">Invalid seat.</p>
     </div>
 </div>
 
