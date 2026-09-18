@@ -349,7 +349,7 @@ on yet. Do not remove "dead" code related to either (unwired `tOptionCardCommand
   - Needed at game start when robots are placed on the board
   - Calls `procSetRobotDirection` equivalent in C#
 
-- [ ] Show deck size per player on GM UI
+- [x] Show deck size per player on GM UI
   - Same data as the player UI item above — total cards in each player's deck including Spam
   - Display alongside Damage in each robot's status panel so GM can see deck health at a glance
 
@@ -793,10 +793,15 @@ Create a small form. Data should be pulled using the same subscription as index.
    enforcement pieces (`PhoneConnected`, `whoami`, SignalR connect tracking) are still undone
    if wanted later.
 
-### Operator Data Setup Form (new, 2026-09-17)
+### Operator Data Setup (new, 2026-09-17)
 
 **Status: requirements being gathered — not ready to build yet.** User will keep updating
 requirements here before implementation starts.
+
+- [x] I am totally bypassing the Operator Data table. — confirmed 2026-09-17. This supersedes
+  most of "Identify all existing relationships" and "Other needed changes" further down (marked
+  there); the new design writes straight into `Robots` at `GameState=0`/`1` instead of building
+  or joining `OperatorData` at all.
 
 - [x] Replace "IsRunning" with GameState=25.  Any place IsRunning is set to false, set GameState=25;  Any place we check IsRunning, Check for GameState!=25
   — **done 2026-09-17.** Removed `IsRunning` entirely (`GameStateStore`/`DataService`/
@@ -819,17 +824,48 @@ requirements here before implementation starts.
   once. Didn't change the seed default since that's a behavior decision, not part of the
   literal ask; flagging it here rather than deciding it silently.
 
-- [ ] Replace the operatordata table with a new version
+  The RobotID in the robot table is tied to the starting position selected by the player.
+  When a player selects a starting position and robotBodyID, those values are updated in the Robots table
+
+- [ ] During StartGame (GameState=0), load the Robot Table with the max number of entries, 
+  - [ ] Set 
+    - [ ] the Color to black
+    - [ ] FG color to white
+    - [ ] Name to the number of the starting position ("Start X") (RobotBaseID)
+    - [ ] OperatorName to "Seat ?"
+    - [ ] Set Start X,Y,Dir
+    - [ ] Status to 0
+    - [ ] IPAddress to match the robotbase
+    - [ ] RobotID will match the robotbase.RobotBaseID
+  - [ ] Connect to robots
+  - [ ] Set GameState to 1
 - [ ] When GameState=1 
+  - [ ] Player may enter "Operator Name"
   - [ ] send out a modified json
-  - [ ] GameSettings
-    - [ ] PlayerToSelect
-    - [ ] Available Robots (include colors)
-    - [ ] Available Start Positions
-  - [ ] Robots shows seats (in order) w/Robots & colors
-  - [ ] Json include
-  - [ ] 
-- [x] Identify all existing relationships — **2026-09-17 findings:**
+  - [ ] In json, have a section: "GameConfig" (this should not be part of the json file the rest of the time)
+    - [ ] PlayerToSelect - in seat order, the first player who does not yet have a robot row with
+      `Status=1` (clarified 2026-09-17)
+    - [ ] Available (unselected) Robots (include name & colors) array (pull from Robot Bodies table)
+    - [ ] Available (unselected) Start Positions array  (numbers that are left to select)
+    - [ ] Once a robot and start position are selected, they are stored automatically — no
+      separate Save button (clarified 2026-09-17)
+      - [ ] store
+        - [ ] Seat, from device cookie -> Priority & PlayerSeat
+        - [ ] RobotBodyID
+        - [ ] StartPosition (RobotID)
+        - [ ] Operator Name
+      - [ ] Load name & color from bodies table
+      - [ ] Update "Position Valid" to 1
+      - [ ] Update "Status" to 1 
+    - [ ] When Position Valid ==1 for all entries
+    - [ ] set GameState=2 and NextState()
+  
+  
+  
+- [x] Identify all existing relationships — **2026-09-17 findings.** Kept below as historical
+  documentation of the system being replaced, not as input to an `OperatorData` redesign — see
+  "I am totally bypassing the Operator Data table" above. None of these relationships need to
+  survive into the new design, which writes straight into `Robots` instead.
   - `OperatorData` has **no FK constraints at all** in `install/MRRDatabase.sql` (PK is just
     the composite `(OperatorListID, RobotID)`). Every link below is enforced only by the SQL
     in `GameController.StartGame()` (`MRR/GameController.cs:275-289`), not by the schema.
@@ -852,67 +888,61 @@ requirements here before implementation starts.
     code derives it from `RobotID` instead (`rbase on od.RobotID = rbase.RobotBaseID`). Decide
     which becomes the real link when this is redesigned.
 
-- [ ] New GM form to let the GM configure the `OperatorData` table before a game starts
-  (`OperatorListID`, `RobotID`, `OperatorName`, `Paid`, `RobotBodyID`, `IsActive`, `Password`,
-  `PlayerSeat`, `StartPosition` — see `install/MRRDatabase.sql`).
-- [ ] Select OperatorData
-- [ ] Select GameData  
-- [ ] When loading Robots table at the start of the  game
-    - [ ] RobotID from StartPosition
-    - [ ] Operator Name from OperatorData.OperatorName
-    - [ ] RobotBaseID from Operator.StartPos
-    - [ ] RobotBodyID from Operator
-    - [ ] Status = 1
-    - [ ] Priority = StartPosition
-    - [ ] Password from Operator Data
-    - [ ] RobotName from Robot Bodies
-    - [ ] RobotColor from Robot Bodies
-    - [ ] RobotColorFG from Robot Bodies
-    - [ ] IPAddress from RobotBases
-    - [ ] DirectionAdjustment from SeatOrientation,
-    - [ ] PositionValid=1
-    - [ ]     
 
+#### Other needed changes found while reviewing this draft (2026-09-17, updated 2026-09-17)
 
-                "insert into Robots (RobotID, OperatorName, RobotBaseID, RobotBodyID, `Status`, Priority, `Password`, PlayerSeat, " +
-                "RobotName, RobotColor, RobotColorFG, IPAddress, DirectionAdjustment, PositionValid) " +
-                "Select od.RobotID, od.OperatorName, od.RobotID, od.RobotBodyID, 1, od.PlayerSeat, od.`Password`, od.PlayerSeat, " +
-                "rbody.Name, rbody.Color, rbody.ColorFG, rbase.IPAddress, so.Direction, 1 " +
-                "from OperatorData od " +
-                "inner join CurrentGameData pl on od.OperatorListID = pl.iValue and pl.sKey = 'PlayerListID' " +
-                "inner join RobotBodies rbody on od.RobotBodyID = rbody.RobotBodyID " +
-                "inner join RobotBases rbase on od.RobotID = rbase.RobotBaseID " +
-                "inner join SeatOrientation so on od.PlayerSeat = so.SeatID " +
-                "where od.IsActive > 0;");  - 
-OperatorListID` int(11) NOT NULL,
-  `RobotID` int(11) NOT NULL, (this number doesn't matter)
-  `OperatorName` varchar(45) DEFAULT NULL, (enter name)
-  `Paid` int(11) DEFAULT 0, (true) (do not edit)
-  `RobotBodyID` int(11) DEFAULT NULL, (can not duplicate) (drag to swap?)
-  `IsActive` int(11) DEFAULT 1, (name not null) (DNE)
-  `Password` varchar(10) DEFAULT NULL, (robotid) (DNE)
-  `PlayerSeat` int(11) DEFAULT 5, (Priority) (also tied to direction adjustment) (Drag to swap)
-  `StartPosition` int(11) DEFAULT NULL, (will be robot id & base ID) (can not duplicate) (Unique #)
+These started as consequences of the `OperatorData`-redesign draft above. **Most are now
+superseded** by the "I am totally bypassing the Operator Data table" decision (confirmed
+2026-09-17): the new design writes straight into `Robots` at `GameState=0`/`1` instead of
+building or joining `OperatorData` at all. Kept below for the still-open items and as a record
+of what the bypass resolved.
 
-Form will show 
- - Operator Name (disabled if empty)
- - Player Seat (drag Row)
- - Robot Body ID (drag Bodies)
- - Robot Start Position (drag Pos #)
-
-Form will show on each phone.  Players take a seat and can select items in Seat Order.
- - Enter name
- - Select Body (from remaining)
- - Select Robot Starting Position (from remaining)
-
- New Operator Data Table form - will show on each player's phone
- - Seat ID (entered via cookie)
- - Direction to GM (click on arrow until correct)
- - Player Name
- -  (Enabled when it's this player's turn)
- - - RobotBodyID (can select from any unused and can change after save)
- - - Robot Starting Position (1 to # of positions)
- - - Save (enabled when above are populated)
+- [ ] **GameState=1 doesn't exist yet.** States today are 0, 2-16 (CLAUDE.md's table) — there is
+  no `case 1` in `GameController.NextState()`. Adding this setup phase means deciding exactly
+  where it sits in the state machine (right after 0/`StartGame()`, before 2?) and adding the
+  transition + broadcast logic for it. Still open — unaffected by the `OperatorData` bypass.
+- [ ] **No robot identity exists yet during this phase.** Updated for the bypass: `Robots` is no
+  longer empty going into this phase — `GameState=0` pre-populates one placeholder row per start
+  position (`OperatorName="Seat ?"`, black/white colors, `RobotID`=`RobotBaseID`, `Status=0`).
+  But those placeholder rows aren't yet tied to any phone. The phone login cookie built earlier
+  this session (`mrr_player`) matches against `datapacket.robots` by `RobotID` — so "Seat, from
+  device cookie" (line 851) still implies a seat-keyed identity separate from that placeholder
+  `RobotID`, for this phase specifically. Still open.
+- [x] **`SeatOrientation.Direction` would become player-set, not fixed seed data — superseded by
+  the bypass.** The original idea (a new `OperatorData.SeatDirection` column) is moot now that
+  there's no `OperatorData` row to hold it. What's left open: `GameState=0`'s "Set Start X,Y,Dir"
+  sets direction once from the board's start-position data, and nothing in the current
+  `GameState=1` draft (lines 830-859) lets the player adjust it interactively the way the old
+  "Direction to GM, click arrow until correct" note described. Not decided whether that
+  interactive step still exists, and if so, whether it writes directly to
+  `Robots.DirectionAdjustment`.
+- [ ] **Uniqueness needs server-side enforcement, not just UI hints.** Updated for the bypass:
+  `RobotBodyID` and `StartPosition` ("can not duplicate") need the store step to check against the
+  other placeholder rows already claimed in `Robots` (not `OperatorData` rows), and reject a
+  duplicate. Initial selection is turn-gated (only `PlayerToSelect` can act), so a race there is
+  unlikely rather than impossible. Still open.
+- [x] **Two different sources were given for `Robots.Priority` — superseded by the bypass.** The
+  `OperatorData`-era ambiguity (`StartPosition` vs. `PlayerSeat` vs. `SeatID`) no longer applies:
+  the current `GameState=1` draft sets `Priority` directly from the seat, in one place (line 851),
+  with no second source in play.
+- [x] **`OperatorData.RobotID`'s changing role, including the primary key — moot.** There's no
+  `OperatorData` table left to have a primary key.
+- [ ] **`Password`'s source is still undecided — reframed, not resolved, by the bypass.** The old
+  `OperatorData` draft's "(robotid) (DNE)" annotation is moot, but the underlying question isn't:
+  `Robots.Password` is a real, live column (used for phone login), and the current `GameState=1`
+  save list (line 851) doesn't set it at all. Needs a decision on whether/how it gets populated
+  under the new direct-to-`Robots` flow.
+- [x] **`LoadPlayersIntoGame()` needs a rewrite — superseded 2026-09-17: it shouldn't be its own
+  function.** Confirmed by the user. Under the bypass, `Robots` is built up directly across
+  `GameState=0` (placeholder rows) and `GameState=1` (per-seat saves), so there's no single
+  bulk-INSERT-from-`OperatorData` moment left to house in a dedicated function the way
+  `LoadPlayersIntoGame()` does today — that function goes away rather than getting rewritten in
+  place.
+- [x] **Setup needs to be turn-gated ("Players take a seat and can select items in Seat
+  Order") — answered, 2026-09-17.** `PlayerToSelect` is, in seat order, the first player who does
+  not yet have a robot row with `Status=1`; each phone gates its own selection UI on whether its
+  seat matches it. Selection auto-stores as soon as both `RobotBodyID` and `StartPosition` are
+  chosen — there's no separate Save button to gate.
 
 ---
 
