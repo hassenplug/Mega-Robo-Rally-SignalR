@@ -88,7 +88,7 @@ GET /api/state/startgame              → SetGameState(0) + NextState()
 GET /api/state/startgame/{gameDataID} → LoadGameData(id) then start
 GET /api/state/nextstate              → NextState()
 GET /api/state/nextstate/{stateNum}   → SetGameState(stateNum) + NextState()
-GET /api/state/executeturn            → ExecuteTurn() (async, then NextState)
+GET /api/state/executeturn            → CreateTurn() (async, then NextState)
 GET /api/state/processcommands        → StartProcessCommandsThread()
 GET /api/state/gametables            → HTML of CurrentGameData/Robots/CommandList tables
 GET /api/state/loadboard              → GameController.LoadBoard()

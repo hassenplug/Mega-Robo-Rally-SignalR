@@ -59,14 +59,14 @@ public class PitRebootTests
             Turn = 1,
             Phase = 0,
             PhaseCount = 2,
-            GameState = 6, // CreateCommands.ExecuteTurn refuses to plan in any other state
+            GameState = 6, // CreateCommands.CreateTurn refuses to plan in any other state
             Board = board,
             Players = [robot],
             GameCards = cards,
         };
 
         // Act
-        var plan = new CreateCommands(request).ExecuteTurn();
+        var plan = new CreateCommands(request).CreateTurn();
 
         // Assert
         Assert.True(plan.Planned, plan.Summary);

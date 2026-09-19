@@ -15,7 +15,7 @@
 
 **Correct Pattern**:
 ```
-START ExecuteTurn
+START CreateTurn
   ↓
 workingPlayers = AllPlayers.DeepCopy()  // Simulate with a copy
   ↓
@@ -25,7 +25,7 @@ Execute phases on COPY
   - Record all changes in ListOfCommands
   - NO database writes
   ↓
-END ExecuteTurn
+END CreateTurn
   ↓
 Discard workingPlayers ❌
   - Working copy is THROWN AWAY
@@ -40,7 +40,7 @@ Later: CommandProcess reads CommandList and executes commands
 
 **Current (broken) flow**:
 ```
-ExecuteTurn mutates AllPlayers directly
+CreateTurn mutates AllPlayers directly
     ↓
 Scattered ExecuteSQL calls write to DB mid-turn
     ↓
@@ -49,7 +49,7 @@ Result: AllPlayers and DB both have partial/inconsistent state
 
 **Correct flow**:
 ```
-ExecuteTurn simulates on COPY (AllPlayers untouched)
+CreateTurn simulates on COPY (AllPlayers untouched)
     ↓
 Build CommandList describing what will happen
     ↓
@@ -82,12 +82,12 @@ public Players DeepCopy()
 }
 ```
 
-### Step 2: Update ExecuteTurn
+### Step 2: Update CreateTurn
 
 **File**: `MRR/CreateCommands.cs`
 
 ```csharp
-public string ExecuteTurn()
+public string CreateTurn()
 {
     if (GameState != 6)
         return ("Wrong State:" + GameState.ToString());
@@ -109,7 +109,7 @@ public string ExecuteTurn()
     // Execute phases on working copy (not real AllPlayers)
     for (int RunningPhase = 1; RunningPhase < PhaseCount + 1; RunningPhase++)
     {
-        ExecutePhase(RunningPhase, workingPlayers);
+        CreatePhase(RunningPhase, workingPlayers);
     }
 
     // Post-process on working copy
@@ -137,12 +137,12 @@ public string ExecuteTurn()
 }
 ```
 
-### Step 3: Update ExecutePhase Signature
+### Step 3: Update CreatePhase Signature
 
 **Change**: Accept working copy parameter
 
 ```csharp
-public void ExecutePhase(int p_PhaseNumber, Players workingPlayers, bool AllowOptions = true)
+public void CreatePhase(int p_PhaseNumber, Players workingPlayers, bool AllowOptions = true)
 {
     ListOfCommands.Phase = p_PhaseNumber;
     
@@ -216,13 +216,13 @@ public void AddDamage(Player p_Player, int p_Damage, Player? p_DamagedBy = null,
 **Timeline**:
 
 ```
-ExecuteTurn (state 6)
+CreateTurn (state 6)
     ↓
 Simulate on workingPlayers copy
     ↓
 Build ListOfCommands
     ↓
-AddCommandsToDatabase()  ← ONLY database write from ExecuteTurn
+AddCommandsToDatabase()  ← ONLY database write from CreateTurn
     ↓
 Discard workingPlayers
     ↓
@@ -257,12 +257,12 @@ AllPlayers synced with database
 | File | Change | Purpose |
 |------|--------|---------|
 | **Players.cs** | Add `DeepCopy()` | Create simulation copy |
-| **CreateCommands.cs** | Update `ExecuteTurn()` and all called methods | Use working copy for simulation |
+| **CreateCommands.cs** | Update `CreateTurn()` and all called methods | Use working copy for simulation |
 | **DataService.cs** | No changes | Don't save working copy back |
 
 ## Success Criteria
 
-- ✅ Working copy created at start of ExecuteTurn
+- ✅ Working copy created at start of CreateTurn
 - ✅ All collision/physics checks use working copy
 - ✅ No mutations to real AllPlayers during turn execution
 - ✅ Working copy discarded (garbage collected)

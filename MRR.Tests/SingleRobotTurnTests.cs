@@ -3,7 +3,7 @@ namespace MRR.Tests;
 /// <summary>
 /// Full-turn scenario: one robot on the table, dealt a 9-card hand, 5 of them programmed
 /// into registers (phases), then a turn calculated end to end through
-/// CreateCommands.ExecuteTurn(). Confirms the destination recorded for every phase -- not
+/// CreateCommands.CreateTurn(). Confirms the destination recorded for every phase -- not
 /// just the final square -- matches hand-computed positions.
 ///
 /// MRR.Rules/MRR.Contracts have no database access by design (API_DECOMPOSITION_DESIGN.md
@@ -57,14 +57,14 @@ public class SingleRobotTurnTests
             Turn = 1,
             Phase = 0,
             PhaseCount = 5,
-            GameState = 6, // CreateCommands.ExecuteTurn refuses to plan in any other state
+            GameState = 6, // CreateCommands.CreateTurn refuses to plan in any other state
             Board = new BoardElementCollection(10, 10),
             Players = [robot],
             GameCards = hand,
         };
 
         // Act
-        var plan = new CreateCommands(request).ExecuteTurn();
+        var plan = new CreateCommands(request).CreateTurn();
 
         // Assert
         Assert.True(plan.Planned, plan.Summary);

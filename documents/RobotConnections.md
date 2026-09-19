@@ -60,7 +60,7 @@ command, no intermediate list. The same list is used again at the top of every t
 
 ### 2. Simulation mode — a list with no connections
 
-Turn planning (state 6, `CreateCommands.ExecuteTurn()` in `MRR.Rules`) runs entirely on
+Turn planning (state 6, `CreateCommands.CreateTurn()` in `MRR.Rules`) runs entirely on
 `PlayerState` copies, not `Player` objects, so there is nothing to attach a socket to:
 
 - `DataService.BuildTurnRequest()` populates `TurnRequest.Players` from

@@ -26,7 +26,7 @@ namespace MRR
 
         /// <summary>
         /// Deep copy of AllPlayers used for turn simulation. Rebuilt at the top of
-        /// ExecuteTurn and discarded when the next turn is calculated; never saved back.
+        /// CreateTurn and discarded when the next turn is calculated; never saved back.
         /// </summary>
         private PlayerStates workingPlayers = new PlayerStates();
 
@@ -512,12 +512,12 @@ namespace MRR
         #endregion Process Move
 
 
-        #region Execute Turn (calculate turn)
+        #region Create Turn (calculate turn)
 
         /// <summary>
         /// calculate command list, given cards and player positions
         /// </summary>
-        public TurnPlan ExecuteTurn()
+        public TurnPlan CreateTurn()
         {
             //GameState = DBConn.UpdateGameState();
 
@@ -556,7 +556,7 @@ namespace MRR
             // begin moves
             for (int RunningPhase = 1; RunningPhase < PhaseCount + 1; RunningPhase++)
             {
-                ExecutePhase(RunningPhase);
+                CreatePhase(RunningPhase);
             }
 
 
@@ -895,10 +895,10 @@ namespace MRR
 
         #region Run Phase
 
-        public void ExecutePhase(int p_PhaseNumber, bool AllowOptions = true)
+        public void CreatePhase(int p_PhaseNumber, bool AllowOptions = true)
         {
 
-            //ListOfCommands.AddCommand("Execute Phase" + p_PhaseNumber.ToString());
+            //ListOfCommands.AddCommand("Create Phase" + p_PhaseNumber.ToString());
 
             ListOfCommands.Phase = p_PhaseNumber;
             // find first player on the list and give them the Next Phase button

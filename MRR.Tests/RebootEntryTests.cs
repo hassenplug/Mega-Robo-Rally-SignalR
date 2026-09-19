@@ -2,7 +2,7 @@ namespace MRR.Tests;
 
 /// <summary>
 /// Spec test for the reboot-entry step of the Reboot mechanic (install/todo.md Section 1,
-/// steps 5-6): the phase-1 pre-processing CreateCommands.ExecutePhase() runs for any robot
+/// steps 5-6): the phase-1 pre-processing CreateCommands.CreatePhase() runs for any robot
 /// whose current square is a RebootToken -- DataService.Players.cs's
 /// RespawnRobotAtRebootToken() is the only code that ever places a robot on one, always with
 /// PositionValid=0, so a robot only ever starts a phase 1 sitting there on the one turn it
@@ -50,13 +50,13 @@ public class RebootEntryTests
             Turn = 1,
             Phase = 0,
             PhaseCount = 1,
-            GameState = 6, // CreateCommands.ExecuteTurn refuses to plan in any other state
+            GameState = 6, // CreateCommands.CreateTurn refuses to plan in any other state
             Board = board,
             Players = [entering, occupant],
             GameCards = new CardList(), // neither robot has a programmed card this test cares about
         };
 
-        var plan = new CreateCommands(request).ExecuteTurn();
+        var plan = new CreateCommands(request).CreateTurn();
 
         Assert.True(plan.Planned, plan.Summary);
 
@@ -100,7 +100,7 @@ public class RebootEntryTests
             GameCards = new CardList(),
         };
 
-        var plan = new CreateCommands(request).ExecuteTurn();
+        var plan = new CreateCommands(request).CreateTurn();
 
         Assert.True(plan.Planned, plan.Summary);
 

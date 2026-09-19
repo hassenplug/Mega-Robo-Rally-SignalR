@@ -104,7 +104,7 @@ falling back to the direct SQL update when no loop is running.
 
 ---
 
-### 7. **CreateCommands.ExecuteTurn()** - Line 624 — *moot, already fixed by an earlier refactor*
+### 7. **CreateCommands.CreateTurn()** - Line 624 — *moot, already fixed by an earlier refactor*
 **Location**: MRR/CreateCommands.cs, line 624
 **Issue**: GameState updated in DB but `_dataService.GameState` NOT updated:
 ```sql
@@ -112,15 +112,15 @@ Update CurrentGameData set iValue = 7 where iKey = 10
 ```
 **Note**: This directly writes to DB, bypassing the `GameState` property setter which would sync it.
 
-**Resolution**: `CreateCommands.ExecuteTurn()` (the planner) no longer touches the database at
+**Resolution**: `CreateCommands.CreateTurn()` (the planner) no longer touches the database at
 all -- see its own comment: "The caller stores the commands and applies the state change...
 Both are now results, not side effects." It returns `TurnPlan.NextGameState` instead, and
-`GameController.ExecuteTurn()` applies it via `_dataService.GameState = plan.NextGameState;`,
+`GameController.CreateTurn()` applies it via `_dataService.GameState = plan.NextGameState;`,
 which *is* the write-through property. Nothing left to fix here.
 
 ---
 
-### 8. **CreateCommands.ExecuteTurn()** - Line 641 — *moot at this location; see #9 for a live analog*
+### 8. **CreateCommands.CreateTurn()** - Line 641 — *moot at this location; see #9 for a live analog*
 **Location**: MRR/CreateCommands.cs, line 641
 **Issue**: CommandList entries deleted in DB but `_dataService.ListOfCommands` NOT cleared:
 ```sql
@@ -130,7 +130,7 @@ Delete from CommandList where Turn=X and Phase>0
 
 **Resolution**: Same Master/planner split as #7 moved this delete out of `CreateCommands`
 entirely -- it's now `DataService.PersistCommands()` (`DELETE ... WHERE Turn = {0} AND Phase > 0`
-in one transaction with the insert), called once per turn from `GameController.ExecuteTurn()` at
+in one transaction with the insert), called once per turn from `GameController.CreateTurn()` at
 state 6, always before `StartProcessCommandsThread()` creates that turn's `PendingCommands`. Under
 normal state-machine timing there is no live `PendingCommands` instance at the moment this runs
 (the previous turn's was disposed when its `ProcessCommands()` loop returned, back at state

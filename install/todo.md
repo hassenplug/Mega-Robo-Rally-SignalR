@@ -100,7 +100,7 @@ literally all open, or just not updated after being done by hand).
      `GameController.StartGame()`/`ResetPlayers()` already produce for a fresh robot, so the
      *existing* direction picker (`js/loadrobots.js`) shows up automatically next turn, no new UI.
   5. **First phase of that next turn, push whoever's on the respawn square.** New block at the
-     top of `CreateCommands.ExecutePhase()`, phase 1 only: for any robot whose current square is
+     top of `CreateCommands.CreatePhase()`, phase 1 only: for any robot whose current square is
      a `RebootToken` (only ever true on the one turn it just rebooted — `RespawnRobotAtRebootToken`
      is the only thing that places a robot on one), pushes any occupant through the same
      `CalcMoveDistance(..., SquareAction.PushedMove)` a normal move's push already uses (chain-

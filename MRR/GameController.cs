@@ -54,11 +54,11 @@ namespace MRR.Controller
             return GameState;
         }
 
-        public async Task ExecuteTurn()
+        public async Task CreateTurn()
         {
-            if (Interlocked.CompareExchange(ref _executeTurnRunningFlag, 1, 0) == 1)
+            if (Interlocked.CompareExchange(ref _createTurnRunningFlag, 1, 0) == 1)
             {
-                Console.WriteLine("ExecuteTurn already running; call ignored.");
+                Console.WriteLine("CreateTurn already running; call ignored.");
                 return;
             }
 
@@ -77,8 +77,8 @@ namespace MRR.Controller
                     _dataService.SaveToHistory();
 
                     CreateCommands createCommands = new CreateCommands(request);
-                    TurnPlan plan = createCommands.ExecuteTurn();
-                    Console.WriteLine("Execute Turn Result: " + plan.Summary);
+                    TurnPlan plan = createCommands.CreateTurn();
+                    Console.WriteLine("Create Turn Result: " + plan.Summary);
                     foreach (var warning in plan.Warnings) Console.WriteLine("  warning: " + warning);
 
                     if (!plan.Planned) return;
@@ -96,7 +96,7 @@ namespace MRR.Controller
             }
             finally
             {
-                Interlocked.Exchange(ref _executeTurnRunningFlag, 0);
+                Interlocked.Exchange(ref _createTurnRunningFlag, 0);
                 NextState();
             }
         }
@@ -106,8 +106,8 @@ namespace MRR.Controller
         private PendingCommands? _pendingCommands = null;
         // guard flag to prevent re-entrant NextState() calls
         private int _nextStateRunningFlag = 0;
-        // guard to ensure ExecuteTurn runs only one instance at a time
-        private int _executeTurnRunningFlag = 0;
+        // guard to ensure CreateTurn runs only one instance at a time
+        private int _createTurnRunningFlag = 0;
 
         public void StartProcessCommandsThread()
         {
@@ -398,7 +398,7 @@ namespace MRR.Controller
                         case 6: // execute turn
                             SetAllRobotLights(true);
                             ScreenUiRenderIdle(6);
-                            Task.Run(async () => await ExecuteTurn());
+                            Task.Run(async () => await CreateTurn());
                             break;
                         case 7: // executing turn
                             ScreenUiRenderIdle(7);

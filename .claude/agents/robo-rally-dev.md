@@ -475,7 +475,7 @@ States in `GameController.NextState()`:
 - **3** → Verify positions → **4**
 - **4** → Wait for programming (phones submit) → **5**
 - **5** → Lock programs → **6**
-- **6** → ExecuteTurn (build CommandList) → **7**
+- **6** → CreateTurn (build CommandList) → **7**
 - **7** → Begin run phase → **8**
 - **8** → StartProcessCommandsThread (execute all 5 phases) → when done → **12**
 - **12** → Next turn → **2**
@@ -484,7 +484,7 @@ States in `GameController.NextState()`:
 - **16** → Reload positions → **3**
 
 ### 4.3 Command Execution Pipeline
-1. `CreateCommands.ExecuteTurn()` writes `CommandItem` rows to the `CommandList` table
+1. `CreateCommands.CreateTurn()` writes `CommandItem` rows to the `CommandList` table
 2. Each row has: `Turn`, `NormalSequence`, `RobotID`, `CommandCatID`, `CommandMoveType`, `Value`, `ValueB`
 3. `PendingCommands.ProcessCommands()` reads rows in sequence order, calls `Player.SendRobotCommandAsync()`
 4. Status codes: 1=Waiting, 2=Ready, 3=Executing (polling isMoving), 4=InProgress, 5=ScriptComplete, 6=Done
@@ -600,7 +600,7 @@ When implementing new features:
 4. Test via `/api/robot/test`
 
 ### 5.2 Adding a Board Element Effect
-In `CreateCommands.ExecuteTurn()`, after card moves:
+In `CreateCommands.CreateTurn()`, after card moves:
 - For each active board element of the type
 - Determine affected robots
 - Insert `PendingCommandEntity` rows for each robot effect

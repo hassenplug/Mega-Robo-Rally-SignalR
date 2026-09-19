@@ -525,7 +525,7 @@ CREATE TABLE `HistoryRobotOptions` (
 -- HistoryRobotTurns (history table): one row per robot per turn, recording where it started
 -- that turn's execution and which cards drove it there. Written by DataService.Players.cs's
 -- SaveToHistory(turn) -- a single bulk `INSERT ... SELECT ... FROM Robots`, called from
--- GameController.ExecuteTurn() right after BuildTurnRequest() and before the planner
+-- GameController.CreateTurn() right after BuildTurnRequest() and before the planner
 -- simulates the turn and moves anyone, so CurrentPosRow/Col/Dir at that instant are each
 -- robot's starting position for the turn. Unlike its sibling History* tables above, this one
 -- has no GameID column: SaveToHistory's INSERT doesn't supply one, so rows from different

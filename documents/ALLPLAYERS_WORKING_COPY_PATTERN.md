@@ -10,14 +10,14 @@
 ## Revised Understanding
 
 **Current Problem**:
-- CreateCommands mutates AllPlayers directly during ExecuteTurn
+- CreateCommands mutates AllPlayers directly during CreateTurn
 - Those mutations are scattered throughout phase execution
 - No single point to validate or rollback the turn
 - Risk of partial state if turn fails mid-execution
 
 **Desired Pattern**:
 ```
-START ExecuteTurn
+START CreateTurn
   ↓
 Make COPY of AllPlayers (working copy)
   ↓
@@ -25,7 +25,7 @@ Execute phases on COPY (move robots, apply damage, etc.)
   - NO database writes during execution
   - Changes isolated to working copy only
   ↓
-END ExecuteTurn
+END CreateTurn
   ↓
 Write final state back to DB in one transaction
   ↓
@@ -72,10 +72,10 @@ public Players DeepCopy()
 
 **File**: `MRR/CreateCommands.cs`
 
-Change ExecuteTurn to work with a copy:
+Change CreateTurn to work with a copy:
 
 ```csharp
-public string ExecuteTurn()
+public string CreateTurn()
 {
     if (GameState != 6)
         return ("Wrong State:" + GameState.ToString());
@@ -91,7 +91,7 @@ public string ExecuteTurn()
 
     // ... rest of turn execution using workingPlayers instead of AllPlayers
     
-    // At end of ExecuteTurn:
+    // At end of CreateTurn:
     _dataService.AllPlayers = workingPlayers;  // Update persistent state
     _dataService.SavePlayerState(workingPlayers);  // Write to DB
 }
@@ -105,7 +105,7 @@ public string ExecuteTurn()
 
 - **ProcessMove**: Uses `AllPlayers.GetPlayer()` → use `workingPlayers.GetPlayer()`
 - **CalcMoveDistance**: Uses `AllPlayers` → use `workingPlayers`
-- **ExecutePhase**: Iterates `AllPlayers` → iterate `workingPlayers`
+- **CreatePhase**: Iterates `AllPlayers` → iterate `workingPlayers`
 - **Damage/death checks**: Uses `AllPlayers` → use `workingPlayers`
 
 **Remaining reads**: `_dataService.AllPlayers` for game cards priority (that's OK, those are read-only)
@@ -196,11 +196,11 @@ private Players? _workingPlayers;
 
 public Players WorkingPlayers
 {
-    get => _workingPlayers ?? throw new InvalidOperationException("ExecuteTurn not started");
+    get => _workingPlayers ?? throw new InvalidOperationException("CreateTurn not started");
     set => _workingPlayers = value;
 }
 
-// DO NOT access _dataService.AllPlayers during ExecuteTurn
+// DO NOT access _dataService.AllPlayers during CreateTurn
 // Use WorkingPlayers instead
 ```
 
@@ -224,12 +224,12 @@ public Players WorkingPlayers
 ```
 GameController.NextState() — state 6
     ↓
-CreateCommands.ExecuteTurn()
+CreateCommands.CreateTurn()
     ↓
 workingPlayers = DataService.AllPlayers.DeepCopy()
     ↓
 for (RunningPhase = 1 to PhaseCount)
-    ExecutePhase(workingPlayers)
+    CreatePhase(workingPlayers)
         ↓
         for (each square action this phase)
             ProcessDbCommand(action, workingPlayers)
@@ -287,7 +287,7 @@ Turn complete ✅
 | Need to reference original AllPlayers occasionally | Use `_dataService.AllPlayers` explicitly (rare) |
 | Other methods expect AllPlayers to change | Call SavePlayerState at turn end before other code runs |
 | Card priorities based on old player order | Already loaded before copy; use for sorting |
-| Legacy code references AllPlayers | Gradually migrate to WorkingPlayers during ExecuteTurn |
+| Legacy code references AllPlayers | Gradually migrate to WorkingPlayers during CreateTurn |
 
 ---
 
@@ -295,7 +295,7 @@ Turn complete ✅
 
 1. ✅ Add `DeepCopy()` to Players.cs
 2. ✅ Add `SavePlayerState()` to DataService.cs  
-3. ✅ Update `ExecuteTurn()` to create and use working copy
-4. ✅ Replace all `AllPlayers` refs in ExecuteTurn with `workingPlayers`
+3. ✅ Update `CreateTurn()` to create and use working copy
+4. ✅ Replace all `AllPlayers` refs in CreateTurn with `workingPlayers`
 5. ✅ Remove scattered ExecuteSQL calls from turn execution
 6. ✅ Test game flow (start game → program → execute → repeat)

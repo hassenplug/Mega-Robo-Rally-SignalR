@@ -193,7 +193,7 @@ public Players AllPlayers
 
 #### 3b. Selective Refresh
 ```csharp
-// After ExecuteTurn, refresh just what changed
+// After CreateTurn, refresh just what changed
 private void SyncPlayerAfterMove(int robotId)
 {
     var row = GetQueryResults($"SELECT ... FROM Robots WHERE RobotID = {robotId}");
@@ -235,7 +235,7 @@ _dataService.UpdateRobotStatus(playerId, (int)tPlayerStatus.Dead);
 ### Step 1: Audit & Categorize (Phase 1 Prep)
 - [ ] Count all `ExecuteSQL()` calls by affected table
 - [ ] Group by business logic (status updates, position moves, damage, etc.)
-- [ ] Identify critical sync points (StartGame, NextState, ExecuteTurn)
+- [ ] Identify critical sync points (StartGame, NextState, CreateTurn)
 
 ### Step 2: Create Wrapper Methods (Phase 1)
 - [ ] DataService: `UpdateRobotStatus()`
@@ -249,7 +249,7 @@ _dataService.UpdateRobotStatus(playerId, (int)tPlayerStatus.Dead);
 ### Step 3: Replace Raw SQL (Phase 1)
 - [ ] GameController.StartGame()
 - [ ] GameController.NextState()
-- [ ] CreateCommands.ExecuteTurn()
+- [ ] CreateCommands.CreateTurn()
 - [ ] CreateCommands.AddCommandsToDatabase()
 - [ ] DataService.ProcessDbCommand()
 

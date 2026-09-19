@@ -59,7 +59,7 @@ wwwroot/             Static web assets for phone UI
 - **Renegade rules only.** `RulesVersion` was removed 2026-08-22; there is no Classic path.
 - **One `TotalFlags` per game**, in `CurrentGameData` (iKey 7), taken from the board at game
   start. It is not a per-player value.
-- **Thread safety**: `Interlocked` flags guard `NextState()` and `ExecuteTurn()`
+- **Thread safety**: `Interlocked` flags guard `NextState()` and `CreateTurn()`
 
 ## Game State Reference
 | State | Meaning |
@@ -69,7 +69,7 @@ wwwroot/             Static web assets for phone UI
 | 3 | Verify positions |
 | 4 | Wait for player programming |
 | 5 | Lock programs |
-| 6 | ExecuteTurn (build command list) |
+| 6 | CreateTurn (build command list) |
 | 7 | Run phase — wait |
 | 8 | Run phase — in progress |
 | 9–11 | Sub-states of run phase |

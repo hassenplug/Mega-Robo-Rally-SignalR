@@ -36,13 +36,13 @@ public class CreateCommandsZeroSquareTests
             Turn = 1,
             Phase = 0,
             PhaseCount = 1,
-            GameState = 6, // CreateCommands.ExecuteTurn refuses to plan in any other state
+            GameState = 6, // CreateCommands.CreateTurn refuses to plan in any other state
             Board = new BoardElementCollection(5, 5),
             Players = [robot],
             GameCards = [card],
         };
 
-        var plan = new CreateCommands(request).ExecuteTurn();
+        var plan = new CreateCommands(request).CreateTurn();
 
         Assert.True(plan.Planned, plan.Summary);
 

@@ -133,7 +133,7 @@ app.MapGet("/api/state/{newstate?}/{parameter1?}", async (string? newstate, stri
             break;
         case "executeturn":
             Console.WriteLine("Executing turn...");
-            await gameController.ExecuteTurn();
+            await gameController.CreateTurn();
             break;
         case "processcommands":
             Console.WriteLine("Process Commands...");

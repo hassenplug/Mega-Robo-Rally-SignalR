@@ -550,7 +550,7 @@ step 0.
 
 All twelve of the planner's `_dataService` property passthroughs
 ([CreateCommands.cs](../MRR.Rules/CreateCommands.cs)) are reads that can be built into a
-`TurnRequest` at the call site in `ExecuteTurn()`, and the four genuine writes are severable
+`TurnRequest` at the call site in `CreateTurn()`, and the four genuine writes are severable
 independently (§5.3). Nothing about step 2 requires step 3.
 
 **Decided: no test project** — verification is playing a game. That removes the original
@@ -599,7 +599,7 @@ mode.
 - A full 6-player, 5-phase turn completes with physical robots after each step.
 - `Plan()` is deterministic: identical `TurnRequest` → byte-identical command list. With no
   test project, verify by calling it twice on the same request and diffing the two command
-  lists at runtime (a temporary assert in `ExecuteTurn` is enough).
+  lists at runtime (a temporary assert in `CreateTurn` is enough).
 - `MRR.Rules` references neither `MySqlConnector` nor `Microsoft.AspNetCore.*`, enforced by
   the build.
 - `CreateCommands` contains no `_dataService` reference after step 2.

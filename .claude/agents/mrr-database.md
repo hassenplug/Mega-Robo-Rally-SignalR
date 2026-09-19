@@ -701,8 +701,8 @@ Saved by `procCurrentPosSave()` at state 5; restored by `procCurrentPosLoad()` a
   turn (`StartRow`/`StartCol`/`StartDir`) plus that turn's `MoveCards` CSV -- no end position,
   only where the turn began. Written by `DataService.Players.cs`'s `SaveToHistory(turn)` --
   one bulk `INSERT ... SELECT ... FROM Robots` for every robot at once, added 2026-09-16 and
-  wired into `GameController.ExecuteTurn()` the same day: called right after
-  `BuildTurnRequest()`, before the planner (`CreateCommands.ExecuteTurn()`) simulates the turn
+  wired into `GameController.CreateTurn()` the same day: called right after
+  `BuildTurnRequest()`, before the planner (`CreateCommands.CreateTurn()`) simulates the turn
   and actually moves anyone, so `Robots.CurrentPosRow/Col/Dir` at that instant are each
   robot's starting position. Kept on the Master side deliberately -- `CreateCommands.cs` (in
   `MRR.Rules`) has no reference to `DataService`/DB access at all, by design (the planner
