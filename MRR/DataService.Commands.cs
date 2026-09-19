@@ -266,7 +266,9 @@ namespace MRR.Services
                     ExecuteSQL($"UPDATE Robots SET PlayerMsg = '', MessageCommandID = NULL " +
                         $" WHERE RobotID = {cRobotID}");
                     break;
-
+                case SquareAction.Respawn:
+                    RespawnRobotAtRebootToken(cRobotID);
+                    break;
                 case SquareAction.SetEnergy:
                     ExecuteSQL($"UPDATE Robots SET Energy = {cParameter} " +
                         $" WHERE RobotID = {cRobotID}");

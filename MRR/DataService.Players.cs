@@ -930,6 +930,71 @@ namespace MRR.Services
             ExecuteSQL($"UPDATE Robots SET PositionValid = {positionValid} WHERE RobotID = {robotID}");
         }
 
+        // =====================================================================
+        // Reboot mechanic (install/todo.md Section 1): called once the player confirms they've
+        // physically taken a dead robot off the table (DataService.Commands.cs's
+        // ProcessDbCommand, the SquareAction.SetButtonText case, the moment that "Remove
+        // Robot: ..." prompt this method is coupled to is the only SetButtonText prompt in the
+        // codebase today). Moves the robot to the nearest SquareType.RebootToken on the current
+        // board (Manhattan distance from where it died -- Robots.CurrentPosRow/Col already
+        // holds the pit square, since the Move command that landed it there already executed
+        // and wrote the DB before this later command in the same phase's sequence runs), or
+        // falls back to ArchivePos if the board has none -- the closest existing concept in this
+        // schema to "the robot's original start square" (StartGame()/InsertPlaceholderRobot()
+        // seeds both CurrentPos and ArchivePos to the same starting square, and nothing but an
+        // explicit SquareAction.Archive board trigger -- e.g. touching a flag -- moves ArchivePos
+        // after that).
+        //
+        // Sets PositionValid = 0, same as a fresh respawn (ResetPlayers()) or the GM's "Reload
+        // Position" action, so the phone UI's existing direction picker shows up for this robot
+        // next turn with no further wiring -- GameController.NextState()'s state 4->5 gate
+        // (AllRobotDirectionsChosen) already blocks the turn from starting until it's set.
+        // =====================================================================
+        public void RespawnRobotAtRebootToken(int robotID)
+        {
+            var robotRow = GetQueryResults(
+                "SELECT CurrentPosRow, CurrentPosCol, ArchivePosRow, ArchivePosCol, ArchivePosDir " +
+                $"FROM Robots WHERE RobotID = {robotID}");
+            if (robotRow.Rows.Count == 0) return;
+
+            int fromRow = (int)robotRow.Rows[0]["CurrentPosRow"];
+            int fromCol = (int)robotRow.Rows[0]["CurrentPosCol"];
+
+            BoardElement? nearestToken = BoardLoadFromDB(BoardID).BoardElements
+                .Where(be => be.Type == SquareType.RebootToken)
+                .OrderBy(be => Math.Abs(be.BoardCol - fromCol) + Math.Abs(be.BoardRow - fromRow))
+                .FirstOrDefault();
+
+            int newRow, newCol, newDir;
+            if (nearestToken != null)
+            {
+                newRow = nearestToken.BoardRow;
+                newCol = nearestToken.BoardCol;
+                // The player picks any facing next turn via the direction picker (PositionValid
+                // below), so this is only a starting seed for the arrow, not a real choice.
+                newDir = (int)nearestToken.Rotation;
+            }
+            else
+            {
+                newRow = (int)robotRow.Rows[0]["ArchivePosRow"];
+                newCol = (int)robotRow.Rows[0]["ArchivePosCol"];
+                newDir = (int)robotRow.Rows[0]["ArchivePosDir"];
+            }
+
+            // Status must move off Dead (11) here, not just PositionValid off 0 -- PlayerState.
+            // Active is derived fresh from Status on every DB reload (GetPlayerStatesFromDB:
+            // Active = Status != NotActive(10)), not persisted itself, and only stays false for
+            // the remainder of *this* turn because CreateCommands mutates the same in-memory
+            // PlayerState the whole turn through. Left at Dead, the robot would misread as
+            // Active again next turn (Status(11) != 10) while still genuinely needing to sit
+            // out programming until PositionValid clears -- ReadyToProgram is the same status a
+            // normal robot carries between turns, so this just rejoins it at that point.
+            ExecuteSQL(
+                $"UPDATE Robots SET CurrentPosRow = {newRow}, CurrentPosCol = {newCol}, " +
+                $"CurrentPosDir = {newDir}, PositionValid = 0, Status = {(int)tPlayerStatus.ReadyToProgram} " +
+                $"WHERE RobotID = {robotID}");
+        }
+
         /// <summary>
         /// True once every robot has at least picked a facing direction (PositionValid != 0,
         /// i.e. 1 or 2 -- a robot already locked from a previous turn still counts). Gates the

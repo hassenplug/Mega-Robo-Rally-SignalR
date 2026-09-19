@@ -574,6 +574,7 @@ Additional boards are loaded via state 21 ("Load XML Boards").
 | 100 | Flag |
 | 105 | King (King of the Hill flag) |
 | 110 | Start Square |
+| 120 | Reboot Token (ShowParameterID 25 = SquareAction.RebootToken; Parameter 1/2/3/... = A/B/C/... when a board has more than one) |
 | 200 | Blank Wall |
 
 ---

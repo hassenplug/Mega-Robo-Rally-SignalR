@@ -536,6 +536,12 @@ namespace MRR
         LostLife = 22,
         ExplosiveDamage = 23,
         DealCard = 24, // deal move card
+        // Board-authored only, like PlayerStart above -- marks a reboot/respawn square.
+        // Parameter distinguishes multiple reboot tokens on the same board (a board can have
+        // more than one, printed as letters -- 1=A, 2=B, 3=C, ... -- same numbered-Parameter
+        // convention PlayerStart/Flag already use for their own per-square numbering).
+        RebootToken = 25,
+        Respawn = 26,
         PhaseStart = 30,
         PhaseStep = 31,
         PhaseEnd = 32,
@@ -622,6 +628,10 @@ namespace MRR
         WrenchHammer = 91,
         Flag = 100,
         StartSquare = 110,
+        // Where a rebooted robot respawns (Section 1 "Reboot mechanic", install/todo.md). A
+        // board can have more than one; SquareAction.RebootToken's Parameter on this square
+        // says which one (1=A, 2=B, 3=C, ...).
+        RebootToken = 120,
         Walls = 200
     }
     #endregion

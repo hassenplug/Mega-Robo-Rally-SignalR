@@ -610,6 +610,7 @@ INSERT INTO `BoardSquares` VALUES
 (100,'Flag',1,16,NULL,1),
 (105,'King',1,NULL,NULL,1),
 (110,'Start Square',1,19,NULL,1),
+(120,'Reboot Token',1,25,NULL,1),
 (200,'Blank Wall',1,NULL,NULL,1);
 
 -- Boards

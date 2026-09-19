@@ -411,7 +411,20 @@ namespace MRR
 
             //   check for damage on entering
 
-            BoardActionsCollection l_TargetActions = g_BoardElements.GetSquare(p_NewLocation.X, p_NewLocation.Y)?.ActionList ?? new BoardActionsCollection();
+            BoardElement? l_TargetSquare = g_BoardElements.GetSquare(p_NewLocation.X, p_NewLocation.Y);
+            BoardActionsCollection l_TargetActions = l_TargetSquare?.ActionList ?? new BoardActionsCollection();
+
+            // Falling into a pit kills the robot immediately -- no lives in this rules version;
+            // it reboots at the nearest RebootToken next turn instead (install/todo.md Section 1,
+            // "Reboot mechanic"). Always deals exactly 2 Spam cards, regardless of AddDamage()'s
+            // usual "1 Spam card unless the hit is fatal" rule below (a guaranteed-fatal hit
+            // never reaches that branch), so those are added directly here. Short-circuits the
+            // rest of this square's landing effects -- nothing further should happen to an
+            // already-dead robot this turn.
+            if (l_TargetSquare?.Type == SquareType.Pit)
+            {
+                return KillRobot(p_Robot);
+            }
 
             BoardAction? mineAction = l_TargetActions.FirstOrDefault(ta => ta.SquareAction == SquareAction.Mine);
             if (mineAction != null)
@@ -895,6 +908,39 @@ namespace MRR
             //ListOfCommands.AddCommand(3,p_PhaseNumber);
             ListOfCommands.AddCommand((PlayerState?)null, SquareAction.PhaseStart, p_PhaseNumber);
             //ListOfCommands.AddCommand(10,7); // set game state to waiting for input
+
+            // Reboot mechanic (install/todo.md Section 1), phase 1 only: a robot whose current
+            // square is a RebootToken just came back from a reboot -- DataService.Players.cs's
+            // RespawnRobotAtRebootToken() is the only place a robot's position ever gets set to
+            // one, and it always leaves PositionValid=0, so the direction picker forces this to
+            // run at most once per reboot (the robot moves off the token during this very
+            // phase). Resolve any collision by pushing whoever else is still standing there
+            // through the same CalcMoveDistance/PushedMove path a normal move's push already
+            // uses -- that goes through the real command pipeline (chain-pushes included) and
+            // keeps the physical robot in sync, unlike a bare position write. Then block for the
+            // human to physically place the real robot on the token before its own first move
+            // this turn sends.
+            //
+            // UNVERIFIED AGAINST A LIVE GAME/PHYSICAL ROBOT -- see install/todo.md Section 1.
+            if (p_PhaseNumber == 1)
+            {
+                foreach (PlayerState enteringPlayer in workingPlayers.Where(wp => wp.IsRunning &&
+                    g_BoardElements.GetSquare(wp.CurrentPos.X, wp.CurrentPos.Y)?.Type == SquareType.RebootToken).ToList())
+                {
+                    PlayerState? occupant = workingPlayers.FirstOrDefault(wp =>
+                        wp.ID != enteringPlayer.ID && wp.IsRunning &&
+                        wp.CurrentPos.X == enteringPlayer.CurrentPos.X && wp.CurrentPos.Y == enteringPlayer.CurrentPos.Y);
+                    if (occupant != null)
+                    {
+                        CalcMoveDistance(occupant, 1, enteringPlayer.CurrentPos.Direction, SquareAction.PushedMove);
+                    }
+
+                    ListOfCommands.AddCommand(
+                        "Place " + enteringPlayer.Name + " on the reboot token, facing " +
+                        enteringPlayer.CurrentPos.Direction,
+                        enteringPlayer); // set button text & wait for click
+                }
+            }
 
 
 //            ListOfCommands.SetPhase(p_PhaseNumber);
@@ -1733,6 +1779,20 @@ namespace MRR
             // TotalFlags is game-wide (CurrentGameData iKey 7), set from the board at game
             // start. >= rather than == so an overshoot still wins instead of being missed.
             return p_thisplayer.LastFlag >= TotalFlags;
+        }
+
+        public bool KillRobot(PlayerState p_thisrobot)
+        {
+            ListOfCommands.AddCommand(p_thisrobot, SquareAction.DealSpamCard, 0);
+            ListOfCommands.AddCommand(p_thisrobot, SquareAction.DealSpamCard, 0);
+
+            int pushedPhase = ListOfCommands.AddCommand(p_thisrobot, SquareAction.SetPlayerStatus,11).Phase;
+            ListOfCommands.AddCommand("Remove Robot: " + p_thisrobot.Name,p_thisrobot);
+            // set button text & wait for click
+            p_thisrobot.SetLocation();  
+            return false;
+
+            //return AddDamage(p_thisrobot, 10);  // do this to destroy options, etc.  But this will also add death points to the robot that caused the pit death, which is not desired.
         }
 
         public bool AddDamage(PlayerState p_thisrobot, int p_Damage, PlayerState? p_DamagingRobot = null)

@@ -19,17 +19,18 @@ the list but rank last because this is a closed system with no public exposure, 
    advances the robot's DB position as if it succeeded — the game state and the physical board
    quietly diverge, and nothing about it is visible to the GM. Tagged High in
    `API_DECOMPOSITION_DESIGN.md` §7.
-2. **Reboot mechanic** (Section 1). Core Renegade rule for a robot that falls in a pit or off
-   the board. The direction-picker half is done; pit/edge detection and the respawn itself are
-   not — any board with pits can't be played correctly yet.
-3. **Shutdown mechanic** (Section 1). Not started. Also a core Renegade rule.
-4. **Damage card draw mechanic** (Section 1). Not started: drawing from the damage stack, Spam/
+2. **Shutdown mechanic** (Section 1). Not started. Core Renegade rule.
+3. **Damage card draw mechanic** (Section 1). Not started: drawing from the damage stack, Spam/
    Haywire/Trojan Horse execution. Beyond the basic damage → dealt-Spam-card conversion that
    already works, none of the special-card executions are implemented.
-5. **Pushers** (Section 1). Board element type not implemented at all — activate on specific
+4. **Pushers** (Section 1). Board element type not implemented at all — activate on specific
    phases (odd/even), push a robot one square, chain-push if another robot is in the way.
-6. **Board data cleanup** (Section 1). 6 boards have flag-numbering gaps and are unwinnable;
+5. **Board data cleanup** (Section 1). 6 boards have flag-numbering gaps and are unwinnable;
    16 have a stale `Boards.TotalFlags` value.
+6. **Reboot mechanic needs a live-game verification pass** (Section 1). Implemented 2026-09-18
+   (pit death, 2 Spam cards, respawn at nearest reboot token, push-on-entry) but never run
+   against a real table — the push/place-robot dispatch sequencing at reboot entry specifically
+   is the risk (see Section 1's item for exactly what's unverified).
 7. **DB password committed in tracked `appsettings.json`** (Section 6) — lower priority: closed
    system, no public exposure, per user 2026-09-16.
 8. **Every phone receives every player's hand** (Section 3) — lower priority, same reasoning;
@@ -48,15 +49,73 @@ literally all open, or just not updated after being done by hand).
   - Player announces shutdown during programming phase
   - Shut-down robot: takes no laser damage, cannot move, may clear damage cards
 
-- [ ] Reboot mechanic
-  - Triggered when robot moves into a pit or off the board
-  - Robot placed at chosen reboot token; receives 2 Spam cards; continues this turn
-  - Player must choose the direction the robot faces when placed at the reboot token — the
-    picker itself is done (2026-09-15). Once respawn logic exists and sets `PositionValid = 0`
-    the same way game start already does, the phone UI will show the direction picker with no
-    further wiring needed here.
-  - Needs: pit/edge detection in `CreateCommands` + `DataService` respawn logic; ~~direction
-    picker on phone UI~~ (done); ~~`procSetRobotDirection` equivalent~~ (done)
+- [x] Reboot mechanic — triggered when a robot moves onto a `SquareType.Pit` square. Requirements
+  gathered and implemented 2026-09-18. **Not yet run through a live game/physical robot** — see
+  the caveat on steps 5-6 below; this needs the user to verify on the real table before trusting
+  it, same as `install/todo.md`'s own past precedent for anything untestable without hardware.
+
+  1. **Immediate death, this turn, plus 2 Spam cards.** `CreateCommands.MoveRobot()`
+     (`CreateCommands.cs` ~412-434) now checks the landed square's `Type` for `SquareType.Pit`
+     before its normal Mine/Damage-action checks: if it's a pit, adds two
+     `SquareAction.DealSpamCard` commands directly (an unconditional 2, not `AddDamage()`'s usual
+     "1 unless fatal" rule, which a guaranteed-fatal hit never reaches), then kills the robot via
+     `AddDamage(p_Robot, 10)` — reusing the same fatal-damage path ordinary damage-death already
+     uses (`SetPlayerStatus`→`Dead`, the "Remove Robot" prompt below, death-point bookkeeping)
+     rather than a parallel code path — and returns early so nothing else on that square touches
+     an already-dead robot. `PlayerState.IsRunning` (`Active && ShutDown != Currently`), which the
+     phase-1 card-execution loop already gates on (`CreateCommands.cs` ~1085), goes false the
+     moment `AddDamage()`'s `Damage` setter clamps to the fatal threshold — so a robot killed in
+     phase 1 correctly gets no phase-2+ commands this same turn with no extra code needed.
+     **Test:** `MRR.Tests/PitRebootTests.cs`.
+  2. **Notify the player to physically remove the robot.** Free — this is the same
+     `SquareAction.SetButtonText`/`"Remove Robot: {Name}"` blocking User Input prompt
+     `AddDamage()`'s fatal-damage branch already emits (`CreateCommands.cs:1802`,
+     `CommandCategories.UserInput`), rendered by the existing `messagetable`/`confirmMessage()`
+     UI in `index.html`/`js/loadrobots.js`. No new code needed once step 1 routes pit death
+     through the same `AddDamage()` path.
+  3. **Set `CurrentPos` to the nearest respawn square**, or `ArchivePos` if the board has none.
+     `SquareType.RebootToken = 120` / `SquareAction.RebootToken = 25` added to `BoardElement.cs`
+     (board-authoring-only, mirroring `StartSquare`/`PlayerStart` — never a live `CommandTypeID`),
+     seeded into `install/MRRDatabase.sql`'s `BoardSquares`. Multiple tokens on one board print as
+     letters (A, B, C, ...), stored as `SquareAction.RebootToken`'s `Parameter` 1/2/3/..., same
+     numbered-`Parameter` convention `Flag`/`PlayerStart` already use (nothing in this schema
+     stores a literal letter). `DataService.Players.cs`'s new `RespawnRobotAtRebootToken(robotID)`
+     does the actual placement — nearest by Manhattan distance from where the robot died, falling
+     back to `ArchivePos` (the closest existing concept in this schema to "the robot's original
+     start square": `StartGame()` seeds both `CurrentPos` and `ArchivePos` to the same starting
+     square, and nothing but an explicit `SquareAction.Archive` board trigger, e.g. touching a
+     flag, moves `ArchivePos` after that — my interpretation of "original start square", not
+     literally re-derived from `RobotBases`; flag if that's not what was meant). Also resets
+     `Robots.Status` off `Dead` (to `ReadyToProgram`) — necessary because `PlayerState.Active` is
+     `[NotMapped]` and recomputed fresh every DB reload as `Status != NotActive(10)`
+     (`DataService.Players.cs`'s `GetPlayerStatesFromDB()`), so leaving `Status` at `Dead` (11)
+     would have made the robot misread as `Active` again next turn while still genuinely needing
+     to sit out programming until `PositionValid` clears — this was a real latent gap this work
+     surfaced, not something invented for reboot specifically. Wired into
+     `DataService.Commands.cs`'s `ProcessDbCommand`, `SquareAction.SetButtonText` case: once the
+     "Remove Robot" prompt is confirmed (guarded on `Status == Dead`, since that's the only
+     `SetButtonText` prompt in the codebase today — a future unrelated one would need its own
+     guard), it calls `RespawnRobotAtRebootToken` before clearing the message.
+  4. **Reset `PositionValid` to 0.** Done as part of step 3's DB write — same effect
+     `GameController.StartGame()`/`ResetPlayers()` already produce for a fresh robot, so the
+     *existing* direction picker (`js/loadrobots.js`) shows up automatically next turn, no new UI.
+  5. **First phase of that next turn, push whoever's on the respawn square.** New block at the
+     top of `CreateCommands.ExecutePhase()`, phase 1 only: for any robot whose current square is
+     a `RebootToken` (only ever true on the one turn it just rebooted — `RespawnRobotAtRebootToken`
+     is the only thing that places a robot on one), pushes any occupant through the same
+     `CalcMoveDistance(..., SquareAction.PushedMove)` a normal move's push already uses (chain-
+     pushes included), in the direction the player just confirmed. Goes through the real planned-
+     command pipeline rather than a bare position write, specifically so the physical robot stays
+     in sync with the DB.
+  6. **Before that first move sends, prompt to physically place the robot.** Same block as step
+     5 also adds a `SetButtonText` "Place {Name} on the reboot token, facing {Direction}" prompt
+     for the entering robot, sequenced before its own phase-1 move command (same blocking pattern
+     as step 2/"Run Phase N", which every phase already uses to pace itself on the human).
+     **Test:** `MRR.Tests/RebootEntryTests.cs` — covers the two planned-command shapes (push +
+     no-push). **Not covered, and the actual hardware-risk gap:** whether `CommandProcess`'s
+     dispatch genuinely blocks this robot's own move behind the new prompt, and behind the pushed
+     occupant's move, the way it's intended to — that's dispatch/sequencing behavior only a live
+     turn can confirm, not something `CreateCommands`' pure planning tests can see.
 
 ### Board Element Activation
 
@@ -386,7 +445,7 @@ evolving GM screen.*
 
 ### Merge Connections Into the Index / GM Screen
 
- - [-] copy "connections" functionality into the index page — **partial, 2026-09-15.** Connect/
+ - [x] copy "connections" functionality into the index page — **partial, 2026-09-15.** Connect/
    disconnect is in (`js/loadrobots.js`'s `showall()`, hitting the existing
    `/api/robot/connect|disconnect/{id}` routes), including a color-coded connect button in the
    Status column (GM view only) driven by `RobotStatus.StatusColor`, not a hardcoded color.
