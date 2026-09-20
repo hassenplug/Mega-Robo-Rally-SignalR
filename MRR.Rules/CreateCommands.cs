@@ -922,6 +922,7 @@ namespace MRR
             // this turn sends.
             //
             // UNVERIFIED AGAINST A LIVE GAME/PHYSICAL ROBOT -- see install/todo.md Section 1.
+            /*
             if (p_PhaseNumber == 1)
             {
                 foreach (PlayerState enteringPlayer in workingPlayers.Where(wp => wp.IsRunning &&
@@ -941,6 +942,7 @@ namespace MRR
                         enteringPlayer); // set button text & wait for click
                 }
             }
+            */
 
 
 //            ListOfCommands.SetPhase(p_PhaseNumber);
@@ -1789,6 +1791,7 @@ namespace MRR
             int pushedPhase = ListOfCommands.AddCommand(p_thisrobot, SquareAction.SetPlayerStatus,11).Phase;
             ListOfCommands.AddCommand("Remove Robot: " + p_thisrobot.Name,p_thisrobot);
             // set button text & wait for click
+            p_thisrobot.Active = false;
             p_thisrobot.SetLocation();  
             return false;
 

@@ -15,6 +15,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MRR.Tests", "MRR.Tests\MRR.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MRR.Tools.FirmwareCompare", "MRR.Tools.FirmwareCompare\MRR.Tools.FirmwareCompare.csproj", "{AD731B3E-EB0D-4AA6-9552-BB206B4B1466}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MRR.Tools.RobotSpriteDraw", "MRR.Tools.RobotSpriteDraw\MRR.Tools.RobotSpriteDraw.csproj", "{67EB94A1-8CC8-423B-93C4-BAC5CB4F016F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -97,6 +99,18 @@ Global
 		{AD731B3E-EB0D-4AA6-9552-BB206B4B1466}.Release|x64.Build.0 = Release|Any CPU
 		{AD731B3E-EB0D-4AA6-9552-BB206B4B1466}.Release|x86.ActiveCfg = Release|Any CPU
 		{AD731B3E-EB0D-4AA6-9552-BB206B4B1466}.Release|x86.Build.0 = Release|Any CPU
+		{67EB94A1-8CC8-423B-93C4-BAC5CB4F016F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{67EB94A1-8CC8-423B-93C4-BAC5CB4F016F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{67EB94A1-8CC8-423B-93C4-BAC5CB4F016F}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{67EB94A1-8CC8-423B-93C4-BAC5CB4F016F}.Debug|x64.Build.0 = Debug|Any CPU
+		{67EB94A1-8CC8-423B-93C4-BAC5CB4F016F}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{67EB94A1-8CC8-423B-93C4-BAC5CB4F016F}.Debug|x86.Build.0 = Debug|Any CPU
+		{67EB94A1-8CC8-423B-93C4-BAC5CB4F016F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{67EB94A1-8CC8-423B-93C4-BAC5CB4F016F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{67EB94A1-8CC8-423B-93C4-BAC5CB4F016F}.Release|x64.ActiveCfg = Release|Any CPU
+		{67EB94A1-8CC8-423B-93C4-BAC5CB4F016F}.Release|x64.Build.0 = Release|Any CPU
+		{67EB94A1-8CC8-423B-93C4-BAC5CB4F016F}.Release|x86.ActiveCfg = Release|Any CPU
+		{67EB94A1-8CC8-423B-93C4-BAC5CB4F016F}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
