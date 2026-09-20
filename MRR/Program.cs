@@ -225,10 +225,21 @@ app.MapGet("/api/player/{command:int}/{playerId:int?}/{data1:int?}/{data2:int?}"
 // a false return just means someone else got there first.
 app.MapGet("/api/setup/select/{seat:int}/{startPosition:int}/{robotBodyId:int}",
     async (int seat, int startPosition, int robotBodyId,
-           DataService dataService, IHubContext<DataHub> hubContext, GameController gameController) =>
+           DataService dataService, IHubContext<DataHub> hubContext, GameController gameController,
+           MRR.Devices.RobotConnections robotConnections) =>
 {
     bool claimed = dataService.SelectSeat(seat, startPosition, robotBodyId);
-    if (claimed) gameController.NextState(); // may advance GameState 1 -> 2 if this was the last seat
+    if (claimed)
+    {
+        gameController.NextState(); // may advance GameState 1 -> 2 if this was the last seat
+
+        // Push the newly-picked body's name/color to the robot's own screen and LEDs.
+        // RefreshIdentityDisplayAsync re-reads Robots itself, so no need to refresh AllPlayers
+        // first. Fire-and-forget: it's a long run of sequential WebSocket round trips and
+        // shouldn't hold up this response or the broadcast below.
+        var connection = robotConnections.Get(startPosition);
+        if (connection != null) _ = Task.Run(() => connection.RefreshIdentityDisplayAsync());
+    }
 
     var dataout = dataService.GetAllDataJson();
     await hubContext.Clients.All.SendAsync("AllDataUpdate", dataout);

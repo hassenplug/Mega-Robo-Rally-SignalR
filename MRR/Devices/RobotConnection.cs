@@ -86,15 +86,16 @@ namespace MRR.Devices
         }
 
         /// <summary>
-        /// Whether LEDs should be on right after connecting. Mirrors
-        /// DataService.UpdateCardPlayed's on-while-programming / off-once-full rule: if this
-        /// robot is mid-programming (RobotStatus.Programming=1 -- covers "Waiting For Cards"
-        /// through "Ready to Run"), lights reflect how many of its PhaseCount registers
-        /// (MoveCards.CardLocation=2) are already filled rather than defaulting to on. Any
-        /// other status (running, connected-only, shut down, ...) just defaults to on, same as
-        /// before this check existed.
+        /// Whether LEDs should currently be on. Mirrors DataService.UpdateCardPlayed's
+        /// on-while-programming / off-once-full rule: if this robot is mid-programming
+        /// (RobotStatus.Programming=1 -- covers "Waiting For Cards" through "Ready to Run"),
+        /// lights reflect how many of its PhaseCount registers (MoveCards.CardLocation=2) are
+        /// already filled rather than defaulting to on. Any other status (running,
+        /// connected-only, shut down, ...) just defaults to on. Used by
+        /// RefreshIdentityDisplayAsync, both right after connecting and whenever a placeholder's
+        /// assigned body changes.
         /// </summary>
-        private bool ShouldLightsBeOnAtConnect()
+        private bool ShouldLightsBeOn()
         {
             using var connection = new MySqlConnection(_connectionString);
             connection.Open();
@@ -146,15 +147,9 @@ namespace MRR.Devices
         /// </summary>
         private async Task ConnectAsync()
         {
-            string name = _name, color = _color, foreColor = _foreColor;
-
             wsCmd = new ClientWebSocket();
             wsStatus = new ClientWebSocket();
             wsImage = new ClientWebSocket();
-
-            var (bgR, bgG, bgB) = ColorHelper.ParseHex(color);
-            var (fgR, fgG, fgB) = ColorHelper.ParseHex(foreColor, 255, 255, 255);
-            Console.WriteLine($"[{RobotID}] ConnectAsync: name={name}, color={color} ({bgR},{bgG},{bgB}), foreColor={foreColor} ({fgR},{fgG},{fgB})");
 
             try
             {
@@ -167,27 +162,8 @@ namespace MRR.Devices
                 await SendCommandAsync(new { cmd_id = "program_init" });
                 await SendCommandAsync(new { cmd_id = "imu_calibrate" });
                 await SendCommandAsync(new { cmd_id = "set_pose", x = 0, y = 0 });
-                await SendCommandAsync(new { cmd_id = "lcd_clear_screen", r = bgR, g = bgG, b = bgB });
-                await SetLightsAsync(ShouldLightsBeOnAtConnect());
 
-                await SendCommandAsync(new { cmd_id = "lcd_set_pen_color", r = fgR, g = fgG, b = fgB });
-                await SendCommandAsync(new { cmd_id = "lcd_set_fill_color", r = bgR, g = bgG, b = bgB, transparent = false });
-
-                // Draw forward-pointing arrow in robot color on forecolor background
-                for (int y = 30; y <= 99; y++)
-                {
-                    int halfWidth = (y - 30) * 60 / 70;
-                    await SendCommandAsync(new { cmd_id = "lcd_draw_line", x1 = 120 - halfWidth, y1 = y, x2 = 120 + halfWidth, y2 = y });
-                }
-                await SendCommandAsync(new { cmd_id = "lcd_draw_rectangle", x = 95, y = 100, width = 50, height = 110, r = fgR, g = fgG, b = fgB, transparent = false });
-
-                //await SendCommandAsync(new { cmd_id = "lcd_draw_image_from_file", filename = $"arrow_{foreColor}.png", x = 0, y = 0 });
-                //await SendCommandAsync(new { cmd_id = "lcd_draw_image_from_file", filename = $"arrow_{foreColor}", x = 0, y = 0 });
-
-                await SendCommandAsync(new { cmd_id = "lcd_set_font", fontname = "mono40" });
-                //await PrintAtAsync(name, Math.Max(0, (240 - name.Length * 24) / 2), 105);
-                await SendCommandAsync(new { cmd_id = "lcd_print_at", @string = name,  x = Math.Max(0, (240 - name.Length * 20) / 2), y = 165, b_opaque = true });
-                //await SetLedAsync("all", bgR, bgG, bgB); // robot-color LED, same as SendColorStatus()'s default case
+                await RefreshIdentityDisplayAsync();
 
                 _statusCts = new CancellationTokenSource();
                 //_ = ListenStatusAsync(_statusCts.Token);
@@ -197,6 +173,48 @@ namespace MRR.Devices
                 IsConnected = false;
                 Console.WriteLine($"[{RobotID}] Connection failed: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// Sets this robot's LCD screen (background color, forward-pointing arrow, name) and
+        /// LEDs together -- re-reads RobotName/RobotColor/RobotColorFG (LoadFromDatabase) first,
+        /// so both reflect whichever body is currently assigned. Called once from ConnectAsync
+        /// right after its own one-time program_init/imu_calibrate/set_pose, and again whenever
+        /// DataService.SelectSeat() changes a placeholder's assigned body (Program.cs's
+        /// /api/setup/select), so the robot's screen and LEDs pick up the body the player just
+        /// picked without repeating that connection setup.
+        /// </summary>
+        public async Task RefreshIdentityDisplayAsync()
+        {
+            LoadFromDatabase();
+
+            if (!IsConnected || wsCmd == null)
+            {
+                IsConnected = false;
+                return;
+            }
+
+            string name = _name;
+            var (bgR, bgG, bgB) = ColorHelper.ParseHex(_color);
+            var (fgR, fgG, fgB) = ColorHelper.ParseHex(_foreColor, 255, 255, 255);
+            Console.WriteLine($"[{RobotID}] RefreshIdentityDisplayAsync: name={name}, color={_color} ({bgR},{bgG},{bgB}), foreColor={_foreColor} ({fgR},{fgG},{fgB})");
+
+            await SendCommandAsync(new { cmd_id = "lcd_clear_screen", r = bgR, g = bgG, b = bgB });
+            await SetLightsAsync(ShouldLightsBeOn());
+
+            await SendCommandAsync(new { cmd_id = "lcd_set_pen_color", r = fgR, g = fgG, b = fgB });
+            await SendCommandAsync(new { cmd_id = "lcd_set_fill_color", r = bgR, g = bgG, b = bgB, transparent = false });
+
+            // Draw forward-pointing arrow in robot color on forecolor background
+            for (int y = 30; y <= 99; y++)
+            {
+                int halfWidth = (y - 30) * 60 / 70;
+                await SendCommandAsync(new { cmd_id = "lcd_draw_line", x1 = 120 - halfWidth, y1 = y, x2 = 120 + halfWidth, y2 = y });
+            }
+            await SendCommandAsync(new { cmd_id = "lcd_draw_rectangle", x = 95, y = 100, width = 50, height = 110, r = fgR, g = fgG, b = fgB, transparent = false });
+
+            await SendCommandAsync(new { cmd_id = "lcd_set_font", fontname = "mono40" });
+            await SendCommandAsync(new { cmd_id = "lcd_print_at", @string = name, x = Math.Max(0, (240 - name.Length * 20) / 2), y = 165, b_opaque = true });
         }
 
         public async Task SendCommandAsync(object command)
