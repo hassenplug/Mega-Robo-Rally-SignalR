@@ -334,7 +334,7 @@ namespace MRR.Services
         {
             var config = new GameConfigData
             {
-                PlayerToSelect = GetIntFromDB("Select Coalesce(Min(RobotID),0) from Robots where Status <> 1"),
+                PlayerToSelect = GetIntFromDB("Select Count(*) from Robots where Status = 1") + 1,
                 AvailableStartPositions = GetIntList(
                     "Select RobotID from Robots where Status <> 1 order by RobotID").ToList(),
             };
@@ -382,15 +382,15 @@ namespace MRR.Services
                       r.PlayerSeat    = @seat,
                       r.PositionValid = 1,
                       r.Status        = 1
-                  WHERE r.RobotID = @startPosition
-                    AND r.Status <> 1
+                  WHERE r.RobotID = @startPosition",
+/*                    AND r.Status <> 1
                     AND @seat = (Select Coalesce(Min(RobotID),0) from Robots where Status <> 1)
-                    AND NOT EXISTS (Select 1 from Robots r2 where r2.RobotBodyID = @robotBodyId and r2.Status = 1)",
+                    AND NOT EXISTS (Select 1 from Robots r2 where r2.RobotBodyID = @robotBodyId and r2.Status = 1)",*/
                 connection);
             update.Parameters.AddWithValue("@robotBodyId", robotBodyId);
             update.Parameters.AddWithValue("@seat", seat);
             update.Parameters.AddWithValue("@startPosition", startPosition);
-            bool claimed = update.ExecuteNonQuery() > 0;
+            bool claimed = update.ExecuteNonQuery() > 0; 
 
             if (claimed) RefreshRobotDenormalizedFields();
             return claimed;

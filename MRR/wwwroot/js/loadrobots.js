@@ -35,6 +35,12 @@ function setLoginCookie(value) {
     document.cookie = LOGIN_COOKIE + '=' + encodeURIComponent(value) + '; path=/; max-age=' + oneYear + '; samesite=lax';
 }
 
+// Reads the GM-ness straight off the cookie, without going through applyLogin() -- needed to
+// decide GM vs. seat-claim screen during GameState==1, before applyLogin() itself runs.
+function isGmCookie() {
+    return getCookie(LOGIN_COOKIE) === GM_CODE;
+}
+
 function showLogin() {
     document.getElementById('loginModal').style.display = 'block';
 }
@@ -75,13 +81,25 @@ function attemptSeatLogin() {
 
 // Re-renders whichever view the current game state calls for, right after a login box submit
 // changes the cookie -- GameState==1's setup screen reads the cookie itself (showSetupScreen()),
-// everything else goes through the normal applyLogin() match-against-PlayerSeat path.
+// everything else goes through the normal applyLogin() match-against-PlayerSeat path. GM doesn't
+// claim a seat, so logging in as GM during setup shows the normal main screen immediately
+// instead of waiting for the next broadcast to replace the seat-claim screen.
 function refreshAfterLogin() {
-    if (datapacket && datapacket.gamestate === 1) {
-        showSetupScreen();
-    } else {
-        applyLogin();
+    if (!datapacket) { applyLogin(); return; }
+
+    if (datapacket.gamestate === 1) {
+        if (isGmCookie()) {
+            hideSetupScreen();
+            applyLogin();
+            showall();
+            showplayerprogram(CurrentLine);
+        } else {
+            showSetupScreen();
+        }
+        return;
     }
+
+    applyLogin();
 }
 
 // Reconciles the seat cookie against the robots in the *current* game -- called on every
@@ -424,7 +442,10 @@ function showall()
     for(var i = 0;i<robots.length;i++)
     {
         //console.log(robots[i]);
-        var rid = robots[i].Priority;
+        // Row DOM ids are array position (buildPlayerRows' "rid = i + 1"), not Priority --
+        // Priority defaults to 0 for every not-yet-claimed seat during setup (GameState==1),
+        // so multiple robots can share Priority 0 there and "button0" doesn't exist at all.
+        var rid = i + 1;
         var btn = document.getElementById("button" + rid);
         btn.style = "background-color:" + robots[i].RobotColor + "; color:" + robots[i].RobotColorFG;
         btn.textContent = robots[i].RobotName;
@@ -505,7 +526,10 @@ function renderSetupStatus(seat, config) {
         return;
     }
 
-    html += '<p>Your turn! Pick a robot and a starting position.</p><p>Pick a robot:</p><div>';
+    html += '<p>Your turn! Pick a robot and a starting position.</p>';
+    html += '<div style="display:flex; flex-wrap:wrap; gap:16px;">';
+
+    html += '<div style="width:200px;"><p>Pick a robot:</p><div>';
     for (var i = 0; i < config.AvailableRobots.length; i++) {
         var b = config.AvailableRobots[i];
         var picked = setupSelectedBody === b.RobotBodyID;
@@ -513,28 +537,27 @@ function renderSetupStatus(seat, config) {
             (picked ? "; border:3px solid #000000;" : "") +
             "' onclick='selectSetupBody(" + b.RobotBodyID + ");'>" + b.Name + "</button>";
     }
-    html += '</div><p>Pick a starting position:</p><div>';
+    html += '</div></div>';
+
+    html += '<div style="width:200px;"><p>Pick a starting position:</p><div>';
     for (var i = 0; i < config.AvailableStartPositions.length; i++) {
         var pos = config.AvailableStartPositions[i];
         html += "<button class='button' style='margin:4px;' onclick='selectSetupPosition(" + pos + ");'>Start " + pos + "</button>";
     }
+    html += '</div></div>';
+
     html += '</div>';
     document.getElementById('setupContent').innerHTML = html;
 }
 
+// Only ever called for a non-GM cookie -- both call sites (the datapacket listener and
+// refreshAfterLogin()) route the GM straight to the normal main screen instead, since GM
+// doesn't take a seat.
 function showSetupScreen() {
     document.getElementById('setupScreen').style.display = '';
     document.getElementById('mainTable').style.display = 'none';
 
     var cookieVal = getCookie(LOGIN_COOKIE);
-
-    // GM doesn't take a seat -- just watches setup happen rather than being asked for one.
-    if (cookieVal === GM_CODE) {
-        hideLogin();
-        document.getElementById('setupContent').innerHTML = '<p>Logged in as GM. Waiting for players to choose seats...</p>';
-        return;
-    }
-
     var totalSeats = datapacket.robots.length;
     mySetupSeat = cookieVal !== null ? parseInt(cookieVal, 10) : null;
 
@@ -560,7 +583,10 @@ function hideSetupScreen() {
 document.addEventListener('datapacket', function (ev) {
     datapacket = ev.detail;
 
-    if (datapacket.gamestate === 1) {
+    // GM doesn't claim a seat, so skip the seat-claim screen for them during setup and just
+    // show the normal main screen (robot list, connect status, GM menu), same as any other
+    // game state.
+    if (datapacket.gamestate === 1 && !isGmCookie()) {
         showSetupScreen();
         return;
     }
