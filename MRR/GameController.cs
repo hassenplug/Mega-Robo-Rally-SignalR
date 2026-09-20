@@ -303,7 +303,19 @@ namespace MRR.Controller
             //_dataService.UpdatePlayerPriority(null, 1);
 
             _dataService.GetAllPlayers(true); // force refresh so the new rows are visible below
-            if (_dataService.RobotsActive != 0) ConnectToAllRobots();
+
+            // Fire-and-forget: ConnectToAllRobots() blocks on Task.WhenAll(...).Wait() until
+            // every physical robot answers, which can take several seconds. Awaiting it here
+            // would hold up SetGameState(1) (below, in NextState()'s case 0) and so the
+            // broadcast that shows the seat-claim screen -- every phone would sit on the plain
+            // login box in the meantime, since each robot's own "Connecting" status write
+            // broadcasts an update at the *old* game state, before any robot has a claimed
+            // seat for applyLogin() to match against. Letting it run in the background instead
+            // means the setup screen shows immediately, and each robot's Connecting/Connected
+            // status still arrives live via its own broadcast (SetRobotConnectStatus), same as
+            // the connect-all GM action.
+            if (_dataService.RobotsActive != 0) _ = Task.Run(() => ConnectToAllRobots());
+
             _dataService.RefreshRobotDenormalizedFields(); // StatusColor/PlayerStatus/etc. for the new rows
             //LoadCurrentGame();
         }

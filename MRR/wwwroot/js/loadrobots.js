@@ -558,10 +558,15 @@ function showSetupScreen() {
     document.getElementById('mainTable').style.display = 'none';
 
     var cookieVal = getCookie(LOGIN_COOKIE);
-    var totalSeats = datapacket.robots.length;
     mySetupSeat = cookieVal !== null ? parseInt(cookieVal, 10) : null;
-
-    if (!mySetupSeat || mySetupSeat < 1 || mySetupSeat > totalSeats) {
+    // Only a missing/unparseable cookie forces a re-login. A seat number is never invalidated
+    // by how many placeholder robots *this* game happens to have -- a new game's robot count
+    // depends on the board's own PlayerStart squares (StartGame()) and can differ from the last
+    // game's, so comparing against it here was rejecting perfectly good returning-phone cookies
+    // and re-showing the login box on every new game. If this game genuinely has no room for
+    // the seat, PlayerToSelect below simply never reaches it and the player sees "waiting"
+    // instead -- no reason to also make them retype their seat number.
+    if (!mySetupSeat || mySetupSeat < 1) {
         showLogin();
         return;
     }
