@@ -620,7 +620,7 @@ namespace MRR
 
                 }
 
-                if (!thisplayer.IsDead)
+                if (thisplayer.PlayerStatus != tPlayerStatus.Dead)
                 {
                     TurnRobot(thisplayer, lastcommand, tCommandSequence.After);
                 }
@@ -650,21 +650,6 @@ namespace MRR
             //int RunningCommandID = 0;
             //ListOfCommands.Select(loc => { loc.RunningCounter = RunningCommandID+=10; return loc; }).ToList();
 
-            foreach (PlayerState thisplayer in workingPlayers)
-            {
-                //thisplayer.FutureCards = workingPlayers.First(wp => wp.ID == thisplayer.ID).TotalCards();
-                PlayerState? futureplayer = workingPlayers.GetPlayer(thisplayer.ID);
-                //if ((CircuitBreaker.Owner == thisplayer.ID) && (futureplayer.Damage > 2) && (futureplayer.Damage <10))
-                OptionCard? CircuitBreaker = OptionCards.GetOption(tOptionCardCommandType.CircuitBreaker, thisplayer);
-                if ((CircuitBreaker != null) && (futureplayer?.Damage > 2) && (futureplayer?.Damage < 10))
-
-                {
-                    ListOfCommands.AddCommand(thisplayer, CircuitBreaker);
-                    thisplayer.ShutDown = tShutDown.NextTurn;
-                }
-
-            }
-            
             // add damagepoint total to start of turn
             // if (IsOptionsEnabled) // if we are using options, show damage points
             // {
@@ -975,7 +960,7 @@ namespace MRR
                 //thisplayer.Active = true;
             }*/
 
-            foreach (PlayerState thisplayer in workingPlayers.Where(ap => (ap.Active &&
+            foreach (PlayerState thisplayer in workingPlayers.Where(ap => (ap.IsRunning &&
                 g_BoardElements.GetSquare(ap.CurrentPos.X, ap.CurrentPos.Y)?.ActionList.Any(al=>al.SquareAction == SquareAction.Randomizer) == true)))
             {
                 PlayerState? currentPlayer = workingPlayers.GetPlayer(thisplayer.ID);
@@ -1035,16 +1020,6 @@ namespace MRR
                         }
                     }
 
-                    while (OptionCards.Where(oc => oc.ID == (int)tOptionCardCommandType.DamageEraser && oc.PhasePlayed > 0).Any())
-                    {
-                        OptionCard Eraser = OptionCards.First(oc => oc.ID == (int)tOptionCardCommandType.DamageEraser && oc.PhasePlayed > 0);
-                        PlayerState? eraseDamagePlayer = workingPlayers.GetPlayer(Eraser.Owner);
-                        if (eraseDamagePlayer != null && UseOption(eraseDamagePlayer, Eraser))
-                        {
-                            // erase damage
-                            AddDamage(eraseDamagePlayer, -eraseDamagePlayer.Damage);
-                        }
-                    }
                 }
 
 
@@ -1194,7 +1169,7 @@ namespace MRR
                 /// and take place after "CurrentAction"
 
                 var ActiveSquares = from be in g_BoardElements.BoardElements
-                                    join ap in workingPlayers.Where(ap=>ap.Active)
+                                    join ap in workingPlayers.Where(ap=>ap.IsRunning)
                                     on be.Location equals ap.CurrentPos.Location
                                     select new { PlayerID = ap.ID, X = be.BoardCol, Y=be.BoardRow, ActionList = be.ActionList.Where(al=>al.PhaseActive(p_PhaseNumber)).Where(al=>al.ActionSequence > CurrentAction) };
 
@@ -1367,19 +1342,6 @@ namespace MRR
                                     //    ListOfCommands.AddCommand(thisplayer, DoubleLaser);
                                     //}
 
-                                    OptionCard? PowerDownShield = OptionCards.GetOption(tOptionCardCommandType.PowerDownShield, shootPlayer);
-                                    if (PowerDownShield != null)
-                                    {
-                                        if (shootPlayer.ShutDown == tShutDown.Currently)
-                                        {
-                                            if (realdamage > 0)
-                                            {
-                                                realdamage -= 1;
-                                            }
-                                            ListOfCommands.AddCommand(shootPlayer, PowerDownShield);
-                                        }
-                                    }
-
                                     OptionCard? Shield = OptionCards.GetOption(tOptionCardCommandType.Shield, shootPlayer);
                                     if (Shield != null)
                                     {
@@ -1446,7 +1408,7 @@ namespace MRR
                             ListOfCommands.AddCommand(thisplayer, SquareAction.Archive);
                             break;
                         case SquareAction.Damage:
-                            if (thisaction.Parameter < 0 && thisplayer.Damage == 0 && IsOptionsEnabled) // would repair, but player is not damaged
+                            if (thisaction.Parameter < 0 && IsOptionsEnabled) // would repair, but player is not damaged
                             {
                                 ListOfCommands.AddCommand(thisplayer, SquareAction.Option);
                             }
@@ -1607,8 +1569,8 @@ namespace MRR
                 do
                 {
 
-                    var OverlappingRobots = from rob in workingPlayers.Where(wr=>wr.Active)
-                                            join rob2 in workingPlayers.Where(wr => wr.Active) on rob.CurrentPos.Location equals rob2.CurrentPos.Location
+                    var OverlappingRobots = from rob in workingPlayers.Where(wr=>wr.IsRunning)
+                                            join rob2 in workingPlayers.Where(wr => wr.IsRunning) on rob.CurrentPos.Location equals rob2.CurrentPos.Location
                                             select new { PlayerID = rob.ID, Player2ID = rob2.ID, CurrentPos = rob.CurrentPos };
 
                     var OL2 = OverlappingRobots.Where(olr => olr.PlayerID != olr.Player2ID);
@@ -1791,7 +1753,8 @@ namespace MRR
             int pushedPhase = ListOfCommands.AddCommand(p_thisrobot, SquareAction.SetPlayerStatus,11).Phase;
             ListOfCommands.AddCommand("Remove Robot: " + p_thisrobot.Name,p_thisrobot);
             // set button text & wait for click
-            p_thisrobot.Active = false;
+            //p_thisrobot.Active = false;
+            p_thisrobot.PlayerStatus = tPlayerStatus.Dead;
             p_thisrobot.SetLocation();  
             return false;
 
@@ -1841,16 +1804,7 @@ namespace MRR
             // inflict damage
             if (!p_thisrobot.IsDead)
             {
-                if (p_thisrobot.Damage + p_Damage > 9)
-                { 
-                    p_thisrobot.Damage += p_Damage;   // he's about to be dead
-                }
-                else
-                {
-                    ListOfCommands.AddCommand(p_thisrobot, SquareAction.DealSpamCard, 0);                
-                }
-                //p_thisrobot.Damage += p_Damage;
-                //ListOfCommands.AddCommand(p_thisrobot, SquareAction.Damage, p_thisrobot.Damage);
+                ListOfCommands.AddCommand(p_thisrobot, SquareAction.DealSpamCard, 0);                
             }
 
             // check for dead

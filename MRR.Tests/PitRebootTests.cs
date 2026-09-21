@@ -42,7 +42,7 @@ public class PitRebootTests
         var robot = new PlayerState
         {
             ID = RobotId,
-            Active = true,
+            PlayerStatus = tPlayerStatus.ReadyToRun,
             Priority = 1,
             CurrentPos = new RobotLocation(Direction.Right, 1, 2),
         };

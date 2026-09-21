@@ -22,7 +22,7 @@ namespace MRR
         public PlayerState? GetPlayer(int p_PlayerID) => GetPlayer(pl => pl.ID == p_PlayerID);
 
         public PlayerState? GetPlayer(RobotLocation p_Square) =>
-            GetPlayer(ap => ap.CurrentPos.X == p_Square.X && ap.CurrentPos.Y == p_Square.Y && ap.Active);
+            GetPlayer(ap => ap.CurrentPos.X == p_Square.X && ap.CurrentPos.Y == p_Square.Y && ap.IsRunning);
 
         public PlayerState? GetPlayer(Func<PlayerState, bool> filter) => this.FirstOrDefault(filter);
 

@@ -30,7 +30,7 @@ public class RebootEntryTests
         var entering = new PlayerState
         {
             ID = EnteringId,
-            Active = true,
+            PlayerStatus = tPlayerStatus.ReadyToRun,
             Priority = 1,
             CurrentPos = new RobotLocation(Direction.Right, 2, 2),
         };
@@ -39,7 +39,7 @@ public class RebootEntryTests
         var occupant = new PlayerState
         {
             ID = OccupantId,
-            Active = true,
+            PlayerStatus = tPlayerStatus.ReadyToRun,
             Priority = 2,
             CurrentPos = new RobotLocation(Direction.Up, 2, 2),
         };
@@ -83,7 +83,7 @@ public class RebootEntryTests
         var entering = new PlayerState
         {
             ID = EnteringId,
-            Active = true,
+            PlayerStatus = tPlayerStatus.ReadyToRun,
             Priority = 1,
             CurrentPos = new RobotLocation(Direction.Right, 2, 2),
         };

@@ -17,7 +17,7 @@ public class CreateCommandsZeroSquareTests
         var robot = new PlayerState
         {
             ID = robotId,
-            Active = true,
+            PlayerStatus = tPlayerStatus.ReadyToRun,
             Priority = 1,
             CurrentPos = new RobotLocation(Direction.Left, 1, 0),
         };

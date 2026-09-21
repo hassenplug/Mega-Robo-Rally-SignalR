@@ -190,7 +190,6 @@ namespace MRR.Services
                     Energy              = (int)row["Energy"],
                     Score               = (int)row["Score"],
                     PositionValid       = (int)row["PositionValid"] != 0,
-                    Active              = (int)row["StatusID"] != 10,
                     AllGameCards        = GameCards,
                 });
             }

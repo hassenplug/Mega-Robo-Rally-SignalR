@@ -23,7 +23,7 @@ public class SingleRobotTurnTests
         var robot = new PlayerState
         {
             ID = RobotId,
-            Active = true,
+            PlayerStatus = tPlayerStatus.ReadyToRun,
             Priority = 1,
             CurrentPos = new RobotLocation(Direction.Right, 2, 2),
         };

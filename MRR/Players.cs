@@ -19,7 +19,7 @@ namespace MRR
 
         public Player? GetPlayer(RobotLocation p_Square)
         {
-            return GetPlayer(ap => ((ap.CurrentPos.X == p_Square.X) && (ap.CurrentPos.Y == p_Square.Y) && (ap.Active)));
+            return GetPlayer(ap => ((ap.CurrentPos.X == p_Square.X) && (ap.CurrentPos.Y == p_Square.Y) && (ap.IsRunning)));
         }
 
         public Player? GetPlayer(Func<Player,bool> filter)

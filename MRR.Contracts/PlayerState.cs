@@ -81,7 +81,6 @@ namespace MRR
     {
 
         const int conTotalDamage = 10;
-        const int conTotalLives = 3;
 
         #region Player Constructors
 
@@ -93,12 +92,8 @@ namespace MRR
             NextPos = new RobotLocation();
             ArchivePos = new RobotLocation();
             NextFlag = new RobotLocation();
-            Damage = 0;
-            Lives = conTotalLives;
             LastFlag = 0;
             Name = ToString();
-            // placement of this is critical
-            Active = true;
             PositionValid = false;
             DamagePoints = 0;
             DamagedBy = -1;
@@ -115,11 +110,7 @@ namespace MRR
             NextPos = new RobotLocation(p_Player.NextPos);
             ArchivePos = new RobotLocation(p_Player.ArchivePos);
             NextFlag = p_Player.NextFlag;
-            Damage = p_Player.Damage;
-            Lives = p_Player.Lives;
             LastFlag = p_Player.LastFlag;
-            // placement of this is critical
-            Active = p_Player.Active;
             PositionValid = false;
             DamagePoints = p_Player.DamagePoints;
             DamagedBy = -1;
@@ -167,17 +158,31 @@ namespace MRR
         public tShutDown ShutDown { get; set; }
 
         [NotMapped]
-        [XmlIgnore]
-        public bool IsRunning
+        public bool IsRunning // not dead or shut down
         {
             get
             {
-                return Active && !(ShutDown == tShutDown.Currently);
+                return this.PlayerStatus != tPlayerStatus.Dead && this.PlayerStatus != tPlayerStatus.ShutDown;
             }
         }
 
         [NotMapped]
-        public bool Active { get; set; }
+        public bool IsDead
+        {
+            get
+            {
+                return this.PlayerStatus == tPlayerStatus.Dead;
+            }
+        }
+
+        [NotMapped]
+        public bool IsShutDown
+        {
+            get
+            {
+                return this.PlayerStatus == tPlayerStatus.ShutDown;
+            }
+        }
 
         public int Priority { get; set; }
         public int Energy { get; set; }
@@ -195,45 +200,12 @@ namespace MRR
         public int ArchivePosCol { get => ArchivePos.X; set => ArchivePos.X = value; }
         public int ArchivePosDir { get => (int)ArchivePos.Direction; set => ArchivePos.Direction = (Direction)value; }
 
-        public int Lives { get; set; }
-
         [NotMapped]
         public string Color { get; set; } = "333333"; // hex color string RRGGBB
 
         [NotMapped]
         public string ForeColor { get; set; } = "FFFFFF"; // hex color string RRGGBB
 
-        private int l_damage = 0;
-        public int Damage
-        {
-            get
-            {
-                return l_damage;
-            }
-            set
-            {
-                if (value < 0) value = 0;
-                if (value >= conTotalDamage)
-                {
-                    value = conTotalDamage;
-                    Active = false;
-                }
-                l_damage = value;
-
-            }
-        }
-
-
-        [NotMapped]
-        [XmlIgnore]
-        public bool IsDead
-        {
-            get
-            {
-                return (bool)(Damage >= conTotalDamage);
-            }
-            set { }
-        }
 
         public int PlayerScore
         {
@@ -327,12 +299,6 @@ namespace MRR
         [NotMapped]
         public OptionCardList? OptionCards { get; set; }
 
-        public bool HasOptionCard(tOptionCardCommandType OptionID)
-        {
-            if (!this.IsRunning) return false;
-            return false;
-        }
-
         [Column("CurrentFlag")]
         public int LastFlag { get; set; }
 
@@ -352,7 +318,7 @@ namespace MRR
                 string? showCardsPlayed = cards.Count == 0 ? null
                     : string.Join("", cards.Select(c => c.Executed ? cards.GetCardText(c) : "X"));
                     //: string.Join(",", cards.Select(c => c.Executed ? cards.GetCardText(c) : "X"));
-                return (showCardsPlayed == null || !Active)
+                return (showCardsPlayed == null || IsDead || IsShutDown)
                     ? PlayerStatus.Info().ShortDescription
                     : showCardsPlayed;
             }

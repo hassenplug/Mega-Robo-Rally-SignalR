@@ -29,7 +29,7 @@ public class PushedRobotDriveDirectionTests
         var pusher = new PlayerState
         {
             ID = PusherId,
-            Active = true,
+            PlayerStatus = tPlayerStatus.ReadyToRun,
             Priority = 1,
             CurrentPos = new RobotLocation(Direction.Right, 2, 2),
         };
@@ -41,7 +41,7 @@ public class PushedRobotDriveDirectionTests
         var pushed = new PlayerState
         {
             ID = PushedId,
-            Active = true,
+            PlayerStatus = tPlayerStatus.ReadyToRun,
             Priority = 2,
             CurrentPos = new RobotLocation(Direction.Left, 1, 2),
         };
@@ -83,7 +83,7 @@ public class PushedRobotDriveDirectionTests
         var pusher = new PlayerState
         {
             ID = PusherId,
-            Active = true,
+            PlayerStatus = tPlayerStatus.ReadyToRun,
             Priority = 1,
             CurrentPos = new RobotLocation(Direction.Right, 2, 2),
         };
@@ -96,7 +96,7 @@ public class PushedRobotDriveDirectionTests
         var pushed = new PlayerState
         {
             ID = PushedId,
-            Active = true,
+            PlayerStatus = tPlayerStatus.ReadyToRun,
             Priority = 2,
             CurrentPos = new RobotLocation(Direction.Up, 1, 2),
         };
