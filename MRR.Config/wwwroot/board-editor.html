@@ -382,18 +382,28 @@ function toggleSection(id) {
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────
-const SA = { Move:12, Rotate:13, Damage:14, Archive:15, Flag:16, Option:17, BlockDirection:18, PlayerStart:19, FireCannon:60 };
+const SA = { Move:12, Rotate:13, Damage:14, Archive:15, Flag:16, Option:17, BlockDirection:18, PlayerStart:19, Respawn:25, FireCannon:60 };
 const DIR = { None:0, Up:1, Right:2, Down:3, Left:4 };
 const DIR_NAMES = ['None','Up','Right','Down','Left'];
-const SA_NAMES = {12:'Move', 13:'Rotate', 14:'Damage', 15:'Archive', 16:'Flag', 17:'Option', 18:'BlockDirection', 19:'PlayerStart', 60:'FireCannon'};
+const SA_NAMES = {12:'Move', 13:'Rotate', 14:'Damage', 15:'Archive', 16:'Flag', 17:'Option', 18:'BlockDirection', 19:'PlayerStart', 25:'Respawn', 60:'FireCannon'};
 const SA_SORTED = Object.entries(SA_NAMES).sort((a,b) => parseInt(a[0])-parseInt(b[0]));
 
-// Flag (100) and StartSquare (110) ship one PNG per number rather than one per type.
+// Respawn squares (SquareType 120) are lettered A, B, C, ... (SquareAction.Respawn's
+// Parameter 1, 2, 3, ...) rather than numbered, matching how the board-authoring side prints
+// them -- see BoardElement.cs's SquareType.RebootToken remarks.
+function respawnLetter(parameter) { return String.fromCharCode(64 + (parameter || 1)); }
+
+// Flag (100) and StartSquare (110) ship one PNG per number, Respawn (120) one PNG per letter,
+// rather than one per type.
 function imageSrcForType(typeId, actions) {
     if (typeId === 100 || typeId === 110) {
         const sa = typeId === 100 ? SA.Flag : SA.PlayerStart;
         const act = (actions || []).find(a => a.squareAction === sa);
         return `images/element${typeId}-${act ? act.parameter : 1}_top.png`;
+    }
+    if (typeId === 120) {
+        const act = (actions || []).find(a => a.squareAction === SA.Respawn);
+        return `images/element120-${respawnLetter(act ? act.parameter : 1)}_top.png`;
     }
     return `images/element${typeId}_top.png`;
 }
@@ -643,6 +653,12 @@ function fillCell(div, x, y) {
             lbl.textContent = 'S' + act.parameter;
             lbl.style.transform = `rotate(${deg}deg)`;
             div.appendChild(lbl);
+        } else if (act.squareAction === SA.Respawn) {
+            const lbl = document.createElement('div');
+            lbl.className = 'cell-icon';
+            lbl.textContent = 'R' + respawnLetter(act.parameter);
+            lbl.style.transform = `rotate(${deg}deg)`;
+            div.appendChild(lbl);
         }
     }
 }
@@ -751,6 +767,7 @@ function placeSquare(x, y) {
         const copy = { ...a };
         if (a.squareAction === SA.Flag) copy.parameter = getNextFlagNumber();
         if (a.squareAction === SA.PlayerStart) copy.parameter = getNextStartNumber();
+        if (a.squareAction === SA.Respawn) copy.parameter = getNextRespawnNumber();
         return copy;
     });
 
@@ -790,6 +807,17 @@ function getNextStartNumber() {
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
         for (const a of grid[y][x].actions) {
             if (a.squareAction === SA.PlayerStart && a.parameter > max) max = a.parameter;
+        }
+    }
+    return max + 1;
+}
+
+function getNextRespawnNumber() {
+    let max = 0;
+    const h = grid.length, w = h > 0 ? grid[0].length : 0;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        for (const a of grid[y][x].actions) {
+            if (a.squareAction === SA.Respawn && a.parameter > max) max = a.parameter;
         }
     }
     return max + 1;

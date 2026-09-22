@@ -127,13 +127,15 @@ namespace MRR.Services
                     p_NewStatus = 5;
                     break;
 
-                case SquareAction.Damage: // Set Damage
-                    ExecuteSQL($"Update Robots set Damage = {cParameter} " +
-                        $" where RobotID = {cRobotID}");
+                case SquareAction.Damage: // Board-action marker only (mine/laser damage feeding
+                    // CreateCommands.AddDamage() during planning) -- never actually queued as a
+                    // dispatched command, so this never fires. Robots.Damage column removed;
+                    // log and skip rather than delete the case, same as DeathPoints below.
+                    Console.WriteLine($"ProcessDbCommand: Damage is not supported — skipped.");
                     break;
 
                 case SquareAction.Archive: // Set Archive position
-                    ExecuteSQL($"Update Robots set Damage = {cParameter}, " +
+                    ExecuteSQL($"Update Robots set " +
                         $" ArchivePosRow = {cRow}, " +
                         $" ArchivePosCol = {cCol}, " +
                         $" ArchivePosDir = {cDir} " +
@@ -162,9 +164,11 @@ namespace MRR.Services
                     break;
                 }
 
-                case SquareAction.LostLife: // Set Lives
-                    ExecuteSQL($"UPDATE Robots SET Lives = {cParameter} " +
-                        $" WHERE RobotID = {cRobotID}");
+                case SquareAction.LostLife: // Robots.Lives column removed (not tracked under
+                    // Renegade rules) -- never actually queued as a dispatched command anywhere
+                    // in CreateCommands.cs, so this never fires. Log and skip, same as
+                    // DeathPoints below.
+                    Console.WriteLine($"ProcessDbCommand: LostLife is not supported — skipped.");
                     break;
 
                 case SquareAction.DealCard: // Deal card to player (assign card owner)

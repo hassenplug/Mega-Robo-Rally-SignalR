@@ -118,6 +118,7 @@ namespace MRR
             Priority = p_Player.Priority;
             Energy = p_Player.Energy;
             PlayerSeat = p_Player.PlayerSeat;
+            RespawnID = p_Player.RespawnID;
         }
 
 
@@ -187,6 +188,11 @@ namespace MRR
         public int Priority { get; set; }
         public int Energy { get; set; }
         public int PlayerSeat { get; set; }
+
+        // Which Respawn square (SquareAction.Respawn's Parameter -- 1=A, 2=B, 3=C, ...) this
+        // robot last respawned at, set by DataService.RespawnRobotAtRebootToken. 0 when it
+        // fell back to ArchivePos (no Respawn square on the board) or has never died.
+        public int RespawnID { get; set; }
 
         public int? MessageCommandID { get; set; }
         public int Score { get; set; }

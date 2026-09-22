@@ -156,7 +156,7 @@ namespace MRR.Services
                    r.CurrentFlag, r.ShutDown, r.`Status` AS StatusID,
                    r.CurrentPosCol AS X, r.CurrentPosRow AS Y, r.CurrentPosDir AS Dir,
                    r.ArchivePosCol AS AX, r.ArchivePosRow AS AY,
-                   r.Priority, r.Energy, r.Score, r.PositionValid
+                   r.Priority, r.Energy, r.Score, r.PositionValid, r.RespawnID
             FROM Robots r
             JOIN RobotBodies rb ON r.RobotBodyID = rb.RobotBodyID
             JOIN SeatOrientation so ON r.PlayerSeat = so.SeatID
@@ -190,6 +190,7 @@ namespace MRR.Services
                     Energy              = (int)row["Energy"],
                     Score               = (int)row["Score"],
                     PositionValid       = (int)row["PositionValid"] != 0,
+                    RespawnID           = (int)row["RespawnID"],
                     AllGameCards        = GameCards,
                 });
             }
@@ -541,117 +542,26 @@ namespace MRR.Services
 
         // =====================================================================
         // procResetPlayers — C# equivalent
-        // Called at the start of each turn. Advances ShutDown state machine,
-        // applies Circuit Breaker, resets Status, handles death/respawn.
+        // Called at the start of each turn. Respawns every dead robot (Status=11) at its
+        // nearest Respawn square and resets per-turn option state. Renegade rules don't track
+        // ShutDown/Circuit Breaker/Lives (see install/todo.md, ALLPLAYERS_REMOVAL_DESIGN.md
+        // §11) -- the original SQL's steps for those are gone rather than kept as dead code.
         // =====================================================================
         public void ResetPlayers()
         {
-            // Read LaserDamage (respawn damage = LaserDamage * 2)
-            int laserDamage  = GetIntFromDB("SELECT iValue FROM CurrentGameData WHERE sKey='LaserDamage'");
-            //int useDamage    = laserDamage * 2;
-
             using var connection = new MySqlConnection(_connectionString);
             connection.Open();
 
-/*
-            // 1. Advance ShutDown state machine for all robots with ShutDown > 0
-            //    (join RobotShutDown to get NextState)
-            using (var cmd = new MySqlCommand(
-                "UPDATE Robots " +
-                "INNER JOIN RobotShutDown ON Robots.`ShutDown` = RobotShutDown.ShutDownID " +
-                "SET `ShutDown` = NextState " +
-                "WHERE Robots.`ShutDown` > 0",
-                connection))
+            // Respawn: every dead robot moves to the nearest Respawn square (SquareAction.
+            // Respawn), recording which one via RespawnID -- RespawnRobotAtRebootToken falls
+            // back to ArchivePos if the board has none. This is the only place a robot still
+            // gets moved off its death square (see that method's remarks).
+            foreach (int robotID in GetIntList("SELECT RobotID FROM Robots WHERE Status = 11"))
             {
-                cmd.ExecuteNonQuery();
-            }
-*/
-/*
-            // 2. Circuit Breaker (OptionID=9): auto-shutdown at Damage >= 3
-            using (var cmd = new MySqlCommand(
-                "UPDATE Robots " +
-                "INNER JOIN RobotOptions ON Robots.RobotID = RobotOptions.RobotID AND RobotOptions.OptionID = 9 " +
-                "SET ShutDown = 4 " +
-                "WHERE Damage >= 3",
-                connection))
-            {
-                cmd.ExecuteNonQuery();
-            } */
-
-/*
-            // 3. Set Status=2 (Ready to Program) for non-shutdown robots
-            //    Robots_BEFORE_UPDATE trigger logic: ShutDown=4 → Damage=0, ShutDown=2; ShutDown=2 → Status=9
-            //    We apply the ShutDown=4 transition inline here.
-            using (var cmd = new MySqlCommand(
-                "UPDATE Robots SET Status = 2 WHERE ShutDown = 0",
-                connection))
-            {
-                cmd.ExecuteNonQuery();
-            } */
-
-/*
-            // Apply trigger logic for ShutDown state transitions before writing
-            // ShutDown=4 → Damage=0, ShutDown=2; ShutDown=2 → Status=9
-            // We do this inline since triggers are being removed.
-            using (var cmd = new MySqlCommand(
-                "UPDATE Robots SET Damage = 0, ShutDown = 2 WHERE ShutDown = 4",
-                connection))
-            {
-                cmd.ExecuteNonQuery();
-            }
-            using (var cmd = new MySqlCommand(
-                "UPDATE Robots SET `Status` = 9 WHERE ShutDown = 2",
-                connection))
-            {
-                cmd.ExecuteNonQuery();
+                RespawnRobotAtRebootToken(robotID);
             }
 
-            // 4. Mark robots with Damage > 9 or already Dead as Dead (Status=11)
-            using (var cmd = new MySqlCommand(
-                "UPDATE Robots SET Damage = 10, ShutDown = 0, Lives = Lives - 1, Status = 11 " +
-                "WHERE Damage > 9 OR Status = 11",
-                connection))
-            {
-                cmd.ExecuteNonQuery();
-            } */
-/*
-            // Discard played cards for dead/shutdown robots
-            using (var cmd = new MySqlCommand(
-                "UPDATE MoveCards " +
-                "INNER JOIN Robots ON MoveCards.Owner = Robots.RobotID " +
-                "SET PhasePlayed = 0, Owner = -1 " +
-                "WHERE PhasePlayed > 5 AND (Robots.Status = 11 OR Robots.ShutDown > 0)",
-                connection))
-            {
-                cmd.ExecuteNonQuery();
-            } */
-/*
-            // 5. Superior Archive Copy (OptionID=49): dead robots with lives > 0 respawn undamaged
-            using (var cmd = new MySqlCommand(
-                "UPDATE Robots " +
-                "INNER JOIN RobotOptions ON Robots.RobotID = RobotOptions.RobotID AND RobotOptions.OptionID = 49 " +
-                "SET Damage = 0, ShutDown = 0, " +
-                "    CurrentPosRow = ArchivePosRow, CurrentPosCol = ArchivePosCol, CurrentPosDir = ArchivePosDir, " +
-                "    Status = 1, PositionValid = 0 " +
-                "WHERE Status = 11 AND Lives > 0",
-                connection))
-            {
-                cmd.ExecuteNonQuery();
-            } */
-
-            // 6. Standard respawn: dead robots with lives > 0 respawn with laser damage penalty
-            using (var cmd = new MySqlCommand(
-                $"UPDATE Robots " +
-                $"SET ShutDown = 0, " +
-                $"    CurrentPosRow = ArchivePosRow, CurrentPosCol = ArchivePosCol, CurrentPosDir = ArchivePosDir, " +
-                $"    Status = 1, PositionValid = 0 " +
-                $"WHERE Status = 11 ",
-                connection))
-            {
-                cmd.ExecuteNonQuery();
-            }
-
-            // 7. Reset RobotOptions.PhasePlayed
+            // Reset RobotOptions.PhasePlayed
             using (var cmd = new MySqlCommand(
                 "UPDATE RobotOptions SET PhasePlayed = 0",
                 connection))
@@ -688,11 +598,11 @@ namespace MRR.Services
                 using (var cmd = new MySqlCommand(
                     $"INSERT INTO HistoryRobots " +
                     $"(GameID, Turn, RobotID, OperatorName, RobotBaseID, RobotBodyID, " +
-                    $" CurrentFlag, Lives, Damage, ShutDown, Computer, Score, Status, " +
+                    $" CurrentFlag, ShutDown, Computer, Score, Status, " +
                     $" CurrentPosRow, CurrentPosCol, CurrentPosDir, " +
                     $" ArchivePosRow, ArchivePosCol, ArchivePosDir, Priority) " +
                     $"SELECT {gameID}, {turn}, RobotID, OperatorName, RobotBaseID, RobotBodyID, " +
-                    $"       CurrentFlag, Lives, Damage, ShutDown, Computer, Score, Status, " +
+                    $"       CurrentFlag, ShutDown, Computer, Score, Status, " +
                     $"       CurrentPosRow, CurrentPosCol, CurrentPosDir, " +
                     $"       ArchivePosRow, ArchivePosCol, ArchivePosDir, Priority " +
                     $"FROM Robots",
@@ -770,11 +680,11 @@ namespace MRR.Services
                 using (var cmd = new MySqlCommand(
                     $"INSERT INTO Robots " +
                     $"(RobotID, OperatorName, RobotBaseID, RobotBodyID, " +
-                    $" CurrentFlag, Lives, Damage, ShutDown, Computer, Score, Status, " +
+                    $" CurrentFlag, ShutDown, Computer, Score, Status, " +
                     $" CurrentPosRow, CurrentPosCol, CurrentPosDir, " +
                     $" ArchivePosRow, ArchivePosCol, ArchivePosDir, Priority, PositionValid) " +
                     $"SELECT RobotID, OperatorName, RobotBaseID, RobotBodyID, " +
-                    $"       CurrentFlag, Lives, Damage, ShutDown, Computer, Score, Status, " +
+                    $"       CurrentFlag, ShutDown, Computer, Score, Status, " +
                     $"       CurrentPosRow, CurrentPosCol, CurrentPosDir, " +
                     $"       ArchivePosRow, ArchivePosCol, ArchivePosDir, Priority, 0 " +
                     $"FROM HistoryRobots WHERE GameID = {gameID} AND Turn = {turn}",
@@ -934,24 +844,26 @@ namespace MRR.Services
         }
 
         // =====================================================================
-        // Reboot mechanic (install/todo.md Section 1): called once the player confirms they've
-        // physically taken a dead robot off the table (DataService.Commands.cs's
-        // ProcessDbCommand, the SquareAction.SetButtonText case, the moment that "Remove
-        // Robot: ..." prompt this method is coupled to is the only SetButtonText prompt in the
-        // codebase today). Moves the robot to the nearest SquareType.RebootToken on the current
-        // board (Manhattan distance from where it died -- Robots.CurrentPosRow/Col already
-        // holds the pit square, since the Move command that landed it there already executed
-        // and wrote the DB before this later command in the same phase's sequence runs), or
-        // falls back to ArchivePos if the board has none -- the closest existing concept in this
-        // schema to "the robot's original start square" (StartGame()/InsertPlaceholderRobot()
-        // seeds both CurrentPos and ArchivePos to the same starting square, and nothing but an
-        // explicit SquareAction.Archive board trigger -- e.g. touching a flag -- moves ArchivePos
-        // after that).
+        // Reboot mechanic (install/todo.md Section 1): called from ResetPlayers() for every
+        // dead (Status=11) robot at the start of the next turn -- the earlier "respawn the
+        // instant 'Remove Robot' is confirmed" call (DataService.Commands.cs's
+        // ProcessDbCommand, the SquareAction.SetButtonText case) is disabled, so this is the
+        // only place a robot is actually moved off its death square now. Moves the robot to the
+        // nearest square carrying a SquareAction.Respawn action (Manhattan distance from where
+        // it died -- Robots.CurrentPosRow/Col already holds the death square) and records which
+        // one via RespawnID (that action's Parameter -- 1=A, 2=B, 3=C, ...), or falls back to
+        // ArchivePos (RespawnID left at 0) if the board has no Respawn squares at all --
+        // ArchivePos is the closest existing concept in this schema to "the robot's original
+        // start square" (StartGame()/InsertPlaceholderRobot() seeds both CurrentPos and
+        // ArchivePos to the same starting square, and nothing but an explicit
+        // SquareAction.Archive board trigger -- e.g. touching a flag -- moves ArchivePos after
+        // that).
         //
-        // Sets PositionValid = 0, same as a fresh respawn (ResetPlayers()) or the GM's "Reload
-        // Position" action, so the phone UI's existing direction picker shows up for this robot
-        // next turn with no further wiring -- GameController.NextState()'s state 4->5 gate
-        // (AllRobotDirectionsChosen) already blocks the turn from starting until it's set.
+        // Sets PositionValid = 0, same as the GM's "Reload Position" action, so the phone UI's
+        // existing direction picker shows up for this robot next turn with no further wiring --
+        // GameController.NextState()'s state 4->5 gate (AllRobotDirectionsChosen) already
+        // blocks the turn from starting until it's set. The direction itself is picked during
+        // programming, not decided here.
         // =====================================================================
         public void RespawnRobotAtRebootToken(int robotID)
         {
@@ -963,25 +875,27 @@ namespace MRR.Services
             int fromRow = (int)robotRow.Rows[0]["CurrentPosRow"];
             int fromCol = (int)robotRow.Rows[0]["CurrentPosCol"];
 
-            BoardElement? nearestToken = BoardLoadFromDB(BoardID).BoardElements
-                .Where(be => be.Type == SquareType.RebootToken)
+            BoardElement? nearestRespawn = BoardLoadFromDB(BoardID).BoardElements
+                .Where(be => be.ActionList.Any(al => al.SquareAction == SquareAction.Respawn))
                 .OrderBy(be => Math.Abs(be.BoardCol - fromCol) + Math.Abs(be.BoardRow - fromRow))
                 .FirstOrDefault();
 
-            int newRow, newCol, newDir;
-            if (nearestToken != null)
+            int newRow, newCol, newDir, respawnID;
+            if (nearestRespawn != null)
             {
-                newRow = nearestToken.BoardRow;
-                newCol = nearestToken.BoardCol;
+                newRow = nearestRespawn.BoardRow;
+                newCol = nearestRespawn.BoardCol;
                 // The player picks any facing next turn via the direction picker (PositionValid
                 // below), so this is only a starting seed for the arrow, not a real choice.
-                newDir = (int)nearestToken.Rotation;
+                newDir = (int)nearestRespawn.Rotation;
+                respawnID = nearestRespawn.ActionList.First(al => al.SquareAction == SquareAction.Respawn).Parameter;
             }
             else
             {
                 newRow = (int)robotRow.Rows[0]["ArchivePosRow"];
                 newCol = (int)robotRow.Rows[0]["ArchivePosCol"];
                 newDir = (int)robotRow.Rows[0]["ArchivePosDir"];
+                respawnID = 0;
             }
 
             // Status must move off Dead (11) here, not just PositionValid off 0 -- PlayerState.
@@ -994,7 +908,8 @@ namespace MRR.Services
             // normal robot carries between turns, so this just rejoins it at that point.
             ExecuteSQL(
                 $"UPDATE Robots SET CurrentPosRow = {newRow}, CurrentPosCol = {newCol}, " +
-                $"CurrentPosDir = {newDir}, PositionValid = 0, Status = {(int)tPlayerStatus.ReadyToProgram} " +
+                $"CurrentPosDir = {newDir}, PositionValid = 0, ShutDown = 0, RespawnID = {respawnID}, " +
+                $"Status = {(int)tPlayerStatus.ReadyToProgram} " +
                 $"WHERE RobotID = {robotID}");
         }
 

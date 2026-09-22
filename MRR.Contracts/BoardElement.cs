@@ -628,7 +628,7 @@ namespace MRR
         Flag = 100,
         StartSquare = 110,
         // Where a rebooted robot respawns (Section 1 "Reboot mechanic", install/todo.md). A
-        // board can have more than one; SquareAction.RebootToken's Parameter on this square
+        // board can have more than one; SquareAction.Respawn's Parameter on this square
         // says which one (1=A, 2=B, 3=C, ...).
         RebootToken = 120,
         Walls = 200

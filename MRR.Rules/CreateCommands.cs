@@ -1109,6 +1109,22 @@ namespace MRR
                     {
                         // check if player needs placement on board (reboot token)
                         // if the playerstate is 15
+                        if (thisplayer.RespawnID > 0)
+                        {
+                            // check if there is a player on the square
+                            PlayerState? blockingPlayer = workingPlayers.FirstOrDefault(p => p.CurrentPos.X == thisplayer.CurrentPos.X && p.CurrentPos.Y == thisplayer.CurrentPos.Y && p.ID != thisplayer.ID && p.IsRunning);
+                            if (blockingPlayer != null)
+                            {
+                                // push the blocking player off the square
+                                // find the rotation of the respawn square with id thisplayer.RespawnID
+                                
+                                Direction respawndir = g_BoardElements.BoardElements.FirstOrDefault(be => be.ActionList.Count(al => al.SquareAction == SquareAction.Respawn && al.Parameter == thisplayer.RespawnID) > 0)?.Rotation ?? Direction.Up;
+                                CalcMoveDistance(blockingPlayer, 1, respawndir, SquareAction.PushedMove);
+                            }
+                            // place player on board
+                            ListOfCommands.AddCommand("Place: " + thisplayer.Name + " on Respawn " + thisplayer.RespawnID + " facing..." , thisplayer);
+                            thisplayer.RespawnID = 0;
+                        }
 
 
                         MoveCard? newcard = thiscard;   // null once a draw pile runs dry
