@@ -548,11 +548,12 @@ namespace MRR.Services
         {
             // Read LaserDamage (respawn damage = LaserDamage * 2)
             int laserDamage  = GetIntFromDB("SELECT iValue FROM CurrentGameData WHERE sKey='LaserDamage'");
-            int useDamage    = laserDamage * 2;
+            //int useDamage    = laserDamage * 2;
 
             using var connection = new MySqlConnection(_connectionString);
             connection.Open();
 
+/*
             // 1. Advance ShutDown state machine for all robots with ShutDown > 0
             //    (join RobotShutDown to get NextState)
             using (var cmd = new MySqlCommand(
@@ -564,7 +565,8 @@ namespace MRR.Services
             {
                 cmd.ExecuteNonQuery();
             }
-
+*/
+/*
             // 2. Circuit Breaker (OptionID=9): auto-shutdown at Damage >= 3
             using (var cmd = new MySqlCommand(
                 "UPDATE Robots " +
@@ -574,8 +576,9 @@ namespace MRR.Services
                 connection))
             {
                 cmd.ExecuteNonQuery();
-            }
+            } */
 
+/*
             // 3. Set Status=2 (Ready to Program) for non-shutdown robots
             //    Robots_BEFORE_UPDATE trigger logic: ShutDown=4 → Damage=0, ShutDown=2; ShutDown=2 → Status=9
             //    We apply the ShutDown=4 transition inline here.
@@ -584,8 +587,9 @@ namespace MRR.Services
                 connection))
             {
                 cmd.ExecuteNonQuery();
-            }
+            } */
 
+/*
             // Apply trigger logic for ShutDown state transitions before writing
             // ShutDown=4 → Damage=0, ShutDown=2; ShutDown=2 → Status=9
             // We do this inline since triggers are being removed.
@@ -609,8 +613,8 @@ namespace MRR.Services
                 connection))
             {
                 cmd.ExecuteNonQuery();
-            }
-
+            } */
+/*
             // Discard played cards for dead/shutdown robots
             using (var cmd = new MySqlCommand(
                 "UPDATE MoveCards " +
@@ -620,8 +624,8 @@ namespace MRR.Services
                 connection))
             {
                 cmd.ExecuteNonQuery();
-            }
-
+            } */
+/*
             // 5. Superior Archive Copy (OptionID=49): dead robots with lives > 0 respawn undamaged
             using (var cmd = new MySqlCommand(
                 "UPDATE Robots " +
@@ -633,15 +637,15 @@ namespace MRR.Services
                 connection))
             {
                 cmd.ExecuteNonQuery();
-            }
+            } */
 
             // 6. Standard respawn: dead robots with lives > 0 respawn with laser damage penalty
             using (var cmd = new MySqlCommand(
                 $"UPDATE Robots " +
-                $"SET Damage = {useDamage}, ShutDown = 0, " +
+                $"SET ShutDown = 0, " +
                 $"    CurrentPosRow = ArchivePosRow, CurrentPosCol = ArchivePosCol, CurrentPosDir = ArchivePosDir, " +
                 $"    Status = 1, PositionValid = 0 " +
-                $"WHERE Status = 11 AND Lives > 0",
+                $"WHERE Status = 11 ",
                 connection))
             {
                 cmd.ExecuteNonQuery();

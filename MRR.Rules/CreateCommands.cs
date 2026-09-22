@@ -1107,6 +1107,10 @@ namespace MRR
                 {
                     if (thisplayer.IsRunning) // player not dead
                     {
+                        // check if player needs placement on board (reboot token)
+                        // if the playerstate is 15
+
+
                         MoveCard? newcard = thiscard;   // null once a draw pile runs dry
                         if(thiscard.Type==MoveCard.tCardType.Again)
                         {

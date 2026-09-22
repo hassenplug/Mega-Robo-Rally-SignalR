@@ -540,8 +540,7 @@ namespace MRR
         // Parameter distinguishes multiple reboot tokens on the same board (a board can have
         // more than one, printed as letters -- 1=A, 2=B, 3=C, ... -- same numbered-Parameter
         // convention PlayerStart/Flag already use for their own per-square numbering).
-        RebootToken = 25,
-        Respawn = 26,
+        Respawn = 25,
         PhaseStart = 30,
         PhaseStep = 31,
         PhaseEnd = 32,
