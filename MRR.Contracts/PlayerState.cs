@@ -33,6 +33,7 @@ namespace MRR
         [StatusInfo("88FF88", "88FF88", "Done")]        MoveComplete     = 12,
         [StatusInfo("55FF55", "55FF55", "Locked In")]  ProgramLocked    = 13,
         [StatusInfo("FFFF00", "FFFF00", "Laser")]       LaserFired       = 14,
+        [StatusInfo("0000FF", "0000FF", "Respawn")]     Respawn          = 15,
 
         // Robots.ConnectStatusID values -- whether we have a live WebSocket to the robot,
         // distinct from the rest of this enum (Robots.Status), which is the robot's *game*
@@ -163,7 +164,7 @@ namespace MRR
         {
             get
             {
-                return this.PlayerStatus != tPlayerStatus.Dead && this.PlayerStatus != tPlayerStatus.ShutDown;
+                return this.PlayerStatus != tPlayerStatus.Dead && this.PlayerStatus != tPlayerStatus.ShutDown && this.PlayerStatus != tPlayerStatus.Respawn;
             }
         }
 

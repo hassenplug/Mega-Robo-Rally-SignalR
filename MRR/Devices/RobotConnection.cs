@@ -127,6 +127,8 @@ namespace MRR.Devices
         private ClientWebSocket? wsStatus;
         private ClientWebSocket? wsImage;
         private CancellationTokenSource? _statusCts;
+        private CancellationTokenSource? _flashCts;
+        private Task? _flashTask;
         // Guards concurrent access to wsStatus from both ListenStatusAsync and GetStatusAsync
         private readonly SemaphoreSlim _statusSocketSemaphore = new SemaphoreSlim(1, 1);
         // Guards DisposeAsync itself: RobotConnections.Refresh()/Reconnect()/ReconnectAll() and
@@ -337,6 +339,9 @@ namespace MRR.Devices
                 _disposeLock.Release();
             }
 
+            _flashCts?.Cancel();
+            _flashCts = null;
+
             _statusCts?.Cancel();
             _statusCts?.Dispose();
             _statusCts = null;
@@ -495,6 +500,59 @@ namespace MRR.Devices
         {
             var (r, g, b) = on ? ColorHelper.ParseHex(_color) : (0, 0, 0);
             return SetLedAsync("all", r, g, b);
+        }
+
+        // Ring order per .claude/agents/aim-robot-api.md's LED angle table (315°, 265°, 210°,
+        // 155°, 100°, 45°) -- light1 through light6 going around the robot one direction.
+        private static readonly string[] RingLeds = { "light1", "light2", "light3", "light4", "light5", "light6" };
+        private const int FlashStepDelayMs = 150;
+
+        /// <summary>
+        /// Setting this true starts a background loop that cycles the six ring LEDs (light1..
+        /// light6) on (robot color) then off, one at a time, repeating until set back to false
+        /// -- a no-op if already running/stopped. The setter itself never blocks: false just
+        /// cancels the loop, which stops after finishing whichever LED it's on.
+        /// </summary>
+        public bool Flash
+        {
+            get => _flashCts != null;
+            set
+            {
+                if (value)
+                {
+                    if (_flashCts != null) return; // already running
+                    _flashCts = new CancellationTokenSource();
+                    _flashTask = RunFlashLoopAsync(_flashCts.Token);
+                }
+                else
+                {
+                    _flashCts?.Cancel();
+                    _flashCts = null;
+                }
+            }
+        }
+
+        private async Task RunFlashLoopAsync(CancellationToken cancellationToken)
+        {
+            try
+            {
+                var (r, g, b) = ColorHelper.ParseHex(_color);
+                while (!cancellationToken.IsCancellationRequested)
+                {
+                    foreach (var led in RingLeds)
+                    {
+                        await SetLedAsync(led, r, g, b);
+                        await Task.Delay(FlashStepDelayMs, cancellationToken);
+
+                        await SetLedAsync(led, 0, 0, 0);
+                        await Task.Delay(FlashStepDelayMs, cancellationToken);
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected when Flash is set back to false mid-delay.
+            }
         }
 
         public Task<GridLineAnalysis> AlignAsync(int maxIterations = 10) =>
