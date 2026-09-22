@@ -151,3 +151,10 @@ turn's simulation and never needed last turn's value — resetting `Damage`/`Liv
 start of each turn's planning input is the **correct** behavior here, not a gap to patch.
 `GetPlayerStatesFromDB()` (§9 step 1) therefore reproduces today's field list exactly, and
 that reproduction is the right answer on its own merits, not a risk accepted for expedience.
+
+**Superseded 2026-09-20:** given the above, `Robots.Damage`/`Robots.Lives` and
+`PlayerState.Damage`/`PlayerState.Lives` were removed outright rather than kept as a
+resettable-but-unused field pair. Death is now a direct `PlayerStatus`/`tPlayerStatus.Dead`
+write (`CreateCommands.KillRobot()`, called from a pit landing; ordinary damage still only
+ever deals a Spam card, never kills). See `install/todo.md` Section 1's reboot/respawn entry
+for the current design.

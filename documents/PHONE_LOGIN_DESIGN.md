@@ -1,6 +1,15 @@
 # Phone Login + Connection Tracking
 
-**Status:** Design — not yet implemented.
+**Status:** Not implemented as designed below. A simpler login shipped instead, 2026-09-17
+through 2026-09-20 (`js/loadrobots.js`, `GameController.cs`, `DataService.Players.cs`,
+`Program.cs`'s `/api/setup/select`): a plain client-side seat-number cookie (`mrr_seat`) plus
+a fixed GM code (`GM_CODE` in `loadrobots.js`), checked against a new state machine state,
+`GameState==1` ("waiting for every seat to be claimed" — see `CLAUDE.md`'s state table),
+rather than the token/password/registry design below. No `Robots.Password`/PIN check, no
+`PhoneSessionRegistry`, no `/api/player/login`/`whoami`/`logout`, no `PhoneConnected` broadcast
+field — none of §3.2–3.6 below were built. Kept for its analysis of the original problem and
+in case connection tracking / PIN verification is picked up later; do not treat §3–§5 as
+current design.
 **Date:** 2026-09-11
 **Related:** `install/todo.md` Section 8 ("Players will have to log in and the browser
 will hold a cookie of the player login"), `documents/API_DECOMPOSITION_DESIGN.md` §7

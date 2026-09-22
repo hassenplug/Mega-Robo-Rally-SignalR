@@ -43,9 +43,9 @@ wwwroot/             Static web assets for phone UI
 | [install/PROCESS_MANAGER.md](install/PROCESS_MANAGER.md) | systemd supervision, `mrrctl`, deploy/rollback. Implementation in [install/service/](install/service/) |
 | [DB_SYNC_ISSUES.md](documents/DB_SYNC_ISSUES.md) | Open: DB deletes that don't clear the matching in-memory collections |
 | ~~[ALLPLAYERS_REFACTOR_PLAN.md](documents/ALLPLAYERS_REFACTOR_PLAN.md)~~ | **Superseded** by ALLPLAYERS_REMOVAL_DESIGN.md — decided 2026-08-27 to remove the in-memory mirror rather than keep it synced. Kept for its inventory of the sync problems |
-| [ALLPLAYERS_REMOVAL_DESIGN.md](documents/ALLPLAYERS_REMOVAL_DESIGN.md) | **Implemented** 2026-08-27 — all of §9's rollout steps done and build-verified. The §11 `Damage`/`Lives` question was resolved as correct behavior, not a bug (see [install/todo.md](install/todo.md) Section 1). §10's manual verification checklist is still open — see todo.md Section 8 |
+| [ALLPLAYERS_REMOVAL_DESIGN.md](documents/ALLPLAYERS_REMOVAL_DESIGN.md) | **Implemented** 2026-08-27 — all of §9's rollout steps done and build-verified. §11's "resolved, not a bug" framing is now moot: `Damage`/`Lives` were removed outright from `Robots`/`PlayerState` 2026-09-20 (see [install/todo.md](install/todo.md) Section 1), not just excluded from turn-planning reload. §10's manual verification checklist is still open — see todo.md Section 8 |
 | [RobotConnections.md](documents/RobotConnections.md) | **Implemented** — confirms `RobotConnections` is the only place a robot socket is opened, and traces programming/simulation/processing mode each to the right (connected or connection-free) player list |
-| [PHONE_LOGIN_DESIGN.md](documents/PHONE_LOGIN_DESIGN.md) | **Design — not yet implemented.** Phone login (PIN from `Robots.Password`) + a cookie-backed session so the server can track which phone is connected to which robot. Track-only, not enforced on the existing `/api/player/...` endpoints; per-seat broadcast filtering explicitly deferred |
+| [PHONE_LOGIN_DESIGN.md](documents/PHONE_LOGIN_DESIGN.md) | **Not implemented as designed.** A simpler login shipped instead 2026-09-17/20: a plain client-side seat-number cookie (`mrr_seat`, `js/loadrobots.js`) plus a fixed GM code, checked against `GameState==1` (the new pre-game seat-claim screen, `GameController.NextState()`) and `DataService.SelectSeat`/`SetupPlayersFromOperatorData`. No PIN/password check against `Robots.Password`, no server-side `PhoneSessionRegistry`, no `whoami`/`login`/`logout` endpoints, no `PhoneConnected` broadcast field — this doc's design was not built |
 
 ## Key Architecture Patterns
 - **State machine** in `GameController.NextState()` (states 0–16) — do not bypass it
@@ -65,6 +65,7 @@ wwwroot/             Static web assets for phone UI
 | State | Meaning |
 |---|---|
 | 0 | StartGame (init) |
+| 1 | Waiting for every seat to be claimed — pre-game player/robot setup screen (`DataService.SelectSeat`/`SetupPlayersFromOperatorData`) |
 | 2 | Reset / shuffle / deal cards |
 | 3 | Verify positions |
 | 4 | Wait for player programming |
@@ -115,3 +116,4 @@ See [install/todo.md](install/todo.md) for the active task list.
 | `aim-navigation` | [.claude/agents/aim-navigation.md](.claude/agents/aim-navigation.md) | Improving physical robot navigation accuracy. Knows the full IMU sensor pipeline (heading, gyro_rate, odometry via robot_x/robot_y), extending RobotStatus, IMU-guided turn correction (turn_to), odometry-based move verification (set_pose), and integrating camera grid alignment (GridAlignmentAgent) for post-move correction. |
 | `mrr-database` | [.claude/agents/mrr-database.md](.claude/agents/mrr-database.md) | Maintains `install/MRRDatabase.sql` as the single source of truth for the rally schema — 37 tables and seed data. Use when adding/modifying DB schema, writing new queries, or updating the install script. Its procedure/function/trigger/view reference sections are **historical only**; none of those objects exist in the database. |
 | ~~`move-to-memory`~~ | [.claude/agents/move-to-memory.md](.claude/agents/move-to-memory.md) | **Retired — direction reversed.** The project moved to reading `Robots` fresh from the DB per broadcast instead of caching it in memory; see [ALLPLAYERS_REMOVAL_DESIGN.md](documents/ALLPLAYERS_REMOVAL_DESIGN.md). Kept only as a historical record. |
+| `phone-kiosk-browser` | [.claude/agents/phone-kiosk-browser.md](.claude/agents/phone-kiosk-browser.md) | **Knowledge base only — no code yet, and a genuinely separate (Android/Kotlin) project from the rest of this repo.** Locks a player phone into full-screen MRR player UI via Android Device Owner + Lock Task mode. Documents a verified 2019 reference implementation in full and what has to change (JavaScript/DOM storage must be enabled, target URL, hostname allow-list, toolchain modernization) before it can point at MRR. |

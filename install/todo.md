@@ -1,6 +1,6 @@
 # Mega Robo Rally — Project TODO
 
-**Last updated:** 2026-09-18
+**Last updated:** 2026-09-22
 **Legend:** `[x]` Done &nbsp; `[-]` Partial / In Progress &nbsp; `[ ]` Not started
 
 Resolved items are removed from this file once done rather than kept as a checked-off log —
@@ -27,10 +27,13 @@ the list but rank last because this is a closed system with no public exposure, 
    phases (odd/even), push a robot one square, chain-push if another robot is in the way.
 5. **Board data cleanup** (Section 1). 6 boards have flag-numbering gaps and are unwinnable;
    16 have a stale `Boards.TotalFlags` value.
-6. **Reboot mechanic needs a live-game verification pass** (Section 1). Implemented 2026-09-18
-   (pit death, 2 Spam cards, respawn at nearest reboot token, push-on-entry) but never run
-   against a real table — the push/place-robot dispatch sequencing at reboot entry specifically
-   is the risk (see Section 1's item for exactly what's unverified).
+6. **Reboot/respawn mechanic reworked 2026-09-20/21, still mid-refactor, and `dotnet test
+   MRR.Tests` is currently red because of it** (Section 1). Pit death (2 Spam cards + immediate
+   `PlayerStatus.Dead`) is solid, but the respawn half was redesigned after 09-18 to defer
+   placement to the *start of the next turn*, and `RebootEntryTests.cs`'s two tests still drive
+   the old, now-commented-out trigger path — both fail (confirmed 2026-09-22; 10/12 other tests
+   pass). Also never run live. See Section 1's item for the full list of what's done vs. open
+   (an unfinished placement-prompt string, an unverified push-on-entry path).
 7. **DB password committed in tracked `appsettings.json`** (Section 6) — lower priority: closed
    system, no public exposure, per user 2026-09-16.
 8. **Every phone receives every player's hand** (Section 3) — lower priority, same reasoning;
@@ -49,73 +52,75 @@ literally all open, or just not updated after being done by hand).
   - Player announces shutdown during programming phase
   - Shut-down robot: takes no laser damage, cannot move, may clear damage cards
 
-- [x] Reboot mechanic — triggered when a robot moves onto a `SquareType.Pit` square. Requirements
-  gathered and implemented 2026-09-18. **Not yet run through a live game/physical robot** — see
-  the caveat on steps 5-6 below; this needs the user to verify on the real table before trusting
-  it, same as `install/todo.md`'s own past precedent for anything untestable without hardware.
+- [-] Reboot mechanic — triggered when a robot moves onto a `SquareType.Pit` square. Original
+  design implemented 2026-09-18, then the respawn half was **reworked 2026-09-20/21** (commits
+  "Remove Damage & Lives", "Set up to fix respawn", "Add Respawn code") to defer placement to
+  the start of the *next* turn instead of the instant "Remove Robot" is confirmed. **Never run
+  through a live game/physical robot** — this needs the user to verify on the real table before
+  trusting it, same as `install/todo.md`'s own past precedent for anything untestable without
+  hardware. Below is the current design, not the 09-18 one.
 
   1. **Immediate death, this turn, plus 2 Spam cards.** `CreateCommands.MoveRobot()`
-     (`CreateCommands.cs` ~412-434) now checks the landed square's `Type` for `SquareType.Pit`
-     before its normal Mine/Damage-action checks: if it's a pit, adds two
-     `SquareAction.DealSpamCard` commands directly (an unconditional 2, not `AddDamage()`'s usual
-     "1 unless fatal" rule, which a guaranteed-fatal hit never reaches), then kills the robot via
-     `AddDamage(p_Robot, 10)` — reusing the same fatal-damage path ordinary damage-death already
-     uses (`SetPlayerStatus`→`Dead`, the "Remove Robot" prompt below, death-point bookkeeping)
-     rather than a parallel code path — and returns early so nothing else on that square touches
-     an already-dead robot. `PlayerState.IsRunning` (`Active && ShutDown != Currently`), which the
-     phase-1 card-execution loop already gates on (`CreateCommands.cs` ~1085), goes false the
-     moment `AddDamage()`'s `Damage` setter clamps to the fatal threshold — so a robot killed in
-     phase 1 correctly gets no phase-2+ commands this same turn with no extra code needed.
-     **Test:** `MRR.Tests/PitRebootTests.cs`.
-  2. **Notify the player to physically remove the robot.** Free — this is the same
-     `SquareAction.SetButtonText`/`"Remove Robot: {Name}"` blocking User Input prompt
-     `AddDamage()`'s fatal-damage branch already emits (`CreateCommands.cs:1802`,
-     `CommandCategories.UserInput`), rendered by the existing `messagetable`/`confirmMessage()`
-     UI in `index.html`/`js/loadrobots.js`. No new code needed once step 1 routes pit death
-     through the same `AddDamage()` path.
-  3. **Set `CurrentPos` to the nearest respawn square**, or `ArchivePos` if the board has none.
-     `SquareType.RebootToken = 120` / `SquareAction.RebootToken = 25` added to `BoardElement.cs`
-     (board-authoring-only, mirroring `StartSquare`/`PlayerStart` — never a live `CommandTypeID`),
-     seeded into `install/MRRDatabase.sql`'s `BoardSquares`. Multiple tokens on one board print as
-     letters (A, B, C, ...), stored as `SquareAction.RebootToken`'s `Parameter` 1/2/3/..., same
-     numbered-`Parameter` convention `Flag`/`PlayerStart` already use (nothing in this schema
-     stores a literal letter). `DataService.Players.cs`'s new `RespawnRobotAtRebootToken(robotID)`
-     does the actual placement — nearest by Manhattan distance from where the robot died, falling
-     back to `ArchivePos` (the closest existing concept in this schema to "the robot's original
-     start square": `StartGame()` seeds both `CurrentPos` and `ArchivePos` to the same starting
-     square, and nothing but an explicit `SquareAction.Archive` board trigger, e.g. touching a
-     flag, moves `ArchivePos` after that — my interpretation of "original start square", not
-     literally re-derived from `RobotBases`; flag if that's not what was meant). Also resets
-     `Robots.Status` off `Dead` (to `ReadyToProgram`) — necessary because `PlayerState.Active` is
-     `[NotMapped]` and recomputed fresh every DB reload as `Status != NotActive(10)`
-     (`DataService.Players.cs`'s `GetPlayerStatesFromDB()`), so leaving `Status` at `Dead` (11)
-     would have made the robot misread as `Active` again next turn while still genuinely needing
-     to sit out programming until `PositionValid` clears — this was a real latent gap this work
-     surfaced, not something invented for reboot specifically. Wired into
-     `DataService.Commands.cs`'s `ProcessDbCommand`, `SquareAction.SetButtonText` case: once the
-     "Remove Robot" prompt is confirmed (guarded on `Status == Dead`, since that's the only
-     `SetButtonText` prompt in the codebase today — a future unrelated one would need its own
-     guard), it calls `RespawnRobotAtRebootToken` before clearing the message.
-  4. **Reset `PositionValid` to 0.** Done as part of step 3's DB write — same effect
-     `GameController.StartGame()`/`ResetPlayers()` already produce for a fresh robot, so the
-     *existing* direction picker (`js/loadrobots.js`) shows up automatically next turn, no new UI.
-  5. **First phase of that next turn, push whoever's on the respawn square.** New block at the
-     top of `CreateCommands.CreatePhase()`, phase 1 only: for any robot whose current square is
-     a `RebootToken` (only ever true on the one turn it just rebooted — `RespawnRobotAtRebootToken`
-     is the only thing that places a robot on one), pushes any occupant through the same
-     `CalcMoveDistance(..., SquareAction.PushedMove)` a normal move's push already uses (chain-
-     pushes included), in the direction the player just confirmed. Goes through the real planned-
-     command pipeline rather than a bare position write, specifically so the physical robot stays
-     in sync with the DB.
-  6. **Before that first move sends, prompt to physically place the robot.** Same block as step
-     5 also adds a `SetButtonText` "Place {Name} on the reboot token, facing {Direction}" prompt
-     for the entering robot, sequenced before its own phase-1 move command (same blocking pattern
-     as step 2/"Run Phase N", which every phase already uses to pace itself on the human).
-     **Test:** `MRR.Tests/RebootEntryTests.cs` — covers the two planned-command shapes (push +
-     no-push). **Not covered, and the actual hardware-risk gap:** whether `CommandProcess`'s
-     dispatch genuinely blocks this robot's own move behind the new prompt, and behind the pushed
-     occupant's move, the way it's intended to — that's dispatch/sequencing behavior only a live
-     turn can confirm, not something `CreateCommands`' pure planning tests can see.
+     (`CreateCommands.cs` ~412-427) checks the landed square's `Type` for `SquareType.Pit` before
+     its normal Mine/Damage-action checks: if it's a pit, calls the new `KillRobot()`
+     (`CreateCommands.cs:1768`), which adds two unconditional `SquareAction.DealSpamCard`
+     commands, a `SquareAction.SetPlayerStatus`→`Dead` (11) command, and the "Remove Robot"
+     prompt (step 2), then sets `PlayerState.PlayerStatus = Dead` directly and returns — no
+     `Damage` counter is involved at all. **`Robots.Damage`/`Robots.Lives` and
+     `PlayerState.Damage`/`PlayerState.Lives` were removed outright** (commit "Remove Damage &
+     Lives", 2026-09-20) — Renegade doesn't track either, and death from ordinary damage (lasers,
+     board hazards) never happened in practice (`AddDamage()` always converts it to a dealt Spam
+     card instead); only a pit still kills. `PlayerState.IsRunning` is now a computed property
+     (`PlayerStatus != Dead && PlayerStatus != ShutDown`, no longer `Active`-flag-based), so a
+     robot killed in phase 1 still correctly gets no phase-2+ commands with no extra code needed.
+     See `documents/ALLPLAYERS_REMOVAL_DESIGN.md` §11 for why this was safe to remove rather than
+     just leave unused. **Test:** `MRR.Tests/PitRebootTests.cs`.
+  2. **Notify the player to physically remove the robot.** The `SquareAction.SetButtonText`/
+     `"Remove Robot: {Name}"` blocking User Input prompt `KillRobot()` emits, rendered by the
+     existing `messagetable`/`confirmMessage()` UI in `index.html`/`js/loadrobots.js`. Confirming
+     it now just clears the message (`DataService.Commands.cs`'s `SetButtonText` case) — it no
+     longer triggers respawn; that moved to step 3.
+  3. **Respawn every dead robot at the start of the next turn, not on confirm.** `SquareType.
+     RebootToken = 120` (board-authoring square type, mirroring `StartSquare`/`PlayerStart`) with
+     `SquareAction.Respawn = 25` marking which squares count (renamed from an earlier
+     `SquareAction.RebootToken`/25 + a separate `Respawn`/26 during the rework — only `Respawn`
+     survived). Multiple squares on one board print as letters (A, B, C, ...) via the board
+     editor (`MRR.Config/wwwroot/board-editor.html`), stored as `SquareAction.Respawn`'s
+     `Parameter` 1/2/3/..., same numbered-`Parameter` convention `Flag`/`PlayerStart` use.
+     `DataService.Players.cs`'s `ResetPlayers()` (called at the normal start-of-turn point) now
+     calls `RespawnRobotAtRebootToken(robotID)` for every `Status == Dead` (11) robot — this
+     replaced the old inline SQL for ShutDown-state-machine/Circuit-Breaker/Lives advancement,
+     none of which apply to this rules version (see `ALLPLAYERS_REMOVAL_DESIGN.md` §11) and were
+     deleted rather than left commented out. `RespawnRobotAtRebootToken` finds the nearest
+     `SquareAction.Respawn` square by Manhattan distance from where the robot died, records which
+     one on the new `PlayerState.RespawnID`/`Robots.RespawnID` column, and falls back to
+     `ArchivePos` (`RespawnID = 0`) if the board has none. Also resets `Status` to `ReadyToProgram`
+     and `PositionValid` to 0, same as before, so the existing direction picker
+     (`js/loadrobots.js`) shows up next turn with no new UI.
+  4. **First phase the respawned robot has a card, push whoever's on its respawn square and
+     prompt for physical placement.** New block inside `CreateCommands.CreatePhase()`'s per-card
+     loop (`CreateCommands.cs:1112`, not a phase-1-only block like the original design): for any
+     `IsRunning` player with `RespawnID > 0`, finds a blocking occupant on the same square and
+     pushes it via the normal `CalcMoveDistance(..., SquareAction.PushedMove)` path (chain-pushes
+     included), in the respawn square's own `Rotation`; then adds a `SetButtonText` "Place: {Name}
+     on Respawn {ID} facing..." prompt and clears `RespawnID` back to 0 so this only fires once.
+     **Known gap:** that prompt string is unfinished — it never interpolates the actual facing
+     direction, just trails off with a literal "facing...". The old `SquareType.RebootToken`-
+     driven version of this same block (checked the *square type* under the robot instead of
+     `RespawnID`, and did interpolate the direction) is still sitting in `CreateCommands.cs`
+     lines ~910-929, commented out rather than deleted.
+
+  **Test suite is currently red because of this rework:** `dotnet test MRR.Tests` (confirmed
+  2026-09-22) shows `MRR.Tests/RebootEntryTests.cs`'s two tests **failing** —
+  `RobotEntersOccupiedRebootToken_PushesOccupantAndPromptsForPlacement` and
+  `RobotEntersUnoccupiedRebootToken_PromptsForPlacementWithNoPush`. Both drive the scenario by
+  placing a robot on a `SquareType.RebootToken` square without setting `RespawnID`, which was
+  exactly right for the commented-out block above but never triggers the new `RespawnID > 0`
+  check that replaced it — so they're exercising dead code, not the current path. Nothing in
+  `MRR.Tests` currently exercises the `RespawnID`-based block at all. Needs: either rewrite
+  these two tests to set `RespawnID` instead of relying on square type, or restore square-type
+  detection in the production code if that was the intended trigger — pick one, they've
+  diverged. **10/12 other `MRR.Tests` pass**, so nothing else regressed.
 
 ### Board Element Activation
 
@@ -421,18 +426,20 @@ Home Router (192.168.1.x)
 - [ ] Remote alerting on repeated `mrr-server` restarts — no notification path exists yet
   (`install/PROCESS_MANAGER.md` §11)
 
-- [ ] `Robots.Password`'s source is still undecided (found 2026-09-17 while designing the
-  `GameState=0`/`1` seat-claim flow, "Operator Data Setup"): it's a real, live column (used for
-  phone login), but nothing in the seat-claim save path (`DataService.SelectSeat`) sets it.
-  Needs a decision on whether/how it gets populated now that seats are claimed directly into
-  `Robots` instead of via `OperatorData`.
+- [-] `Robots.Password`'s source — found 2026-09-17 while designing the `GameState==1` seat-
+  claim flow ("Operator Data Setup"). **Partially resolved 2026-09-21:** the new
+  `DataService.SetupPlayersFromOperatorData()` (called from `GameController.StartGame()`) sets
+  `Robots.Password = OperatorData.Password` when a preset roster auto-claims every seat. **Still
+  open:** the interactive per-seat path, `DataService.SelectSeat` (used whenever players claim
+  seats by hand instead of a preset roster), still never sets `Password` — a manually-claimed
+  seat has no PIN. Note this is moot anyway until phone login actually checks a PIN, which it
+  doesn't today — see `documents/PHONE_LOGIN_DESIGN.md`'s status note; the shipped login is a
+  plain seat-number cookie, not password-based.
 
 ---
 
 ## Section 7 — Dead Code Removal
 
-- [ ] `HasOptionCard` (`Players.cs`) — no callers; stub that always returns false. **Do not
-  remove yet (2026-09-17)** — Option cards aren't implemented yet; leave this in place.
 - [ ] `AdminApi.cs:155` computes `players = data.AllPlayers.Count` — cosmetic only, could become
   a `COUNT(*)` now that `AllPlayers` isn't the source of truth elsewhere; no correctness need
 
