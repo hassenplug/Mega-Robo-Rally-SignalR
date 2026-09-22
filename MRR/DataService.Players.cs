@@ -390,7 +390,47 @@ namespace MRR.Services
             update.Parameters.AddWithValue("@robotBodyId", robotBodyId);
             update.Parameters.AddWithValue("@seat", seat);
             update.Parameters.AddWithValue("@startPosition", startPosition);
-            bool claimed = update.ExecuteNonQuery() > 0; 
+            bool claimed = update.ExecuteNonQuery() > 0;
+
+            if (claimed) RefreshRobotDenormalizedFields();
+            return claimed;
+        }
+
+        /// <summary>
+        /// Called from GameController.StartGame() right after the placeholder Robots rows are
+        /// created: if the current game's GameData.PlayerListID (copied into CurrentGameData by
+        /// LoadGameData) matches an OperatorListID with active OperatorData rows, claims every
+        /// matching seat from that preset roster in one pass -- same shape as SelectSeat above,
+        /// just sourced from OperatorData instead of one HTTP call per player. OperatorData.
+        /// StartPosition selects which placeholder row (Robots.RobotID, one per RobotBase --
+        /// see StartGame()/InsertPlaceholderRobot) each operator claims, the same numbering the
+        /// historical procGameNew() used before OperatorData was bypassed (install/todo.md
+        /// "Operator Data Setup"). Returns false (no rows matched) when nothing lines up, so the
+        /// caller's placeholder rows stay unclaimed for the normal per-seat setup screen.
+        /// </summary>
+        public bool SetupPlayersFromOperatorData()
+        {
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+            using var update = new MySqlCommand(
+                @"UPDATE Robots r
+                  JOIN OperatorData od
+                       ON od.StartPosition = r.RobotID
+                      AND od.OperatorListID = (SELECT iValue FROM CurrentGameData WHERE sKey = 'PlayerListID')
+                      AND od.IsActive > 0
+                  JOIN RobotBodies rb ON rb.RobotBodyID = od.RobotBodyID
+                  SET r.RobotBodyID   = od.RobotBodyID,
+                      r.RobotName     = rb.Name,
+                      r.RobotColor    = rb.Color,
+                      r.RobotColorFG  = rb.ColorFG,
+                      r.OperatorName  = od.OperatorName,
+                      r.Password      = od.Password,
+                      r.Priority      = od.PlayerSeat,
+                      r.PlayerSeat    = od.PlayerSeat,
+                      r.PositionValid = 1,
+                      r.Status        = 1",
+                connection);
+            bool claimed = update.ExecuteNonQuery() > 0;
 
             if (claimed) RefreshRobotDenormalizedFields();
             return claimed;

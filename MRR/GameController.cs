@@ -299,6 +299,14 @@ namespace MRR.Controller
                 _dataService.InsertPlaceholderRobot(baseId, ip, thisSquare.BoardRow, thisSquare.BoardCol, (int)thisSquare.Rotation);
             }
 
+            // If the current game's PlayerListID matches an OperatorListID with active
+            // OperatorData rows, claim every seat from that preset roster right away --
+            // GameState==1's "every seat claimed" check (NextState()) then passes on its very
+            // next pass, so the interactive setup screen never shows. No-op (returns false)
+            // when nothing matches, leaving every placeholder row unclaimed for the normal
+            // per-seat setup flow.
+            _dataService.SetupPlayersFromOperatorData();
+
             //_dataService.GameNewAddCards();
             //_dataService.UpdatePlayerPriority(null, 1);
 
