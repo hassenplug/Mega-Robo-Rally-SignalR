@@ -28,11 +28,17 @@ namespace MRR.Services
         /// (CSV of each register's CardTypeID by PhaseCounter slot, 0 = empty), and
         /// Robots.StatusToShow (the folded gameplay status, or the register-by-register played
         /// summary once the robot is active and has played anything -- same rule as the retired
-        /// RefreshRobotDenormalizedFields) from MoveCards. Pass playerId to rebuild a single
-        /// robot (e.g. after UpdateCardPlayed); omit to rebuild every robot at once (e.g. after
-        /// MoveCardsShuffleAndDeal).
+        /// RefreshRobotDenormalizedFields) from MoveCards. Also sets Robots.Status to newStatus,
+        /// and Robots.PlayerStatus/StatusColor to match it (folded through the same "not
+        /// connected reads as Not Active" rule StatusToShow's fallback already used) -- this
+        /// used to be the caller's job (UpdateCardPlayed had its own separate UPDATE right
+        /// after calling this), now consolidated into the one write. Pass playerId to rebuild a
+        /// single robot (e.g. after UpdateCardPlayed, with the 3/4 Programming/ReadyToRun status
+        /// it just computed); omit to rebuild every robot at once (e.g. after
+        /// MoveCardsShuffleAndDeal, where the default -- 2, Ready to Program -- is right for a
+        /// robot that was just dealt a fresh hand and hasn't played into a register yet).
         /// </summary>
-        private void RebuildRobotCardsSummary(MySqlConnection connection, int? playerId = null)
+        private void RebuildRobotCardsSummary(MySqlConnection connection, int? playerId = null, int newStatus = 2)
         {
             string dealtFilter  = playerId.HasValue ? "AND mc.Owner = @player" : "";
             string playedFilter = playerId.HasValue ? "WHERE r2.RobotID = @player" : "";
@@ -40,7 +46,7 @@ namespace MRR.Services
 
             string sql =
                 "UPDATE Robots rb " +
-                $"JOIN RobotStatus rs ON IF(rb.ConnectStatusID = {(int)tPlayerStatus.RobotConnected}, rb.Status, 10) = rs.RobotStatusID " +
+                $"JOIN RobotStatus rs ON  @newStatus = rs.RobotStatusID " +
                 "LEFT JOIN (" +
                 "  SELECT mc.Owner, GROUP_CONCAT(mc.CardTypeID ORDER BY mc.CardTypeID DESC) AS gctl " +
                 $"  FROM MoveCards mc WHERE mc.CardLocation = 1 {dealtFilter} " +
@@ -58,10 +64,14 @@ namespace MRR.Services
                 ") played ON rb.RobotID = played.Owner " +
                 "SET rb.CardsDealt   = dealt.gctl, " +
                 "    rb.CardsPlayed  = played.gctp, " +
-                "    rb.StatusToShow = IF(played.ShowCardsPlayed IS NULL, rs.ShortDescription, played.ShowCardsPlayed) " +
+                "    rb.StatusToShow = IF(played.ShowCardsPlayed IS NULL, rs.ShortDescription, played.ShowCardsPlayed), " +
+                "    rb.Status       = @newStatus, " +
+                "    rb.PlayerStatus = rs.ShortDescription, " +
+                "    rb.StatusColor  = rs.StatusColor " +
                 $"{whereClause}";
 
             using var cmd = new MySqlCommand(sql, connection);
+            cmd.Parameters.AddWithValue("@newStatus", newStatus);
             if (playerId.HasValue)
                 cmd.Parameters.AddWithValue("@player", playerId.Value);
             cmd.ExecuteNonQuery();
@@ -298,18 +308,9 @@ namespace MRR.Services
             // is filled, since PhaseCount can be less than 5 (e.g. damage).
             _robotConnections.Get(p_Player)?.SetLightsAsync(programCount < phaseCount).Wait();
 
-            // 7. Rebuild CardsDealt and CardsPlayed CSV strings (procUpdateRobotCards).
-            RebuildRobotCardsSummary(connection, p_Player);
-
-            // Update robot Status.
-            using (var cmd = new MySqlCommand(
-                "UPDATE Robots SET `Status` = @status WHERE RobotID = @player",
-                connection))
-            {
-                cmd.Parameters.AddWithValue("@status", newStatus);
-                cmd.Parameters.AddWithValue("@player", p_Player);
-                cmd.ExecuteNonQuery();
-            }
+            // 7. Rebuild CardsDealt/CardsPlayed CSV strings and write the new Status (+
+            // PlayerStatus/StatusColor to match) in one pass (procUpdateRobotCards).
+            RebuildRobotCardsSummary(connection, p_Player, newStatus);
 
             // 8. Sync in-memory GameCards to match the DB moves above.
             var returnedCard = GameCards.FirstOrDefault(c => c.Owner == p_Player && c.PhasePlayed == p_PhasePlayed && c.CardLocation == 2);

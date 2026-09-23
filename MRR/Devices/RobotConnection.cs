@@ -553,7 +553,6 @@ namespace MRR.Devices
             {
                 // Expected when Flash is set back to false mid-delay.
             }
-            await SetLedAsync(led, 0, 0, 0);
         }
 
         public Task<GridLineAnalysis> AlignAsync(int maxIterations = 10) =>

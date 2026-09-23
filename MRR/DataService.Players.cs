@@ -601,6 +601,13 @@ namespace MRR.Services
                 RespawnRobotAtRebootToken(robotID);
             }
 
+            // Every robot still standing needs to come back to a programmable status for the
+            // new turn -- last turn's execution can leave it at a terminal status (MoveComplete/
+            // ProgramLocked/...), and nothing else resets that. Runs after the respawn loop
+            // above so a just-revived robot (already set to ReadyToProgram there) is included,
+            // not overwritten with something different.
+            ExecuteSQL($"UPDATE Robots SET Status = {(int)tPlayerStatus.ReadyToProgram}");
+
             // Reset RobotOptions.PhasePlayed
             using (var cmd = new MySqlCommand(
                 "UPDATE RobotOptions SET PhasePlayed = 0",
