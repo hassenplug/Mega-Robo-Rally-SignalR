@@ -893,42 +893,6 @@ namespace MRR
             ListOfCommands.AddCommand((PlayerState?)null, SquareAction.PhaseStart, p_PhaseNumber);
             //ListOfCommands.AddCommand(10,7); // set game state to waiting for input
 
-            // Reboot mechanic (install/todo.md Section 1), phase 1 only: a robot whose current
-            // square is a RebootToken just came back from a reboot -- DataService.Players.cs's
-            // RespawnRobotAtRebootToken() is the only place a robot's position ever gets set to
-            // one, and it always leaves PositionValid=0, so the direction picker forces this to
-            // run at most once per reboot (the robot moves off the token during this very
-            // phase). Resolve any collision by pushing whoever else is still standing there
-            // through the same CalcMoveDistance/PushedMove path a normal move's push already
-            // uses -- that goes through the real command pipeline (chain-pushes included) and
-            // keeps the physical robot in sync, unlike a bare position write. Then block for the
-            // human to physically place the real robot on the token before its own first move
-            // this turn sends.
-            //
-            // UNVERIFIED AGAINST A LIVE GAME/PHYSICAL ROBOT -- see install/todo.md Section 1.
-            /*
-            if (p_PhaseNumber == 1)
-            {
-                foreach (PlayerState enteringPlayer in workingPlayers.Where(wp => wp.IsRunning &&
-                    g_BoardElements.GetSquare(wp.CurrentPos.X, wp.CurrentPos.Y)?.Type == SquareType.RebootToken).ToList())
-                {
-                    PlayerState? occupant = workingPlayers.FirstOrDefault(wp =>
-                        wp.ID != enteringPlayer.ID && wp.IsRunning &&
-                        wp.CurrentPos.X == enteringPlayer.CurrentPos.X && wp.CurrentPos.Y == enteringPlayer.CurrentPos.Y);
-                    if (occupant != null)
-                    {
-                        CalcMoveDistance(occupant, 1, enteringPlayer.CurrentPos.Direction, SquareAction.PushedMove);
-                    }
-
-                    ListOfCommands.AddCommand(
-                        "Place " + enteringPlayer.Name + " on the reboot token, facing " +
-                        enteringPlayer.CurrentPos.Direction,
-                        enteringPlayer); // set button text & wait for click
-                }
-            }
-            */
-
-
 //            ListOfCommands.SetPhase(p_PhaseNumber);
             // calculate sequence of all moves, including board effects
 
@@ -1110,16 +1074,19 @@ namespace MRR
                     {
                         // check if there is a player on the square
                         PlayerState? blockingPlayer = workingPlayers.FirstOrDefault(p => p.CurrentPos.X == thisplayer.CurrentPos.X && p.CurrentPos.Y == thisplayer.CurrentPos.Y && p.ID != thisplayer.ID && p.IsRunning);
+
+                        // find the rotation of the respawn square with id thisplayer.RespawnID --
+                        // needed for the placement message below regardless of whether anyone
+                        // needs pushing off it first
+                        Direction respawndir = g_BoardElements.BoardElements.FirstOrDefault(be => be.ActionList.Count(al => al.SquareAction == SquareAction.Respawn && al.Parameter == thisplayer.RespawnID) > 0)?.Rotation ?? Direction.Up;
+
                         if (blockingPlayer != null)
                         {
                             // push the blocking player off the square
-                            // find the rotation of the respawn square with id thisplayer.RespawnID
-                            
-                            Direction respawndir = g_BoardElements.BoardElements.FirstOrDefault(be => be.ActionList.Count(al => al.SquareAction == SquareAction.Respawn && al.Parameter == thisplayer.RespawnID) > 0)?.Rotation ?? Direction.Up;
                             CalcMoveDistance(blockingPlayer, 1, respawndir, SquareAction.PushedMove);
                         }
                         // place player on board
-                        ShowMessageToPlayer("Place: " + thisplayer.Name + " on Respawn " + thisplayer.RespawnID + " facing..." , thisplayer);
+                        ShowMessageToPlayer("Place: " + thisplayer.Name + " on " + thisplayer.RespawnID + " facing " + thisplayer.CurrentPos.Direction.ToString(), thisplayer);
                         thisplayer.RespawnID = 0;
                     }
 

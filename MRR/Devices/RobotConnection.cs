@@ -539,13 +539,22 @@ namespace MRR.Devices
                 var (r, g, b) = ColorHelper.ParseHex(_color);
                 while (!cancellationToken.IsCancellationRequested)
                 {
+                    // show text on the robot's LCD while flashing, so the players know why the robot is flashing
+                    //await PrintAsync("Flashing");
                     foreach (var led in RingLeds)
                     {
                         await SetLedAsync(led, r, g, b);
                         await Task.Delay(FlashStepDelayMs, cancellationToken);
 
+                        if (led == RingLeds.Last())
+                        {
+                            // clear the text after the last LED goes dark, so the players know the flashing is done
+                            await ClearScreenAsync();
+                        }
+
                         await SetLedAsync(led, 0, 0, 0);
-                        await Task.Delay(FlashStepDelayMs, cancellationToken);
+                        // do not delay when turning off, so the next LED lights up immediately after the previous one goes dark
+                        // await Task.Delay(FlashStepDelayMs, cancellationToken);
                     }
                 }
             }

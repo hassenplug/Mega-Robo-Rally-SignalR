@@ -97,10 +97,10 @@ namespace MRR
             switch (Direction)
             {
                 case Direction.None: dir = "?"; break;
-                case Direction.Up: dir = "^"; break;
-                case Direction.Right: dir = ">"; break;
-                case Direction.Down: dir = "V"; break;
-                case Direction.Left: dir = "<"; break;
+                case Direction.Up: dir = "↑"; break;
+                case Direction.Right: dir = "→"; break;
+                case Direction.Down: dir = "↓"; break;
+                case Direction.Left: dir = "←"; break;
             }
 
             return dir + Location; 

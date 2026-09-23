@@ -2,36 +2,51 @@ namespace MRR.Tests;
 
 /// <summary>
 /// Spec test for the reboot-entry step of the Reboot mechanic (install/todo.md Section 1,
-/// steps 5-6): the phase-1 pre-processing CreateCommands.CreatePhase() runs for any robot
-/// whose current square is a RebootToken -- DataService.Players.cs's
-/// RespawnRobotAtRebootToken() is the only code that ever places a robot on one, always with
-/// PositionValid=0, so a robot only ever starts a phase 1 sitting there on the one turn it
-/// just rebooted.
+/// step 4): the per-card loop in CreateCommands.CreatePhase() (CreateCommands.cs ~1107-1124)
+/// checks any player with a played card this phase for `RespawnID > 0` -- the marker
+/// DataService.Players.cs's RespawnRobotAtRebootToken() sets (and PlayerState.IsRunning
+/// requires `RespawnID == 0`, so a robot with one pending never gets programmed normally
+/// until this runs and clears it).
 ///
-/// UNVERIFIED AGAINST A LIVE GAME/PHYSICAL ROBOT (see install/todo.md Section 1) -- this only
-/// confirms CreateCommands' planned commands are correct, not that the physical dispatch
-/// sequencing (the "Place robot" prompt blocking before the entering robot's first move sends)
-/// behaves correctly against real hardware.
+/// Rewritten 2026-09-23: the original version of this test (added 2026-09-18) drove the
+/// scenario by placing a robot on a SquareType.RebootToken square with no RespawnID set --
+/// that was exactly right for the phase-1-only block CreateCommands.cs had at the time, but a
+/// 2026-09-20/21 rework replaced that block with the RespawnID-gated one this file now tests,
+/// and left the old block commented out (since deleted) rather than updating this test to
+/// match, so both cases here were failing against dead code. The reboot mechanic itself has
+/// been confirmed working on the live table since (install/todo.md Section 1) -- this was a
+/// stale test, not a real regression.
 /// </summary>
 public class RebootEntryTests
 {
     private const int EnteringId = 1;
     private const int OccupantId = 2;
+    private const int RespawnTokenId = 1; // matches SquareAction.Respawn's Parameter below
 
     [Fact]
-    public void RobotEntersOccupiedRebootToken_PushesOccupantAndPromptsForPlacement()
+    public void RobotWithPendingRespawn_PushesOccupantAndPromptsForPlacement()
     {
-        // A RebootToken at (2,2). The entering robot is already sitting there (as
-        // RespawnRobotAtRebootToken would have left it, facing Right), and another robot is
-        // still occupying the same square -- the collision this step must resolve.
+        // A Respawn square (letter "A" = Parameter 1) at (2,2), facing Right -- the direction a
+        // push and the placement prompt should both use. The entering robot is already sitting
+        // there (as RespawnRobotAtRebootToken would have left it) with RespawnID=1 still
+        // pending, and another robot is still occupying the same square -- the collision this
+        // step must resolve.
         var board = new BoardElementCollection(5, 5);
-        board.SetSquare(2, 2, SquareType.RebootToken, Direction.None, new BoardActionsCollection());
+        var respawnActions = new BoardActionsCollection
+        {
+            new BoardAction { SquareAction = SquareAction.Respawn, Parameter = RespawnTokenId },
+        };
+        board.SetSquare(2, 2, SquareType.RebootToken, Direction.Right, respawnActions);
 
+        // PowerUp doesn't move the robot -- keeps this test's asserts about the push/placement
+        // isolated from the entering robot's own (separately-tested-elsewhere) movement once
+        // RespawnID clears and it rejoins normal phase processing later in this same loop.
         var entering = new PlayerState
         {
             ID = EnteringId,
             PlayerStatus = tPlayerStatus.ReadyToRun,
             Priority = 1,
+            RespawnID = RespawnTokenId,
             CurrentPos = new RobotLocation(Direction.Right, 2, 2),
         };
         entering.NextPos = new RobotLocation(entering.CurrentPos);
@@ -45,6 +60,11 @@ public class RebootEntryTests
         };
         occupant.NextPos = new RobotLocation(occupant.CurrentPos);
 
+        var cards = new CardList
+        {
+            new MoveCard(1, MoveCard.tCardType.PowerUp) { Owner = EnteringId, PhasePlayed = 1 },
+        };
+
         var request = new TurnRequest
         {
             Turn = 1,
@@ -53,41 +73,52 @@ public class RebootEntryTests
             GameState = 6, // CreateCommands.CreateTurn refuses to plan in any other state
             Board = board,
             Players = [entering, occupant],
-            GameCards = new CardList(), // neither robot has a programmed card this test cares about
+            GameCards = cards,
         };
 
         var plan = new CreateCommands(request).CreateTurn();
 
         Assert.True(plan.Planned, plan.Summary);
 
-        // The occupant gets pushed one square in the entering robot's facing (Right):
+        // The occupant gets pushed one square in the respawn square's own facing (Right):
         // (2,2) -> (3,2).
         var pushedMove = plan.Commands.Single(c =>
             c.RobotID == OccupantId && c.CommandType == SquareAction.PushedMove);
         Assert.Equal(3, pushedMove.EndPos.X);
         Assert.Equal(2, pushedMove.EndPos.Y);
 
-        // The entering robot is prompted to physically place the real robot before anything
-        // else happens to it this turn.
+        // The entering robot is prompted to physically place the real robot, with the facing
+        // direction actually filled in (this used to be a hardcoded, unfinished "facing..."
+        // string -- see install/todo.md Section 1).
         Assert.Contains(plan.Commands, c =>
             c.RobotID == EnteringId && c.CommandType == SquareAction.SetButtonText &&
-            c.text.StartsWith("Place ", StringComparison.Ordinal));
+            c.text == $"Place: {entering.Name} on Respawn {RespawnTokenId} facing {Direction.Right}");
     }
 
     [Fact]
-    public void RobotEntersUnoccupiedRebootToken_PromptsForPlacementWithNoPush()
+    public void RobotWithPendingRespawn_NoOccupant_PromptsForPlacementWithNoPush()
     {
         var board = new BoardElementCollection(5, 5);
-        board.SetSquare(2, 2, SquareType.RebootToken, Direction.None, new BoardActionsCollection());
+        var respawnActions = new BoardActionsCollection
+        {
+            new BoardAction { SquareAction = SquareAction.Respawn, Parameter = RespawnTokenId },
+        };
+        board.SetSquare(2, 2, SquareType.RebootToken, Direction.Right, respawnActions);
 
         var entering = new PlayerState
         {
             ID = EnteringId,
             PlayerStatus = tPlayerStatus.ReadyToRun,
             Priority = 1,
+            RespawnID = RespawnTokenId,
             CurrentPos = new RobotLocation(Direction.Right, 2, 2),
         };
         entering.NextPos = new RobotLocation(entering.CurrentPos);
+
+        var cards = new CardList
+        {
+            new MoveCard(1, MoveCard.tCardType.PowerUp) { Owner = EnteringId, PhasePlayed = 1 },
+        };
 
         var request = new TurnRequest
         {
@@ -97,7 +128,7 @@ public class RebootEntryTests
             GameState = 6,
             Board = board,
             Players = [entering],
-            GameCards = new CardList(),
+            GameCards = cards,
         };
 
         var plan = new CreateCommands(request).CreateTurn();
@@ -106,7 +137,7 @@ public class RebootEntryTests
 
         Assert.Contains(plan.Commands, c =>
             c.RobotID == EnteringId && c.CommandType == SquareAction.SetButtonText &&
-            c.text.StartsWith("Place ", StringComparison.Ordinal));
+            c.text == $"Place: {entering.Name} on Respawn {RespawnTokenId} facing {Direction.Right}");
         Assert.DoesNotContain(plan.Commands, c => c.CommandType == SquareAction.PushedMove);
     }
 }

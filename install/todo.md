@@ -1,6 +1,6 @@
 # Mega Robo Rally — Project TODO
 
-**Last updated:** 2026-09-22
+**Last updated:** 2026-09-23
 **Legend:** `[x]` Done &nbsp; `[-]` Partial / In Progress &nbsp; `[ ]` Not started
 
 Resolved items are removed from this file once done rather than kept as a checked-off log —
@@ -11,9 +11,10 @@ see git history / commit messages for what happened and when.
 ## Current Priorities
 
 Sections below are organized by feature area, not urgency. Ranked pull of what actually
-matters for a real game, re-derived 2026-09-16. Items 1–6 are genuine open gaps; 7–8 stay on
-the list but rank last because this is a closed system with no public exposure, per user
-2026-09-16 — see each item's note. Re-check before trusting this if much time has passed.
+matters for a real game, re-derived 2026-09-16, updated 2026-09-23. Items 1–4 are genuine open
+gaps; 5–6 stay on the list but rank last because this is a closed system with no public
+exposure, per user 2026-09-16 — see each item's note. Re-check before trusting this if much
+time has passed.
 
 1. **Failed robot send silently applies the move anyway** (Section 2). A send that fails still
    advances the robot's DB position as if it succeeded — the game state and the physical board
@@ -25,19 +26,21 @@ the list but rank last because this is a closed system with no public exposure, 
    already works, none of the special-card executions are implemented.
 4. **Pushers** (Section 1). Board element type not implemented at all — activate on specific
    phases (odd/even), push a robot one square, chain-push if another robot is in the way.
-5. **Board data cleanup** (Section 1). 6 boards have flag-numbering gaps and are unwinnable;
-   16 have a stale `Boards.TotalFlags` value.
-6. **Reboot/respawn mechanic reworked 2026-09-20/21, still mid-refactor, and `dotnet test
-   MRR.Tests` is currently red because of it** (Section 1). Pit death (2 Spam cards + immediate
-   `PlayerStatus.Dead`) is solid, but the respawn half was redesigned after 09-18 to defer
-   placement to the *start of the next turn*, and `RebootEntryTests.cs`'s two tests still drive
-   the old, now-commented-out trigger path — both fail (confirmed 2026-09-22; 10/12 other tests
-   pass). Also never run live. See Section 1's item for the full list of what's done vs. open
-   (an unfinished placement-prompt string, an unverified push-on-entry path).
-7. **DB password committed in tracked `appsettings.json`** (Section 6) — lower priority: closed
+5. **DB password committed in tracked `appsettings.json`** (Section 6) — lower priority: closed
    system, no public exposure, per user 2026-09-16.
-8. **Every phone receives every player's hand** (Section 3) — lower priority, same reasoning;
+6. **Every phone receives every player's hand** (Section 3) — lower priority, same reasoning;
    the cookie-login item already decided not to worry about this for the raw broadcast payload.
+
+Also resolved since the last pass:
+- **Board data cleanup** — moot as of 2026-09-23 (user): the specific boards the old note cited
+  (IDs 20, 40, 41, 59, 67, 71, plus the wider "6 have gaps / 16 have a stale TotalFlags" count)
+  are no longer in the seed database at all; `install/MRRDatabase.sql`'s `Boards` table is down
+  to 10 boards (IDs 1–10) now.
+- **Reboot/respawn mechanic** — confirmed working on the live table 2026-09-23 (user), full
+  loop including the next-turn push-occupant/placement step. Also cleaned up while updating
+  this item: a stale test file (`RebootEntryTests.cs`) that was exercising a deleted code path,
+  and an unfinished placement-prompt string that never interpolated the facing direction —
+  `dotnet test MRR.Tests` is back to 12/12.
 
 Everything else in the sections below is real but lower-stakes: UI polish, dead-code removal,
 doc reconciliation, and the network-setup checklist (Section 5 — unverified whether it's still
@@ -52,13 +55,12 @@ literally all open, or just not updated after being done by hand).
   - Player announces shutdown during programming phase
   - Shut-down robot: takes no laser damage, cannot move, may clear damage cards
 
-- [-] Reboot mechanic — triggered when a robot moves onto a `SquareType.Pit` square. Original
+- [x] Reboot mechanic — triggered when a robot moves onto a `SquareType.Pit` square. Original
   design implemented 2026-09-18, then the respawn half was **reworked 2026-09-20/21** (commits
   "Remove Damage & Lives", "Set up to fix respawn", "Add Respawn code") to defer placement to
-  the start of the *next* turn instead of the instant "Remove Robot" is confirmed. **Never run
-  through a live game/physical robot** — this needs the user to verify on the real table before
-  trusting it, same as `install/todo.md`'s own past precedent for anything untestable without
-  hardware. Below is the current design, not the 09-18 one.
+  the start of the *next* turn instead of the instant "Remove Robot" is confirmed. **Confirmed
+  working on the live table 2026-09-23 (user)** — the full loop, including the next-turn
+  push-occupant/placement step, not just death+respawn placement.
 
   1. **Immediate death, this turn, plus 2 Spam cards.** `CreateCommands.MoveRobot()`
      (`CreateCommands.cs` ~412-427) checks the landed square's `Type` for `SquareType.Pit` before
@@ -98,29 +100,23 @@ literally all open, or just not updated after being done by hand).
      and `PositionValid` to 0, same as before, so the existing direction picker
      (`js/loadrobots.js`) shows up next turn with no new UI.
   4. **First phase the respawned robot has a card, push whoever's on its respawn square and
-     prompt for physical placement.** New block inside `CreateCommands.CreatePhase()`'s per-card
-     loop (`CreateCommands.cs:1112`, not a phase-1-only block like the original design): for any
-     `IsRunning` player with `RespawnID > 0`, finds a blocking occupant on the same square and
-     pushes it via the normal `CalcMoveDistance(..., SquareAction.PushedMove)` path (chain-pushes
-     included), in the respawn square's own `Rotation`; then adds a `SetButtonText` "Place: {Name}
-     on Respawn {ID} facing..." prompt and clears `RespawnID` back to 0 so this only fires once.
-     **Known gap:** that prompt string is unfinished — it never interpolates the actual facing
-     direction, just trails off with a literal "facing...". The old `SquareType.RebootToken`-
-     driven version of this same block (checked the *square type* under the robot instead of
-     `RespawnID`, and did interpolate the direction) is still sitting in `CreateCommands.cs`
-     lines ~910-929, commented out rather than deleted.
+     prompt for physical placement.** Block inside `CreateCommands.CreatePhase()`'s per-card loop
+     (`CreateCommands.cs` ~1107-1124, not a phase-1-only block like the original design): for any
+     player with a played card this phase and `RespawnID > 0`, finds a blocking occupant on the
+     same square and pushes it via the normal `CalcMoveDistance(..., SquareAction.PushedMove)`
+     path (chain-pushes included), in the respawn square's own `Rotation`; then adds a
+     `SetButtonText` "Place: {Name} on {ID} facing {Direction}" prompt and clears
+     `RespawnID` back to 0 so this only fires once (and so the robot's own card falls through to
+     normal processing the same phase, right after).
 
-  **Test suite is currently red because of this rework:** `dotnet test MRR.Tests` (confirmed
-  2026-09-22) shows `MRR.Tests/RebootEntryTests.cs`'s two tests **failing** —
-  `RobotEntersOccupiedRebootToken_PushesOccupantAndPromptsForPlacement` and
-  `RobotEntersUnoccupiedRebootToken_PromptsForPlacementWithNoPush`. Both drive the scenario by
-  placing a robot on a `SquareType.RebootToken` square without setting `RespawnID`, which was
-  exactly right for the commented-out block above but never triggers the new `RespawnID > 0`
-  check that replaced it — so they're exercising dead code, not the current path. Nothing in
-  `MRR.Tests` currently exercises the `RespawnID`-based block at all. Needs: either rewrite
-  these two tests to set `RespawnID` instead of relying on square type, or restore square-type
-  detection in the production code if that was the intended trigger — pick one, they've
-  diverged. **10/12 other `MRR.Tests` pass**, so nothing else regressed.
+  **Cleanup done 2026-09-23** (found while updating this item for the live-table confirmation
+  above, unrelated to that confirmation itself): the placement prompt's `"facing..."` had
+  literally never interpolated the direction — fixed by hoisting the square-rotation lookup out
+  of the `if (blockingPlayer != null)` block so it runs (and the message is complete) even with
+  no one to push. `MRR.Tests/RebootEntryTests.cs`'s two tests were stale, driving the
+  since-deleted `SquareType.RebootToken`-checking block instead of the `RespawnID`-gated one
+  that replaced it (both failing 2026-09-22 as a result) — rewritten against the current trigger
+  and the completed prompt text; `dotnet test MRR.Tests` is 12/12 again.
 
 ### Board Element Activation
 
@@ -154,11 +150,6 @@ literally all open, or just not updated after being done by hand).
   `CardID`/`Owner` pair in the `WHERE` clause still matches by the time this command runs.
   Same duplicated GROUP_CONCAT logic also appears in `DataService.Players.cs:71` and `:213` —
   check whether it has the same problem or was already fixed independently there.
-
-- [ ] Board data cleanup (found via `documents/API_DECOMPOSITION_DESIGN.md` §7 /
-  `PROJECT_STATUS.md` §4.2, still open)
-  - 6 boards have flag-numbering gaps and 16 have a stale `Boards.TotalFlags` value
-  - 6 boards have duplicate player start positions (board IDs 20, 40, 41, 59, 67, 71)
 
 - [ ] Damage card draw mechanic
   - When a robot takes damage, draw top card from damage stack → add to discard
