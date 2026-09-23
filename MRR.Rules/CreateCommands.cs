@@ -1088,6 +1088,7 @@ namespace MRR
                         // place player on board
                         ShowMessageToPlayer("Place: " + thisplayer.Name + " on " + thisplayer.RespawnID + " facing " + thisplayer.CurrentPos.Direction.ToString(), thisplayer);
                         thisplayer.RespawnID = 0;
+                        ListOfCommands.AddCommand(thisplayer, SquareAction.Respawn, 0); // clear respawn id
                     }
 
                     if (thisplayer.IsRunning) // player not dead

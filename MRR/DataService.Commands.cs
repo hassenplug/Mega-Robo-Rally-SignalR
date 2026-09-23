@@ -210,6 +210,11 @@ namespace MRR.Services
                     // (CommandMoveType 4, RobotConnection.Flash) -- no DB-side effect.
                     break;
 
+                case SquareAction.Respawn: // Respawn robot at reboot token
+                    ExecuteSQL($"UPDATE Robots SET Respawn = 0 " +
+                        $" WHERE RobotID = {cRobotID}");
+                    break;
+
                 case SquareAction.DestroyOptionCard: // Delete Option from player
                     ExecuteSQL(
                         $"DELETE FROM RobotOptions WHERE RobotID = {cRobotID} AND OptionID = {cParameter}");
