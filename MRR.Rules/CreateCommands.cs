@@ -861,7 +861,6 @@ namespace MRR
 
         }
 
-
         #endregion Execute Turn (calculate turn)
 
         #region Process Robots
@@ -889,7 +888,7 @@ namespace MRR
             // find first player on the list and give them the Next Phase button
             var firstplayer = workingPlayers.OrderBy(ob=>ob.Priority).FirstOrDefault();
             
-            ListOfCommands.AddCommand("Run Phase " + p_PhaseNumber.ToString(),firstplayer);  // set button text & wait for click
+            ShowMessageToPlayer("Run Phase " + p_PhaseNumber.ToString(),firstplayer);  // set button text & wait for click
             //ListOfCommands.AddCommand(3,p_PhaseNumber);
             ListOfCommands.AddCommand((PlayerState?)null, SquareAction.PhaseStart, p_PhaseNumber);
             //ListOfCommands.AddCommand(10,7); // set game state to waiting for input
@@ -1105,26 +1104,27 @@ namespace MRR
                 PlayerState? thisplayer = workingPlayers.GetPlayer(thiscard.Owner);
                 if (thisplayer != null)
                 {
+                    // check if player needs placement on board (reboot token)
+                    // if the respawn id is set, then the player needs to be placed on the board
+                    if (thisplayer.RespawnID > 0)
+                    {
+                        // check if there is a player on the square
+                        PlayerState? blockingPlayer = workingPlayers.FirstOrDefault(p => p.CurrentPos.X == thisplayer.CurrentPos.X && p.CurrentPos.Y == thisplayer.CurrentPos.Y && p.ID != thisplayer.ID && p.IsRunning);
+                        if (blockingPlayer != null)
+                        {
+                            // push the blocking player off the square
+                            // find the rotation of the respawn square with id thisplayer.RespawnID
+                            
+                            Direction respawndir = g_BoardElements.BoardElements.FirstOrDefault(be => be.ActionList.Count(al => al.SquareAction == SquareAction.Respawn && al.Parameter == thisplayer.RespawnID) > 0)?.Rotation ?? Direction.Up;
+                            CalcMoveDistance(blockingPlayer, 1, respawndir, SquareAction.PushedMove);
+                        }
+                        // place player on board
+                        ShowMessageToPlayer("Place: " + thisplayer.Name + " on Respawn " + thisplayer.RespawnID + " facing..." , thisplayer);
+                        thisplayer.RespawnID = 0;
+                    }
+
                     if (thisplayer.IsRunning) // player not dead
                     {
-                        // check if player needs placement on board (reboot token)
-                        // if the playerstate is 15
-                        if (thisplayer.RespawnID > 0)
-                        {
-                            // check if there is a player on the square
-                            PlayerState? blockingPlayer = workingPlayers.FirstOrDefault(p => p.CurrentPos.X == thisplayer.CurrentPos.X && p.CurrentPos.Y == thisplayer.CurrentPos.Y && p.ID != thisplayer.ID && p.IsRunning);
-                            if (blockingPlayer != null)
-                            {
-                                // push the blocking player off the square
-                                // find the rotation of the respawn square with id thisplayer.RespawnID
-                                
-                                Direction respawndir = g_BoardElements.BoardElements.FirstOrDefault(be => be.ActionList.Count(al => al.SquareAction == SquareAction.Respawn && al.Parameter == thisplayer.RespawnID) > 0)?.Rotation ?? Direction.Up;
-                                CalcMoveDistance(blockingPlayer, 1, respawndir, SquareAction.PushedMove);
-                            }
-                            // place player on board
-                            ListOfCommands.AddCommand("Place: " + thisplayer.Name + " on Respawn " + thisplayer.RespawnID + " facing..." , thisplayer);
-                            thisplayer.RespawnID = 0;
-                        }
 
 
                         MoveCard? newcard = thiscard;   // null once a draw pile runs dry
@@ -1463,7 +1463,7 @@ namespace MRR
                                 if (AddFlag(thisplayer, 1))
                                 {
                                     //ListOfCommands.AddCommand(thisplayer, SquareAction.GameWinner);
-                                    ListOfCommands.AddCommand("Game Winner:" + thisplayer.Name,thisplayer); // , SquareAction.GameWinner);
+                                    ShowMessageToPlayer("Game Winner:" + thisplayer.Name,thisplayer); // , SquareAction.GameWinner);
                                 }
                                 else
                                 {
@@ -1698,6 +1698,13 @@ namespace MRR
         #endregion  Run Phase
 
         #region Helper Functions
+
+        public void ShowMessageToPlayer(string p_Message, PlayerState? p_Player = null)
+        {
+            ListOfCommands.AddCommand(p_Player, SquareAction.SetFlash, 1);
+            ListOfCommands.AddCommand(p_Message, p_Player);
+            ListOfCommands.AddCommand(p_Player, SquareAction.SetFlash, 0);
+        }
         
         public bool UseOption(PlayerState? currentPlayer, OptionCard currentCard)
         {
@@ -1770,8 +1777,8 @@ namespace MRR
             ListOfCommands.AddCommand(p_thisrobot, SquareAction.DealSpamCard, 0);
             ListOfCommands.AddCommand(p_thisrobot, SquareAction.DealSpamCard, 0);
 
-            int pushedPhase = ListOfCommands.AddCommand(p_thisrobot, SquareAction.SetPlayerStatus,11).Phase;
-            ListOfCommands.AddCommand("Remove Robot: " + p_thisrobot.Name,p_thisrobot);
+            ListOfCommands.AddCommand(p_thisrobot, SquareAction.SetPlayerStatus,11);
+            ShowMessageToPlayer("Remove Robot: " + p_thisrobot.Name, p_thisrobot);
             // set button text & wait for click
             //p_thisrobot.Active = false;
             p_thisrobot.PlayerStatus = tPlayerStatus.Dead;
@@ -1836,7 +1843,7 @@ namespace MRR
                 }
                 //int pushedPhase = ListOfCommands.AddCommand(p_thisrobot, SquareAction.Dead).Phase;
                 int pushedPhase = ListOfCommands.AddCommand(p_thisrobot, SquareAction.SetPlayerStatus,11).Phase;
-                ListOfCommands.AddCommand("Remove Robot: " + p_thisrobot.Name,p_thisrobot);  // set button text & wait for click
+                ShowMessageToPlayer("Remove Robot: " + p_thisrobot.Name, p_thisrobot);  // set button text & wait for click
 
                 // lose points for dying
                 AddDeathPoints(p_thisrobot, -10);

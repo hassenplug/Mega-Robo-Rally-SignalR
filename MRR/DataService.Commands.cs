@@ -206,6 +206,10 @@ namespace MRR.Services
                 case SquareAction.DealOptionCard: // no-op in original SQL
                     break;
 
+                case SquareAction.SetFlash: // Already applied by SendRobotCommandAsync
+                    // (CommandMoveType 4, RobotConnection.Flash) -- no DB-side effect.
+                    break;
+
                 case SquareAction.DestroyOptionCard: // Delete Option from player
                     ExecuteSQL(
                         $"DELETE FROM RobotOptions WHERE RobotID = {cRobotID} AND OptionID = {cParameter}");

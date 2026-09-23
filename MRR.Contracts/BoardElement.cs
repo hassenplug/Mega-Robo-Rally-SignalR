@@ -591,6 +591,9 @@ namespace MRR
         // special
         SetCurrentGameData = 91,
         SetButtonText = 92,
+        // Command to the physical robot: RobotConnection.Flash on/off. Parameter (Value) is
+        // 0=off, 1=on -- see CommandMoveType/Player.SendRobotCommandAsync for dispatch.
+        SetFlash = 93,
         //UploadPrograms = 99,
         EndOfGame = 95,
         DeleteRobot = 96,

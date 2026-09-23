@@ -416,6 +416,7 @@ namespace MRR
                     case SquareAction.SetEnergy: return new SquareActionDetails(CommandCategories.RobotNoReply, "set Energy: " + Value,0,"3,9");
                     case SquareAction.SetCurrentGameData: return new SquareActionDetails(CommandCategories.DB, "Set Game Data " + Value + " to " + ValueB);
                     case SquareAction.SetButtonText: return new SquareActionDetails(CommandCategories.UserInput, text,-1);
+                    case SquareAction.SetFlash: return new SquareActionDetails(CommandCategories.RobotNoReply, "flash: " + (Value != 0 ? "on" : "off"));
                     case SquareAction.Unknown:
                     default:
                         return new SquareActionDetails(CommandCategories.DB,"");
@@ -474,6 +475,8 @@ namespace MRR
                     case SquareAction.StartBotMove:
                     case SquareAction.StopBotMove:
                         return 3;
+                    case SquareAction.SetFlash:
+                        return 4;
                     default:
                         return 0;
                 }

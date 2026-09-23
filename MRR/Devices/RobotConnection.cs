@@ -505,7 +505,7 @@ namespace MRR.Devices
         // Ring order per .claude/agents/aim-robot-api.md's LED angle table (315°, 265°, 210°,
         // 155°, 100°, 45°) -- light1 through light6 going around the robot one direction.
         private static readonly string[] RingLeds = { "light1", "light2", "light3", "light4", "light5", "light6" };
-        private const int FlashStepDelayMs = 150;
+        private const int FlashStepDelayMs = 20;
 
         /// <summary>
         /// Setting this true starts a background loop that cycles the six ring LEDs (light1..
@@ -553,6 +553,7 @@ namespace MRR.Devices
             {
                 // Expected when Flash is set back to false mid-delay.
             }
+            await SetLedAsync(led, 0, 0, 0);
         }
 
         public Task<GridLineAnalysis> AlignAsync(int maxIterations = 10) =>

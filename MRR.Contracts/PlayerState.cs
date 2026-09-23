@@ -164,7 +164,7 @@ namespace MRR
         {
             get
             {
-                return this.PlayerStatus != tPlayerStatus.Dead && this.PlayerStatus != tPlayerStatus.ShutDown && this.PlayerStatus != tPlayerStatus.Respawn;
+                return this.PlayerStatus != tPlayerStatus.Dead && this.PlayerStatus != tPlayerStatus.ShutDown && this.RespawnID == 0;
             }
         }
 

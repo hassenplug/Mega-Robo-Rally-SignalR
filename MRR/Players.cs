@@ -151,6 +151,9 @@ namespace MRR
                 case 3: // Set Color
                     SendColorStatus(cmd.Value);
                     break;
+                case 4: // Set Flash -- cmd.Value: 0=off, 1=on
+                    if (Connection != null) Connection.Flash = cmd.Value != 0;
+                    break;
                 case 0: // Stop
                     break;
                 default:
