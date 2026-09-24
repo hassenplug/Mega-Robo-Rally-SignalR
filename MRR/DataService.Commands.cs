@@ -211,7 +211,7 @@ namespace MRR.Services
                     break;
 
                 case SquareAction.Respawn: // Respawn robot at reboot token
-                    ExecuteSQL($"UPDATE Robots SET Respawn = 0 " +
+                    ExecuteSQL($"UPDATE Robots SET RespawnID = 0 " +
                         $" WHERE RobotID = {cRobotID}");
                     break;
 

@@ -549,7 +549,7 @@ namespace MRR.Devices
                         if (led == RingLeds.Last())
                         {
                             // clear the text after the last LED goes dark, so the players know the flashing is done
-                            await ClearScreenAsync();
+                            //await ClearScreenAsync();
                         }
 
                         await SetLedAsync(led, 0, 0, 0);
