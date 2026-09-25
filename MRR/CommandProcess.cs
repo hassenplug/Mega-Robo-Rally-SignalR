@@ -456,6 +456,27 @@ namespace MRR
                             Db.SaveChanges();
                             return false; // wait for user input
                         }
+                        return false;
+                    }
+
+                    // Still waiting (StatusID==4). ShowMessageToPlayer (CreateCommands.cs)
+                    // always wraps a User Input message with SetFlash on/off around it, so the
+                    // robot's ring LEDs are flashing for exactly as long as this command blocks.
+                    // While that's happening, poll the robot's own touchscreen too, so tapping
+                    // the physical robot confirms the prompt the same way tapping the phone's
+                    // button does (Program.cs's /api/player/3 -> GameController.ProcessDbCommand
+                    // -> this same class's ProcessDbCommand(int, int) below). This loop already
+                    // polls every PollInterval while a User Input command is outstanding, so no
+                    // extra timer is needed -- just piggyback on it.
+                    if (robotPlayer?.Connection?.Flash == true)
+                    {
+                        var status = robotPlayer.GetStatusAsync().GetAwaiter().GetResult();
+                        if (status.Robot.TouchFlags != "0x0000")
+                        {
+                            LogCommand(onecommand, "Touch Confirmed  ");
+                            ProcessDbCommand(onecommand.CommandID, -1);
+                            return true;
+                        }
                     }
                     return false;
 
