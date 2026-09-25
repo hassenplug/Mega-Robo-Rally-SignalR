@@ -68,7 +68,11 @@ a:visited {
     </div>
 </td>
 <td align=center id="flagsHeader" style="cursor:pointer;" onclick="toggleFlagsHeader();">F/E/C</td>
-<td align=center id="statusHeader">Status</td>
+<!-- Fixed width so this column doesn't reflow when GM view swaps the header text ("Status" ->
+     "Connect") and each row's content (StatusToShow's card-summary string -> ConnectStatusDesc,
+     e.g. "Connecting"/"Not Conn") -- wide enough for the longest RobotStatus.ShortDescription
+     among the ConnectStatusID rows (install/MRRDatabase.sql's RobotStatus seed, ids 20-23). -->
+<td align=center width="72" style="white-space:nowrap;" id="statusHeader">Status</td>
 <td align=center width = 40% id="title" style="cursor:pointer;" onclick="toggleGmView();">---</td>
 </tr>
 <tbody id="playerRows"></tbody>
