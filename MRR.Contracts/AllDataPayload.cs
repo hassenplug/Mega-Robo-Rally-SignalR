@@ -62,7 +62,6 @@ namespace MRR
         public int PlayerSeat { get; set; }
         public int Energy { get; set; }
         public string FlagEnergyCards { get; set; } = "";
-        public int PlayerViewDirection { get; set; }
         public int DirectionAdjustment { get; set; }
         public string CardsDealt { get; set; } = "";
         public string CardsPlayed { get; set; } = "";

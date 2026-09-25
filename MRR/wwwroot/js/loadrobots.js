@@ -189,15 +189,21 @@ function confirmDirection() {
 }
 
 // Rotates the on-screen arrow relative to this player's own seat orientation
-// (DirectionAdjustment/PlayerViewDirection -- SeatOrientation.Direction, the absolute board
-// direction this seat calls "forward") rather than showing the raw board-absolute direction.
-// So the arrow reads "pointing up" when the robot faces the same way this seat does,
-// whichever physical side of the table the phone is actually on -- the stored value sent to
-// the server is still always the real absolute Direction.
+// (DirectionAdjustment -- SeatOrientation.Direction, denormalized onto
+// Robots.DirectionAdjustment) rather than showing the raw board-absolute direction. So the
+// arrow reads correctly for whichever physical side of the table this seat sits on -- the
+// stored value sent to the server is still always the real absolute Direction.
+//
+// DirectionAdjustment is a count of 90-degree clockwise steps to add on top of the robot's own
+// facing, NOT a Direction enum value looked up via DIRECTION_DEGREES (that table's own
+// indexing -- Up=1 -> 0 degrees -- doesn't apply here). Calibrated against SeatOrientation's
+// seed data: seat 1 (DirectionAdjustment=3) needs a 270-degree adjustment (an Up-facing robot
+// should show its arrow pointing Left), seat 8 (DirectionAdjustment=1) needs +90 (pointing
+// Right) -- both match value*90, not DIRECTION_DEGREES[value].
 function renderDirectionArrow() {
     var rbt = datapacket.robots.find(r => r.RobotID === CurrentPlayer);
-    var seatDir = (rbt && rbt.DirectionAdjustment) || 1;
-    var degrees = (DIRECTION_DEGREES[pendingDirection] - DIRECTION_DEGREES[seatDir] + 360) % 360;
+    var seatAdjustment = ((rbt && rbt.DirectionAdjustment) || 0) * 90;
+    var degrees = (DIRECTION_DEGREES[pendingDirection] + seatAdjustment) % 360;
     document.getElementById('directionBtn').style.transform = 'rotate(' + degrees + 'deg)';
 }
 

@@ -52,7 +52,6 @@ namespace MRR.Services
         PlayerSeat,
         Energy,
         Concat(CurrentFlag,"/",Energy) FlagEnergy,
-        so.Direction as PlayerViewDirection,
         so.Direction as DirectionAdjustment,
         Robots.CardsDealt,
         Robots.CardsPlayed,
@@ -90,7 +89,7 @@ namespace MRR.Services
                 // robot. See install/todo.md "Operator Data Setup".
                 string strSQL = @"SELECT r.RobotID, r.RobotName, r.RobotColor, r.RobotColorFG,
                        r.OperatorName, r.Password, r.PlayerSeat, r.IPAddress,
-                       r.DirectionAdjustment AS PlayerViewDirection
+                       r.DirectionAdjustment
                 FROM Robots r
                 ORDER BY r.RobotID";
 
@@ -118,7 +117,7 @@ namespace MRR.Services
                         ForeColor           = row["RobotColorFG"].ToString() ?? "000000",
                         Password            = row["Password"]?.ToString() ?? "",
                         IPAddress           = row["IPAddress"].ToString(),
-                        PlayerViewDirection = Convert.ToInt32(row["PlayerViewDirection"]),
+                        DirectionAdjustment = Convert.ToInt32(row["DirectionAdjustment"]),
                         AllGameCards        = GameCards,
                         Connection          = _robotConnections.Get(robotId),
                     });
@@ -152,7 +151,7 @@ namespace MRR.Services
             var result = new PlayerStates();
 
             string strSQL = @"SELECT r.RobotID, rb.Name AS RobotName, rb.Color AS RobotColor, rb.ColorFG AS RobotColorFG,
-                   r.PlayerSeat, so.Direction AS PlayerViewDirection,
+                   r.PlayerSeat, so.Direction AS DirectionAdjustment,
                    r.CurrentFlag, r.ShutDown, r.`Status` AS StatusID,
                    r.CurrentPosCol AS X, r.CurrentPosRow AS Y, r.CurrentPosDir AS Dir,
                    r.ArchivePosCol AS AX, r.ArchivePosRow AS AY,
@@ -173,7 +172,7 @@ namespace MRR.Services
                     Color               = row["RobotColor"].ToString() ?? "FFFFFF",
                     ForeColor           = row["RobotColorFG"].ToString() ?? "000000",
                     PlayerSeat          = (int)row["PlayerSeat"],
-                    PlayerViewDirection = Convert.ToInt32(row["PlayerViewDirection"]),
+                    DirectionAdjustment = Convert.ToInt32(row["DirectionAdjustment"]),
                     LastFlag            = (int)row["CurrentFlag"],
                     ShutDown            = (tShutDown)(int)row["ShutDown"],
                     PlayerStatus        = (tPlayerStatus)(int)row["StatusID"],
@@ -239,10 +238,8 @@ namespace MRR.Services
         // straight to RobotData -- this is what AllDataPayload.robots sends to clients now,
         // replacing the old path that built RobotData from the in-memory Players/GameCards
         // collections. StatusID/X/Y/Dir are aliases of Status/CurrentPosCol/CurrentPosRow/
-        // CurrentPosDir. PlayerViewDirection has no Robots column of its own -- it has always
-        // just duplicated DirectionAdjustment -- and is kept in the payload for compatibility
-        // with existing clients rather than dropping it. CardCount is a real column, kept
-        // current by RefreshCardCount (DataService.Cards.cs) whenever a robot's cards change.
+        // CurrentPosDir. CardCount is a real column, kept current by RefreshCardCount
+        // (DataService.Cards.cs) whenever a robot's cards change.
         // ConnectStatusColor/ConnectStatusDesc are likewise real columns now, kept current by
         // RefreshRobotDenormalizedFields -- no join needed here for them. IPAddress reads
         // Robots.IPAddress directly; UpdateRobotIPAddress keeps it in sync with the
@@ -282,7 +279,6 @@ namespace MRR.Services
                     PlayerSeat          = (int)row["PlayerSeat"],
                     Energy              = (int)row["Energy"],
                     FlagEnergyCards     = row["FlagEnergyCards"].ToString() ?? "",
-                    PlayerViewDirection = directionAdjustment,
                     DirectionAdjustment = directionAdjustment,
                     CardsDealt          = cardsDealt,
                     CardsPlayed         = row["CardsPlayed"].ToString() ?? "",

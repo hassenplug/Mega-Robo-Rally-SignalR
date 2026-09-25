@@ -934,7 +934,7 @@ INSERT INTO `RobotStatus` VALUES
 (23,'Searching','Searching',0,0,'800080','800080');
 
 -- SeatOrientation
-INSERT INTO `SeatOrientation` VALUES (1,1),(2,1),(3,1),(4,2),(5,2),(6,3),(7,3),(8,3);
+INSERT INTO `SeatOrientation` VALUES (1,3),(2,3),(3,3),(4,2),(5,2),(6,1),(7,1),(8,1);
 
 -- Options (upgrade card definitions)
 INSERT INTO `Options` VALUES

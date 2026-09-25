@@ -313,8 +313,13 @@ namespace MRR
         public tPlayerStatus PlayerStatus { get; set; }
 
 
+        // The absolute board direction this seat calls "forward" (SeatOrientation.Direction,
+        // denormalized onto Robots.DirectionAdjustment) -- js/loadrobots.js's
+        // renderDirectionArrow() combines this with a robot's actual facing to rotate the
+        // on-screen arrow so it reads correctly from wherever this seat physically sits at the
+        // table, regardless of which absolute direction the robot itself is facing.
         [NotMapped]
-        public int PlayerViewDirection { get; set; }
+        public int DirectionAdjustment { get; set; }
 
         [NotMapped]
         public string StatusToShow
@@ -367,8 +372,7 @@ namespace MRR
             PlayerSeat          = PlayerSeat,
             Energy              = Energy,
             FlagEnergyCards     = $"{LastFlag}/{Energy}/{CardsPlayer.Count}",
-            PlayerViewDirection = PlayerViewDirection,
-            DirectionAdjustment = PlayerViewDirection,
+            DirectionAdjustment = DirectionAdjustment,
             CardsDealt          = CardsDealtStr,
             CardsPlayed         = CardsPlayedStr,
             StatusToShow        = StatusToShow,

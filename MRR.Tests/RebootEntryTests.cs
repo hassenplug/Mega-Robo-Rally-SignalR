@@ -2,7 +2,7 @@ namespace MRR.Tests;
 
 /// <summary>
 /// Spec test for the reboot-entry step of the Reboot mechanic (install/todo.md Section 1,
-/// step 4): the per-card loop in CreateCommands.CreatePhase() (CreateCommands.cs ~1107-1124)
+/// step 4): the per-card loop in CreateCommands.CreatePhase() (CreateCommands.cs ~1071-1092)
 /// checks any player with a played card this phase for `RespawnID > 0` -- the marker
 /// DataService.Players.cs's RespawnRobotAtRebootToken() sets (and PlayerState.IsRunning
 /// requires `RespawnID == 0`, so a robot with one pending never gets programmed normally
@@ -15,7 +15,11 @@ namespace MRR.Tests;
 /// and left the old block commented out (since deleted) rather than updating this test to
 /// match, so both cases here were failing against dead code. The reboot mechanic itself has
 /// been confirmed working on the live table since (install/todo.md Section 1) -- this was a
-/// stale test, not a real regression.
+/// stale test, not a real regression. Re-synced again same day after the placement message and
+/// facing-direction source changed underneath this test a second time (now "Place: {Name} on
+/// {RespawnID} facing {the robot's own CurrentPos.Direction}", not the respawn square's own
+/// printed Rotation) -- see the exact string asserted below rather than trusting this comment
+/// if it drifts again.
 /// </summary>
 public class RebootEntryTests
 {
@@ -89,10 +93,17 @@ public class RebootEntryTests
 
         // The entering robot is prompted to physically place the real robot, with the facing
         // direction actually filled in (this used to be a hardcoded, unfinished "facing..."
-        // string -- see install/todo.md Section 1).
+        // string -- see install/todo.md Section 1). The direction shown is the robot's own
+        // CurrentPos.Direction (what the player picked via the direction picker), not the
+        // respawn square's printed Rotation -- both happen to be Right in this test.
         Assert.Contains(plan.Commands, c =>
             c.RobotID == EnteringId && c.CommandType == SquareAction.SetButtonText &&
-            c.text == $"Place: {entering.Name} on Respawn {RespawnTokenId} facing {Direction.Right}");
+            c.text == $"Place: {entering.Name} on {RespawnTokenId} facing {Direction.Right}");
+
+        // RespawnID is cleared in the DB too (not just in-memory), via a persisted command --
+        // otherwise a reload before the next confirm would see it still pending.
+        Assert.Contains(plan.Commands, c =>
+            c.RobotID == EnteringId && c.CommandType == SquareAction.Respawn && c.Value == 0);
     }
 
     [Fact]
@@ -137,7 +148,7 @@ public class RebootEntryTests
 
         Assert.Contains(plan.Commands, c =>
             c.RobotID == EnteringId && c.CommandType == SquareAction.SetButtonText &&
-            c.text == $"Place: {entering.Name} on Respawn {RespawnTokenId} facing {Direction.Right}");
+            c.text == $"Place: {entering.Name} on {RespawnTokenId} facing {Direction.Right}");
         Assert.DoesNotContain(plan.Commands, c => c.CommandType == SquareAction.PushedMove);
     }
 }
