@@ -53,7 +53,7 @@ literally all open, or just not updated after being done by hand).
 
 - [ ] Shutdown mechanic (`GameController.cs` + phone UI)
   - Player announces shutdown during programming phase
-  - Shut-down robot: takes no laser damage, cannot move, may clear damage cards
+  - Shut-down robot: does take laser damage, cannot move, may clear spam cards
 
 - [x] Reboot mechanic — triggered when a robot moves onto a `SquareType.Pit` square. Original
   design implemented 2026-09-18, then the respawn half was **reworked 2026-09-20/21** (commits
@@ -166,19 +166,22 @@ literally all open, or just not updated after being done by hand).
 
 ---
 
-- [ ] `MoveCards.Executed` is never actually set, so the currently-executing card's short
-  description never displays — found 2026-09-16 in
-  [`DataService.RebuildRobotCardsSummary`](../MRR/DataService.Cards.cs#L52): the
-  `ShowCardsPlayed` GROUP_CONCAT reads `IF(mc.Executed, mct.ShortDescription, 'X')`, but cards
-  are not marked as executed in the database, so it always falls through to `'X'` instead of
-  showing e.g. "M1"/"TR" for the card currently running. The write side exists —
-  `DataService.Commands.cs`'s `SquareAction.Card` case sets `Executed = 1`, and `CreateCommands`
-  does add that command per played card (`CreateCommands.cs:117`, `:1099`, `:1110`) — so this
-  needs tracing why it isn't landing rather than being built from scratch: check
-  `SqlGateway.ExecuteSQL`'s known silent-error-swallowing (Section 6) first, then whether the
-  `CardID`/`Owner` pair in the `WHERE` clause still matches by the time this command runs.
-  Same duplicated GROUP_CONCAT logic also appears in `DataService.Players.cs:71` and `:213` —
-  check whether it has the same problem or was already fixed independently there.
+- [x] `MoveCards.Executed` is never actually set, so the currently-executing card's short
+  description never displays — found 2026-09-16. Fixed 2026-09-24: the DB write
+  (`UPDATE MoveCards SET Executed = 1`) in `DataService.Commands.cs`'s `SquareAction.Card` case
+  was landing fine, but nothing ever re-ran `RebuildRobotCardsSummary` afterward (the case had a
+  bare `//RebuildRobotCardsSummary` comment stub in place of the call), so `Robots.StatusToShow`
+  itself was never refreshed. Confirmed `GetRobotsFromTable()` (`DataService.Players.cs:251`) —
+  what `AllDataPayload` actually sends to phones (`DataService.cs:135`) — reads `StatusToShow`
+  straight off the `Robots` row, not from `PlayerState`/`GameCards`; `PlayerState.ToRobotData()`
+  (`MRR.Contracts/PlayerState.cs:342`), which computes an equivalent value from the in-memory
+  `GameCards` collection, has no callers left (superseded per `ALLPLAYERS_REMOVAL_DESIGN.md`) so
+  fixing only that path would not have changed what phones show. Fix: call
+  `RebuildRobotCardsSummary(connection, cRobotID, currentStatus)` right after the `Executed = 1`
+  write, reading the robot's own current `Status` first so the refresh doesn't clobber it back
+  to `newStatus`'s `ReadyToProgram` default. Also synced the in-memory `GameCards` entry's
+  `Executed` flag (matching the `SquareAction.DealCard` case above it) as a secondary safety net
+  for the now-dormant `PlayerState` path.
 
 - [ ] Damage card draw mechanic
   - When a robot takes damage, draw top card from damage stack → add to discard
