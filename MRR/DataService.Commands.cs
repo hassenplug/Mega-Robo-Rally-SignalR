@@ -188,11 +188,29 @@ namespace MRR.Services
                     break;
 
                 case SquareAction.Card: // Mark card as executed
+                {
                     ExecuteSQL(
                         $"UPDATE MoveCards SET Executed = 1 WHERE CardID = {cParameter} AND Owner = {cRobotID}");
                     ExecuteSQL(
                         $"UPDATE CurrentGameData SET sValue = 'Played Card' WHERE iKey = 21");
+
+                    // Refresh Robots.CardsDealt/CardsPlayed/StatusToShow so the just-executed
+                    // card's short description shows instead of 'X' -- GetRobotsFromTable()
+                    // (DataService.Players.cs), what AllDataPayload actually sends to phones
+                    // (DataService.cs:135), reads those columns straight off Robots, so without
+                    // this refresh the Executed flag set above never reaches the display. Pass
+                    // the robot's own current Status through so this mid-turn refresh doesn't
+                    // reset it back to newStatus's ReadyToProgram default.
+                    int currentStatus = GetIntFromDB($"SELECT Status FROM Robots WHERE RobotID = {cRobotID}");
+                    using (var connection = _sql.OpenConnection())
+                        RebuildRobotCardsSummary(connection, cRobotID, currentStatus);
+
+                    // Sync in-memory GameCards too, matching the SquareAction.DealCard pattern
+                    // above, since PlayerState.CardsPlayer/StatusToShow are computed off it.
+                    var executedCard = GameCards.FirstOrDefault(c => c.ID == cParameter && c.Owner == cRobotID);
+                    if (executedCard != null) executedCard.Executed = true;
                     break;
+                }
 
                 case SquareAction.SetPlayerStatus: // Set robot Status
                     ExecuteSQL($"UPDATE Robots SET Status = {cParameter} " +
