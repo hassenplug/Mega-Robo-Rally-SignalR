@@ -82,11 +82,14 @@ namespace MRR.Services
 
                 // Reads straight off Robots' own denormalized RobotName/RobotColor/RobotColorFG/
                 // IPAddress/DirectionAdjustment columns (kept current by RefreshRobotDenormalizedFields/
-                // SelectSeat/UpdateRobotIPAddress) instead of joining RobotBodies/RobotBases/
-                // SeatOrientation fresh -- those were INNER JOINs, so a StartGame() placeholder
-                // row (RobotBodyID NULL, PlayerSeat 0, not yet claimed via SelectSeat) would
-                // silently disappear from AllPlayers and never get connected to its physical
-                // robot. See install/todo.md "Operator Data Setup".
+                // UpdateRobotIPAddress, and -- for DirectionAdjustment specifically -- by the
+                // SeatOrientation join in SelectSeat/SetupPlayersFromOperatorData's own UPDATE,
+                // set once at seat-claim time since PlayerSeat itself never changes after that)
+                // instead of joining RobotBodies/RobotBases/SeatOrientation fresh -- those were
+                // INNER JOINs, so a StartGame() placeholder row (RobotBodyID NULL, PlayerSeat 0,
+                // not yet claimed via SelectSeat) would silently disappear from AllPlayers and
+                // never get connected to its physical robot. See install/todo.md "Operator Data
+                // Setup".
                 string strSQL = @"SELECT r.RobotID, r.RobotName, r.RobotColor, r.RobotColorFG,
                        r.OperatorName, r.Password, r.PlayerSeat, r.IPAddress,
                        r.DirectionAdjustment
@@ -369,15 +372,17 @@ namespace MRR.Services
             using var update = new MySqlCommand(
                 @"UPDATE Robots r
                   JOIN RobotBodies rb ON rb.RobotBodyID = @robotBodyId
-                  SET r.RobotBodyID   = @robotBodyId,
-                      r.RobotName     = rb.Name,
-                      r.RobotColor    = rb.Color,
-                      r.RobotColorFG  = rb.ColorFG,
-                      r.OperatorName  = CONCAT('Seat ', @seat),
-                      r.Priority      = @seat,
-                      r.PlayerSeat    = @seat,
-                      r.PositionValid = 1,
-                      r.Status        = 1
+                  JOIN SeatOrientation so ON so.SeatID = @seat
+                  SET r.RobotBodyID        = @robotBodyId,
+                      r.RobotName          = rb.Name,
+                      r.RobotColor         = rb.Color,
+                      r.RobotColorFG       = rb.ColorFG,
+                      r.OperatorName       = CONCAT('Seat ', @seat),
+                      r.Priority           = @seat,
+                      r.PlayerSeat         = @seat,
+                      r.DirectionAdjustment = so.Direction,
+                      r.PositionValid      = 1,
+                      r.Status             = 1
                   WHERE r.RobotID = @startPosition",
 /*                    AND r.Status <> 1
                     AND @seat = (Select Coalesce(Min(RobotID),0) from Robots where Status <> 1)
@@ -415,16 +420,18 @@ namespace MRR.Services
                       AND od.OperatorListID = (SELECT iValue FROM CurrentGameData WHERE sKey = 'PlayerListID')
                       AND od.IsActive > 0
                   JOIN RobotBodies rb ON rb.RobotBodyID = od.RobotBodyID
-                  SET r.RobotBodyID   = od.RobotBodyID,
-                      r.RobotName     = rb.Name,
-                      r.RobotColor    = rb.Color,
-                      r.RobotColorFG  = rb.ColorFG,
-                      r.OperatorName  = od.OperatorName,
-                      r.Password      = od.Password,
-                      r.Priority      = od.PlayerSeat,
-                      r.PlayerSeat    = od.PlayerSeat,
-                      r.PositionValid = 1,
-                      r.Status        = 1",
+                  JOIN SeatOrientation so ON so.SeatID = od.PlayerSeat
+                  SET r.RobotBodyID         = od.RobotBodyID,
+                      r.RobotName           = rb.Name,
+                      r.RobotColor          = rb.Color,
+                      r.RobotColorFG        = rb.ColorFG,
+                      r.OperatorName        = od.OperatorName,
+                      r.Password            = od.Password,
+                      r.Priority            = od.PlayerSeat,
+                      r.PlayerSeat          = od.PlayerSeat,
+                      r.DirectionAdjustment = so.Direction,
+                      r.PositionValid       = 1,
+                      r.Status              = 1",
                 connection);
             bool claimed = update.ExecuteNonQuery() > 0;
 

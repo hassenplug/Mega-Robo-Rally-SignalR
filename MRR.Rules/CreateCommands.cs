@@ -1106,7 +1106,8 @@ namespace MRR
                             CalcMoveDistance(blockingPlayer, 1, respawndir, SquareAction.PushedMove);
                         }
                         // place player on board
-                        ShowMessageToPlayer("Place: " + thisplayer.Name + " on " + thisplayer.RespawnID + " facing " + thisplayer.CurrentPos.Direction.ToString(), thisplayer);
+                        //ShowMessageToPlayer(thisplayer.Name + " on " + thisplayer.RespawnID + " facing " + thisplayer.CurrentPos.Direction.ToString(), thisplayer);
+                        ShowMessageToPlayer(thisplayer.Name + " on " + thisplayer.RespawnID + " " + thisplayer.CurrentPos.DirectionArrow(), thisplayer);
                         thisplayer.RespawnID = 0;
                         ListOfCommands.AddCommand(thisplayer, SquareAction.Respawn, 0); // clear respawn id
                     }

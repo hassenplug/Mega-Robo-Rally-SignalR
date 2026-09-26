@@ -89,6 +89,20 @@ namespace MRR
 
         public string FullLocation { get { return ToString(); } set { } }
 
+        public string DirectionArrow()
+        { 
+            string dir = Direction.ToString();
+            switch (Direction)
+            {
+                case Direction.None: dir = "?"; break;
+                case Direction.Up: dir = "↑"; break;
+                case Direction.Right: dir = "→"; break;
+                case Direction.Down: dir = "↓"; break;
+                case Direction.Left: dir = "←"; break;
+            }
+            return dir; 
+        } 
+
         override public string ToString()
         {
             if (Index != 0) return Location + Index.ToString();
