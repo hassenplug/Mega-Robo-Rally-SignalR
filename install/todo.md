@@ -81,7 +81,36 @@ literally all open, or just not updated after being done by hand).
      `"Remove Robot: {Name}"` blocking User Input prompt `KillRobot()` emits, rendered by the
      existing `messagetable`/`confirmMessage()` UI in `index.html`/`js/loadrobots.js`. Confirming
      it now just clears the message (`DataService.Commands.cs`'s `SetButtonText` case) — it no
-     longer triggers respawn; that moved to step 3.
+     longer triggers respawn; that moved to step 3. **Fixed 2026-09-25** (bug report: pushing a
+     robot into a pit showed the removal prompt after the pushing robot moved but before a
+     later-priority robot's own move for the same phase): `KillRobot()` used to call
+     `ShowMessageToPlayer()` — a blocking command — immediately, inline, right where the push
+     happens (mid-resolution of an *earlier*-priority robot's own move). `CommandProcess`
+     batches dispatch strictly by list order (`SequenceCommands()`), so that blocking prompt's
+     commands landed ahead of every later-priority robot's still-to-come move in the same
+     phase, stalling all of them until a human confirmed the removal. `KillRobot()` now queues
+     the dead robot onto `_pendingRemovalMessages` instead. **Test:**
+     `MRR.Tests/PitRebootTests.cs`'s `RobotPushedIntoPit_DoesNotStallALaterRobotsMoveInTheSamePhase`
+     (confirmed to fail against the old inline-call behavior before writing the fix, not just
+     after). **Refined same day** (follow-up bug report: a single multi-square move can push
+     *more than one* robot into the same pit square in sequence — e.g. A moves 3 squares,
+     pushing B onto C's square, killing C; A's next square of movement then pushes B onto that
+     same now-dead square. C's removal must be confirmed before B is sent onto it, even though
+     both happen inside the same phase — the end-of-phase-only flush let it through
+     uninterrupted). Two flush points now, not one: `MoveRobot()`'s new
+     `FlushRemovalMessageIfBlocking()` fires the instant *any* robot's move targets the exact
+     square a still-queued dead robot occupies — physical safety wins even within the same
+     phase or the same multi-square move — removing that robot from the queue so it isn't
+     flushed twice; `CreatePhase()` still flushes whatever's left (no square conflict arose)
+     once the whole phase's per-card loop finishes, so an unrelated death never stalls an
+     unrelated robot. **Test:** `PitRebootTests.cs`'s
+     `OneMultiSquareMovePushesTwoRobotsIntoTheSamePitSquareInTurn_OrdersRemovalsBeforeReuse`
+     (also confirmed to fail without the new flush point). **Related, not yet fixed:** step 4
+     below has the identical shape — its "Place: {Name} on {RespawnID} facing {Direction}"
+     prompt is *also* called inline, per-robot, inside the same per-card loop, so a respawning
+     robot ahead of another robot in priority order could stall that later robot's move the
+     same way. Not fixed here since it wasn't the reported bug, but worth the same
+     treatment if it's hit in practice.
   3. **Respawn every dead robot at the start of the next turn, not on confirm.** `SquareType.
      RebootToken = 120` (board-authoring square type, mirroring `StartSquare`/`PlayerStart`) with
      `SquareAction.Respawn = 25` marking which squares count (renamed from an earlier

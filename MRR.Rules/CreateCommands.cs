@@ -87,6 +87,13 @@ namespace MRR
         private readonly List<SpamCardUse> _spamConsumed = [];
 
         /// <summary>
+        /// Robots killed this phase, still owed their "Remove Robot" confirmation prompt.
+        /// KillRobot() queues here instead of calling ShowMessageToPlayer() immediately -- see
+        /// the comment where this is flushed, in CreatePhase(), for why.
+        /// </summary>
+        private readonly List<PlayerState> _pendingRemovalMessages = [];
+
+        /// <summary>
         /// Next pre-drawn card for a robot, used when resolving Spam. Returns null when the
         /// pile is exhausted, which the caller reports rather than silently planning a
         /// shorter turn.
@@ -391,6 +398,19 @@ namespace MRR
         public bool MoveRobot(PlayerState p_Robot, RobotLocation p_NewLocation, Direction p_Direction, SquareAction p_MoveType)
         {
             bool StillAlive = true;
+
+            // If a robot killed earlier this same phase is still sitting at the square we're
+            // about to enter -- its removal prompt queued (_pendingRemovalMessages) but not
+            // shown yet -- flush that prompt now, before this move, so the human clears the
+            // physical square before another real robot is commanded onto it. Fixes a chain-
+            // push case the end-of-phase flush alone doesn't: robot A's multi-square move
+            // pushes B onto C's square (killing C, a pit), then A's *next* square of movement
+            // pushes B onto that same now-dead square -- C must be confirmed removed before
+            // B's move there is sent, not merely "eventually, once the whole phase is done."
+            // A robot with no such square conflict is never touched by this and still only
+            // gets its prompt at end of phase (CreatePhase()), so it never stalls an unrelated
+            // robot -- this only fires when a square is actually about to be reused.
+            FlushRemovalMessageIfBlocking(p_NewLocation);
 
             // move robot...
             p_Robot.NextPos.SetLocation(p_NewLocation); // end location?
@@ -1132,6 +1152,16 @@ namespace MRR
                 }
             }
 
+            // Flush any "Remove Robot" prompts KillRobot() queued while resolving the moves
+            // above (see the comment there) -- now that every robot's own phase-N move command
+            // is already list-ordered ahead of these, confirming one can no longer stall a
+            // later-priority robot's still-pending move for this same phase.
+            foreach (PlayerState deadRobot in _pendingRemovalMessages)
+            {
+                ShowMessageToPlayer("Remove Robot: " + deadRobot.Name, deadRobot);
+            }
+            _pendingRemovalMessages.Clear();
+
             // loop through all squares "active" on this part of the phase
             //IEnumerable<BoardElement> StartList = g_BoardElements.Where(be => be.Type == SquareType.StartSquare).OrderBy(be => be.ActionList.First(al => al.SquareAction == SquareAction.PlayerStart).Parameter);
             //BoardActionsCollection l_TargetActions = g_BoardElements.GetSquare(l_newsquare.X, l_newsquare.Y).ActionList;
@@ -1746,14 +1776,46 @@ namespace MRR
             ListOfCommands.AddCommand(p_thisrobot, SquareAction.DealSpamCard, 0);
 
             ListOfCommands.AddCommand(p_thisrobot, SquareAction.SetPlayerStatus,11);
-            ShowMessageToPlayer("Remove Robot: " + p_thisrobot.Name, p_thisrobot);
-            // set button text & wait for click
-            //p_thisrobot.Active = false;
+            // "Remove Robot" is a blocking User Input command (ShowMessageToPlayer wraps it
+            // with SetFlash on/off) -- CommandProcess.ProcessCommands() only marks the *next*
+            // NormalSequence group ready once every command in the current one finishes
+            // (SequenceCommands() batches by strict list order, and a blocking command's group
+            // can't finish until a human confirms it). A pit death mid-phase (e.g. one robot
+            // pushing another into a pit) happens while resolving an *earlier*-priority robot's
+            // move, so calling ShowMessageToPlayer() here -- immediately, inline -- would
+            // insert that blocking prompt's commands ahead of every later-priority robot's
+            // still-to-come move for this same phase, stalling them until the prompt is
+            // confirmed. Queuing here instead defers it to one of two flush points: (1)
+            // MoveRobot()'s FlushRemovalMessageIfBlocking(), fired the instant some other
+            // robot's move targets this exact square (a later push in the same chain reusing
+            // the square this robot just died on) -- physical safety takes priority there even
+            // within the same phase; (2) otherwise, CreatePhase() flushes whatever's left once
+            // the whole phase's per-card loop finishes, so a death with no square conflict never
+            // stalls an unrelated robot.
+            _pendingRemovalMessages.Add(p_thisrobot);
             p_thisrobot.PlayerStatus = tPlayerStatus.Dead;
-            p_thisrobot.SetLocation();  
+            p_thisrobot.SetLocation();
             return false;
 
             //return AddDamage(p_thisrobot, 10);  // do this to destroy options, etc.  But this will also add death points to the robot that caused the pit death, which is not desired.
+        }
+
+        /// <summary>
+        /// If a robot killed earlier this phase is still sitting at <paramref name="location"/>
+        /// with its removal prompt not yet shown (still in _pendingRemovalMessages), shows that
+        /// prompt now and removes it from the queue -- called from MoveRobot() right before any
+        /// robot is moved onto a square, so the human confirms the earlier robot's physical
+        /// removal before another real robot is commanded onto the same square. A no-op for the
+        /// overwhelmingly common case (nothing dead is sitting there).
+        /// </summary>
+        private void FlushRemovalMessageIfBlocking(RobotLocation location)
+        {
+            PlayerState? blocking = _pendingRemovalMessages.FirstOrDefault(p =>
+                p.CurrentPos.X == location.X && p.CurrentPos.Y == location.Y);
+            if (blocking == null) return;
+
+            ShowMessageToPlayer("Remove Robot: " + blocking.Name, blocking);
+            _pendingRemovalMessages.Remove(blocking);
         }
 
         public bool AddDamage(PlayerState p_thisrobot, int p_Damage, PlayerState? p_DamagingRobot = null)
