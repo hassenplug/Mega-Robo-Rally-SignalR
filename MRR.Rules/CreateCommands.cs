@@ -1107,7 +1107,7 @@ namespace MRR
                         }
                         // place player on board
                         //ShowMessageToPlayer(thisplayer.Name + " on " + thisplayer.RespawnID + " facing " + thisplayer.CurrentPos.Direction.ToString(), thisplayer);
-                        ShowMessageToPlayer(thisplayer.Name + " on " + thisplayer.RespawnID + " " + thisplayer.CurrentPos.DirectionArrow(), thisplayer);
+                        ShowMessageToPlayer(thisplayer.Name + " on " + thisplayer.RespawnID + " " + thisplayer.CurrentPos.DirectionArrow(thisplayer.DirectionAdjustment), thisplayer);
                         thisplayer.RespawnID = 0;
                         ListOfCommands.AddCommand(thisplayer, SquareAction.Respawn, 0); // clear respawn id
                     }
@@ -1698,9 +1698,18 @@ namespace MRR
 
         #region Helper Functions
 
-        public void ShowMessageToPlayer(string p_Message, PlayerState? p_Player = null)
+        public void ShowMessageToPlayer(string p_Message, PlayerState? p_Player = null, string shortmessage = "")
         {
-            ListOfCommands.AddCommand(p_Player, SquareAction.SetFlash, 1);
+            ListOfCommands.AddCommand(new CommandItem()
+            {
+                Phase = ListOfCommands.Phase,
+                PhaseStep = ListOfCommands.PhaseStep,
+                Robot = p_Player,
+                Value = 1,
+                ValueB = 0,
+                CommandDirection = Direction.None,
+                CommandType = SquareAction.SetFlash,
+                text = shortmessage });
             ListOfCommands.AddCommand(p_Message, p_Player);
             ListOfCommands.AddCommand(p_Player, SquareAction.SetFlash, 0);
         }

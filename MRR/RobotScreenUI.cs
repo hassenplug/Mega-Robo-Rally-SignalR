@@ -162,7 +162,7 @@ namespace MRR
             await _player.SendCommandAsync(new { cmd_id = "lcd_print", @string = _player.Name });
 
             // 3. Hand buttons — all grey; CardsDealt contains only unplayed cards
-            await _player.SendCommandAsync(new { cmd_id = "lcd_set_font", fontname = "MONO15" });
+            await _player.SendCommandAsync(new { cmd_id = "lcd_set_font", fontname = "mono60" });
             await _player.SendCommandAsync(new { cmd_id = "lcd_set_pen_color", r = fgR, g = fgG, b = fgB });
 
             for (int i = 0; i < HandCenters.Length; i++)
@@ -187,7 +187,7 @@ namespace MRR
             }
 
             // 4. Program slots — grey; only print abbreviation when filled
-            await _player.SendCommandAsync(new { cmd_id = "lcd_set_font", fontname = "MONO12" });
+            await _player.SendCommandAsync(new { cmd_id = "lcd_set_font", fontname = "mono60" });
             await _player.SendCommandAsync(new { cmd_id = "lcd_set_pen_color", r = fgR, g = fgG, b = fgB });
 
             for (int i = 0; i < 5; i++)

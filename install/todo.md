@@ -226,6 +226,13 @@ on yet. Do not remove "dead" code related to either (unwired `tOptionCardCommand
   - Draw an arrow on the LCD indicating the robot's current facing direction
     - Update from drawing an arrow to loading an arrow image
 
+- [ ] Robot screen: show why a button press is being requested (`RobotScreenUI.cs`) —
+  currently the touchscreen just blocks on a press with no context. Distinguish e.g. Phase
+  advance, Remove (reboot/pit death), Place (respawn placement) so a player knows what they're
+  confirming.
+
+- [ ] Robot screen: show an arrow pointing toward the player's seat
+
 - [ ] LED state machine across game phases (`Players.cs`, `CommandProcess.cs`, `GameController.cs`)
   - **Connected / waiting for program** → LEDs ON (robot color) — `SendColorStatus()` already does this at connect time
   - **Program complete** (all 5 registers filled / programs locked, state 5) → LEDs OFF

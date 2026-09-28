@@ -89,19 +89,19 @@ namespace MRR
 
         public string FullLocation { get { return ToString(); } set { } }
 
-        public string DirectionArrow()
-        { 
-            string dir = Direction.ToString();
-            switch (Direction)
+        public string DirectionArrow(int p_adjustment = 1)
+        {
+            Direction dir = (Direction) p_adjustment;
+            Direction dir1 = RotationFunctions.SumDirections(Direction, dir);
+            return dir1 switch
             {
-                case Direction.None: dir = "?"; break;
-                case Direction.Up: dir = "↑"; break;
-                case Direction.Right: dir = "→"; break;
-                case Direction.Down: dir = "↓"; break;
-                case Direction.Left: dir = "←"; break;
-            }
-            return dir; 
-        } 
+                Direction.Up => "↑",
+                Direction.Right => "→",
+                Direction.Down => "↓",
+                Direction.Left => "←",
+                _ => "?",
+            };
+        }
 
         override public string ToString()
         {

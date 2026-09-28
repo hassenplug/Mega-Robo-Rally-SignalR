@@ -301,12 +301,25 @@ namespace MRR.Services
                 cmd.Parameters.AddWithValue("@player", p_Player);
                 programCount = Convert.ToInt32(cmd.ExecuteScalar() ?? 0);
             }
-            int newStatus = (programCount == phaseCount) ? 4 : 3;
+
+            // A robot can't be Ready (4) until it has actually chosen a facing direction --
+            // PositionValid 0 means the direction picker hasn't been touched yet (DataService.
+            // Players.cs). Without this, a robot could reach ReadyToRun with no direction set.
+            int positionValid;
+            using (var cmd = new MySqlCommand(
+                "SELECT PositionValid FROM Robots WHERE RobotID = @player",
+                connection))
+            {
+                cmd.Parameters.AddWithValue("@player", p_Player);
+                positionValid = Convert.ToInt32(cmd.ExecuteScalar() ?? 0);
+            }
+
+            int newStatus = (programCount == phaseCount && positionValid > 0) ? 4 : 3;
 
             // LEDs stay on while the player is still programming, off once every register up
             // to PhaseCount is filled -- compared by count, not by whether slot 5 specifically
             // is filled, since PhaseCount can be less than 5 (e.g. damage).
-            _robotConnections.Get(p_Player)?.SetLightsAsync(programCount < phaseCount).Wait();
+            _robotConnections.Get(p_Player)?.SetLightsAsync(newStatus != 4).Wait();
 
             // 7. Rebuild CardsDealt/CardsPlayed CSV strings and write the new Status (+
             // PlayerStatus/StatusColor to match) in one pass (procUpdateRobotCards).

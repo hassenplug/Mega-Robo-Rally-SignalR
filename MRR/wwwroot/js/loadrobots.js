@@ -240,7 +240,10 @@ var CONNECT_STATUS_CONNECTED = 22; // tPlayerStatus.RobotConnected (MRR.Contract
 function toggleGmView() {
     if (!IsGM) return;
     gmViewActive = !gmViewActive;
-    if (!gmViewActive) document.getElementById('gmMenu').style.display = 'none';
+    if (!gmViewActive) {
+        document.getElementById('gmMenu').style.display = 'none';
+        document.getElementById('programScreenSubmenu').style.display = 'none';
+    }
     showall();
     showplayerprogram(CurrentLine); // refresh the direction picker's GM-mode visibility/label immediately
 }
@@ -248,7 +251,24 @@ function toggleGmView() {
 function toggleGmMenu() {
     if (!IsGM || !gmViewActive) return;
     var menu = document.getElementById('gmMenu');
-    menu.style.display = (menu.style.display === 'block') ? 'none' : 'block';
+    var wasOpen = menu.style.display === 'block';
+    menu.style.display = wasOpen ? 'none' : 'block';
+    if (wasOpen) document.getElementById('programScreenSubmenu').style.display = 'none';
+}
+
+// "Program Screen" submenu (Enable/Disable) nested under the GM menu -- see gmSetRobotScreen()
+// below, which hits GameController.UseRobotScreen via /api/settings/robot-screen.
+function toggleProgramScreenSubmenu() {
+    var submenu = document.getElementById('programScreenSubmenu');
+    submenu.style.display = (submenu.style.display === 'block') ? 'none' : 'block';
+}
+
+// GET /api/settings/robot-screen?enabled=true|false (Program.cs) flips
+// GameController.UseRobotScreen, which gates whether RobotScreenUI runs at all.
+function gmSetRobotScreen(enabled) {
+    document.getElementById('programScreenSubmenu').style.display = 'none';
+    document.getElementById('gmMenu').style.display = 'none';
+    fetch('/api/settings/robot-screen?enabled=' + enabled).catch(err => console.error(err.toString()));
 }
 
 // Hidden logout gesture: 5 taps on the "Robot" header within 10 seconds opens logout.html.
@@ -274,6 +294,7 @@ document.addEventListener('click', function (ev) {
     var menu = document.getElementById('gmMenu');
     if (menu && menu.style.display === 'block' && !menu.contains(ev.target) && ev.target.id !== 'robotHeader') {
         menu.style.display = 'none';
+        document.getElementById('programScreenSubmenu').style.display = 'none';
     }
 });
 
@@ -433,7 +454,10 @@ function showall()
     var showGmControls = IsGM && gmViewActive;
     document.getElementById('robotHeader').style.cursor = showGmControls ? 'pointer' : 'default';
     document.getElementById('statusHeader').innerText = showGmControls ? 'Connect' : 'Status';
-    if (!showGmControls) document.getElementById('gmMenu').style.display = 'none';
+    if (!showGmControls) {
+        document.getElementById('gmMenu').style.display = 'none';
+        document.getElementById('programScreenSubmenu').style.display = 'none';
+    }
 
     // GM mode + no game running (gamestate===25, was a separate IsRunning flag): offer to
     // pick a GameData row and start it.
