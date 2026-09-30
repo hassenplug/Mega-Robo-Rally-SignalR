@@ -1,7 +1,7 @@
 # Mega Robo Rally — Project Status & Operations Handbook
 
 **Last updated:** 2026-09-10
-**Target host:** `mrobopi` — Raspberry Pi 5, Debian 13 (trixie), aarch64, kernel 6.18.34
+**Target host:** `mrobopi` — Raspberry Pi 5, Debian 13 (trixie), aarch64, kernel 6.18.34 (original build). A second build on a Raspberry Pi 4 with a GeeekPi 3.5" screen and no Sense HAT is covered in §1.2 and §1.8.
 
 This is the practical document: how to rebuild the machine, how to run the parts, how to
 run a game, what is broken, and what is left. For *why* the code is shaped the way it is,
@@ -24,10 +24,40 @@ setup, robot/Pi IP stability) see [install/NETWORK_SETUP.md](install/NETWORK_SET
 Raspberry Pi OS (Debian 13 trixie), 64-bit, on a Pi 5. Set the hostname to `mrobopi` — the
 default connection string and the docs assume it. Create the user `mrr`.
 
+1. Write the image to the SD card (Raspberry Pi Imager). In its settings, set the hostname
+   `mrobopi`, the user `mrr` and its password, **enable SSH**, and configure the network
+   (Wi-Fi name/password, or plug in Ethernet).
+2. Boot the Pi and `ssh mrr@mrobopi`.
+3. Update the OS and get the code:
+
+```bash
+sudo apt-get update -y && sudo apt-get upgrade -y
+sudo apt install -y git
+cd ~ && git clone https://github.com/hassenplug/Mega-Robo-Rally-SignalR.git
+```
+
+Optional: `sudo raspi-config` → System Options → Boot / Auto Login → *Console Autologin*,
+if the Pi should come up logged in at the command line.
+
+> **Shortcut:** `install/git.sh` now does §1.1 (from `apt` onward) through §1.6 for you — packages, .NET 9, MariaDB user and schema, and the services. Run it as `mrr` (not with sudo) from the clone: `./install/git.sh` (Pi 4 / no Sense HAT) or `./install/git.sh --sense-hat`. Other options: `--remote-db`, `--reset-db` (wipes the database), `--no-start`; see `--help`. It is safe to re-run. It has **not** been run on a blank Pi yet, so watch its first run. The manual sections below remain the reference for what it does.
+
 ### 1.2 Hardware interfaces
 
-The Sense HAT LEDs are driven over SPI, and the game host **will not start** without the
-device present.
+**Which hardware build are you on?**
+
+| Build | Hardware | What to do |
+|---|---|---|
+| **Pi 5 + Sense HAT** (original) | Sense HAT 8×8 LED on SPI | Do the SPI steps below **and** set `MRR_REQUIRE_SPI=yes` in `/etc/default/mrr` if you want the start gate to check for it. |
+| **Pi 4 + GeeekPi 3.5" screen** (no Sense HAT) | 320×480 SPI TFT on the GPIO header | Skip the SPI steps. Leave `MRR_REQUIRE_SPI=no` (the default). Do §1.8 instead. |
+
+The Sense HAT LED driver is **not in the current source** — `install/todo.md` lists
+`MRR/Sensors/SenseHatService.cs` as not yet written. So nothing in the game host needs SPI,
+and since 2026-09-30 `mrr-preflight` only checks for `/dev/spidev0.0` when
+`MRR_REQUIRE_SPI=yes`. Earlier versions of this handbook said the game host will not start
+without the Sense HAT; that was the preflight gate, not the code. (I confirmed the gate
+change by reading the scripts; I have not started the service on a Pi without `spidev0.0`.)
+
+**Sense HAT build only:**
 
 ```bash
 # /boot/firmware/config.txt must contain:
@@ -37,7 +67,8 @@ dtparam=spi=on
 ls /dev/spidev0.0        # must exist
 ```
 
-The `mrr` user needs these groups (current machine has all of them):
+The `mrr` user needs these groups (current machine has all of them; on the Pi 4 build `spi`
+and `i2c` are harmless but unused):
 
 ```bash
 sudo usermod -aG spi,gpio,i2c,dialout,sudo,adm mrr
@@ -49,7 +80,15 @@ sudo usermod -aG spi,gpio,i2c,dialout,sudo,adm mrr
 system services must use the absolute path `/home/mrr/.dotnet/dotnet` — a systemd unit
 does not read `.bashrc`.
 
+To install it (the project targets `net9.0`, so ask for channel 9.0 explicitly — the old `git.sh`
+used `--channel STS`, which moves on to whatever is newest):
+
 ```bash
+curl -sSL https://dot.net/v1/dotnet-install.sh | bash /dev/stdin --channel 9.0
+echo 'export DOTNET_ROOT=$HOME/.dotnet' >> ~/.bashrc
+echo 'export PATH=$PATH:$HOME/.dotnet' >> ~/.bashrc
+source ~/.bashrc
+
 ~/.dotnet/dotnet --version      # expect 9.0.x
 ```
 
@@ -66,9 +105,25 @@ sudo systemctl enable --now mariadb
 
 # user + schema
 sudo mysql < install/userMRR.sql          # creates mrr@localhost, grants on rally.*
-mysql -u mrr -p rally < install/MRRDatabase.sql   # 36 tables + seed data
-mysql -u mrr -p rally < install/rallyBoards.sql   # the board library (89 playable boards)
+mysql -u mrr -p rally < install/MRRDatabase.sql   # 37 tables + seed data
+mysql -u mrr -p rally < install/rallyBoards.sql   # the board library (89 playable boards) - NOT done by git.sh; run it yourself if you want the library
 ```
+
+`userMRR.sql` sets the `mrr` password to the one in `MRR/appsettings.json`
+(`ConnectionStrings:Rally`). If you change one, change the other. `MRRDatabase.sql` creates
+the `rally` database itself (`git.sh` loads it with `sudo mysql <` as root).
+
+**Remote database access (optional).** To connect to the Pi's database from another machine
+(Workbench, or a game host running elsewhere), MariaDB must stop listening only on loopback:
+
+```bash
+sudo nano /etc/mysql/mariadb.conf.d/50-server.cnf
+#   comment out:  bind-address = 127.0.0.1
+sudo systemctl restart mariadb
+```
+
+This exposes the database to the whole network and the password is a known default, so only
+do it on the isolated game LAN (see [install/NETWORK_SETUP.md](install/NETWORK_SETUP.md)).
 
 **Do not run `install/gameconfig.sql` on a fresh install.** It is not a provisioning
 script — it starts a specific test game and will overwrite `CurrentGameData`.
@@ -94,6 +149,67 @@ sudo ./install.sh          # units, scripts, /etc/default/mrr, sudoers, deploy, 
 
 Installs `mrr-server.service` (game, :5000), `mrr-config.service` (authoring, :5001), the
 SPI loader, and the health/recover watchdog timers. See §2.2.
+
+On a Pi without a Sense HAT, `mrr-spi.service` will still try to load the `spi0-2cs` overlay
+if `/dev/spidev0.0` is absent. On the GeeekPi build the screen's own driver owns SPI0 (§1.8), so
+mask the loader so it does not fight the display: `sudo systemctl mask mrr-spi.service` (`git.sh` does this
+without `--sense-hat`). The unit has no `[Install]` section, so `disable` would do nothing. The game unit only
+*wants* it, so a masked loader should be skipped and the game still start — not yet tested on a Pi.
+
+### 1.7 Lines from the old `install/git.sh` that were dropped
+
+| `git.sh` line | Status |
+|---|---|
+| `dotnet add package MySqlConnector / System.Device.Gpio / Iot.Device.Bindings / Microsoft.AspNetCore.SignalR` | Not needed. Packages are declared in the `.csproj` files and restored by `dotnet build`. Running `dotnet add package` in the wrong folder edits the wrong project. The `MySqlConnector` line pins 2.2.7; the project uses 2.4.0. |
+| `cp … startup.sh` / `update-rc.d` (commented out) | Replaced by the systemd units in §1.6. |
+| "Enable remote commands (reboot) ?? not working" | Unresolved in the original notes; not covered here. |
+| `git clone …/VEX-Robotics/AIM_Websocket_Library.git` ("move this line into the sh file") | Optional reference only. I found no code in this repo that depends on a local copy; robot commands go through `AIMRobot` over WebSocket. The library is the source of truth for the wire format. |
+
+### 1.8 Pi 4 with the GeeekPi 3.5" touch screen (no Sense HAT)
+
+Hardware: Raspberry Pi 4 Model B, GeeekPi 3.5" 320×480 TFT touch screen with case, fan and
+heatsinks. The steps below are what applies to this project; the **display driver itself
+comes from GeeekPi**, and I could not find a page for this exact product to cite, so follow
+the instructions that shipped with it or on its product page.
+
+**What I am assuming (check against your unit):** panels of this type plug onto the 40-pin
+GPIO header and are driven over **SPI0** (display on CE0, touch controller on CE1), not HDMI.
+If yours connects by HDMI plus a USB touch cable instead, it needs no driver — skip step 3.
+
+1. Assemble the case, fan and heatsinks; seat the screen on the GPIO header with the Pi
+   powered off.
+2. Do §1.1 as normal. If the screen stays blank, `ssh` in — the game does not need the screen
+   to run.
+3. Install the display driver per GeeekPi's instructions. Two cautions:
+   - Drivers of this family (the common `LCD-show` scripts) were written for older Raspberry
+     Pi OS releases, often edit `config.txt`, and may not work on Debian 13 (trixie) or its
+     Wayland desktop. I have not tested this on trixie. If it fails, try the OS release the
+     vendor documents (Raspberry Pi Imager lists older releases under *Raspberry Pi OS
+     (other)*), and if you change OS, re-check every command in this handbook.
+   - Do **not** also enable `dtparam=spi=on` for the Sense HAT, and leave
+     `mrr-spi.service` disabled (§1.6). The screen's driver owns SPI0; on this build
+     `/dev/spidev0.0` may legitimately not exist.
+4. Reboot, then confirm the screen was detected. Output depends on the driver, so treat these
+   as hints rather than a pass/fail test:
+
+```bash
+ls /dev/fb*                                        # a second framebuffer usually means the TFT
+dmesg | grep -i -E "ili9|fbtft|ads7846|xpt2046|spi"
+```
+
+5. Set `MRR_REQUIRE_SPI=no` in `/etc/default/mrr` (the default), then
+   `mrrctl restart` and check `mrrctl status`.
+
+**What the screen does in this project:** nothing yet. The 8×8 LED matrix was meant to show
+minimal game status, but that code (`SenseHatService`, `install/todo.md`) was never written, so
+the screen shows the normal Pi desktop or console and the game runs without it. Players and the
+GM still use their phones / a browser at `http://mrobopi:5000/`. A 320×480 panel is small for
+`gmindex.html`; if you want it as a status display, the simplest route is a kiosk browser
+pointed at a page built for that size — that page does not exist yet.
+
+**Differences from the Pi 5 build:** the Pi 4 is slower (expect `dotnet build` to take longer
+than the 40 s–2 min quoted in §1.5), and it is a different board, so the kernel and the
+`/boot/firmware/config.txt` contents differ from the versions in the header of this document.
 
 ---
 
@@ -556,7 +672,7 @@ label on the robot.
 | Symptom | Look at |
 |---|---|
 | Host will not start | `mrrctl logs \| tail -50` — the preflight line names the blocker |
-| `/dev/spidev0.0 missing` | `dtparam=spi=on` in config.txt, then reboot |
+| `/dev/spidev0.0 missing` | Only matters if `MRR_REQUIRE_SPI=yes` (Sense HAT build): `dtparam=spi=on` in config.txt, then reboot. Otherwise set `MRR_REQUIRE_SPI=no` in `/etc/default/mrr` |
 | Robots do not connect | `RobotBases.IPAddress`, robots powered and on the right network |
 | Odd startup crash / NRE | Check the database connection first. `SqlGateway` swallows database errors and returns empty results, so a bad connection string surfaces later as a null reference somewhere unrelated |
 | Game acts on stale data | `GET /api/admin/diagnostics` for memory-vs-database drift |

@@ -13,7 +13,7 @@ case "$ROLE" in
         APP_DIR="${MRR_GAME_APP_DIR:-${MRR_APP_DIR:-/srv/mrr/game}}"
         APP_DLL="$APP_DIR/MRR.dll"
         PORT="${MRR_GAME_PORT:-${MRR_PORT:-5000}}"
-        NEEDS_SPI=yes
+        NEEDS_SPI="${MRR_REQUIRE_SPI:-no}"
         ;;
     config)
         APP_DIR="${MRR_CONFIG_APP_DIR:-/srv/mrr/config}"
@@ -36,8 +36,9 @@ fail() { echo "preflight[$ROLE] FAILED: $*" >&2; exit 1; }
 # 1. Is the app actually deployed?
 [ -f "$APP_DLL" ] || fail "$APP_DLL not found - run 'mrrctl deploy $ROLE'"
 
-# 2. SPI, game host only. Communication() builds LEDs -> Ws2812b.Update() during startup;
-#    a missing or unreadable /dev/spidev0.0 kills the app before Kestrel ever listens.
+# 2. SPI, game host only, and only when MRR_REQUIRE_SPI=yes in /etc/default/mrr. The Sense HAT
+#    LED driver (todo.md: SenseHatService) is not in the current source, so nothing needs SPI by
+#    default. A Pi without a Sense HAT (or whose SPI is taken by a TFT display) must still start.
 if [ "$NEEDS_SPI" = yes ]; then
     [ -e /dev/spidev0.0 ] || fail "/dev/spidev0.0 missing - add 'dtparam=spi=on' to /boot/firmware/config.txt (reboot), or load it now with: sudo dtoverlay spi0-2cs"
     [ -r /dev/spidev0.0 ] || fail "/dev/spidev0.0 not readable by $(id -un) - add the user to the 'spi' group"
