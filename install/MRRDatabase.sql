@@ -869,9 +869,9 @@ INSERT INTO `RobotBases` VALUES
 INSERT INTO `RobotBodies` VALUES
 (1,'Hammerbot','7338B0',1,'FFFFFF'),
 (2,'Hulk X90','008800',1,'FFFFFF'),
-(3,'Smashbot','FFE733',1,'000000'),
+(3,'Smashbot','00FFFF',1,'000000'),
 (4,'Spinbot','0000FF',1,'FFFFFF'),
-(5,'Twonky','EB9C1B',1,'000000'),
+(5,'Twonky','FFA500',1,'000000'),
 (6,'Twitch','FF0000',1,'FFFFFF'),
 (7,'Trundlebot','B76DBB',1,'FFFFFF'),
 (8,'Zoombot','2A611E',1,'FFFFFF');

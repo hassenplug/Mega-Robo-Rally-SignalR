@@ -139,7 +139,7 @@
             height: 56px;
             position: relative;
             overflow: hidden;
-            cursor: crosshair;
+            cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cline x1='12' y1='2' x2='12' y2='22' stroke='%23ddd' stroke-width='3' stroke-linecap='round'/%3E%3Cline x1='2' y1='12' x2='22' y2='12' stroke='%23ddd' stroke-width='3' stroke-linecap='round'/%3E%3Cline x1='12' y1='2' x2='12' y2='22' stroke='%23111' stroke-width='1.5' stroke-linecap='round'/%3E%3Cline x1='2' y1='12' x2='22' y2='12' stroke='%23111' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E") 12 12, crosshair;
             border: 1px solid #3a3a3a;
             background: #444;
             user-select: none;
@@ -722,7 +722,7 @@ function selectPaletteType(typeId, defaultRotation) {
     document.querySelectorAll('.palette-item').forEach(el => {
         el.classList.toggle('active', parseInt(el.dataset.typeId) === typeId);
     });
-    document.getElementById('boardGrid').style.cursor = 'crosshair';
+    document.getElementById('boardGrid').style.cursor = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cline x1='12' y1='2' x2='12' y2='22' stroke='%23ddd' stroke-width='3' stroke-linecap='round'/%3E%3Cline x1='2' y1='12' x2='22' y2='12' stroke='%23ddd' stroke-width='3' stroke-linecap='round'/%3E%3Cline x1='12' y1='2' x2='12' y2='22' stroke='%23111' stroke-width='1.5' stroke-linecap='round'/%3E%3Cline x1='2' y1='12' x2='22' y2='12' stroke='%23111' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E\") 12 12, crosshair";
 
     // Deselect any selected board cell
     if (selectedCell) {
