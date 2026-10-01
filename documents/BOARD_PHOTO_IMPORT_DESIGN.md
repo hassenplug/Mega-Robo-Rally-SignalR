@@ -3,7 +3,7 @@
 ## Context
 
 Physical board tiles are 3D-printed reproductions of the artwork already in
-`MRR.Config/wwwroot/images/element{typeId}[-{parameter}]_top.png` (~40 images). The GM
+`MRR.Config/wwwroot/images/element{typeId}[-{parameter}]_top.png` (35 images). The GM
 can lay these tiles out on a table in any board layout, then wants to photograph the
 layout and have the game import it as a `BoardElementCollection` — instead of manually
 placing every square one at a time in the existing board editor.
@@ -40,11 +40,11 @@ color matching works before checking.
 New `MRR.Config/BoardPhotoImport/TileTemplateCatalog.cs`:
 - At startup (or first use), enumerate `wwwroot/images/element*_top.png`, parse each
   filename into `(typeId, parameter)` — same parsing `board-editor.html` already does
-  via `imageSrcForType` (`board-editor.html:396`).
+  via `imageSrcForType` (`board-editor.html:398`).
 - Load each with `SixLabors.ImageSharp`, downscale to a small fixed size (e.g. 48×48),
   grayscale it, and pre-rotate to all 4 orientations (0/90/180/270) — no per-rotation
   image files exist; the editor achieves rotation via CSS `transform: rotate()`
-  (`board-editor.html:422-425`, `rotationToDeg`), so do the same in code.
+  (`board-editor.html:432`, `rotationToDeg`), so do the same in code.
 - Store each `(typeId, parameter, rotation)` variant's normalized pixel buffer for
   comparison.
 - Pull each type's default `ActionList` (walls/flag/start/belt-direction actions) from
@@ -128,3 +128,48 @@ Add `SixLabors.ImageSharp` (same version as `MRR/MRR.csproj:15`, `3.1.12`) to
   color-vs-structure matching risk above, and should happen before investing further
   in matcher tuning.
 - Confirm `dotnet build` succeeds for `MRR.Config` after adding ImageSharp.
+
+## Status and build plan (added 2026-09-30)
+
+**Status: design only, nothing built.** Input is confirmed as a photo of **physical tiles**
+(not a flat scan), so the design above stands as written. Review notes from re-checking it
+against the code:
+
+- Line references above were updated (`imageSrcForType` :398, `rotationToDeg` :432). There are
+  35 tile images, not ~40.
+- **Template dependency.** §1 reads default actions from `BoardID = 0`. `MRR.Config/Program.cs`
+  (comment above `POST /api/boardeditor/template/seed`) says that template can be empty on a
+  fresh database. The importer must check for it and return a clear error telling the GM to
+  seed it, rather than silently importing tiles with no walls/actions.
+- **Board orientation.** The 4 corners must be defined in a fixed order (top-left first, then
+  clockwise), and the UI must say so, or a correct photo imports rotated.
+- **Wall-bearing tiles.** Check how walls are represented for each tile type (in the `ActionList`
+  or in the image) before trusting the matcher with them; run the existing
+  `GET /api/boardeditor/{id}/validate` on the result and show its errors.
+- **Review aid.** Return a per-cell confidence list so `board-editor.html` can highlight
+  low-confidence cells, not just pre-fill them.
+- **Upload limits.** This is the first file upload in the repo: cap the size, accept only
+  image types, and put the endpoint behind the same restriction as the other editor
+  endpoints (the config host has no login of its own).
+
+### Build order (each step has a check before the next starts)
+
+1. **Feasibility spike (decides whether to continue).** Photograph a real 3×3 layout of known
+   tiles. In a throwaway console project, crop by hand, grayscale, and match against the
+   catalog. *Pass:* ≥ 8 of 9 cells correct. *Fail:* try edge-based matching; if that fails,
+   stop and reconsider (e.g. a marker on each tile).
+2. `TileTemplateCatalog` — loads the 35 images, makes the 4 rotations, joins `BoardID 0` actions.
+   *Check:* every catalog tile matches itself at its own rotation with score ≈ perfect.
+3. `PerspectiveRectifier` — homography solve and sampling. *Check:* round-trip unit test on a
+   synthetic warped image.
+4. `TileMatcher` + `BoardPhotoImportService` — classify, assemble, save through
+   `BoardSaveToDB`. *Check:* the step-1 photo, end to end, yields the right board in the DB.
+5. Endpoint `POST /api/boardeditor/{id}/import-photo` with limits and the template check.
+   *Check:* bad file, huge file, missing template, and wrong corner count each return a clear 4xx.
+6. `board-import.html` (camera input, 4 draggable corners, cols/rows, target board) and the
+   hand-off to `board-editor.html?board={id}`. *Check:* done from a phone, over the game LAN.
+7. Add `SixLabors.ImageSharp` 3.1.12 to `MRR.Config.csproj` (step 2 needs it) and confirm
+   `dotnet build` is clean.
+
+Not in scope: automatic board-edge detection, flat-image scans, and any change to the
+`MRR/` game host (this is authoring-side only).
