@@ -121,6 +121,22 @@ than opened per-phase and closed again:
   `ConnectToRobot`/`DisconnectRobot`) use the same `Reconnect`/dispose mechanism for the case
   a single robot needs to be reconnected without restarting the game.
 
+## Robot network addresses
+
+AIM robots only support DHCP, so each address below is a DHCP reservation on the router,
+matched by MAC. `RobotBases.IPAddress` must match this table. Fill in TBD rows as each robot's
+MAC is read.
+
+| Robot | Device name | MAC address | IP address |
+|---|---|---|---|
+| AIM-01 | AIM-328D8418 | F4:12:FA:A7:1A:F0 | 192.168.0.101 |
+| AIM-02 | AIM-426E8118 | F4:12:FA:A5:D9:94 | 192.168.0.102 |
+| AIM-03 | AIM-1AA57518 | F4:12:FA:A6:27:74 | 192.168.0.103 |
+| AIM-04 | AIM-3A8A8B18 | F4:12:FA:A5:DB:38 | 192.168.0.104 |
+| AIM-05 | AIM-12598D18 | F4:12:FA:A7:68:1C | 192.168.0.105 |
+| AIM-06 | AIM-427D7018 | F4:12:FA:A7:b1:78 | 192.168.0.106 |
+| AIM-07 | AIM-1A5E7918 | F4:12:FA:A7:4B:C4 | 192.168.0.107 |
+
 ## What this document is not
 
 There is a separate, unimplemented proposal in `.claude/agents/gm-ui.md` ("Use Robots
