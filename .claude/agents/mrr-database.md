@@ -332,20 +332,20 @@ chain line up: `RobotID N` → `RobotBaseID N` → `AIM-0N`.
 
 | RobotBaseID | IPAddress | AIMName | AIMID |
 |---|---|---|---|
-| 1 | 192.168.1.149 | AIM-01 | AIM-328D8418 |
-| 2 | 192.168.1.206 | AIM-02 | AIM-426E8118 |
-| 3 | 192.168.1.107 | AIM-03 | AIM-1AA57518 |
-| 4 | 192.168.1.215 | AIM-04 | AIM-3A8A8B18 |
-| 5 | 192.168.1.160 | AIM-05 | AIM-12598D18 |
-| 6 | `192.168.1.` | AIM-06 | `AIM-??` | 
-| 7 | 192.168.1.106 | AIM-07 | AIM-1A5E7918 |
+| 1 | 192.168.0.101 | AIM-01 | AIM-328D8418 |
+| 2 | 192.168.0.102 | AIM-02 | AIM-426E8118 |
+| 3 | 192.168.0.103 | AIM-03 | AIM-1AA57518 |
+| 4 | 192.168.0.104 | AIM-04 | AIM-3A8A8B18 |
+| 5 | 192.168.0.105 | AIM-05 | AIM-12598D18 |
+| 6 | 192.168.0.106 | AIM-06 | AIM-427D7018 |
+| 7 | 192.168.0.107 | AIM-07 | AIM-1A5E7918 |
 | 8 | 00:16:53:0A:37:26 | — | — |
 | 9 | 00:16:53:0A:36:D5 | — | — |
 | 10 | 00:16:53:0A:36:67 | — | — |
 
-Base 6 is a deliberate placeholder — that robot's address and hardware ID are not yet
-known. It is harmless: `Player.ConnectAsync()` catches the failure and logs
-`Connection failed`, leaving `isConnected` false.
+The addresses are fixed (pinned by MAC on the router, 2026-10-01); the MAC table is in
+`documents/RobotConnections.md`. If a robot is ever unreachable, `Player.ConnectAsync()`
+catches the failure and logs `Connection failed`, leaving `isConnected` false.
 
 No C# reads `AIMName` or `AIMID` yet; they are reference data. `IPAddress` is the column
 the game actually uses, via `DataService.GetAllPlayers()` → `Player.IPAddress`.

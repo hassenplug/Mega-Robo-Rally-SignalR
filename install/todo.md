@@ -382,9 +382,10 @@ Home Router (192.168.1.x)
   - Use the VEX AIM app or built-in setup to join the game SSID
   - Note each robot's MAC address for DHCP reservation
 
-- [ ] Assign static IPs to all 6 robots and update the database
-  - Configure DHCP reservations on the game router by MAC address
-  - Suggested scheme: `192.168.4.101`–`192.168.4.106` for robots 1–6
+- [x] Assign static IPs to all robots and update the database (done 2026-10-01)
+  - Robots 1–7 are fixed at `192.168.0.101`–`192.168.0.107`; MACs and device names are in `documents/RobotConnections.md`
+  - `install/MRRDatabase.sql` seed updated to match. **Still to do:** confirm the live `RobotBases.IPAddress` values match (the seed only applies to a fresh install)
+  - (Original plan below used `192.168.4.x`; the actual network is `192.168.0.x`)
   - Enter confirmed IPs into the `RobotBases` table (`IPAddress` column; renamed from `MACID` 2026-08-22)
   - `RobotBases` also holds `DefaultBody` — verify each base is mapped to the correct robot body
   - `DataService.GetAllPlayers()` reads `IPAddress` into `Player.IPAddress`; `Player.Connect()` in `Players.cs` uses it to open the WebSocket

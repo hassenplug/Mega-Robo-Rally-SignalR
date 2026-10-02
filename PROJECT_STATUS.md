@@ -510,10 +510,11 @@ Fixing it needs per-seat SignalR groups plus phone-UI changes.
 `CreateCommands.AddFlag` correctly detects a win, but only posts a `"Game Winner:"`
 message — `SquareAction.GameWinner` is commented out, so play continues.
 
-### 4.5 Robot 6 has no address
+### 4.5 Robot 6 has no address — resolved 2026-10-01
 
-`RobotBases` row 6 is a placeholder (`192.168.1.` / `AIM-??`). Harmless — the connect
-attempt fails and is logged — but that seat cannot use a physical robot.
+Robot 6 now has `AIM-427D7018` and a fixed address like the others: all seven robots are at
+`192.168.0.101`–`.107` (see [documents/RobotConnections.md](documents/RobotConnections.md)).
+`install/MRRDatabase.sql` is updated; check the live `RobotBases` table matches.
 
 ### 4.6 The database password is in a tracked file
 

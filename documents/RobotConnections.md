@@ -123,9 +123,10 @@ than opened per-phase and closed again:
 
 ## Robot network addresses
 
-AIM robots only support DHCP, so each address below is a DHCP reservation on the router,
-matched by MAC. `RobotBases.IPAddress` must match this table. Fill in TBD rows as each robot's
-MAC is read.
+Each robot has a fixed address (set 2026-10-01), so the IP stored in `RobotBases.IPAddress`
+stays valid across reboots. `RobotBases.IPAddress` must match this table, and so does the
+`RobotBases` seed in `install/MRRDatabase.sql`. The robots themselves only use DHCP (VEX AIM
+has no static-IP setting), so the address is pinned by MAC on the router's DHCP server.
 
 | Robot | Device name | MAC address | IP address |
 |---|---|---|---|
@@ -134,7 +135,7 @@ MAC is read.
 | AIM-03 | AIM-1AA57518 | F4:12:FA:A6:27:74 | 192.168.0.103 |
 | AIM-04 | AIM-3A8A8B18 | F4:12:FA:A5:DB:38 | 192.168.0.104 |
 | AIM-05 | AIM-12598D18 | F4:12:FA:A7:68:1C | 192.168.0.105 |
-| AIM-06 | AIM-427D7018 | F4:12:FA:A7:b1:78 | 192.168.0.106 |
+| AIM-06 | AIM-427D7018 | F4:12:FA:A7:B1:78 | 192.168.0.106 |
 | AIM-07 | AIM-1A5E7918 | F4:12:FA:A7:4B:C4 | 192.168.0.107 |
 
 ## What this document is not

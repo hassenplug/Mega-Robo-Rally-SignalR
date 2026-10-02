@@ -1,8 +1,12 @@
 # Game Network Setup — TP-Link TL-WR802N (WISP Client Router Mode)
 
-**Status:** Plan — not yet configured against hardware.
+**Status:** Plan — not yet configured against hardware, **except** robot IPs: all 7 robots
+have fixed addresses `192.168.0.101`–`.107` as of 2026-10-01 (table in
+[RobotConnections.md](../documents/RobotConnections.md)). That is a `192.168.0.x` network, not
+the subnets this plan proposes below, so §4 steps 3, 5 and 6 are done for the robots only;
+the Pi's reservation and the rest of the plan are still open.
 **Router:** TP-Link N300 Wireless Portable Nano Travel Router, TL-WR802N
-**Last updated:** 2026-09-28
+**Last updated:** 2026-10-01
 **Related:** [PROJECT_STATUS.md](../PROJECT_STATUS.md) §1 (Pi setup),
 [documents/RobotConnections.md](../documents/RobotConnections.md) (why robot IPs must be
 stable), `robot-discovery` agent (re-mapping robot IPs into the DB after a network change)
