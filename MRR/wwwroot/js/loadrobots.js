@@ -196,9 +196,13 @@ function confirmDirection() {
 //
 // DirectionAdjustment is a Direction enum value (SeatOrientation.Direction), looked up through
 // the same DIRECTION_DEGREES table used for the robot's own facing.
+//
+// Logged in as GM, no adjustment is applied (the GM isn't sitting at any one seat), so the
+// arrow shows the raw board-absolute direction -- this is IsGM, not isGmModeActive(), so it
+// holds whether or not the GM has tapped into GM view.
 function renderDirectionArrow() {
     var rbt = datapacket.robots.find(r => r.RobotID === CurrentPlayer);
-    var seatAdjustment = DIRECTION_DEGREES[(rbt && rbt.DirectionAdjustment) || 1] || 0;
+    var seatAdjustment = IsGM ? 0 : (DIRECTION_DEGREES[(rbt && rbt.DirectionAdjustment) || 1] || 0);
     var degrees = (DIRECTION_DEGREES[pendingDirection] + seatAdjustment) % 360;
     document.getElementById('directionBtn').style.transform = 'rotate(' + degrees + 'deg)';
 }
