@@ -1,6 +1,6 @@
 # Mega Robo Rally — Project Status & Operations Handbook
 
-**Last updated:** 2026-09-10
+**Last updated:** 2026-10-01
 **Target host:** `mrobopi` — Raspberry Pi 5, Debian 13 (trixie), aarch64, kernel 6.18.34 (original build). A second build on a Raspberry Pi 4 with a GeeekPi 3.5" screen and no Sense HAT is covered in §1.2 and §1.8.
 
 This is the practical document: how to rebuild the machine, how to run the parts, how to
@@ -39,7 +39,7 @@ cd ~ && git clone https://github.com/hassenplug/Mega-Robo-Rally-SignalR.git
 Optional: `sudo raspi-config` → System Options → Boot / Auto Login → *Console Autologin*,
 if the Pi should come up logged in at the command line.
 
-> **Shortcut:** `install/git.sh` now does §1.1 (from `apt` onward) through §1.6 for you — packages, .NET 9, MariaDB user and schema, and the services. Run it as `mrr` (not with sudo) from the clone: `./install/git.sh` (Pi 4 / no Sense HAT) or `./install/git.sh --sense-hat`. Other options: `--remote-db`, `--reset-db` (wipes the database), `--no-start`; see `--help`. It is safe to re-run. It has **not** been run on a blank Pi yet, so watch its first run. The manual sections below remain the reference for what it does.
+> **Shortcut:** `install/git.sh` now does §1.1 (from `apt` onward) through §1.6 for you — packages, .NET 9, MariaDB user and schema, and the services. Run it as `mrr` (not with sudo) from the clone: `./install/git.sh` (Pi 4 / no Sense HAT) or `./install/git.sh --sense-hat`. Other options: `--remote-db`, `--reset-db` (wipes the database), `--no-start`; see `--help`. Add `--tft-screen` on the Pi 4 + GeeekPi build to also set up the screen (§1.8). It is safe to re-run. It has **not** been run on a blank Pi yet, so watch its first run. The manual sections below remain the reference for what it does.
 
 ### 1.2 Hardware interfaces
 
@@ -48,7 +48,7 @@ if the Pi should come up logged in at the command line.
 | Build | Hardware | What to do |
 |---|---|---|
 | **Pi 5 + Sense HAT** (original) | Sense HAT 8×8 LED on SPI | Do the SPI steps below **and** set `MRR_REQUIRE_SPI=yes` in `/etc/default/mrr` if you want the start gate to check for it. |
-| **Pi 4 + GeeekPi 3.5" screen** (no Sense HAT) | 320×480 SPI TFT on the GPIO header | Skip the SPI steps. Leave `MRR_REQUIRE_SPI=no` (the default). Do §1.8 instead. |
+| **Pi 4 + GeeekPi 3.5" screen** (no Sense HAT) | 480×320 SPI TFT on the GPIO header | Skip the SPI steps. Leave `MRR_REQUIRE_SPI=no` (the default). Do §1.8 instead (`./install/git.sh --tft-screen` does it for you). |
 
 The Sense HAT LED driver is **not in the current source** — `install/todo.md` lists
 `MRR/Sensors/SenseHatService.cs` as not yet written. So nothing in the game host needs SPI,
@@ -96,8 +96,11 @@ source ~/.bashrc
 
 MariaDB 11.8 (`mariadb.service`), running locally on the Pi.
 
-> **The database is local.** Older notes say `server=mrobopi3`; that machine is gone. Use
-> `localhost` or `mrobopi`.
+> **The database is local.** Older notes say `server=mrobopi3`; that machine is gone.
+> `appsettings.json` (both hosts) uses `server=127.0.0.1`. Do not switch it back to `mrobopi`:
+> Debian's `/etc/hosts` maps the Pi's own hostname to `127.0.1.1`, which MariaDB's default
+> `bind-address = 127.0.0.1` does not listen on, so the game cannot reach its database
+> (found on the Pi 4 build 2026-10-01).
 
 ```bash
 sudo apt-get install -y mariadb-server
@@ -114,7 +117,8 @@ mysql -u mrr -p rally < install/rallyBoards.sql   # the board library (89 playab
 the `rally` database itself (`git.sh` loads it with `sudo mysql <` as root).
 
 **Remote database access (optional).** To connect to the Pi's database from another machine
-(Workbench, or a game host running elsewhere), MariaDB must stop listening only on loopback:
+(Workbench, or a game host running elsewhere), MariaDB must stop listening only on loopback
+(`git.sh --remote-db` does this). The game on the Pi itself does not need it:
 
 ```bash
 sudo nano /etc/mysql/mariadb.conf.d/50-server.cnf
@@ -123,7 +127,8 @@ sudo systemctl restart mariadb
 ```
 
 This exposes the database to the whole network and the password is a known default, so only
-do it on the isolated game LAN (see [install/NETWORK_SETUP.md](install/NETWORK_SETUP.md)).
+do it on the isolated game LAN (see [install/NETWORK_SETUP.md](install/NETWORK_SETUP.md)). A
+game host on another machine also needs its own `appsettings.json` pointed at the Pi.
 
 **Do not run `install/gameconfig.sql` on a fresh install.** It is not a provisioning
 script — it starts a specific test game and will overwrite `CurrentGameData`.
@@ -152,9 +157,19 @@ SPI loader, and the health/recover watchdog timers. See §2.2.
 
 On a Pi without a Sense HAT, `mrr-spi.service` will still try to load the `spi0-2cs` overlay
 if `/dev/spidev0.0` is absent. On the GeeekPi build the screen's own driver owns SPI0 (§1.8), so
-mask the loader so it does not fight the display: `sudo systemctl mask mrr-spi.service` (`git.sh` does this
-without `--sense-hat`). The unit has no `[Install]` section, so `disable` would do nothing. The game unit only
-*wants* it, so a masked loader should be skipped and the game still start — not yet tested on a Pi.
+mask the loader so it does not fight the display (`git.sh` does this without `--sense-hat`). `install.sh`
+writes a real unit file into `/etc/systemd/system`, and `systemctl mask` refuses to replace a real file
+("File ... already exists"), so remove it first — the source stays in `install/service/`:
+
+```bash
+sudo rm /etc/systemd/system/mrr-spi.service
+sudo systemctl mask mrr-spi.service
+sudo systemctl daemon-reload
+```
+
+The unit has no `[Install]` section, so `disable` would do nothing. The game unit only *wants* it, so a
+masked loader is skipped and the game still starts — confirmed on the Pi 4 build 2026-10-01 (a
+service restart via `mrrctl deploy`; not yet across a reboot).
 
 ### 1.7 Lines from the old `install/git.sh` that were dropped
 
@@ -167,45 +182,65 @@ without `--sense-hat`). The unit has no `[Install]` section, so `disable` would 
 
 ### 1.8 Pi 4 with the GeeekPi 3.5" touch screen (no Sense HAT)
 
-Hardware: Raspberry Pi 4 Model B, GeeekPi 3.5" 320×480 TFT touch screen with case, fan and
-heatsinks. The steps below are what applies to this project; the **display driver itself
-comes from GeeekPi**, and I could not find a page for this exact product to cite, so follow
-the instructions that shipped with it or on its product page.
+Hardware: Raspberry Pi 4 Model B, GeeekPi 3.5" 480×320 TFT touch screen with case, fan and
+heatsinks. The panel plugs onto the 40-pin GPIO header and is driven over **SPI0**, not HDMI.
+No GeeekPi driver script is needed: the kernel's own `piscreen` overlay (ILI9486 display +
+ADS7846/XPT2046-compatible touch) drives it on Debian 13 (trixie).
 
-**What I am assuming (check against your unit):** panels of this type plug onto the 40-pin
-GPIO header and are driven over **SPI0** (display on CE0, touch controller on CE1), not HDMI.
-If yours connects by HDMI plus a USB touch cable instead, it needs no driver — skip step 3.
+**Shortcut:** `./install/git.sh --tft-screen` does steps 2–4 below. Install from the Raspberry
+Pi OS **desktop** image (not Lite) — the kiosk needs Chromium and a desktop session.
 
 1. Assemble the case, fan and heatsinks; seat the screen on the GPIO header with the Pi
    powered off.
-2. Do §1.1 as normal. If the screen stays blank, `ssh` in — the game does not need the screen
-   to run.
-3. Install the display driver per GeeekPi's instructions. Two cautions:
-   - Drivers of this family (the common `LCD-show` scripts) were written for older Raspberry
-     Pi OS releases, often edit `config.txt`, and may not work on Debian 13 (trixie) or its
-     Wayland desktop. I have not tested this on trixie. If it fails, try the OS release the
-     vendor documents (Raspberry Pi Imager lists older releases under *Raspberry Pi OS
-     (other)*), and if you change OS, re-check every command in this handbook.
-   - Do **not** also enable `dtparam=spi=on` for the Sense HAT, and leave
-     `mrr-spi.service` disabled (§1.6). The screen's driver owns SPI0; on this build
-     `/dev/spidev0.0` may legitimately not exist.
-4. Reboot, then confirm the screen was detected. Output depends on the driver, so treat these
-   as hints rather than a pass/fail test:
+2. Do §1.1 as normal, and mask `mrr-spi.service` as in §1.6 so it does not take SPI0. Do
+   **not** enable `dtparam=spi=on` for the Sense HAT. If the screen stays blank, `ssh` in —
+   the game does not need the screen to run.
+3. Add the display overlay to the end of `/boot/firmware/config.txt` (keep a backup):
 
 ```bash
-ls /dev/fb*                                        # a second framebuffer usually means the TFT
-dmesg | grep -i -E "ili9|fbtft|ads7846|xpt2046|spi"
+sudo cp /boot/firmware/config.txt /boot/firmware/config.txt.bak
+echo 'dtoverlay=piscreen,drm,speed=16000000,rotate=0' | sudo tee -a /boot/firmware/config.txt
 ```
 
-5. Set `MRR_REQUIRE_SPI=no` in `/etc/default/mrr` (the default), then
-   `mrrctl restart` and check `mrrctl status`.
+   `rotate=0` is landscape on this panel (`rotate=90` came out portrait). If the screen stays
+   white or blank, remove the line, reboot, and check the panel's controller chip.
+4. Set the screen to open the GM status page at boot. Copy the kiosk files from the repo and
+   turn on desktop auto-login:
 
-**What the screen does in this project:** nothing yet. The 8×8 LED matrix was meant to show
-minimal game status, but that code (`SenseHatService`, `install/todo.md`) was never written, so
-the screen shows the normal Pi desktop or console and the game runs without it. Players and the
-GM still use their phones / a browser at `http://mrobopi:5000/`. A 320×480 panel is small for
-`gmindex.html`; if you want it as a status display, the simplest route is a kiosk browser
-pointed at a page built for that size — that page does not exist yet.
+```bash
+install -D -m 0755 install/kiosk/mrr-kiosk.sh      ~/.local/bin/mrr-kiosk.sh
+install -D -m 0644 install/kiosk/mrr-kiosk.desktop ~/.config/autostart/mrr-kiosk.desktop
+sudo raspi-config nonint do_boot_behaviour B4      # desktop, logged in as mrr
+```
+
+   `mrr-kiosk.sh` waits up to 4 minutes for the game host, then runs Chromium in kiosk mode on
+   `http://127.0.0.1:5000/gmindex.html`. To leave kiosk mode: Alt+F4 on a keyboard, or
+   `pkill chromium` over `ssh`.
+5. Reboot, then check:
+
+```bash
+ls /sys/class/drm/                                 # the panel shows up as an extra DRM card
+dmesg | grep -i -E "ili9|ads7846|spi"
+mrrctl status
+```
+
+**What the screen shows: `gmindex.html`**, the GM status page (the old link-list GM page was
+renamed `gmbuttons.html`). It uses the same `js/loadrobots.js` as `index.html`, but:
+
+- It always logs in as GM (sets the `mrr_seat` cookie to the GM code) and starts in GM view.
+  Anything else opened in the Pi's own browser is therefore logged in as GM too.
+- It shows no cards. Each robot row is: a narrow, text-free **connect button** colored with
+  the robot's `ConnectStatusColor` (tap to connect/disconnect), the robot name in its colors,
+  F/E/C, and the robot's status (`StatusToShow` / `StatusColor`).
+- The **☰ header above the connect buttons** opens the GM menu (Next State, End Game, Clear
+  Cookies, Program Screen). Five taps within 10 seconds still opens `logout.html`.
+- The area below the table shows a button for **every robot with a pending `PlayerMsg`**;
+  tapping one confirms it for that robot (`/api/player/3/{RobotID}`). While no game is running
+  (gamestate 25) it also shows the start-game picker.
+- It does not show the direction picker.
+
+Players still use `http://mrobopi:5000/` on their phones; the GM can open `gmindex.html` from
+any browser too.
 
 **Differences from the Pi 5 build:** the Pi 4 is slower (expect `dotnet build` to take longer
 than the 40 s–2 min quoted in §1.5), and it is a different board, so the kernel and the
@@ -267,7 +302,8 @@ what the process resumes believing. Use `POST /api/execution/abort` instead (§3
 | Address | What |
 |---|---|
 | `http://mrobopi:5000/` | Player programming UI (phones) |
-| `http://mrobopi:5000/gmindex.html` | GM panel |
+| `http://mrobopi:5000/gmindex.html` | GM status page (also the Pi screen's kiosk page, §1.8) |
+| `http://mrobopi:5000/gmbuttons.html` | Old GM link list (direct `/api/state/…` links, editors) |
 | `http://mrobopi:5000/api/health` | Game host liveness |
 | `http://mrobopi:5001/` | Board editor |
 | `http://mrobopi:5001/api/health` | Authoring host liveness |
@@ -510,11 +546,10 @@ Fixing it needs per-seat SignalR groups plus phone-UI changes.
 `CreateCommands.AddFlag` correctly detects a win, but only posts a `"Game Winner:"`
 message — `SquareAction.GameWinner` is commented out, so play continues.
 
-### 4.5 Robot 6 has no address — resolved 2026-10-01
+### 4.5 Robot 6 has no address
 
-Robot 6 now has `AIM-427D7018` and a fixed address like the others: all seven robots are at
-`192.168.0.101`–`.107` (see [documents/RobotConnections.md](documents/RobotConnections.md)).
-`install/MRRDatabase.sql` is updated; check the live `RobotBases` table matches.
+`RobotBases` row 6 is a placeholder (`192.168.1.` / `AIM-??`). Harmless — the connect
+attempt fails and is logged — but that seat cannot use a physical robot.
 
 ### 4.6 The database password is in a tracked file
 
