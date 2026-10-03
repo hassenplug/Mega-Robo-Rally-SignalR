@@ -1,6 +1,12 @@
 # Robot Special Effects (LEDs + Speaker)
 
-**Status:** Plan only — nothing implemented. Sound names and LED geometry below come from
+**Status:** First pass implemented 2026-10-03 and builds, **not yet run on a robot**:
+`MRR/Devices/RobotEffects.cs` (effects for FireCannon, Damage, Flag, SetEnergy, PlayOptionCard,
+Dead, SetShutDownMode, GameWinner), `RobotConnection.PlaySoundAsync`/`RestoreLightsAsync`, a
+send lock in `RobotConnection.SendCommandAsync`, and the hook in `Player.SendRobotCommandAsync`
+(case 0). **Not done:** the database-only events (spam/option dealt, water, push, respawn — §7),
+the GM on/off toggle (`RobotEffects.Enabled`/`Volume` are static properties only), the
+shooter-facing LED. Sound names and LED geometry below come from
 [.claude/agents/aim-robot-api.md](../.claude/agents/aim-robot-api.md) and have **not been
 tried on hardware** (only `play_sound` / `blinker` is already used in the repo,
 [RobotScreenUI.cs:328](../MRR/RobotScreenUI.cs#L328)).

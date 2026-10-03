@@ -227,6 +227,10 @@ namespace MRR.Devices
                 return;
             }
 
+            // One send+ack at a time: effects (RobotEffects) and the flash loop now send while a
+            // drive/turn command is in flight, and two overlapping ReceiveAsync calls on one
+            // socket throw.
+            await _cmdLock.WaitAsync();
             try
             {
                 var jsonCommand = JsonSerializer.Serialize(command);
@@ -270,7 +274,23 @@ namespace MRR.Devices
                 Console.WriteLine($"[{RobotID}] SendCommandAsync failed: {ex.Message}");
                 //throw;
             }
+            finally
+            {
+                _cmdLock.Release();
+            }
         }
+
+        private readonly SemaphoreSlim _cmdLock = new SemaphoreSlim(1, 1);
+
+        /// <summary>Plays one of the robot's built-in sounds (see aim-robot-api.md section 5).</summary>
+        public Task PlaySoundAsync(string name, int volume) =>
+            SendCommandAsync(new { cmd_id = "play_sound", name, volume });
+
+        /// <summary>
+        /// Puts the ring back the way the game wants it after an effect: on in the robot's
+        /// colour, or off if it has finished programming (same rule as at connect time).
+        /// </summary>
+        public Task RestoreLightsAsync() => SetLightsAsync(ShouldLightsBeOn());
 
         private static readonly byte[] StatusPollRequest = [0x01];
 
