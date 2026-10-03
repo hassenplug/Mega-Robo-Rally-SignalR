@@ -1,7 +1,7 @@
 # ESP32-S3 CYD Player Input Stations (Replacing Phones)
 
-**Status:** Design only — no firmware written yet.
-**Date:** 2026-09-28
+**Status:** Design only — no firmware written yet. Board identified 2026-10-02 (§1.1).
+**Date:** 2026-09-28 (updated 2026-10-02)
 **Related:** [PHONE_LOGIN_DESIGN.md](PHONE_LOGIN_DESIGN.md) (documents the phone protocol this
 replaces), [MRR/wwwroot/js/loadrobots.js](../MRR/wwwroot/js/loadrobots.js),
 [MRR/wwwroot/js/datahub-connection.js](../MRR/wwwroot/js/datahub-connection.js),
@@ -14,6 +14,24 @@ capacitive touch** units. Each unit is physically bound to one seat and shows on
 seat's hand — no shared login box, no GM functions. This is a genuinely separate firmware
 codebase (Arduino/C++, not C#/.NET), the same relationship the `phone-kiosk-browser` Android
 project has to the rest of this repo.
+
+### 1.1 The board: Freenove ESP32-S3 Display, FNK0104
+
+The unit in hand is the **Freenove ESP32-S3 Display, model FNK0104** (package label: "S",
+revision code `A1B0`), described on the label as **4.0-inch, 320×480 IPS, C-Touch**
+(capacitive). It is the board this design already assumed. Freenove's tutorial and support:
+`http://freenove.com/fnk0104`, `support@freenove.com`.
+
+**Not yet verified** — read from the product label only. Confirm against Freenove's FNK0104
+tutorial before writing firmware, since each affects the build:
+
+- display driver and touch controller ICs (determine the LVGL/TFT driver setup)
+- flash and PSRAM size (decides whether card images can be baked in as C-arrays, §4)
+- USB connector type and whether it is the ESP32-S3's native USB-Serial/JTAG or goes through
+  a UART bridge chip (§7 assumes native)
+- whether it has a battery/charging circuit, or only draws power over USB (§7 "charging")
+- Arduino board settings and any Freenove-supplied LVGL/display library (§4 assumes
+  Freenove's own tutorial path)
 
 **Out of scope:** GM control panel (`gmindex.html` stays on its existing device), the
 `board-viewer.html`/`connectscreen.html` displays, and any change to the phone UI itself —
@@ -144,6 +162,10 @@ charging cable doubles as the flashing cable with no extra hardware.
   would remain the initial-provisioning and recovery path either way.
 
 ## 8. Open items / risks
+
+- **Confirm FNK0104's hardware details** (list in §1.1) from Freenove's tutorial — the first
+  thing to do once a unit is on the bench. A web search on 2026-10-02 did not find the
+  FNK0104 spec sheet, so nothing about its driver/touch/memory is recorded as fact here.
 
 - **Touch responsiveness under LVGL polling architecture** — since this polls rather than
   pushes, a card tap should be applied optimistically to the local screen (don't wait for the
