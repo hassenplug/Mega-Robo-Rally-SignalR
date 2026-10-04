@@ -40,7 +40,7 @@ namespace MRR.Devices
             {
                 case SquareAction.FireCannon: // shooter only; the victim's effect comes from Damage
                 {
-                    var s = new List<Step> { new Snd("huah") };
+                    var s = new List<Step> { new Snd("send") }; //
                     foreach (var led in Ring)
                     {
                         s.Add(new Led(led, 255, 255, 255));

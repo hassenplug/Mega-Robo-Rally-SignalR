@@ -1782,6 +1782,7 @@ namespace MRR
 
         public bool KillRobot(PlayerState p_thisrobot)
         {
+            ListOfCommands.AddCommand(p_thisrobot, SquareAction.Dead);
             ListOfCommands.AddCommand(p_thisrobot, SquareAction.DealSpamCard, 0);
             ListOfCommands.AddCommand(p_thisrobot, SquareAction.DealSpamCard, 0);
 
@@ -1871,6 +1872,7 @@ namespace MRR
             // inflict damage
             if (!p_thisrobot.IsDead)
             {
+                ListOfCommands.AddCommand(p_thisrobot, SquareAction.Damage, p_Damage);
                 ListOfCommands.AddCommand(p_thisrobot, SquareAction.DealSpamCard, 0);                
             }
 
