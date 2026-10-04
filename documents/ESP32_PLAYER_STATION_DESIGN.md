@@ -1,7 +1,8 @@
 # ESP32-S3 CYD Player Input Stations (Replacing Phones)
 
-**Status:** Design only — no firmware written yet. Board identified 2026-10-02 (§1.1).
-**Date:** 2026-09-28 (updated 2026-10-02)
+**Status:** Design only — no firmware written yet. Board identified 2026-10-02; driver, touch
+and toolchain verified from Freenove's tutorial 2026-10-04 (§1.1).
+**Date:** 2026-09-28 (updated 2026-10-04)
 **Related:** [PHONE_LOGIN_DESIGN.md](PHONE_LOGIN_DESIGN.md) (documents the phone protocol this
 replaces), [MRR/wwwroot/js/loadrobots.js](../MRR/wwwroot/js/loadrobots.js),
 [MRR/wwwroot/js/datahub-connection.js](../MRR/wwwroot/js/datahub-connection.js),
@@ -22,16 +23,33 @@ revision code `A1B0`), described on the label as **4.0-inch, 320×480 IPS, C-Tou
 (capacitive). It is the board this design already assumed. Freenove's tutorial and support:
 `http://freenove.com/fnk0104`, `support@freenove.com`.
 
-**Not yet verified** — read from the product label only. Confirm against Freenove's FNK0104
-tutorial before writing firmware, since each affects the build:
+**Verified 2026-10-04** against Freenove's published tutorial (the `freenove.com/tutorial`
+page is JS-rendered; the same material is in
+[github.com/Freenove/Freenove_ESP32_S3_Display](https://github.com/Freenove/Freenove_ESP32_S3_Display):
+`Tutorial_With_Touch/Tutorial.pdf`, `Tutorial_With_Touch/Sketches/`, `Libraries/FNK0104S/`).
+The repo covers four variants (A/B 2.8", N 3.5", S 4.0"); ours is **FNK0104S**.
 
-- display driver and touch controller ICs (determine the LVGL/TFT driver setup)
+- **Display:** 4.0" 320×480, driver **ST7796** (per the tutorial PDF and the repo's
+  datasheet folder; the repo README says ST7789, which conflicts — trust the PDF)
+- **Touch:** capacitive **FT6336U/G** over I2C — SDA 16, SCL 15, RST 18, INT 17
+- **Other onboard:** USB-C (native USB; sketches use "USB CDC On Boot" = Enable), BOOT button
+  on GPIO0, battery connector with ADC sense, SD card slot, speaker (ES8311 codec),
+  microphone, WS2812 RGB LED, onboard antenna
+- **Toolchain:** Arduino IDE, **esp32 core 3.2.0**, board "ESP32S3 Dev Module". Libraries come
+  as zips in the repo's `Libraries/FNK0104S` and are installed via Add .ZIP Library; the
+  tutorial warns **not to update them** (newer versions can break the build). **LVGL v8.4.0**,
+  TFT_eSPI 2.5.43 + Freenove's TFT_eSPI_Setups. Sketches select the board with
+  `#define FNK0104S_4P0_320x480_ST7796` at the top.
+- **Reference sketches** to start from: 9.1 (WiFi), 11.1 (touch), 13.1/19.1 (LVGL),
+  18.1 (LVGL multifunction)
+
+**Still not verified** (not stated in the tutorial text reviewed — read from the board's
+Model Info label or the Arduino Tools menu):
+
 - flash and PSRAM size (decides whether card images can be baked in as C-arrays, §4)
-- USB connector type and whether it is the ESP32-S3's native USB-Serial/JTAG or goes through
-  a UART bridge chip (§7 assumes native)
-- whether it has a battery/charging circuit, or only draws power over USB (§7 "charging")
-- Arduino board settings and any Freenove-supplied LVGL/display library (§4 assumes
-  Freenove's own tutorial path)
+- exact TFT pin assignments for FNK0104S (in the TFT_eSPI setup under `Libraries/FNK0104S`)
+- whether the battery connector charges (TP4054 charger appears in the datasheet folder) —
+  matters for §7 "charging"
 
 **Out of scope:** GM control panel (`gmindex.html` stays on its existing device), the
 `board-viewer.html`/`connectscreen.html` displays, and any change to the phone UI itself —
@@ -85,8 +103,10 @@ JSON parsing — no evidence of that yet, so it's not part of this design.
 
 ## 4. Firmware architecture
 
-- **Framework:** Arduino core for ESP32-S3 + LVGL (Freenove's own tutorial path for this
-  board), `HTTPClient` for polling/posting, `ArduinoJson` for parsing.
+- **Framework:** Arduino core for ESP32-S3 (**core 3.2.0**, pinned) + **LVGL 8.4.0** with
+  TFT_eSPI and the FT6336U touch library, all from Freenove's `Libraries/FNK0104S` zips (see
+  §1.1 — don't upgrade them). `HTTPClient` for polling/posting, `ArduinoJson` for parsing.
+  Note LVGL 8.x APIs (`lv_img_conv`, `lv_img_dsc_t`), not 9.x.
 - **WiFi:** hardcoded SSID/password for the closed game LAN, set at build time (no captive
   portal — this is trusted hardware on a private network, same trust model the phones
   already operate under).
@@ -163,9 +183,9 @@ charging cable doubles as the flashing cable with no extra hardware.
 
 ## 8. Open items / risks
 
-- **Confirm FNK0104's hardware details** (list in §1.1) from Freenove's tutorial — the first
-  thing to do once a unit is on the bench. A web search on 2026-10-02 did not find the
-  FNK0104 spec sheet, so nothing about its driver/touch/memory is recorded as fact here.
+- **Remaining unverified hardware details** (flash/PSRAM size, TFT pins, battery charging —
+  list in §1.1) — check on the bench with the first unit. Driver, touch controller and
+  toolchain are now confirmed from Freenove's tutorial.
 
 - **Touch responsiveness under LVGL polling architecture** — since this polls rather than
   pushes, a card tap should be applied optimistically to the local screen (don't wait for the
