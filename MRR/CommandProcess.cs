@@ -4,6 +4,7 @@ using System.Net.Sockets;
 using System.Net;
 using System.Net.Cache;
 using MRR.Services;
+using MRR.Devices;
 using Microsoft.AspNetCore.SignalR;
 using MRR.Hubs;
 using MRR.Data;
@@ -429,6 +430,9 @@ namespace MRR
 
                 case 3: // DB
                     //LogCommand(onecommand, "Database Command ");
+                    // Fire-and-forget LED/sound effect; Play() returns immediately and ignores
+                    // commands with no effect or a robot that isn't connected.
+                    if (robot != null) RobotEffects.Play(robot, onecommand);
                     onecommand.StatusID = _dataService.ProcessDbCommand(onecommand, -1);
                     return true;
 
