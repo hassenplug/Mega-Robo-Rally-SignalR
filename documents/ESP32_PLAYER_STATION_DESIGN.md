@@ -136,6 +136,7 @@ JSON parsing — no evidence of that yet, so it's not part of this design.
   - `assets/` — converted card-image C-arrays
   - `tools/convert-images.*` — one-time PNG→LVGL conversion script
   - `README.md` — build/flash instructions, WiFi credential setup
+  - `case/case.scad` + exported `.stl` files — 3D-printed enclosure (§7a)
 - `CLAUDE.md` — add a row to the Design Documents table pointing at this doc, and a note in
   Project Layout that `esp32-player-station/` is a separate Arduino/C++ project (same pattern
   as the phone-kiosk-browser callout)
@@ -181,7 +182,74 @@ charging cable doubles as the flashing cable with no extra hardware.
   firmware updates without a physical BOOT/RESET on all 6 units per revision. USB/`esptool`
   would remain the initial-provisioning and recovery path either way.
 
+## 7a. 3D-printed case (OpenSCAD)
+
+A printed enclosure per station, designed in **OpenSCAD** so every dimension is a named
+parameter. Files go in `esp32-player-station/case/` (`case.scad`, plus exported `.stl` files
+checked in alongside it, since the Pi/printer workflow shouldn't require OpenSCAD).
+
+**Requirements**
+- **Expose the touch screen** — open window over the active glass area, no lip that blocks
+  edge touches (the card row sits near the edges, §4).
+- **Expose the USB-C port** — a cutout aligned with the connector, large enough for a
+  fat-molded cable plug, not just the bare receptacle. This is also the charging and flashing
+  port (§7), so it must stay reachable with the unit fully assembled.
+
+**What the board photos show** (Freenove repo `Picture/FNK0104S_Top.png` / `_Bottom.png` — a
+proportional view only; the repo publishes **no mechanical drawing or mm dimensions**):
+- Landscape PCB, roughly 1.9:1. The glass is narrower than the PCB: the PCB extends past the
+  glass on the left and right as **mounting ears**, each with a **mounting hole at both
+  corners** (4 holes total) — natural screw points for the case.
+- **USB-C is on the left short edge, centered vertically**, with **RESET above and BOOT below**
+  it on the same edge. A single cutout there can expose the port and, if wanted, small
+  pinholes/a slot for the buttons (BOOT+RESET are needed to enter download mode, §7 — though
+  with native USB, `esptool` can usually reset the board itself).
+- The **microphone hole** is on the front, top-left ear; the case must not cover it if audio
+  input is ever used (not planned).
+- Rear connectors (speaker, I2C, battery, UART, SD slot, RGB LED) are not needed in normal
+  use. The **SD slot** is on the rear, lower right; leave it enclosed for v1.
+- Orientation: with the USB-C on the left, the screen is landscape 480×320 (§4 layout). That
+  puts the cable exiting on the player's left; decide per seat/table layout whether to mirror
+  the mount (LVGL can rotate the display 180° instead if the cable should exit right).
+
+**Measure before modeling** — take these from the actual unit with calipers and put them in
+the parameter block; do not model from the photos:
+- PCB length × width × thickness; total stack height (PCB + glass + rear components)
+- glass outline and **active-area** window offsets from the PCB edges
+- mounting-hole diameter and center positions relative to the PCB corners
+- USB-C receptacle center height above the PCB, its width/height, and how far it protrudes
+  past the PCB edge
+- RESET/BOOT positions on the left edge
+
+**Design approach**
+- Two-part shell: **front bezel** (window + USB-C relief) and **rear shell**, joined by M2/M2.5
+  screws through the existing four mounting holes into printed bosses or heat-set inserts —
+  no board modification.
+- Standoffs/posts under the mounting holes set the stack height so the glass sits flush with,
+  or just proud of, the bezel opening.
+- Parameter block at the top of `case.scad`:
+  ```openscad
+  // --- MEASURE FROM THE UNIT (mm) — placeholders until measured ---
+  pcb_l = 0; pcb_w = 0; pcb_t = 0;        // board outline and thickness
+  glass_l = 0; glass_w = 0;               // active glass area
+  glass_off_x = 0; glass_off_y = 0;       // glass origin from PCB corner
+  hole_d = 0; hole_inset_x = 0; hole_inset_y = 0;
+  usb_w = 0; usb_h = 0; usb_z = 0;        // USB-C opening, height above PCB
+  // --- print/fit tolerances ---
+  clearance = 0.4;  wall = 2.0;  screw_d = 2.2;
+  ```
+- Generate both parts from the same parameters so a fit correction is a one-line change, and
+  print one test unit first (§6 step 1 already has a single bench unit).
+- Leave a **vent/relief** option for the rear shell; the ESP32-S3 running WiFi continuously and
+  charging a battery will warm the enclosure, and a sealed shell traps that.
+- Cable strain relief and desk-mounting (stand angle vs. flat) are open: a built-in 60–70°
+  tilted stand tends to read better for a hand of cards than a flat case, but is a table-setup
+  preference — parameterize `tilt_deg` rather than deciding now.
+
 ## 8. Open items / risks
+
+- **Case dimensions** — none are published by Freenove; they must be measured from a unit
+  (§7a). The case can't be finalized until then.
 
 - **Remaining unverified hardware details** (flash/PSRAM size, TFT pins, battery charging —
   list in §1.1) — check on the bench with the first unit. Driver, touch controller and
