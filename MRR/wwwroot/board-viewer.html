@@ -86,7 +86,29 @@
     <script src="js/signalr.min.js"></script>
     <script src="js/datahub-connection.js" type="text/javascript" charset="utf-8"></script>
     <script>
-    const SA_FLAG = 16, SA_START = 19;
+    const SA_FLAG = 16, SA_START = 19, SA_RESPAWN = 25;
+
+    // Square images are the board editor's *_top.png set, served by the Configuration host
+    // (mrr-config.service, :5001, MRR.Config/wwwroot/images). Derive the origin from this page so
+    // the hostname is never hardcoded.
+    const TILE_IMAGES = location.protocol + '//' + location.hostname + ':5001/images/';
+
+    // Same naming as board-editor.html's imageSrcForType(): Flag (100) and StartSquare (110)
+    // have one PNG per number, Respawn (120) one per letter (Parameter 1 = A, 2 = B, ...).
+    function imageSrcForSquare(sq) {
+        const p = sq.Parameter || 1;
+        if ((sq.SquareType === 100 && sq.SquareAction === SA_FLAG) ||
+            (sq.SquareType === 110 && sq.SquareAction === SA_START)) {
+            return `${TILE_IMAGES}element${sq.SquareType}-${p}_top.png`;
+        }
+        if (sq.SquareType === 120 && sq.SquareAction === SA_RESPAWN) {
+            return `${TILE_IMAGES}element120-${String.fromCharCode(64 + p)}_top.png`;
+        }
+        if (sq.SquareType === 100 || sq.SquareType === 110 || sq.SquareType === 120) {
+            return `${TILE_IMAGES}element${sq.SquareType}-${sq.SquareType === 120 ? 'A' : 1}_top.png`;
+        }
+        return `${TILE_IMAGES}element${sq.SquareType}_top.png`;
+    }
 
     let boardDiv = null;
     let boardWidth = 0;
@@ -146,9 +168,11 @@
                 const sq = grid[y][x];
                 if (sq) {
                     const img = document.createElement('img');
-                    img.src = `images/Element${sq.SquareType}.jpg`;
-                    img.onerror = () => { img.src = 'images/Element0.jpg'; };
-                    const deg = ((sq.Rotation-1) % 4) * 90;
+                    img.src = imageSrcForSquare(sq);
+                    img.onerror = () => { img.onerror = null; img.src = TILE_IMAGES + 'element0_top.png'; };
+                    // Rotation 0 means unrotated (as in board-editor.html's rotationToDeg());
+                    // ((0-1) % 4) * 90 would give -90.
+                    const deg = sq.Rotation ? ((sq.Rotation-1) % 4) * 90 : 0;
                     img.style.transform = `rotate(${deg}deg)`;
                     cell.appendChild(img);
 

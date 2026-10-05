@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=MRR Kiosk
+Exec=/home/mrr/.local/bin/mrr-kiosk.sh
+X-GNOME-Autostart-enabled=true

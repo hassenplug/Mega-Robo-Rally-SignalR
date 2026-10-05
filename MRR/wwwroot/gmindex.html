@@ -1,32 +1,169 @@
 <html>
 <head>
-</head>
-<body bgcolor="dddddd">
-    <a href="/api/alldata" target="message">push data</a><br>
-    <br>
-    <a href="/api/state/startgame" target="message">Start Game</a><br>
-    <a href="/api/state/nextstate" target="message">Next State</a><br>
-    <a href="/index.html" target="playerwindow">Player Index</a><br>
-    <a href="/led/0" target="message">LED</a><br>
-    <a href="/api/state/executeturn" target="message">executeturn</a><br>
-    <a href="/api/state/processcommands" target="message">Processcommands</a><br>
-    <a href="/api/state/clearpause" target="message">Clear Pause</a><br>
-    <a href="/connectscreen.html" target="message">Robot Connections</a><br>
-    <a href="/api/state/endgame" target="message" onclick="return confirm('End the current game and disconnect from robots?');">End Game</a><br>
-    <br>
 
-    <a href="http://mrobopi:5000/api/admin/diagnostics" target="message">Diagnostics</a><br>
-    <a href="/dbeditor/CurrentGameData" target="database">db Editor</a><br>
-    <a href="/editboard/84" target="database">Board Editor</a><br>
-    <a href="/database.html" >Database</a><br>
-    <a href="/datagrid-editor.html" >DataGrid Editor</a><br>
-    <a href="#" id="boardEditorLink" target="b-edit">Board Editor</a><br>
-    <script>
-      // Board editor moved to the Configuration host (mrr-config.service, :5001).
-      // Derive the origin from this page so the hostname is never hardcoded.
-      document.getElementById('boardEditorLink').href =
-        location.protocol + '//' + location.hostname + ':5001/';
-    </script>
+<meta name='viewport' content='width=device-width, initial-scale=1'>
+<link rel="stylesheet" type="text/css" href="style/checkbox.css">
+<link rel="stylesheet" type="text/css" href="style/button.css">
+<link rel="stylesheet" type="text/css" href="style/w3.css">
+
+<meta name="theme-color" content="#aaffff">
+
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+<script src="js/signalr.min.js"></script>
+<script src="js/jquery.min.js" type="text/javascript" charset="utf-8"></script>
+<script src="js/datahub-connection.js" type="text/javascript" charset="utf-8"></script>
+<script src="js/loadrobots.js" type="text/javascript" charset="utf-8"></script>
+
+<title>MEGA Robo Rally - GM</title>
+
+<style>
+/* Narrow, text-free connect toggle -- its color is the robot's ConnectStatusColor. */
+.connectBtn {
+    width: 16px;
+    min-width: 16px;
+    height: 32px;
+    padding: 0;
+    border: 1px solid #808080;
+    cursor: pointer;
+}
+</style>
+
+</head>
+<body id='body' style='padding:5px; padding-top:0px'>
+
+<!-- GM-only status page, the Pi's own kiosk screen (~/.local/bin/mrr-kiosk.sh). Same
+     js/loadrobots.js as index.html, always logged in as GM and always in GM view, with no card
+     area: each robot row is [connect toggle][robot][F/E/C][status], and every player's pending
+     PlayerMsg button is collected in #gmButtons below the table. The render functions
+     (buildPlayerRows/showall/showplayerprogram) are replaced by the script at the bottom of
+     this page; everything else (login, GM menu actions, connect/disconnect, start game) is
+     loadrobots.js's own code. -->
+
+<!-- Not normally shown: the GM cookie is set below before the first datapacket. Kept because
+     applyLogin() falls back to it if the cookie is ever missing. -->
+<div id="loginModal" class="w3-modal">
+    <div class="w3-modal-content w3-round w3-white" style="max-width:320px; padding:16px;">
+        <h3 style="margin-top:0;">Enter your seat number:</h3>
+        <input type="text" id="seatLoginInput" class="w3-input" inputmode="numeric" autocomplete="off">
+        <button class="button" style="margin-top:8px; background-color:#444444; color:#ffffff;" onclick="attemptSeatLogin();">Log In</button>
+        <p id="loginError" style="color:#cc0000; display:none;">Invalid seat.</p>
+    </div>
+</div>
+
+<table id="mainTable" bgcolor="ffffff" border=0 width=100%>
+<tr bgcolor="#d0d0d0">
+<!-- The header above the connect buttons opens the GM menu (5 taps in 10s still logs out). -->
+<td id="robotHeader" width="20" align=center style="cursor:pointer; position:relative;" onclick="handleRobotHeaderTap();">&#9776;
+    <div id="gmMenu" class="w3-card-4" style="display:none; position:absolute; top:100%; left:0; z-index:5; background:#ffffff; padding:6px; min-width:140px; text-align:left;">
+        <button class="button" style="margin-bottom:4px;" onclick="event.stopPropagation(); gmAction('nextstate');">Next State</button>
+        <button class="button" style="background-color:#cc0000; color:#ffffff;" onclick="event.stopPropagation(); if(confirm('End the current game and disconnect from robots?')) gmAction('endgame');">End Game</button>
+        <button class="button" style="margin-bottom:4px;" onclick="event.stopPropagation(); gmAction('clearcookies');">Clear Cookies</button>
+        <div style="position:relative;">
+            <button class="button" style="width:100%;" onclick="event.stopPropagation(); toggleProgramScreenSubmenu();">Program Screen</button>
+            <div id="programScreenSubmenu" class="w3-card-4" style="display:none; position:absolute; top:0; left:100%; z-index:6; background:#ffffff; padding:6px; min-width:100px;">
+                <button class="button" style="margin-bottom:4px;" onclick="event.stopPropagation(); gmSetRobotScreen(true);">Enable</button>
+                <button class="button" onclick="event.stopPropagation(); gmSetRobotScreen(false);">Disable</button>
+            </div>
+        </div>
+    </div>
+</td>
+<td>Robot</td>
+<td align=center id="flagsHeader" style="cursor:pointer;" onclick="toggleFlagsHeader();">F/E/C</td>
+<!-- Game message (titlemsg) in place of a "Status" label, filled in by showall(). -->
+<td align=center id="title" style="font-weight:bold;">---</td>
+</tr>
+<tbody id="playerRows"></tbody>
+</table>
+
+<!-- Player buttons: one per robot with a pending PlayerMsg, plus the GM start-game picker
+     while no game is running (gamestate 25). -->
+<div id="gmButtons" style="margin-top:6px; padding:4px; background-color:#e0e0e0;">
+    <div id="gmtable" style="display:none; margin-bottom:4px;">
+        <button class="button" style="width:auto; padding:6px 16px; background-color:#008000; color:#ffffff;" onclick="startSelectedGame();">Start</button>
+        <select id="gameDataSelect" class="w3-input" style="display:inline-block; width:auto;"></select>
+    </div>
+    <div id="playerButtons"></div>
+    <div id="noPlayerButtons" style="color:#606060;">No player buttons</div>
+</div>
+
+<script>
+// This page is always GM: set the same cookie the login box would, before the first
+// datapacket arrives, and start in GM view (connect toggles + GM menu enabled).
+setLoginCookie(GM_CODE);
+gmViewActive = true;
+
+function buildPlayerRows(robots) {
+    if (robots.length === lastPlayerCount) return;
+    lastPlayerCount = robots.length;
+
+    var html = '';
+    for (var i = 0; i < robots.length; i++) {
+        var rid = i + 1;
+        html += "<tr id='tr" + rid + "'>" +
+            "<td align=center><button class='connectBtn' id='connect" + rid + "'></button></td>" +
+            "<td><button class='button' id='button" + rid + "'>--</button></td>" +
+            "<td align=center id='flags" + rid + "' bgcolor='#e0e0e0'>--</td>" +
+            "<td align=center id='playerstatus" + rid + "'>--</td>" +
+            "</tr>";
+    }
+    document.getElementById('playerRows').innerHTML = html;
+}
+
+// No hand/program area on this page.
+function showplayerprogram(pl) {}
+
+function showall() {
+    var robots = datapacket.robots;
+    buildPlayerRows(robots);
+
+    document.getElementById('title').innerText = datapacket.titlemsg;
+
+    var showGmStart = datapacket.gamestate === 25;
+    document.getElementById('gmtable').style.display = showGmStart ? '' : 'none';
+    if (showGmStart && gameDataOptions === null) loadGameDataOptions();
+
+    var buttons = document.getElementById('playerButtons');
+    buttons.innerHTML = '';
+
+    for (var i = 0; i < robots.length; i++) {
+        var r = robots[i];
+        var rid = i + 1;
+
+        var conn = document.getElementById('connect' + rid);
+        conn.style.backgroundColor = r.ConnectStatusColor;
+        conn.title = r.ConnectStatusDesc;
+        conn.onclick = makeConnectHandler(r.RobotID, r.ConnectStatusID === CONNECT_STATUS_CONNECTED);
+
+        var btn = document.getElementById('button' + rid);
+        btn.style = "background-color:" + r.RobotColor + "; color:" + r.RobotColorFG;
+        btn.textContent = r.RobotName;
+
+        document.getElementById('flags' + rid).innerText = r.FlagEnergyCards;
+
+        var statusbox = document.getElementById('playerstatus' + rid);
+        statusbox.innerText = r.StatusToShow;
+        statusbox.style.backgroundColor = r.StatusColor;
+
+        if (r.PlayerMsg && r.PlayerMsg !== 'undefined') {
+            buttons.appendChild(makePlayerMsgButton(r));
+        }
+    }
+
+    document.getElementById('noPlayerButtons').style.display =
+        (buttons.children.length || showGmStart) ? 'none' : '';
+}
+
+// Same confirm (command 3) as index.html's #btnMessagebox, but for whichever robot the
+// message belongs to rather than the one currently selected.
+function makePlayerMsgButton(r) {
+    var b = document.createElement('button');
+    b.className = 'button';
+    b.style = "margin:2px; background-color:#ff0000; color:#ffffff;";
+    b.textContent = r.RobotName + ': ' + r.PlayerMsg;
+    b.onclick = function () { SendUpdate(3, r.RobotID); };
+    return b;
+}
+</script>
 
 </body>
 </html>

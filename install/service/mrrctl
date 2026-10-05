@@ -203,8 +203,10 @@ deploy_one() {
 
     info "[$role] installing -> $dir"
     mkdir -p "$dir"
-    # 'images/' holds camera captures written at runtime by the game host; never wipe them.
-    rsync -a --delete --exclude 'images/' "$stage/" "$dir/"
+    # Top-level 'images/' holds camera captures written at runtime by the game host; never wipe
+    # them. The leading '/' anchors the pattern to the deploy root -- unanchored, it also matched
+    # wwwroot/images/, so the web images were never deployed to either host.
+    rsync -a --delete --exclude '/images/' "$stage/" "$dir/"
     [ "$role" = game ] && mkdir -p "$dir/images/align"
     rm -rf "$stage"
     [ "$(id -u)" -eq 0 ] && chown -R "$RUN_USER":"$RUN_USER" "$dir" "$prev" 2>/dev/null
