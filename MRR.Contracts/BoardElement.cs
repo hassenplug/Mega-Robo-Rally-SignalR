@@ -622,6 +622,11 @@ namespace MRR
         Block = 44,
         Pusher = 50,
         Water = 55,
+        // Normal belts (10-12) standing in water: the belt's Move/Rotate actions plus
+        // SquareAction.Water, so a robot both rides the belt and loses one move here.
+        WaterNormalBelt = 56,
+        WaterNormalTurnCW = 57,
+        WaterNormalTurnCCW = 58,
         Cannon = 60,  // laser
         Randomizer = 61,
         Crusher = 70,
