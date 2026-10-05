@@ -549,34 +549,35 @@ function selectSetupPosition(startPosition) {
 }
 
 function renderSetupStatus(seat, config) {
-    var html = '<p>You are Seat ' + seat + '.</p>';
+    var htmlseat = '<p>You are Seat ' + seat + '.</p>';
     if (config.PlayerToSelect !== seat) {
-        html += '<p>Waiting for Seat ' + config.PlayerToSelect + ' to finish choosing...</p>';
+        html = htmlseat + '<p>Waiting for Seat ' + config.PlayerToSelect + ' to finish choosing...</p>';
         document.getElementById('setupContent').innerHTML = html;
         return;
     }
 
-    html += '<p>Your turn! Pick a robot and a starting position.</p>';
-    html += '<div style="display:flex; flex-wrap:wrap; gap:16px;">';
+    // Instructions in the first column, each beside the list it refers to.
+    html = '<table style="border-collapse:collapse;">';
 
-    html += '<div style="width:200px;"><p>Pick a robot:</p><div>';
+    html += '<tr><td style="vertical-align:top; padding:4px 8px 4px 0;">';
+    html += htmlseat + '<b>Your turn!</b><br><br>Pick a robot and<br>starting position:</td><td style="width:200px;">';
     for (var i = 0; i < config.AvailableRobots.length; i++) {
         var b = config.AvailableRobots[i];
         var picked = setupSelectedBody === b.RobotBodyID;
-        html += "<button class='button' style='margin:4px; background-color:#" + b.Color + "; color:#" + b.ColorFG +
+        html += "<button class='button' style='margin:1px; background-color:#" + b.Color + "; color:#" + b.ColorFG +
             (picked ? "; border:3px solid #000000;" : "") +
             "' onclick='selectSetupBody(" + b.RobotBodyID + ");'>" + b.Name + "</button>";
     }
-    html += '</div></div>';
+    html += '</td>';
 
-    html += '<div style="width:200px;"><p>Pick a starting position:</p><div>';
+    html += '<td style="vertical-align:top;width:200px;">';
     for (var i = 0; i < config.AvailableStartPositions.length; i++) {
         var pos = config.AvailableStartPositions[i];
-        html += "<button class='button' style='margin:4px;' onclick='selectSetupPosition(" + pos + ");'>Start " + pos + "</button>";
+        html += "<button class='button' style='margin:1px;' onclick='selectSetupPosition(" + pos + ");'>Start " + pos + "</button>";
     }
-    html += '</div></div>';
+    html += '</td></tr>';
 
-    html += '</div>';
+    html += '</table>';
     document.getElementById('setupContent').innerHTML = html;
 }
 
