@@ -122,8 +122,7 @@ function showall() {
     document.getElementById('gmtable').style.display = showGmStart ? '' : 'none';
     if (showGmStart && gameDataOptions === null) loadGameDataOptions();
 
-    var buttons = document.getElementById('playerButtons');
-    buttons.innerHTML = '';
+    var msgRobots = [];
 
     for (var i = 0; i < robots.length; i++) {
         var r = robots[i];
@@ -144,14 +143,27 @@ function showall() {
         statusbox.innerText = r.StatusToShow;
         statusbox.style.backgroundColor = r.StatusColor;
 
-        if (r.PlayerMsg && r.PlayerMsg !== 'undefined') {
-            buttons.appendChild(makePlayerMsgButton(r));
-        }
+        if (r.PlayerMsg && r.PlayerMsg !== 'undefined') msgRobots.push(r);
+    }
+
+    // The server rebroadcasts every ~100ms while a command waits for input, so only rebuild
+    // the buttons when the set of messages changes: replacing a button between press and
+    // release means the click never reaches it.
+    var buttons = document.getElementById('playerButtons');
+    var msgKey = JSON.stringify(msgRobots.map(function (r) {
+        return [r.RobotID, r.RobotName, r.PlayerMsg];
+    }));
+    if (msgKey !== lastPlayerMsgKey) {
+        lastPlayerMsgKey = msgKey;
+        buttons.innerHTML = '';
+        msgRobots.forEach(function (r) { buttons.appendChild(makePlayerMsgButton(r)); });
     }
 
     document.getElementById('noPlayerButtons').style.display =
         (buttons.children.length || showGmStart) ? 'none' : '';
 }
+
+var lastPlayerMsgKey = null;
 
 // Same confirm (command 3) as index.html's #btnMessagebox, but for whichever robot the
 // message belongs to rather than the one currently selected.
