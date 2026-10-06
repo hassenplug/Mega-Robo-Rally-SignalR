@@ -51,9 +51,12 @@ literally all open, or just not updated after being done by hand).
 ## Section 1 — Game Mechanics
 *Renegade rules completeness.*
 
-- [ ] Shutdown mechanic (`GameController.cs` + phone UI)
+- [x] Shutdown mechanic (`GameController.cs` + phone UI) — implemented 2026-10-06 per
+  [SHUTDOWN_DESIGN.md](../documents/SHUTDOWN_DESIGN.md); builds and `ShutDownTests` pass, but
+  the manual check on the table with simulated robots is **still open**
   - Player announces shutdown during programming phase
-  - Shut-down robot: does take laser damage, cannot move, may clear spam cards
+  - Shut-down robot: does take laser damage, cannot move, discards its cards at lock-in
+    (damage cards → damage discard pile, programming cards → discard pile)
 
 - [x] Reboot mechanic — triggered when a robot moves onto a `SquareType.Pit` square. Original
   design implemented 2026-09-18, then the respawn half was **reworked 2026-09-20/21** (commits
@@ -274,7 +277,7 @@ on yet. Do not remove "dead" code related to either (unwired `tOptionCardCommand
 
 ### Player Programming UI (`index.html`)
 
-- [ ] Shutdown toggle on phone UI
+- [x] Shutdown toggle on phone UI (2026-10-06, `shutDownRow` in index.html; not yet tried on a phone)
   - Player can choose to shut down during programming phase
 
 - [ ] Show what cards were played last turn (phone/GM UI) — right now only the *current*

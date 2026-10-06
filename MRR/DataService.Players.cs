@@ -611,6 +611,9 @@ namespace MRR.Services
             // not overwritten with something different.
             ExecuteSQL($"UPDATE Robots SET Status = {(int)tPlayerStatus.ReadyToProgram}");
 
+            // Shutdown lasts only the turn it was chosen in (documents/SHUTDOWN_DESIGN.md).
+            ExecuteSQL($"UPDATE Robots SET ShutDown = {(int)tShutDown.None}");
+
             // Reset RobotOptions.PhasePlayed
             using (var cmd = new MySqlCommand(
                 "UPDATE RobotOptions SET PhasePlayed = 0",
@@ -621,6 +624,28 @@ namespace MRR.Services
 
             // Sync status LEDs
             SetStatus();
+        }
+
+        // =====================================================================
+        // Shutdown toggle (documents/SHUTDOWN_DESIGN.md): the phone's "Shut Down" switch, valid
+        // only while programming (GameState 4) and only for a robot that is on the board. It just
+        // flips Robots.ShutDown between None and Currently -- nothing is discarded until
+        // lock-in (ApplyShutDownAtLockIn), so switching it back off loses nothing.
+        // Returns false if the request was rejected.
+        // =====================================================================
+        public bool ToggleShutDown(int robotID)
+        {
+            if (GameState != 4) return false;
+
+            int eligible = GetIntFromDB(
+                $"SELECT COUNT(*) FROM Robots WHERE RobotID = {robotID} " +
+                $"AND Status <> {(int)tPlayerStatus.Dead} AND RespawnID = 0");
+            if (eligible == 0) return false;
+
+            ExecuteSQL(
+                $"UPDATE Robots SET ShutDown = IF(ShutDown = {(int)tShutDown.Currently}, " +
+                $"{(int)tShutDown.None}, {(int)tShutDown.Currently}) WHERE RobotID = {robotID}");
+            return true;
         }
 
         // =====================================================================
@@ -891,6 +916,29 @@ namespace MRR.Services
         public void ConfirmRobotDirection(int robotID, int positionValid)
         {
             ExecuteSQL($"UPDATE Robots SET PositionValid = {positionValid} WHERE RobotID = {robotID}");
+
+            // UpdateCardPlayed only re-evaluates Ready (4) vs Programming (3) when a card moves,
+            // so a player who fills every register first and confirms the direction last (or a GM
+            // who clears it) would be left on the stale status. Redo the same test here.
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+
+            int inProgramming = GetIntFromDB(
+                "SELECT rs.Programming FROM Robots r " +
+                "INNER JOIN RobotStatus rs ON r.`Status` = rs.RobotStatusID " +
+                $"WHERE r.RobotID = {robotID}");
+            if (inProgramming != 1) return;
+
+            int currentStatus = GetIntFromDB($"SELECT `Status` FROM Robots WHERE RobotID = {robotID}");
+            int programCount = GetIntFromDB(
+                $"SELECT COUNT(*) FROM MoveCards WHERE `Owner` = {robotID} AND CardLocation = 2");
+
+            int newStatus = (programCount == PhaseCount && positionValid > 0) ? 4
+                          : (currentStatus == 4 ? 3 : currentStatus);
+            if (newStatus == currentStatus) return;
+
+            _robotConnections.Get(robotID)?.SetLightsAsync(newStatus != 4).Wait();
+            RebuildRobotCardsSummary(connection, robotID, newStatus);
         }
 
         // =====================================================================

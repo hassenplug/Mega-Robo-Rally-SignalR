@@ -384,6 +384,57 @@ namespace MRR.Services
         }
 
         /// <summary>
+        /// Lock-in for robots that chose to shut down (documents/SHUTDOWN_DESIGN.md). For each
+        /// robot with ShutDown = Currently:
+        ///   - every damage card (Spam and Haywire) in its registers, hand and discard pile goes
+        ///     to the damage discard pile (CardLocation 5, the same pile spent Spam goes to; the
+        ///     next deal deletes it);
+        ///   - every regular programming card in its registers and hand goes to its discard
+        ///     pile (CardLocation 3);
+        ///   - its status becomes ShutDown (9).
+        /// Call after the blanket lock-in status write so it isn't overwritten.
+        /// </summary>
+        public void ApplyShutDownAtLockIn()
+        {
+            var robotIDs = GetIntList(
+                $"SELECT RobotID FROM Robots WHERE ShutDown = {(int)tShutDown.Currently}");
+            if (!robotIDs.Any()) return;
+
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+
+            foreach (int robotID in robotIDs)
+            {
+                // Damage cards: registers (2, or 4 locked), hand (1) and discard (3) -> damage discard (5).
+                using (var cmd = new MySqlCommand(
+                    "UPDATE MoveCards SET CardLocation = 5, PhasePlayed = 0 " +
+                    "WHERE Owner = @robot AND CardTypeID IN (10, 11) AND CardLocation IN (1, 2, 3, 4)",
+                    connection))
+                {
+                    cmd.Parameters.AddWithValue("@robot", robotID);
+                    cmd.ExecuteNonQuery();
+                }
+
+                // Programming cards: registers (2, or 4 locked) and hand (1) -> discard (3).
+                using (var cmd = new MySqlCommand(
+                    "UPDATE MoveCards SET CardLocation = 3, PhasePlayed = 0 " +
+                    "WHERE Owner = @robot AND CardTypeID NOT IN (10, 11) AND CardLocation IN (1, 2, 4)",
+                    connection))
+                {
+                    cmd.Parameters.AddWithValue("@robot", robotID);
+                    cmd.ExecuteNonQuery();
+                }
+
+                RebuildRobotCardsSummary(connection, robotID, (int)tPlayerStatus.ShutDown);
+                RefreshCardCount(connection, robotID);
+                RefreshFlagEnergyCards(connection, robotID);
+            }
+
+            // CreateTurn plans from the in-memory GameCards; bring it in line with the moves above.
+            LoadGameCardsFromDatabase();
+        }
+
+        /// <summary>
         /// C# equivalent of funcDealSpamToPlayer.
         /// Inserts a new Spam card (CardTypeID=10) into the robot's discard pile.
         /// Returns the new CardID.
@@ -494,9 +545,10 @@ namespace MRR.Services
             {
                 // Renegade rules.
 
-                // 1. Discard played Spam cards (CardLocation=2 with CardTypeID=10).
+                // 1. Empty the damage discard pile (CardLocation=5): played Spam, and any damage
+                //    card (Spam or Haywire) a shut-down robot discarded -- ApplyShutDownAtLockIn.
                 using (var cmd = new MySqlCommand(
-                    "DELETE FROM MoveCards WHERE CardLocation = 5 AND CardTypeID = 10",
+                    "DELETE FROM MoveCards WHERE CardLocation = 5 AND CardTypeID IN (10, 11)",
                     connection))
                 {
                     cmd.ExecuteNonQuery();

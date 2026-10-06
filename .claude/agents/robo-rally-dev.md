@@ -154,10 +154,11 @@ There are no lives — a robot that reboots simply respawns at the reboot token 
 
 ### 1.13 Shutdown
 - A robot can voluntarily **shut down** for a turn:
-  - Takes no damage from lasers that turn
-  - Cannot move or act
-  - May remove damage cards from hand/discard at end of turn (optional rule)
-  - Announces shutdown during programming phase
+  - **Still takes laser damage** (as Spam cards from the damage stack, like any robot)
+  - Plays no registers and does not fire its own laser, but can still be pushed and is still moved by conveyors and other board elements
+  - Discards all its cards (Spam and programmed cards) at lock-in
+  - Announces shutdown during programming phase; it ends at the start of the next turn
+  - See [documents/SHUTDOWN_DESIGN.md](../../documents/SHUTDOWN_DESIGN.md)
 
 ### 1.14 Option / Upgrade Cards
 Players may gain upgrade cards during the game. Key examples:

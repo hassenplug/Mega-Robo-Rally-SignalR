@@ -411,6 +411,7 @@ namespace MRR.Controller
                             break;
                         case 5: // ready to execute turn
                             _dataService.ExecuteSQL("Update Robots set `Status` = 13;"); // don't allow player changes to programs
+                            _dataService.ApplyShutDownAtLockIn(); // shut-down robots: discard cards, Status = 9
                             _dataService.CurrentPosSave();
                             ScreenUiLock();
                             SetGameState(6);

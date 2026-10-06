@@ -1,6 +1,6 @@
 # Shutdown (power-down) — Design
 
-**Status: plan only, not implemented.** Decided 2026-10-05. Covers the two open items in
+**Status: implemented 2026-10-06; build and `MRR.Tests/ShutDownTests.cs` pass, manual table check still open.** Decided 2026-10-05. Covers the two open items in
 [install/todo.md](../install/todo.md): Section 1 "Shutdown mechanic" and Section 3 "Shutdown
 toggle on phone UI".
 
@@ -13,15 +13,11 @@ Verify against the Renegade rulebook before treating them as canonical.
 |---|---|
 | When can a player shut down? | Only during programming (`GameState == 4`), via a toggle on the phone. The toggle can be switched on and off until the program is locked. |
 | Is there a "next turn" delay? | **No.** There is no `NextTurn` state. Shutdown takes effect for the turn in which it is chosen. |
-| What happens to the robot's cards? | At lock-in, **all** of the robot's cards are discarded: its Spam cards and its programmed cards. |
+| What happens to the robot's cards? | At lock-in: every damage card (Spam **and** Haywire) in its registers, hand and discard pile goes to the **damage discard pile** (`CardLocation` 5); every regular programming card in its registers and hand goes to its **discard pile** (`CardLocation` 3). Implemented by `DataService.ApplyShutDownAtLockIn()`; the next deal empties the damage discard pile. |
 | Does the robot move? | It plays no registers (no cards, so nothing is executed), but it **can be pushed**, and conveyors and other board moves still apply. |
 | Does it take laser damage? | **Yes**, as Spam cards from the damage stack, like any robot. |
 | Does it fire its own laser? | **No.** |
 | When does shutdown end? | At the start of the next turn (`ResetPlayers()`). No state advancement is needed. |
-
-Note: [.claude/agents/robo-rally-dev.md](../.claude/agents/robo-rally-dev.md) §1.13 says a shut-down
-robot takes no laser damage. That is wrong for this version and should be corrected when this is
-implemented.
 
 ## Simplified state model
 
@@ -71,7 +67,11 @@ Add a case to `/api/player/{command}/{playerId}/...` in [Program.cs](../MRR/Prog
 ### 2. Lock-in (state 5, `GameController.cs`)
 For each robot with `ShutDown == Currently`:
 - set `PlayerStatus = ShutDown (9)`;
-- delete/discard all its `MoveCards` (Spam and programmed registers).
+- move its damage cards (Spam, Haywire; registers/hand/discard) to the damage discard pile and
+  its programming cards (registers/hand) to the discard pile — see the rules table above.
+
+A robot that chose shutdown must still complete its program (and direction) like any other:
+state 4 waits on it the same way, and its cards are only discarded here at lock-in.
 
 Do this at lock-in, not at toggle time, so toggling off loses nothing.
 **To verify before writing:** how Spam and programmed cards are stored (`MoveCards.Owner`,
@@ -108,14 +108,15 @@ already clears the status, and the robot is dealt a normal hand at state 2.
 
 ### 6. Tests (`MRR.Tests`, modelled on `PitRebootTests.cs`)
 - Toggle works in state 4 and is rejected in other states.
-- Lock-in discards all cards and sets status 9.
+- Lock-in moves damage cards to the damage discard pile, programming cards to the discard
+  pile, and sets status 9. (Needs the DB — not covered by the unit tests; manual check.)
 - Shut-down robot: takes laser damage as Spam, does not fire, can be pushed.
 - `ResetPlayers()` clears the shutdown.
 - Manual check on the table with simulated robots (see todo.md Section 8 for how other
   mechanics were verified).
 
 ### 7. Docs
-Tick the two todo.md items, correct robo-rally-dev.md §1.13, and add a line to PROJECT_STATUS.md.
+Tick the two todo.md items and add a line to PROJECT_STATUS.md. (robo-rally-dev.md §1.13 is already corrected.)
 
 ## Open items
 

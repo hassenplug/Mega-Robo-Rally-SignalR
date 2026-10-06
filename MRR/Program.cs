@@ -206,6 +206,9 @@ app.MapGet("/api/player/{command:int}/{playerId:int?}/{data1:int?}/{data2:int?}"
                 // value to write (1 to confirm; GM's button can also toggle back to 0)
             dataService.ConfirmRobotDirection(pid, d1);
             break;
+        case 6: // Toggle shutdown for this turn (programming phase only; additive command)
+            dataService.ToggleShutDown(pid);
+            break;
     }
 
     gameController.NextState();

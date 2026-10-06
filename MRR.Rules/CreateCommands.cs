@@ -1093,7 +1093,7 @@ namespace MRR
                     if (thisplayer.RespawnID > 0)
                     {
                         // check if there is a player on the square
-                        PlayerState? blockingPlayer = workingPlayers.FirstOrDefault(p => p.CurrentPos.X == thisplayer.CurrentPos.X && p.CurrentPos.Y == thisplayer.CurrentPos.Y && p.ID != thisplayer.ID && p.IsRunning);
+                        PlayerState? blockingPlayer = workingPlayers.FirstOrDefault(p => p.CurrentPos.X == thisplayer.CurrentPos.X && p.CurrentPos.Y == thisplayer.CurrentPos.Y && p.ID != thisplayer.ID && p.IsOnBoard);
 
                         // find the rotation of the respawn square with id thisplayer.RespawnID --
                         // needed for the placement message below regardless of whether anyone
@@ -1188,7 +1188,7 @@ namespace MRR
                 /// and take place after "CurrentAction"
 
                 var ActiveSquares = from be in g_BoardElements.BoardElements
-                                    join ap in workingPlayers.Where(ap=>ap.IsRunning)
+                                    join ap in workingPlayers.Where(ap=>ap.IsOnBoard)
                                     on be.Location equals ap.CurrentPos.Location
                                     select new { PlayerID = ap.ID, X = be.BoardCol, Y=be.BoardRow, ActionList = be.ActionList.Where(al=>al.PhaseActive(p_PhaseNumber)).Where(al=>al.ActionSequence > CurrentAction) };
 
@@ -1588,8 +1588,8 @@ namespace MRR
                 do
                 {
 
-                    var OverlappingRobots = from rob in workingPlayers.Where(wr=>wr.IsRunning)
-                                            join rob2 in workingPlayers.Where(wr => wr.IsRunning) on rob.CurrentPos.Location equals rob2.CurrentPos.Location
+                    var OverlappingRobots = from rob in workingPlayers.Where(wr=>wr.IsOnBoard)
+                                            join rob2 in workingPlayers.Where(wr => wr.IsOnBoard) on rob.CurrentPos.Location equals rob2.CurrentPos.Location
                                             select new { PlayerID = rob.ID, Player2ID = rob2.ID, CurrentPos = rob.CurrentPos };
 
                     var OL2 = OverlappingRobots.Where(olr => olr.PlayerID != olr.Player2ID);

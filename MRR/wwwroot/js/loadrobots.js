@@ -450,6 +450,30 @@ function showplayerprogram(pl) // show program for this line
     document.getElementById("messagetablespace").style = showmessage;
 
     updateDirectionPicker(rbt);
+    updateShutDownButton(rbt);
+}
+
+// ── Shutdown toggle ──────────────────────────────────────────────────────────
+// Shown only while programming (GameState 4) and not once the program is locked. The server
+// (DataService.ToggleShutDown) enforces the same rule; ShutDown 2 = shut down this turn.
+var SHUT_DOWN_CURRENTLY = 2; // tShutDown.Currently (MRR.Contracts/PlayerState.cs)
+
+function toggleShutDown() {
+    SendUpdate(6, CurrentPlayer);
+}
+
+function updateShutDownButton(rbt) {
+    var row = document.getElementById('shutDownRow');
+    if (!datapacket || datapacket.gamestate !== 4) {
+        row.style.display = 'none';
+        return;
+    }
+    var on = rbt.ShutDown === SHUT_DOWN_CURRENTLY;
+    row.style.display = '';
+    var btn = document.getElementById('shutDownBtn');
+    btn.textContent = on ? 'Shutting Down — Cancel' : 'Shut Down';
+    btn.style.backgroundColor = on ? '#ffff00' : '';
+    btn.style.color = on ? '#000000' : '';
 }
 
 function showall()

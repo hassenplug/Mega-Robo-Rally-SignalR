@@ -168,6 +168,19 @@ namespace MRR
             }
         }
 
+        // Physically on the board: not dead and not waiting on a respawn. Unlike IsRunning, a
+        // shut-down robot is on the board -- it can be hit by lasers, pushed, block a square and
+        // be carried by conveyors, it just plays no registers and fires no laser
+        // (documents/SHUTDOWN_DESIGN.md).
+        [NotMapped]
+        public bool IsOnBoard
+        {
+            get
+            {
+                return this.PlayerStatus != tPlayerStatus.Dead && this.RespawnID == 0;
+            }
+        }
+
         [NotMapped]
         public bool IsDead
         {
