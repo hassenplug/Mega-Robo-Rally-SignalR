@@ -1,7 +1,9 @@
 # ESP32-S3 CYD Player Input Stations (Replacing Phones)
 
-**Status:** Design only — no firmware written yet. Board identified 2026-10-02; driver, touch
-and toolchain verified from Freenove's tutorial 2026-10-04 (§1.1).
+**Status:** First firmware written 2026-10-06 in [`esp32-player-station/`](../esp32-player-station/README.md)
+— it **compiles but has never run on a board**. It differs from this design in a few ways, see
+§9. Board identified 2026-10-02; driver, touch and toolchain verified from Freenove's tutorial
+2026-10-04 (§1.1).
 **Date:** 2026-09-28 (updated 2026-10-04)
 **Related:** [PHONE_LOGIN_DESIGN.md](PHONE_LOGIN_DESIGN.md) (documents the phone protocol this
 replaces), [MRR/wwwroot/js/loadrobots.js](../MRR/wwwroot/js/loadrobots.js),
@@ -245,6 +247,27 @@ the parameter block; do not model from the photos:
 - Cable strain relief and desk-mounting (stand angle vs. flat) are open: a built-in 60–70°
   tilted stand tends to read better for a hand of cards than a flat case, but is a table-setup
   preference — parameterize `tilt_deg` rather than deciding now.
+
+## 9. As built (2026-10-06)
+
+The first firmware, in [`esp32-player-station/`](../esp32-player-station/README.md), departs from
+the sections above:
+
+- **No LVGL.** It draws straight with TFT_eSPI (coloured tiles with a letter and name). Only
+  TFT_eSPI, FT6336U and ArduinoJson are needed; the other pinned Freenove zips aren't used.
+  LVGL and the converted card art (§4) remain possible later.
+- **Landscape 480×320**, as §4 wants (the panel is 320×480 and is rotated in software). The
+  touch controller reports in the panel's native portrait frame, so the sketch remaps touch
+  coordinates; `SCREEN_ROTATION` (1 or 3) in `config.h` chooses which way up. The remap is
+  derived from TFT_eSPI's ST7796 rotation settings and is **untested on hardware**.
+- **Polls a new `GET /api/state`**, not `/api/alldata` (§2/§3). `/api/alldata` broadcasts to every
+  SignalR client on each call, so six stations would flood the phones and GM page. `/api/state`
+  returns the same JSON with no broadcast. This is an additive change to `MRR/Program.cs`, so
+  "no server changes" (§2) no longer holds.
+- **TFT pins are now known** from Freenove's `FNK0104S_4.0_320x480_ST7796.h` setup: MOSI 11,
+  SCLK 12, CS 10, DC 46, backlight 45, ST7796 with inversion on. Freenove's shipped
+  `User_Setup_Select.h` does not list the FNK0104S, so the README has the manual edit.
+- The program used about **83 %** of the default 1.3 MB app partition when built.
 
 ## 8. Open items / risks
 

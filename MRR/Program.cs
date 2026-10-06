@@ -84,6 +84,13 @@ app.MapGet("/api/settings/robot-screen", (bool enabled, GameController gameContr
 app.MapGet("/api/health", (GameController gameController) =>
     Results.Ok(new { status = "ok", state = gameController.GameState }));
 
+// Read-only twin of /api/alldata for polling clients (the ESP32 player stations,
+// documents/ESP32_PLAYER_STATION_DESIGN.md): same json, but no SignalR broadcast -- /api/alldata
+// pushes to every connected client on each call, so six stations polling it every second would
+// flood every phone and the GM page.
+app.MapGet("/api/state", (DataService dataService) =>
+    Results.Content(dataService.GetAllDataJson(), "application/json"));
+
 app.MapGet("/api/alldata", (DataService dataService, IHubContext<DataHub> hubContext) =>
 {
     var dataout = dataService.GetAllDataJson();
