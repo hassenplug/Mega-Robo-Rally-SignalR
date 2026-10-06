@@ -1,6 +1,6 @@
 # Mega Robo Rally — Project TODO
 
-**Last updated:** 2026-09-23
+**Last updated:** 2026-10-06
 **Legend:** `[x]` Done &nbsp; `[-]` Partial / In Progress &nbsp; `[ ]` Not started
 
 Resolved items are removed from this file once done rather than kept as a checked-off log —
@@ -20,7 +20,11 @@ time has passed.
    advances the robot's DB position as if it succeeded — the game state and the physical board
    quietly diverge, and nothing about it is visible to the GM. Tagged High in
    `API_DECOMPOSITION_DESIGN.md` §7.
-2. **Shutdown mechanic** (Section 1). Not started. Core Renegade rule.
+2. **Shutdown mechanic** (Section 1). Implemented 2026-10-06 (toggle, lock-in card discard,
+   shut-down robots stay on the board); builds and `ShutDownTests` pass. **Still open:** the
+   manual check on the table with simulated robots (toggle in state 4, lock-in card moves, laser
+   damage/push of a shut-down robot, next-turn clear) and a try on a real phone. Remove this item
+   once verified.
 3. **Damage card draw mechanic** (Section 1). Not started: drawing from the damage stack, Spam/
    Haywire/Trojan Horse execution. Beyond the basic damage → dealt-Spam-card conversion that
    already works, none of the special-card executions are implemented.
