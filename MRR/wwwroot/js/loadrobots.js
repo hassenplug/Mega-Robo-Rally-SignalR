@@ -168,6 +168,8 @@ function applyLogin() {
 var DIRECTION_DEGREES = { 1: 0, 2: 90, 3: 180, 4: 270 }; // Up, Right, Down, Left
 var pendingDirection = null;         // Direction int (1-4) currently shown on the arrow
 var directionPickerForRobotID = null; // which robot pendingDirection belongs to
+var lastDirectionTapTime = 0;        // Date.now() of this device's last arrow tap
+var DIRECTION_TAP_HOLD_MS = 1500;
 
 // GM's extra powers here only kick in once they've tapped into GM view (see "GM view"
 // section below) -- logged in as GM but still on the plain player view behaves exactly like
@@ -177,6 +179,7 @@ function isGmModeActive() {
 }
 
 function cycleDirection() {
+    lastDirectionTapTime = Date.now();
     pendingDirection = (pendingDirection % 4) + 1; // 1->2->3->4->1
     renderDirectionArrow();
     SendUpdate(4, CurrentPlayer, pendingDirection);
@@ -223,10 +226,12 @@ function updateDirectionPicker(rbt) {
     row.style.display = '';
     document.getElementById('directionConfirmBtn').textContent =
         (gmMode && rbt.PositionValid) ? 'Clear Direction' : 'Set Direction';
-    // Only (re)seed from the server's CurrentPosDir when we start looking at a different
-    // robot -- otherwise a broadcast landing between two quick taps would snap the button
-    // back to a stale value while the player is still cycling.
-    if (directionPickerForRobotID !== rbt.RobotID) {
+    // Follow the server's CurrentPosDir so a change made on another device (GM screen, the
+    // GM's own phone) shows up here too -- except just after a tap on this device, so a
+    // broadcast landing between two quick taps doesn't snap the arrow back to a stale value.
+    // Switching to a different robot always reseeds.
+    if (directionPickerForRobotID !== rbt.RobotID ||
+        Date.now() - lastDirectionTapTime >= DIRECTION_TAP_HOLD_MS) {
         directionPickerForRobotID = rbt.RobotID;
         pendingDirection = rbt.Dir || 1;
     }

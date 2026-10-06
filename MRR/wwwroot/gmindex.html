@@ -75,14 +75,16 @@
 <tbody id="playerRows"></tbody>
 </table>
 
-<!-- Player buttons: one per robot with a pending PlayerMsg, plus the GM start-game picker
-     while no game is running (gamestate 25). -->
+<!-- Player buttons: one per robot with a pending PlayerMsg, a direction row per robot whose
+     direction isn't locked yet, plus the GM start-game picker while no game is running
+     (gamestate 25). -->
 <div id="gmButtons" style="margin-top:6px; padding:4px; background-color:#e0e0e0;">
     <div id="gmtable" style="display:none; margin-bottom:4px;">
         <button class="button" style="width:auto; padding:6px 16px; background-color:#008000; color:#ffffff;" onclick="startSelectedGame();">Start</button>
         <select id="gameDataSelect" class="w3-input" style="display:inline-block; width:auto;"></select>
     </div>
     <div id="playerButtons"></div>
+    <div id="directionButtons"></div>
     <div id="noPlayerButtons" style="color:#606060;">No player buttons</div>
 </div>
 
@@ -159,11 +161,83 @@ function showall() {
         msgRobots.forEach(function (r) { buttons.appendChild(makePlayerMsgButton(r)); });
     }
 
+    var dirButtons = document.getElementById('directionButtons');
+    var dirKey = JSON.stringify(robots.map(function (r) {
+        return [r.RobotID, r.RobotName, r.PositionValid];
+    }));
+    if (dirKey !== lastDirectionKey) {
+        lastDirectionKey = dirKey;
+        dirButtons.innerHTML = '';
+        directionArrows = {};
+        robots.forEach(function (r) {
+            if (r.PositionValid === 0 || r.PositionValid === 1) dirButtons.appendChild(makeDirectionRow(r));
+        });
+    }
+
+    // Follow the server's Dir so a change made on a player's device shows up here too --
+    // except just after a GM tap, so a broadcast landing between two quick taps doesn't snap
+    // the arrow back to a stale value.
+    robots.forEach(function (r) {
+        var arrow = directionArrows[r.RobotID];
+        if (!arrow) return;
+        if (Date.now() - (lastDirectionTap[r.RobotID] || 0) < DIRECTION_TAP_HOLD_MS) return;
+        pendingDirections[r.RobotID] = r.Dir || 1;
+        renderGmDirectionArrow(r.RobotID);
+    });
+
     document.getElementById('noPlayerButtons').style.display =
-        (buttons.children.length || showGmStart) ? 'none' : '';
+        (buttons.children.length || dirButtons.children.length || showGmStart) ? 'none' : '';
 }
 
 var lastPlayerMsgKey = null;
+var lastDirectionKey = null;
+var pendingDirections = {}; // RobotID -> Direction int (1-4) shown on that robot's arrow
+var directionArrows = {};   // RobotID -> that robot's arrow <img>, while it's shown
+var lastDirectionTap = {};  // RobotID -> Date.now() of the GM's last arrow tap (hold time: DIRECTION_TAP_HOLD_MS, js/loadrobots.js)
+
+function renderGmDirectionArrow(robotId) {
+    directionArrows[robotId].style.transform =
+        'rotate(' + DIRECTION_DEGREES[pendingDirections[robotId]] + 'deg)';
+}
+
+// Per-robot version of index.html's #directionPickerRow (see the direction picker section of
+// js/loadrobots.js). PositionValid 0: arrow (cycles CurrentPosDir, command 4) plus "Set
+// Direction" (command 5, value 1). PositionValid 1: only "Clear Direction" (command 5, value 0).
+// No seat adjustment on the arrow -- GM sees the board-absolute direction.
+function makeDirectionRow(r) {
+    var row = document.createElement('div');
+    row.style = "margin:2px; display:flex; align-items:center; gap:6px;";
+
+    var label = document.createElement('span');
+    label.textContent = r.RobotName;
+    label.style = "min-width:60px; padding:2px 6px; background-color:" + r.RobotColor + "; color:" + r.RobotColorFG;
+    row.appendChild(label);
+
+    if (r.PositionValid === 0) {
+        // Rotation is set by showall() right after the rows are built.
+        var arrow = document.createElement('img');
+        arrow.src = 'images/Direction1.png';
+        arrow.style = "width:40px; height:40px; cursor:pointer;";
+        arrow.onclick = function () {
+            lastDirectionTap[r.RobotID] = Date.now();
+            pendingDirections[r.RobotID] = (pendingDirections[r.RobotID] % 4) + 1; // 1->2->3->4->1
+            renderGmDirectionArrow(r.RobotID);
+            SendUpdate(4, r.RobotID, pendingDirections[r.RobotID]);
+        };
+        directionArrows[r.RobotID] = arrow;
+        row.appendChild(arrow);
+    }
+
+    var b = document.createElement('button');
+    b.className = 'button';
+    b.style = "width:auto; padding:6px 16px; background-color:#800080; color:#ffffff;";
+    b.textContent = r.PositionValid === 0 ? 'Set Direction' : 'Clear Direction';
+    var newValid = r.PositionValid === 0 ? 1 : 0;
+    b.onclick = function () { SendUpdate(5, r.RobotID, newValid); };
+    row.appendChild(b);
+
+    return row;
+}
 
 // Same confirm (command 3) as index.html's #btnMessagebox, but for whichever robot the
 // message belongs to rather than the one currently selected.
