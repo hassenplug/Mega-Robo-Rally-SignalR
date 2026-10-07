@@ -39,7 +39,7 @@ Players simultaneously program their robots using movement cards, then all progr
 - **Robots** — one per player, have a position (column, row) and facing direction (Up/Right/Down/Left)
 - **Movement cards** — dealt to players each turn
 - **Upgrade cards** (Option cards) — persistent special abilities
-- **Damage stack** — a shared stack of Spam/Haywire/Trojan Horse damage cards; robots draw from it when damaged
+- **Damage stack** — a shared stack of Spam/Haywire damage cards; robots draw from it when damaged
 - **Flag tokens** — placed on the board; robots must touch them in order
 
 ### 1.3 Turn Structure
@@ -104,10 +104,9 @@ There are no damage tokens or locked registers in the Renegade edition. Instead:
 
 **Taking damage:**
 - When a robot is damaged (by a laser, board element, or other effect), the owner draws the top card from the **damage stack** and adds it to their discard pile
-- Damage cards (Spam, Haywire, Trojan Horse) cycle into the player's deck over time and must be executed when drawn into a register — they cannot be freely chosen like normal cards
+- Damage cards (Spam, Haywire) cycle into the player's deck over time and must be executed when drawn into a register — they cannot be freely chosen like normal cards
 - **Spam**: when executed, the robot performs the top card of their deck without choice
 - **Haywire**: when executed, the robot performs 5 random cards from their deck
-- **Trojan Horse**: when executed, all other robots take 1 damage (draw a Spam card)
 
 **Repair:**
 - Landing on a **Repair Site** (wrench icon) at end of a turn: remove 1 damage card from your discard pile
@@ -634,10 +633,10 @@ Phone clients are served from `wwwroot/`. They:
 | Robot laser fire | Missing | `CreateCommands.cs` |
 | Board laser fire | Missing | `CreateCommands.cs` |
 | Flag/checkpoint detection | Missing | `CreateCommands.cs` / `GameController.cs` |
-| Damage card draw (take damage → draw from damage stack) | Missing | `DataService.cs` / `CreateCommands.cs` |
+| Damage card draw (take damage → draw from damage stack) | Spam done; Haywire missing | `DataService.cs` / `CreateCommands.cs` |
 | Reboot mechanic (pit/off-board → reboot token + 2 Spam) | Missing | `GameController.cs` |
 | Win condition detection | Missing | `GameController.cs` |
-| Shutdown mechanic | Missing | `GameController.cs` |
+| Shutdown mechanic | Done (2026-10-07) | `GameController.cs` |
 | Option card effects | Partial | `CreateCommands.cs` |
 | Sense HAT display | Missing | `Sensors/SenseHatService.cs` (new file) |
 | Sense HAT joystick | Missing | `Sensors/SenseHatService.cs` (new file) |

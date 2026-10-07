@@ -1,6 +1,6 @@
 # Shutdown (power-down) — Design
 
-**Status: implemented 2026-10-06; build and `MRR.Tests/ShutDownTests.cs` pass, manual table check still open.** Decided 2026-10-05. Covers the two open items in
+**Status: implemented 2026-10-06; build and `MRR.Tests/ShutDownTests.cs` pass; confirmed working by the project owner 2026-10-07.** Decided 2026-10-05. The sections below are the original plan and are kept as written. Covers the two open items in
 [install/todo.md](../install/todo.md): Section 1 "Shutdown mechanic" and Section 3 "Shutdown
 toggle on phone UI".
 

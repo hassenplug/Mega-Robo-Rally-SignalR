@@ -1,6 +1,6 @@
 # Mega Robo Rally — Project TODO
 
-**Last updated:** 2026-10-06
+**Last updated:** 2026-10-07
 **Legend:** `[x]` Done &nbsp; `[-]` Partial / In Progress &nbsp; `[ ]` Not started
 
 Resolved items are removed from this file once done rather than kept as a checked-off log —
@@ -20,14 +20,12 @@ time has passed.
    advances the robot's DB position as if it succeeded — the game state and the physical board
    quietly diverge, and nothing about it is visible to the GM. Tagged High in
    `API_DECOMPOSITION_DESIGN.md` §7.
-2. **Shutdown mechanic** (Section 1). Implemented 2026-10-06 (toggle, lock-in card discard,
-   shut-down robots stay on the board); builds and `ShutDownTests` pass. **Still open:** the
-   manual check on the table with simulated robots (toggle in state 4, lock-in card moves, laser
-   damage/push of a shut-down robot, next-turn clear) and a try on a real phone. Remove this item
-   once verified.
-3. **Damage card draw mechanic** (Section 1). Not started: drawing from the damage stack, Spam/
-   Haywire/Trojan Horse execution. Beyond the basic damage → dealt-Spam-card conversion that
-   already works, none of the special-card executions are implemented.
+2. **Haywire cards** (Section 1). Spam damage works (confirmed 2026-10-07), but Haywire is only
+   defined as a card type — nothing deals one and nothing executes one. Needs "play 5 random
+   cards from the deck" in `CreateCommands.cs`. (Trojan Horse is not part of this rules
+   version — dropped 2026-10-07.)
+3. **Option card effects** (Section 1). Partial; most options are not wired into phase
+   processing.
 4. **Pushers** (Section 1). Board element type not implemented at all — activate on specific
    phases (odd/even), push a robot one square, chain-push if another robot is in the way.
 5. **DB password committed in tracked `appsettings.json`** (Section 6) — lower priority: closed
@@ -36,6 +34,11 @@ time has passed.
    the cookie-login item already decided not to worry about this for the raw broadcast payload.
 
 Also resolved since the last pass:
+- **Shutdown mechanic** — confirmed working 2026-10-07 (user): toggle in state 4, lock-in card
+  discard, shut-down robot stays on the board, next-turn clear. Design:
+  [SHUTDOWN_DESIGN.md](../documents/SHUTDOWN_DESIGN.md).
+- **Spam damage** — confirmed working 2026-10-07 (user): hits deal Spam cards, a played Spam
+  resolves by drawing the next card, spent Spam is retired. Haywire is the part that remains.
 - **Board data cleanup** — moot as of 2026-09-23 (user): the specific boards the old note cited
   (IDs 20, 40, 41, 59, 67, 71, plus the wider "6 have gaps / 16 have a stale TotalFlags" count)
   are no longer in the seed database at all; `install/MRRDatabase.sql`'s `Boards` table is down
@@ -56,8 +59,7 @@ literally all open, or just not updated after being done by hand).
 *Renegade rules completeness.*
 
 - [x] Shutdown mechanic (`GameController.cs` + phone UI) — implemented 2026-10-06 per
-  [SHUTDOWN_DESIGN.md](../documents/SHUTDOWN_DESIGN.md); builds and `ShutDownTests` pass, but
-  the manual check on the table with simulated robots is **still open**
+  [SHUTDOWN_DESIGN.md](../documents/SHUTDOWN_DESIGN.md); confirmed working 2026-10-07 (user)
   - Player announces shutdown during programming phase
   - Shut-down robot: does take laser damage, cannot move, discards its cards at lock-in
     (damage cards → damage discard pile, programming cards → discard pile)
@@ -190,11 +192,12 @@ literally all open, or just not updated after being done by hand).
   `Executed` flag (matching the `SquareAction.DealCard` case above it) as a secondary safety net
   for the now-dormant `PlayerState` path.
 
-- [ ] Damage card draw mechanic
-  - When a robot takes damage, draw top card from damage stack → add to discard
-  - Spam execution: play top card from deck without choice
-  - Haywire execution: play 5 random cards from deck
-  - Trojan Horse execution: all other robots take 1 damage
+- [-] Damage card draw mechanic — Spam half confirmed working 2026-10-07 (user)
+  - [x] When a robot takes damage, a Spam card is dealt (`DealSpamCard`)
+  - [x] Spam execution: replaced by the next card from the deck (`CreateCommands.cs`, pre-drawn
+    pile from `DataService.BuildDrawPile`); spent Spam retired after planning
+  - [ ] Haywire execution: play 5 random cards from deck — card type exists, nothing deals or
+    executes it
 
 - [-] Option card effects wired into phase processing (`CreateCommands.cs`)
   - Partial: ReverseGears, FourthGear, RammingGear referenced
@@ -281,7 +284,7 @@ on yet. Do not remove "dead" code related to either (unwired `tOptionCardCommand
 
 ### Player Programming UI (`index.html`)
 
-- [x] Shutdown toggle on phone UI (2026-10-06, `shutDownRow` in index.html; not yet tried on a phone)
+- [x] Shutdown toggle on phone UI (2026-10-06, `shutDownRow` in index.html; shutdown confirmed working 2026-10-07)
   - Player can choose to shut down during programming phase
 
 - [ ] Show what cards were played last turn (phone/GM UI) — right now only the *current*

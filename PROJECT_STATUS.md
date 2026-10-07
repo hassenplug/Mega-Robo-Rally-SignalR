@@ -1,6 +1,6 @@
 # Mega Robo Rally — Project Status & Operations Handbook
 
-**Last updated:** 2026-10-01
+**Last updated:** 2026-10-07 (§5.2 only; other sections last reviewed 2026-10-01)
 **Target host:** `mrobopi` — Raspberry Pi 5, Debian 13 (trixie), aarch64, kernel 6.18.34 (original build). A second build on a Raspberry Pi 4 with a GeeekPi 3.5" screen and no Sense HAT is covered in §1.2 and §1.8.
 
 This is the practical document: how to rebuild the machine, how to run the parts, how to
@@ -587,10 +587,12 @@ tests or a very careful pass.
 
 ### 5.2 Game mechanics
 
-`install/todo.md` is the authoritative list: **39 unstarted, 5 partial**. The notable ones
-are reboot, pushers, merge conveyors, the damage-card draw mechanic, shutdown, and ending
-the game on a win (§4.4). This is a larger body of work than what is left of the
-architecture.
+`install/todo.md` is the authoritative list (the old "39 unstarted, 5 partial" count is gone —
+it was never re-derived, and the file has since changed). The notable open items are pushers,
+merge conveyors, Haywire cards, option cards, and ending the game on a win (§4.4). Working and
+confirmed on the table: shutdown and Spam damage (2026-10-07), reboot/respawn (2026-09-23).
+Trojan Horse is not part of this rules version. This is a larger body of work than what is
+left of the architecture.
 
 ### 5.3 Housekeeping
 
