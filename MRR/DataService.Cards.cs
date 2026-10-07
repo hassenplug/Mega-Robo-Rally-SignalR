@@ -292,38 +292,9 @@ namespace MRR.Services
                 cmd.ExecuteNonQuery();
             }
 
-            // 6. Determine new robot status: 4=Ready if all registers filled, else 3=Programming.
-            int programCount;
-            using (var cmd = new MySqlCommand(
-                "SELECT COUNT(*) FROM MoveCards WHERE `Owner` = @player AND CardLocation = 2",
-                connection))
-            {
-                cmd.Parameters.AddWithValue("@player", p_Player);
-                programCount = Convert.ToInt32(cmd.ExecuteScalar() ?? 0);
-            }
-
-            // A robot can't be Ready (4) until it has actually chosen a facing direction --
-            // PositionValid 0 means the direction picker hasn't been touched yet (DataService.
-            // Players.cs). Without this, a robot could reach ReadyToRun with no direction set.
-            int positionValid;
-            using (var cmd = new MySqlCommand(
-                "SELECT PositionValid FROM Robots WHERE RobotID = @player",
-                connection))
-            {
-                cmd.Parameters.AddWithValue("@player", p_Player);
-                positionValid = Convert.ToInt32(cmd.ExecuteScalar() ?? 0);
-            }
-
-            int newStatus = (programCount == phaseCount && positionValid > 0) ? 4 : 3;
-
-            // LEDs stay on while the player is still programming, off once every register up
-            // to PhaseCount is filled -- compared by count, not by whether slot 5 specifically
-            // is filled, since PhaseCount can be less than 5 (e.g. damage).
-            _robotConnections.Get(p_Player)?.SetLightsAsync(newStatus != 4).Wait();
-
-            // 7. Rebuild CardsDealt/CardsPlayed CSV strings and write the new Status (+
-            // PlayerStatus/StatusColor to match) in one pass (procUpdateRobotCards).
-            RebuildRobotCardsSummary(connection, p_Player, newStatus);
+            // 6-7. Re-evaluate Ready vs Programming, rebuild CardsDealt/CardsPlayed CSV strings
+            // and write the new Status (procUpdateRobotCards).
+            UpdateProgrammingStatus(connection, p_Player, cardsChanged: true);
 
             // 8. Sync in-memory GameCards to match the DB moves above.
             var returnedCard = GameCards.FirstOrDefault(c => c.Owner == p_Player && c.PhasePlayed == p_PhasePlayed && c.CardLocation == 2);
@@ -341,6 +312,54 @@ namespace MRR.Services
                     movedCard.CardLocation = 2;
                 }
             }
+        }
+
+        /// <summary>
+        /// Decides whether a programming robot is Ready (4) or still Programming (3), and writes
+        /// that status (plus the CardsDealt/CardsPlayed summary and the robot's LEDs). A robot is
+        /// Ready only when every register up to PhaseCount is filled (compared by count, not by
+        /// whether slot 5 specifically is filled, since PhaseCount can be less than 5, e.g.
+        /// damage) AND it has chosen a facing direction -- PositionValid 0 means the direction
+        /// picker hasn't been touched yet (DataService.Players.cs). Called from both halves of
+        /// "fill the registers, confirm the direction" since either can come last.
+        ///
+        /// cardsChanged = true (UpdateCardPlayed): a card moved, so the summary is always
+        /// rebuilt and a non-Ready robot becomes Programming (3). false (ConfirmRobotDirection):
+        /// nothing about the cards changed, so a non-Ready robot keeps its current status
+        /// (e.g. 2, Ready to Program) and nothing is written unless the status actually changed.
+        /// The caller checks RobotStatus.Programming first.
+        /// </summary>
+        private void UpdateProgrammingStatus(MySqlConnection connection, int robotID, bool cardsChanged)
+        {
+            int programCount;
+            using (var cmd = new MySqlCommand(
+                "SELECT COUNT(*) FROM MoveCards WHERE `Owner` = @player AND CardLocation = 2",
+                connection))
+            {
+                cmd.Parameters.AddWithValue("@player", robotID);
+                programCount = Convert.ToInt32(cmd.ExecuteScalar() ?? 0);
+            }
+
+            int currentStatus, positionValid;
+            using (var cmd = new MySqlCommand(
+                "SELECT `Status`, PositionValid FROM Robots WHERE RobotID = @player",
+                connection))
+            {
+                cmd.Parameters.AddWithValue("@player", robotID);
+                using var reader = cmd.ExecuteReader();
+                if (!reader.Read()) return;
+                currentStatus = reader.GetInt32(0);
+                positionValid = reader.GetInt32(1);
+            }
+
+            int newStatus = (programCount == PhaseCount && positionValid > 0) ? 4
+                          : (cardsChanged || currentStatus == 4 ? 3 : currentStatus);
+            if (!cardsChanged && newStatus == currentStatus) return;
+
+            // LEDs stay on while the player is still programming, off once Ready.
+            _robotConnections.Get(robotID)?.SetLightsAsync(newStatus != 4).Wait();
+
+            RebuildRobotCardsSummary(connection, robotID, newStatus);
         }
 
         /// <summary>

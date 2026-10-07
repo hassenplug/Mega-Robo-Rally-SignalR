@@ -639,7 +639,7 @@ namespace MRR.Services
 
             int eligible = GetIntFromDB(
                 $"SELECT COUNT(*) FROM Robots WHERE RobotID = {robotID} " +
-                $"AND Status <> {(int)tPlayerStatus.Dead} AND RespawnID = 0");
+                $"AND Status <> {(int)tPlayerStatus.Dead} ");
             if (eligible == 0) return false;
 
             ExecuteSQL(
@@ -929,16 +929,7 @@ namespace MRR.Services
                 $"WHERE r.RobotID = {robotID}");
             if (inProgramming != 1) return;
 
-            int currentStatus = GetIntFromDB($"SELECT `Status` FROM Robots WHERE RobotID = {robotID}");
-            int programCount = GetIntFromDB(
-                $"SELECT COUNT(*) FROM MoveCards WHERE `Owner` = {robotID} AND CardLocation = 2");
-
-            int newStatus = (programCount == PhaseCount && positionValid > 0) ? 4
-                          : (currentStatus == 4 ? 3 : currentStatus);
-            if (newStatus == currentStatus) return;
-
-            _robotConnections.Get(robotID)?.SetLightsAsync(newStatus != 4).Wait();
-            RebuildRobotCardsSummary(connection, robotID, newStatus);
+            UpdateProgrammingStatus(connection, robotID, cardsChanged: false);
         }
 
         // =====================================================================
