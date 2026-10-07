@@ -365,36 +365,6 @@ app.MapGet("/api/robot/setip/{robotId:int}/{ipAddress}", (int robotId, string ip
     return Results.Ok(new { robotId, ipAddress });
 });
 
-// Section 8 (install/todo.md) connection screen: "Search" -- sweeps the game LAN for live AIM
-// robots. See RobotDiscovery.cs for why this can report "something answered at this IP" but
-// not which physical robot it is (ws_status has no identity field); the operator confirms and
-// assigns unmatched hits with "Update IP" above.
-app.MapGet("/api/robot/search", async (DataService dataService, GameController gameController) =>
-{
-    var bases = dataService.GetQueryResults(
-        "SELECT r.RobotID, r.RobotBaseID, rbase.IPAddress FROM Robots r JOIN RobotBases rbase ON r.RobotBaseID = rbase.RobotBaseID;")
-        .Rows.Cast<System.Data.DataRow>()
-        .Select(row => new KnownRobotBase((int)row["RobotID"], (int)row["RobotBaseID"], row["IPAddress"] as string))
-        .ToList();
-
-    var robotIds = bases.Select(b => b.RobotID).ToList();
-    gameController.SetAllConnectStatus(robotIds, tPlayerStatus.Searching);
-
-    List<DiscoveredDevice> found;
-    try
-    {
-        found = await RobotDiscovery.ScanAsync(bases);
-    }
-    finally
-    {
-        // Search only discovers/matches IPs; it doesn't establish the persistent game
-        // connection, so status returns to Not Connected rather than Connected either way.
-        gameController.SetAllConnectStatus(robotIds, tPlayerStatus.NotConnected);
-    }
-
-    return Results.Ok(new { found });
-});
-
 app.MapGet("/api/board/{boardID?}", (int? boardID, DataService dataService, IHubContext<DataHub> hubContext, GameController gameController) =>
 {
     if (boardID == null) boardID = dataService.BoardID;

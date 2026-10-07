@@ -11,7 +11,7 @@ Commands that need to happen for a game.  These should all be part of a GM scree
 ## Pre-Game
 
 - [ ] Test connection to robots
-  - [ ] Search for robots to connect to and update IP
+  - [ ] Connect to robots; update an IP by hand if needed
 - [ ] Pick a pre-created game from a list (pick GameData)
 - [ ] Start the game (load that game & start)
 - [ ] Auto-connect to robots

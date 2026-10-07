@@ -930,12 +930,11 @@ INSERT INTO `RobotStatus` VALUES
 (14,'Laser Fired','Laser',1,0,'FFFF00','FFFF00'),
 (15,'Respawn','Respawn',1,0,'0000FF','0000FF'),
 -- Section 8 (install/todo.md): Robots.ConnectStatusID values, distinct from the gameplay
--- Robots.Status values above. IDs 20-23 chosen to avoid colliding with the gameplay range;
+-- Robots.Status values above. IDs 20-22 chosen to avoid colliding with the gameplay range;
 -- ConnectStatusID 0 reuses 'Unknown' above rather than adding a duplicate row.
 (20,'Not Connected','Not Conn',0,0,'FF0000','FF0000'),
 (21,'Connecting','Connecting',0,0,'FFFF00','FFFF00'),
-(22,'Robot Connected','Connected',1,0,'00FF00','00FF00'),
-(23,'Searching','Searching',0,0,'800080','800080');
+(22,'Robot Connected','Connected',1,0,'00FF00','00FF00');
 
 -- SeatOrientation
 INSERT INTO `SeatOrientation` VALUES (1,4),(2,4),(3,3),(4,2),(5,2),(6,1),(7,2),(8,3);

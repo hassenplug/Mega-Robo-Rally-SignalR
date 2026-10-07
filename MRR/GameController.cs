@@ -556,19 +556,6 @@ namespace MRR.Controller
             UpdateGameState();
         }
 
-        /// <summary>Batch form of SetRobotConnectStatus for the connection screen's "Connect
-        /// All"/"Disconnect All"/"Search" (install/todo.md Section 8). Each robot gets its own
-        /// SetRobotConnectStatus call -- and so its own broadcast -- rather than one shared
-        /// UPDATE across all of them: this is a between-games action (game setup/robot
-        /// assignment), not a per-turn one, so the API_DECOMPOSITION_DESIGN.md tempo table (§2)
-        /// puts its latency budget in seconds and treats extra hops/round-trips here as cheap,
-        /// unlike the per-command tempo GameController's turn-execution path has to protect.</summary>
-        public void SetAllConnectStatus(IEnumerable<int> robotIDs, tPlayerStatus status)
-        {
-            foreach (var robotID in robotIDs)
-                SetRobotConnectStatus(robotID, status);
-        }
-
         /// <summary>
         /// Creates a RobotScreenUI for the player and starts the touch polling loop.
         /// Cancels any existing polling task for this player first.

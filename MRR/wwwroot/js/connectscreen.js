@@ -82,34 +82,6 @@ function disconnectAll() {
     fetch('/api/robot/disconnect/all').catch(function (err) { console.error(err); });
 }
 
-function searchRobots() {
-    var btn = document.getElementById('btnSearch');
-    btn.disabled = true;
-    var originalText = btn.textContent;
-    btn.textContent = 'Searching...';
-
-    fetch('/api/robot/search')
-        .then(function (resp) { return resp.json(); })
-        .then(function (data) {
-            var found = data.found || [];
-            if (found.length === 0) {
-                alert('No AIM robots found responding on the game LAN.');
-                return;
-            }
-            var lines = found.map(function (d) {
-                return d.matchedRobotID
-                    ? d.ipAddress + '  ->  already assigned to robot ' + d.matchedRobotID
-                    : d.ipAddress + '  ->  unassigned AIM robot; use Update IP to assign it to a robot';
-            });
-            alert('Search results:\n' + lines.join('\n'));
-        })
-        .catch(function (err) { alert('Search failed: ' + err); })
-        .finally(function () {
-            btn.disabled = false;
-            btn.textContent = originalText;
-        });
-}
-
 function toggleEditMode() {
     editMode = !editMode;
     document.getElementById('btnUpdateIp').textContent = editMode ? 'Done Editing IPs' : 'Update IP';
