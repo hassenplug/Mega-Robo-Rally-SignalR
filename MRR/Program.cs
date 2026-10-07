@@ -1,7 +1,6 @@
 using MRR.Hubs;
 using MRR.Services;
 using Microsoft.AspNetCore.SignalR;
-using System.Net.WebSockets;
 using MRR.Controller;
 using MRR;
 using MRR.Data;
@@ -48,7 +47,6 @@ app.Services.GetRequiredService<GameController>();
 // 404 -- which is why phones had to be pointed at the explicit filename.
 app.UseDefaultFiles();
 app.UseStaticFiles();
-app.UseWebSockets();
 
 app.MapHub<DataHub>("/datahub");
 

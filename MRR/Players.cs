@@ -163,35 +163,11 @@ namespace MRR
             cmd.StatusID = 4;
         }
 
-        public Task MoveAsync(int distance, int angle, int final_heading = 0, int drive_speed = 200) =>
-            Connection == null ? Task.CompletedTask : Connection.MoveAsync(distance, angle, final_heading, drive_speed);
-
-        public Task SetPoseAsync(int x = 0, int y = 0) =>
-            Connection == null ? Task.CompletedTask : Connection.SetPoseAsync(x, y);
-
         public Task MoveAndWaitAsync(int distance, int angle) =>
             Connection == null ? Task.CompletedTask : Connection.MoveAndWaitAsync(distance, angle);
 
         public Task TurnAndWaitAsync(int direction) =>
             Connection == null ? Task.CompletedTask : Connection.TurnAndWaitAsync(direction);
-
-        public Task StopAsync() =>
-            Connection == null ? Task.CompletedTask : Connection.StopAsync();
-
-        public Task TurnAsync(int direction) =>
-            Connection == null ? Task.CompletedTask : Connection.TurnAsync(direction);
-
-        public Task PrintAsync(string text) =>
-            Connection == null ? Task.CompletedTask : Connection.PrintAsync(text);
-
-        public Task SetCursorAsync(int row, int col) =>
-            Connection == null ? Task.CompletedTask : Connection.SetCursorAsync(row, col);
-
-        public Task ClearScreenAsync() =>
-            Connection == null ? Task.CompletedTask : Connection.ClearScreenAsync();
-
-        public Task SetLedAsync(string led, int r, int g, int b) =>
-            Connection == null ? Task.CompletedTask : Connection.SetLedAsync(led, r, g, b);
 
         public Task SetLightsAsync(bool on) =>
             Connection == null ? Task.CompletedTask : Connection.SetLightsAsync(on);
@@ -203,18 +179,6 @@ namespace MRR
 
         public Task<byte[]?> GetCameraImageAsync(int timeoutMs = 5000) =>
             Connection == null ? Task.FromResult<byte[]?>(null) : Connection.GetCameraImageAsync(timeoutMs);
-
-        internal void RefreshCards()
-        {
-            /*
-            var dt = GetQueryResults(
-                $"SELECT CardsDealt, CardsPlayed FROM Robots WHERE RobotID = {ID};");
-            if (dt.Rows.Count == 0) return;
-
-            CardsDealtStr  = dt.Rows[0]["CardsDealt"]?.ToString()  ?? "";
-            CardsPlayedStr = dt.Rows[0]["CardsPlayed"]?.ToString() ?? "0,0,0,0,0";
-            */
-        }
 
     }
 }
