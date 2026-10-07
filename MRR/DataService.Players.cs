@@ -873,9 +873,59 @@ namespace MRR.Services
             ExecuteSQL($@"delete from HistoryRobotTurns where Turn = {Turn}");
 
             // save to new table HistoryRobotTurns
-            ExecuteSQL($@"INSERT INTO HistoryRobotTurns (Turn, RobotID, StartRow, StartCol, StartDir, MoveCards)
-                    Select {Turn}, RobotID, CurrentPosRow, CurrentPosCol, CurrentPosDir, CardsPlayed FROM Robots ");
+            // Priority is the turn's turn-order rank (1 acts first, same as the planner's
+            // OrderBy(Priority)); MoveCardsShuffleAndDeal rotates it before CreateTurn runs, so
+            // this is already the value this turn executes with.
+            ExecuteSQL($@"INSERT INTO HistoryRobotTurns (Turn, RobotID, Priority, StartRow, StartCol, StartDir, MoveCards)
+                    Select {Turn}, RobotID, Priority, CurrentPosRow, CurrentPosCol, CurrentPosDir, CardsPlayed FROM Robots ");
 
+        }
+
+        /// <summary>
+        /// One saved turn from HistoryRobotTurns, robots in that turn's priority order
+        /// (Priority 1 first -- the order they act in). turn = null means the previous turn
+        /// (Turn - 1); the current turn's own row is only written at CreateTurn (state 6), so
+        /// "previous" is the newest turn that is always complete. Cards are returned as the
+        /// 5-character string the phone UI shows (MoveCardTypes.ShortDescription per register,
+        /// '-' = empty), converted from the CardTypeID CSV that SaveToHistory stored.
+        /// </summary>
+        public object GetTurnHistory(int? turn = null)
+        {
+            int turnNumber = turn ?? Turn - 1;
+
+            var cardLetters = new Dictionary<int, string>();
+            foreach (DataRow row in GetQueryResults("SELECT CardTypeID, ShortDescription FROM MoveCardTypes").Rows)
+                cardLetters[Convert.ToInt32(row["CardTypeID"])] = row["ShortDescription"] as string ?? "?";
+
+            var table = GetQueryResults(
+                "SELECT h.RobotID, h.Priority, h.StartRow, h.StartCol, h.StartDir, h.MoveCards, " +
+                "       r.RobotName, r.RobotColor, r.RobotColorFG, d.ShortDirDesc " +
+                "FROM HistoryRobotTurns h " +
+                "LEFT JOIN Robots r ON r.RobotID = h.RobotID " +
+                "LEFT JOIN RobotDirections d ON d.DirID = h.StartDir " +
+                $"WHERE h.Turn = {turnNumber} " +
+                "ORDER BY h.Priority, h.RobotID");
+
+            static int Int(object v) => v is DBNull ? 0 : Convert.ToInt32(v);
+            static string Str(object v) => v is DBNull ? "" : (string)v;
+
+            var robots = table.Rows.Cast<DataRow>().Select(row => new
+            {
+                robotID   = Int(row["RobotID"]),
+                priority  = Int(row["Priority"]),
+                name      = Str(row["RobotName"]),
+                color     = Str(row["RobotColor"]),
+                colorFG   = Str(row["RobotColorFG"]),
+                startRow  = Int(row["StartRow"]),
+                startCol  = Int(row["StartCol"]),
+                startDir  = Str(row["ShortDirDesc"]),
+                cards     = string.Concat(Str(row["MoveCards"])
+                                .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                                .Select(id => int.TryParse(id, out int typeId) && typeId > 0
+                                    ? cardLetters.GetValueOrDefault(typeId, "?") : "-"))
+            }).ToList();
+
+            return new { turn = turnNumber, currentTurn = Turn, robots };
         }
 
         // =====================================================================

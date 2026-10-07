@@ -107,6 +107,11 @@ app.MapGet("/api/gamedata", (DataService dataService) =>
         "SELECT GameDataID, Description FROM GameData ORDER BY GameDataID;", "games"),
         "application/json"));
 
+// One saved turn's start positions + programmed cards, in that turn's priority order
+// (turnhistory.html). No turn = the previous one.
+app.MapGet("/api/history/turn/{turn:int?}", (int? turn, DataService dataService) =>
+    Results.Ok(dataService.GetTurnHistory(turn)));
+
 app.MapGet("/api/state/{newstate?}/{parameter1?}", async (string? newstate, string? parameter1, DataService dataService, IHubContext<DataHub> hubContext, GameController gameController) =>
 {
 

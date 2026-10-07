@@ -522,7 +522,10 @@ CREATE TABLE `HistoryRobotOptions` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 
 -- HistoryRobotTurns (history table): one row per robot per turn, recording where it started
--- that turn's execution and which cards drove it there. Written by DataService.Players.cs's
+-- that turn's execution, its turn-order Priority (1 acts first), and which cards drove it
+-- there. An existing database needs:
+--   ALTER TABLE HistoryRobotTurns ADD COLUMN Priority int(11) DEFAULT 0 AFTER RobotID;
+-- Written by DataService.Players.cs's
 -- SaveToHistory(turn) -- a single bulk `INSERT ... SELECT ... FROM Robots`, called from
 -- GameController.CreateTurn() right after BuildTurnRequest() and before the planner
 -- simulates the turn and moves anyone, so CurrentPosRow/Col/Dir at that instant are each
@@ -534,6 +537,7 @@ DROP TABLE IF EXISTS `HistoryRobotTurns`;
 CREATE TABLE `HistoryRobotTurns` (
   `Turn` int(11) NOT NULL DEFAULT 0,
   `RobotID` int(11) NOT NULL DEFAULT 0,
+  `Priority` int(11) DEFAULT 0,
   `StartRow` int(11) DEFAULT 0,
   `StartCol` int(11) DEFAULT 0,
   `StartDir` int(11) DEFAULT 0,

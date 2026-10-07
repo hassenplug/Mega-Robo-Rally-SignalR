@@ -698,7 +698,8 @@ Save snapshots per turn for replay/restore:
 Saved by `procCurrentPosSave()` at state 5; restored by `procCurrentPosLoad()` at state 16.
 
 - **HistoryRobotTurns** (RobotID, Turn PK): a robot's starting position+direction for one
-  turn (`StartRow`/`StartCol`/`StartDir`) plus that turn's `MoveCards` CSV -- no end position,
+  turn (`StartRow`/`StartCol`/`StartDir`), its turn-order `Priority` (1 acts first; read by
+  `GET /api/history/turn/{turn?}` → `wwwroot/turnhistory.html`), plus that turn's `MoveCards` CSV -- no end position,
   only where the turn began. Written by `DataService.Players.cs`'s `SaveToHistory(turn)` --
   one bulk `INSERT ... SELECT ... FROM Robots` for every robot at once, added 2026-09-16 and
   wired into `GameController.CreateTurn()` the same day: called right after

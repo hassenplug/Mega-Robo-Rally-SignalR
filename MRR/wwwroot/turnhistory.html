@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Turn History</title>
+<style>
+    body { background: #222; color: #fff; font-family: Arial, sans-serif; margin: 0; padding: 12px; }
+    h1 { font-size: 20px; margin: 0 0 10px; }
+    .nav { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
+    .nav button { font-size: 18px; padding: 4px 14px; }
+    .nav input { width: 60px; font-size: 18px; padding: 4px; }
+    table { border-collapse: collapse; width: 100%; max-width: 640px; }
+    th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #444; }
+    th { color: #aaa; font-weight: normal; font-size: 13px; }
+    .name { font-weight: bold; border-radius: 4px; }
+    .cards { font-family: monospace; font-size: 24px; letter-spacing: 4px; }
+    .pri { font-size: 20px; color: #aaa; }
+    #msg { color: #aaa; margin-top: 12px; }
+</style>
+</head>
+<body>
+<h1>Turn <span id="turn">-</span> &mdash; start positions &amp; cards, in priority order</h1>
+<div class="nav">
+    <button id="prev">&laquo; Prev</button>
+    <input id="turnInput" type="number" min="1">
+    <button id="go">Go</button>
+    <button id="next">Next &raquo;</button>
+</div>
+<table>
+    <thead><tr><th>#</th><th>Robot</th><th>Start</th><th>Cards</th></tr></thead>
+    <tbody id="rows"></tbody>
+</table>
+<div id="msg"></div>
+<script>
+    var shownTurn = null;
+
+    function load(turn) {
+        var url = '/api/history/turn' + (turn == null ? '' : '/' + turn);
+        fetch(url).then(function (r) { return r.json(); }).then(function (d) {
+            shownTurn = d.turn;
+            document.getElementById('turn').textContent = d.turn;
+            document.getElementById('turnInput').value = d.turn;
+            document.getElementById('next').disabled = d.turn + 1 >= d.currentTurn;
+            document.getElementById('prev').disabled = d.turn <= 1;
+
+            var tbody = document.getElementById('rows');
+            tbody.innerHTML = '';
+            d.robots.forEach(function (r) {
+                var tr = document.createElement('tr');
+
+                var pri = document.createElement('td');
+                pri.className = 'pri';
+                pri.textContent = r.priority;
+                tr.appendChild(pri);
+
+                var name = document.createElement('td');
+                var chip = document.createElement('span');
+                chip.className = 'name';
+                chip.textContent = ' ' + (r.name || 'Robot ' + r.robotID) + ' ';
+                chip.style.background = '#' + r.color;
+                chip.style.color = '#' + r.colorFG;
+                chip.style.padding = '2px 8px';
+                name.appendChild(chip);
+                tr.appendChild(name);
+
+                var start = document.createElement('td');
+                start.textContent = 'R' + r.startRow + ' C' + r.startCol + ' ' + r.startDir;
+                tr.appendChild(start);
+
+                var cards = document.createElement('td');
+                cards.className = 'cards';
+                cards.textContent = r.cards;
+                tr.appendChild(cards);
+
+                tbody.appendChild(tr);
+            });
+            document.getElementById('msg').textContent =
+                d.robots.length ? '' : 'No history saved for turn ' + d.turn + '.';
+        }).catch(function () {
+            document.getElementById('msg').textContent = 'Could not load turn history.';
+        });
+    }
+
+    document.getElementById('prev').onclick = function () { load(shownTurn - 1); };
+    document.getElementById('next').onclick = function () { load(shownTurn + 1); };
+    document.getElementById('go').onclick = function () {
+        var t = parseInt(document.getElementById('turnInput').value, 10);
+        if (t > 0) load(t);
+    };
+
+    // ?turn=N shows that turn; no parameter shows the previous turn.
+    var requested = parseInt(new URLSearchParams(location.search).get('turn'), 10);
+    load(requested > 0 ? requested : null);
+</script>
+</body>
+</html>
