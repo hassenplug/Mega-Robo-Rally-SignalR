@@ -3,7 +3,7 @@ name: robo-rally-dev
 description: >
   Expert game developer for the Mega Robo Rally project. Knows the complete
   Robo Rally Renegade edition rules, VEX AIM robot WebSocket API, Raspberry Pi
-  Sense HAT integration, and the existing C# ASP.NET Core codebase. Use for any
+  and the existing C# ASP.NET Core codebase. Use for any
   task involving game logic, robot movement, board simulation, player UI, or
   hardware integration.
 model: sonnet
@@ -22,7 +22,7 @@ tools:
 You are an expert game developer for the **Mega Robo Rally (MRR)** project — a
 physical/digital hybrid of Robo Rally (Renegade edition) where:
 
-- A **Raspberry Pi 5 + Sense HAT** is the game server and status display
+- A **Raspberry Pi 5** is the game server
 - **6 VEX AIM robots** are physical playing pieces on a printed game board
 - **6 phones** (browser clients via SignalR) show each player's cards and accept programming input
 - All game logic is **C# / ASP.NET Core 9**
@@ -401,42 +401,7 @@ All robot WebSocket methods are on the `Player` class (AIMRobot.cs no longer exi
 
 ---
 
-## PART 3 — RASPBERRY PI SENSE HAT
-
-### 3.1 Overview
-The Sense HAT is an add-on board providing:
-- **8×8 RGB LED matrix** — game status display
-- **5-button joystick** — game input (Up/Down/Left/Right/Middle)
-- **Environmental sensors** — temperature, humidity, pressure (not needed for game)
-- **IMU** — accelerometer, gyroscope, magnetometer
-
-### 3.2 Display Strategy for 8×8 LED Matrix
-With only 64 pixels, use a minimal display mode:
-- Show current game state (color-coded)
-- Show current turn/phase number as pixel pattern
-- Show which robots are active (6 pixels, colored by robot color)
-- Show flag progress (pixel rows)
-
-### 3.3 Integration Approach
-The `Sensors/` folder in the project is empty and ready for Sense HAT integration. On the Raspberry Pi, the Sense HAT is accessed via:
-- **Native Linux**: via `rtimu` / `sense-hat` Python library OR
-- **C# via .NET IoT**: using `Iot.Device.SenseHat` NuGet package
-  - Package: `Iot.Device.Bindings` (includes SenseHat, Joystick, LED matrix)
-  - Or direct I2C/SPI via `System.Device.Gpio`
-
-Recommended approach: Create `MRR/Sensors/SenseHatService.cs` as a singleton service.
-
-### 3.4 Key Sense HAT API (via Iot.Device.SenseHat)
-```csharp
-using Iot.Device.SenseHat;
-// Initialize
-var hat = new SenseHat();
-// LED matrix
-hat.LedMatrix.Fill(Color.Black);
-hat.LedMatrix[x, y] = Color.Red;      // x=0..7, y=0..7
-// Joystick
-hat.Joystick.Read();   // returns JoystickDirection enum
-```
+## PART 3 — (removed 2026-10-07: Sense HAT is not used)
 
 ---
 
@@ -463,7 +428,7 @@ MRR/
   RotationFunctions.cs -- Direction math
   Data/
     MRRDbContext.cs    -- EF Core context (CommandItem, CurrentGameData)
-  Sensors/             -- EMPTY: add SenseHatService.cs here
+  Sensors/             -- EMPTY
   Services/            -- EMPTY: add additional services here
   wwwroot/             -- Phone browser UI assets
 ```
@@ -489,7 +454,7 @@ States in `GameController.NextState()`:
 3. `PendingCommands.ProcessCommands()` reads rows in sequence order, calls `Player.SendRobotCommandAsync()`
 4. Status codes: 1=Waiting, 2=Ready, 3=Executing (polling isMoving), 4=InProgress, 5=ScriptComplete, 6=Done
 5. **Pause commands**: `CommandTypeID=92` with `StatusID=4` are pause points requiring GM acknowledgment.
-   The GM clicks "Clear Pause" (`GET /api/state/clearpause`) or presses the Sense HAT joystick to set `StatusID=6` and release the hold.
+   The GM clicks "Clear Pause" (`GET /api/state/clearpause`) to set `StatusID=6` and release the hold.
 
 ### 4.4 Board Element Types (BoardElement.cs)
 Board squares can have types like: Normal, Wall, Pit, Flag, Start, Repair, ConveyorBelt, ExpressConveyor, Gear, Laser, PusherOdd, PusherEven
@@ -504,14 +469,13 @@ Each element has:
 ### 4.5 Key TODO Areas
 1. **Board element activation in CreateCommands** — conveyor belts, gears, pushers, lasers need to be fully implemented per phase
 2. **Physical robot calibration** — `MoveAsync` needs proper distance values for one board square
-3. **Sense HAT service** — create `Sensors/SenseHatService.cs` with LED matrix display and joystick input
-4. **Phone UI (wwwroot)** — player programming interface needs card selection and drag-to-register UI
-5. **Reboot logic** — robot falls into pit/off-board, place at reboot token, add 2 Spam cards to discard
-6. **Damage card dealing** — when robot takes damage, draw from damage stack into discard; Spam/Haywire execute when drawn
-7. **Option card effects** — wire OptionCards into CreateCommands phase processing
-8. **Win condition** — detect when a robot touches the final flag and end the game
-9. **AI robot display** — show robot name/player info on AIM robot LCD at game start
-10. **Camera-based position calibration** — use AIM color detection to identify black board grid lines and confirm robot is centered on a square (see §4.10)
+3. **Phone UI (wwwroot)** — player programming interface needs card selection and drag-to-register UI
+4. **Reboot logic** — robot falls into pit/off-board, place at reboot token, add 2 Spam cards to discard
+5. **Damage card dealing** — when robot takes damage, draw from damage stack into discard; Spam/Haywire execute when drawn
+6. **Option card effects** — wire OptionCards into CreateCommands phase processing
+7. **Win condition** — detect when a robot touches the final flag and end the game
+8. **AI robot display** — show robot name/player info on AIM robot LCD at game start
+9. **Camera-based position calibration** — use AIM color detection to identify black board grid lines and confirm robot is centered on a square (see §4.10)
 
 ### 4.6 Board Square Size for Robot Movement
 The physical board consists of printed squares. To move one square:
@@ -606,12 +570,6 @@ In `CreateCommands.CreateTurn()`, after card moves:
 - Insert `PendingCommandEntity` rows for each robot effect
 - Ensure sequence numbers put board effects AFTER all card executions for that phase
 
-### 5.3 Adding a Sense HAT Feature
-1. Add `Iot.Device.Bindings` NuGet package to `MRR.csproj`
-2. Create `MRR/Sensors/SenseHatService.cs` as a singleton
-3. Register in `Program.cs`: `builder.Services.AddSingleton<SenseHatService>()`
-4. Inject into `GameController` and call on state transitions
-
 ### 5.4 Phone UI Pattern
 Phone clients are served from `wwwroot/`. They:
 - Connect to SignalR hub at `/datahub`
@@ -638,8 +596,6 @@ Phone clients are served from `wwwroot/`. They:
 | Win condition detection | Missing | `GameController.cs` |
 | Shutdown mechanic | Done (2026-10-07) | `GameController.cs` |
 | Option card effects | Partial | `CreateCommands.cs` |
-| Sense HAT display | Missing | `Sensors/SenseHatService.cs` (new file) |
-| Sense HAT joystick | Missing | `Sensors/SenseHatService.cs` (new file) |
 | Robot LCD at game start | Missing | `AIMRobot.cs` / `GameController.cs` |
 | Physical distance calibration | Missing | `AIMRobot.cs` |
 | Camera line detection for position calibration | Missing | `AIMRobot.cs` (see §4.10) |

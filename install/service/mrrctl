@@ -276,7 +276,7 @@ mrrctl - Mega Robo Rally process manager
   Use 'all' for both hosts.
 
   Shorthands: game (or server) :5000, config (or editor) :5001,
-              health, recover, spi, target.
+              health, recover, target.
   Roles for deploy/rollback: game, config, all.
   Tunables live in /etc/default/mrr.
 EOF

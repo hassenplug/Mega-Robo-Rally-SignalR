@@ -38,7 +38,7 @@ Generated: 2026-03-24
 | `procVerifyPosition` | Not Started | **Medium** | Validates robot position (non-zero, no collision) |
 | `procCardPlayed` | Not Started | **Medium** | Older card-play entry point using short description letter |
 | `procProcessOption` | Not Started | **Medium** | Executes option card effects (Reboot=58, Recompile=39) |
-| `procSetStatus` | Not Started | **Medium** | Updates StatusLEDs from robot LED colors (Sense HAT display) |
+| `procSetStatus` | Not Started | **Medium** | Updates StatusLEDs from robot LED colors |
 | `procGameNew` | Not Started | **Low** | Full game init: inserts Robots, flags, LEDs, shuffles options |
 | `procResetGame` | Not Started | **Low** | Clears live tables and copies GameData config into CurrentGameData |
 | `procGameStart` | Not Started | **Low** | Entry point: sets state=0, calls funcGetNextGameState |

@@ -25,11 +25,13 @@ for f in mrrctl mrr-preflight mrr-health-check mrr-recover; do
 done
 
 info "installing systemd units to $UNIT_DIR"
-for f in mrr.target mrr-server.service mrr-config.service mrr-spi.service \
+for f in mrr.target mrr-server.service mrr-config.service \
          mrr-health.service mrr-health.timer \
          mrr-recover.service mrr-recover.timer; do
     install -m 0644 -o root -g root "$SRC/$f" "$UNIT_DIR/$f"
 done
+# mrr-spi.service no longer exists; drop the copy left by an earlier install.
+rm -f "$UNIT_DIR/mrr-spi.service"
 
 if [ -f /etc/default/mrr ]; then
     info "/etc/default/mrr exists - leaving it alone (reference: $SRC/mrr.env)"

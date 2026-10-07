@@ -10,11 +10,9 @@
 #      cd Mega-Robo-Rally-SignalR && ./install/git.sh
 #
 # Usage: ./install/git.sh [options]      (run as user mrr, NOT with sudo)
-#   --sense-hat   Pi has a Sense HAT: enable SPI and make the game host require /dev/spidev0.0.
-#                 Default is no Sense HAT (e.g. Pi 4 + SPI TFT screen), where SPI is left alone.
 #   --tft-screen  Pi 4 + GeeekPi 3.5" SPI touch screen: add the display overlay to config.txt
 #                 and open gmindex.html full-screen in Chromium at desktop login. Needs the
-#                 Raspberry Pi OS desktop image (Chromium + auto-login). Not with --sense-hat.
+#                 Raspberry Pi OS desktop image (Chromium + auto-login).
 #   --remote-db   Let other machines connect to MariaDB (comments out bind-address).
 #                 Exposes the database to the whole network - game LAN only. The game itself
 #                 does not need it: appsettings.json connects to 127.0.0.1.
@@ -27,10 +25,9 @@
 # Not run by the author on a blank Pi - read the output of the first run.
 set -euo pipefail
 
-SENSE_HAT=no; TFT_SCREEN=no; REMOTE_DB=no; RESET_DB=no; NO_START=no
+TFT_SCREEN=no; REMOTE_DB=no; RESET_DB=no; NO_START=no
 for a in "$@"; do
     case "$a" in
-        --sense-hat) SENSE_HAT=yes ;;
         --tft-screen) TFT_SCREEN=yes ;;
         --remote-db) REMOTE_DB=yes ;;
         --reset-db)  RESET_DB=yes ;;
@@ -39,9 +36,6 @@ for a in "$@"; do
         *) echo "unknown option: $a (try --help)" >&2; exit 2 ;;
     esac
 done
-
-[ "$SENSE_HAT" = no ] || [ "$TFT_SCREEN" = no ] || \
-    { echo "--sense-hat and --tft-screen both need SPI0 - pick one" >&2; exit 2; }
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 INSTALL="$REPO/install"
@@ -74,25 +68,9 @@ sudo apt-get upgrade -y
 sudo apt-get install -y git curl ca-certificates mariadb-server libicu-dev
 
 info "adding mrr to hardware groups"
-for g in gpio i2c dialout $([ "$SENSE_HAT" = yes ] && echo spi); do
+for g in gpio i2c dialout; do
     if getent group "$g" >/dev/null; then sudo usermod -aG "$g" mrr; else warn "group '$g' does not exist - skipped"; fi
 done
-
-# ---------------------------------------------------------------- SPI (Sense HAT only)
-if [ "$SENSE_HAT" = yes ]; then
-    info "enabling SPI for the Sense HAT"
-    [ -f "$BOOT_CFG" ] || die "$BOOT_CFG not found"
-    if grep -qE '^dtparam=spi=on' "$BOOT_CFG"; then
-        echo "SPI already enabled"
-    elif grep -qE '^#\s*dtparam=spi=on' "$BOOT_CFG"; then
-        sudo sed -i -E 's/^#\s*(dtparam=spi=on)/\1/' "$BOOT_CFG"
-    else
-        echo 'dtparam=spi=on' | sudo tee -a "$BOOT_CFG" >/dev/null
-    fi
-    sudo systemctl unmask mrr-spi.service 2>/dev/null || true
-else
-    echo "No Sense HAT: leaving SPI alone (pass --sense-hat if this Pi has one)."
-fi
 
 # ---------------------------------------------------------------- TFT screen (--tft-screen only)
 if [ "$TFT_SCREEN" = yes ]; then
@@ -164,24 +142,8 @@ fi
 # ---------------------------------------------------------------- services (publishes + starts the app)
 info "installing the MRR services (this publishes the app; it can take several minutes on a Pi)"
 START_ARG=""
-# With a Sense HAT, SPI only appears after a reboot, so do not start into a failing preflight.
-if [ "$NO_START" = yes ] || [ "$SENSE_HAT" = yes ]; then START_ARG="--no-start"; fi
+if [ "$NO_START" = yes ]; then START_ARG="--no-start"; fi
 sudo "$INSTALL/service/install.sh" $START_ARG
-
-if [ "$SENSE_HAT" = yes ]; then
-    sudo sed -i -E 's/^MRR_REQUIRE_SPI=.*/MRR_REQUIRE_SPI=yes/' /etc/default/mrr
-    grep -q '^MRR_REQUIRE_SPI=' /etc/default/mrr || echo 'MRR_REQUIRE_SPI=yes' | sudo tee -a /etc/default/mrr >/dev/null
-else
-    # Nothing needs the SPI overlay without a Sense HAT, and on a Pi with an SPI TFT screen the
-    # overlay loader could fight the display driver. Masked units in Wants= are skipped.
-    sudo sed -i -E 's/^MRR_REQUIRE_SPI=.*/MRR_REQUIRE_SPI=no/' /etc/default/mrr
-    grep -q '^MRR_REQUIRE_SPI=' /etc/default/mrr || echo 'MRR_REQUIRE_SPI=no' | sudo tee -a /etc/default/mrr >/dev/null
-    # install.sh (above) just wrote the real unit file into /etc/systemd/system, and mask
-    # refuses to replace a real file, so remove it first. The source stays in install/service/.
-    sudo rm -f /etc/systemd/system/mrr-spi.service
-    sudo systemctl mask mrr-spi.service
-    sudo systemctl daemon-reload
-fi
 
 if [ "$TFT_SCREEN" = yes ]; then
     info "setting the screen to open gmindex.html at login"
@@ -201,7 +163,7 @@ if [ "$TFT_SCREEN" = yes ]; then
 fi
 
 # ---------------------------------------------------------------- verify
-if [ "$NO_START" = no ] && [ "$SENSE_HAT" = no ]; then
+if [ "$NO_START" = no ]; then
     info "waiting for the game host"
     ok=no
     for _ in $(seq 1 30); do
@@ -215,7 +177,7 @@ fi
 cat <<EOF
 
 Done. Next:
-  sudo reboot                     # group changes (and SPI / the screen overlay) take effect; confirms it all comes back on its own
+  sudo reboot                     # group changes (and the screen overlay, if used) take effect; confirms it all comes back on its own
   mrrctl status                   # after the reboot
   http://mrobopi:5000/            # player UI     http://mrobopi:5000/gmindex.html   # GM status page
 Still manual: network/router (install/NETWORK_SETUP.md), robot IPs, and the database password

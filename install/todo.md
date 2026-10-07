@@ -230,7 +230,7 @@ on yet. Do not remove "dead" code related to either (unwired `tOptionCardCommand
   - Code complete; constants need tuning against real board + lighting
   - `BlackLuminanceThreshold`, `MinBlackPixels`, `AlignedThreshold`, `NudgeDistanceMm`
 
-- [ ] Robot LCD display at game start
+- [x] Robot LCD display at game start
   - Show robot name and player name on each AIM robot's screen
   - Call `PrintAsync` / `lcd_print_at` in `GameController` state 0
   - Draw an arrow on the LCD indicating the robot's current facing direction
@@ -243,7 +243,7 @@ on yet. Do not remove "dead" code related to either (unwired `tOptionCardCommand
 
 - [ ] Robot screen: show an arrow pointing toward the player's seat
 
-- [ ] LED state machine across game phases (`Players.cs`, `CommandProcess.cs`, `GameController.cs`)
+- [x] LED state machine across game phases (`Players.cs`, `CommandProcess.cs`, `GameController.cs`)
   - **Connected / waiting for program** → LEDs ON (robot color) — `SendColorStatus()` already does this at connect time
   - **Program complete** (all 5 registers filled / programs locked, state 5) → LEDs OFF
   - **Executing move** (between `SendRobotCommandAsync` start and `isMoving` → false) → LEDs ON
@@ -287,7 +287,7 @@ on yet. Do not remove "dead" code related to either (unwired `tOptionCardCommand
 - [x] Shutdown toggle on phone UI (2026-10-06, `shutDownRow` in index.html; shutdown confirmed working 2026-10-07)
   - Player can choose to shut down during programming phase
 
-- [ ] Show what cards were played last turn (phone/GM UI) — right now only the *current*
+- [x] Show what cards were played last turn (phone/GM UI) — right now only the *current*
   turn's registers are visible (`CardsPlayed`/`CardsPlayedStr` on `PlayerState`, computed live
   from `GameCards`); once the next turn starts (`MoveCardsShuffleAndDeal()` at state 2), that's
   gone. The data already exists: `DataService.Players.cs`'s `CurrentPosSave()` (called at state
@@ -335,21 +335,8 @@ on yet. Do not remove "dead" code related to either (unwired `tOptionCardCommand
 ---
 
 ## Section 4 — Raspberry Pi Hardware
-*Sense HAT.*
-
-- [ ] Create `MRR/Sensors/SenseHatService.cs`
-  - Add `Iot.Device.Bindings` NuGet package to `MRR.csproj`
-  - Register as singleton in `Program.cs`
-  - 8×8 LED matrix: show current game state, active robots (by color), turn/phase
-
-- [ ] Joystick input from Sense HAT
-  - Read joystick direction in `SenseHatService`
-  - Map to game actions (advance state, navigate menus, etc.)
-
-- [ ] Create SD card setup / install script
-  - Script to run on a fresh Raspberry Pi OS image to install all dependencies
-  - Should cover: .NET 9 runtime, MySQL server, project files, `systemd` service for auto-start
-  - Store in `install/` directory alongside this file
+*Nothing open.* Sense HAT items removed 2026-10-07 (not used); SD card setup is done —
+[install/git.sh](git.sh) and [PROJECT_STATUS.md](../PROJECT_STATUS.md) §1.
 
 ---
 

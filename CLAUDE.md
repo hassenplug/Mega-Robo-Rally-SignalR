@@ -3,13 +3,13 @@
 ## What This Is
 A computerized Robo Rally (Renegade edition) game engine built in C# / ASP.NET Core 9.
 Physical playing pieces are 6 VEX AIM robots controlled via WebSocket.
-A Raspberry Pi 5 with Sense HAT runs the server and displays minimal game status on its 8×8 LED matrix.
+A Raspberry Pi 5 runs the server.
 Six phones connect to the Pi via SignalR and show each player's hand / programming UI.
 
 ## Hardware
 | Device | Role |
 |---|---|
-| Raspberry Pi 5 + Sense HAT | Game server, 8×8 LED display, joystick input |
+| Raspberry Pi 5 | Game server |
 | 6 × VEX AIM robots | Physical playing pieces on the board |
 | 6 × phones (browser) | Player UI — show hand cards, accept programming input |
 

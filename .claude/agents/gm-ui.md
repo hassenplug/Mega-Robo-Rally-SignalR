@@ -725,15 +725,6 @@ function releasePause() {
 }
 ```
 
-### Raspberry Pi LED panel + joystick
-
-The same pause command is also displayed on the **Raspberry Pi Sense HAT 8×8 LED
-panel** as a visual indicator. Pressing the **Sense HAT joystick** (center press)
-has the same effect as clicking the GM Continue button — it sets `StatusID = 6` on
-the waiting pause command. No GM-page changes are needed to support this; the
-joystick handler runs server-side. The GM Continue button and the joystick press are
-equivalent and either one releases the hold.
-
 ---
 
 ## Key Implementation Rules

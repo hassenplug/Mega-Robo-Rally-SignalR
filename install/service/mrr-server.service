@@ -10,10 +10,6 @@ After=mariadb.service
 Wants=network-online.target
 After=network-online.target
 
-# Loads the SPI overlay if /dev/spidev0.0 is missing (LED init crashes without it).
-Wants=mrr-spi.service
-After=mrr-spi.service
-
 # Back off after a sustained crash loop instead of hammering the DB and the journal.
 # mrr-recover.timer un-latches the resulting "failed" state within 2 minutes.
 StartLimitIntervalSec=300
@@ -27,7 +23,7 @@ WorkingDirectory=/srv/mrr/game
 EnvironmentFile=/etc/default/mrr
 
 # Refuses to start (with a specific reason in the journal) if the DB is unreachable,
-# spidev is missing, the app is not deployed, or TCP 5000 is already taken.
+# the app is not deployed, or TCP 5000 is already taken.
 ExecStartPre=/usr/local/bin/mrr-preflight game
 ExecStart=/home/mrr/.dotnet/dotnet /srv/mrr/game/MRR.dll
 
@@ -41,8 +37,7 @@ StandardOutput=journal
 StandardError=journal
 
 NoNewPrivileges=yes
-# Deliberately no PrivateDevices/ProtectSystem=strict: the app needs /dev/spidev0.0
-# and writes camera captures under WorkingDirectory.
+# Deliberately no ProtectSystem=strict: the app writes camera captures under WorkingDirectory.
 
 [Install]
 WantedBy=mrr.target

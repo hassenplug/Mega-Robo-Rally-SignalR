@@ -579,7 +579,7 @@ there in a new section; summarised here:
 | Units | Add `mrr-config.service`. `mrr-server.service` keeps its name and becomes the game host |
 | Isolation | `mrr-config` must **not** be `PartOf=mrr.target`, or a group restart bounces the board editor with the game — and the point of splitting it out was that it cannot be affected |
 | `mrrctl` default | Bare `start`/`stop`/`restart`/`pause` should address the **game host**, not the target; add `all` for the group. Restarting the editor because you restarted the game is harmless; the reverse is not |
-| `mrr-preflight` | Takes a role argument. Config's gate checks app + DB + port 5001, and **skips the SPI check** — only the game host touches `/dev/spidev0.0` |
+| `mrr-preflight` | Takes a role argument. Config's gate checks app + DB + port 5001 |
 | `mrr-health-check` | Parameterize `UNIT`, URL, and strike file; probe both units |
 | `mrr.env` | Role-scoped `MRR_GAME_*` / `MRR_CONFIG_*` for port, app dir, health URL |
 | `mrrctl deploy` | Publish two projects to `/srv/mrr/game` and `/srv/mrr/config`, with independent rollback |

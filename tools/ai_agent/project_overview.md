@@ -7,7 +7,7 @@ type: project
 Mega Robo Rally (MRR) is a physical/digital hybrid Robo Rally (Renegade edition) game.
 
 **Hardware:**
-- Raspberry Pi 5 + Sense HAT — game server, 8×8 LED display, joystick input
+- Raspberry Pi 5 — game server
 - 6 × VEX AIM robots — physical playing pieces on a printed game board, controlled via WebSocket
 - 6 × phones (browser/SignalR) — player programming UI
 
@@ -16,7 +16,7 @@ Mega Robo Rally (MRR) is a physical/digital hybrid Robo Rally (Renegade edition)
 **Key files:** GameController.cs (state machine 0–16), CreateCommands.cs (cards→commands), CommandProcess.cs (command executor), Players.cs (robot WebSocket client), DataService.cs (MySQL), DataHub.cs (SignalR hub)
 
 **Agents created:**
-- `.claude/agents/robo-rally-dev.md` — full Robo Rally Renegade rules, VEX AIM command reference, Sense HAT notes, implementation gaps list
+- `.claude/agents/robo-rally-dev.md` — full Robo Rally Renegade rules, VEX AIM command reference, implementation gaps list
 - `CLAUDE.md` (project root) — project context for main Claude Code session
 
 **Why:** User wants a computerized version with real robots as pieces, phones as player interfaces, Pi as host.

@@ -23,10 +23,10 @@ no way to stop/restart the server except finding the terminal it was launched fr
 | # | Requirement | Notes |
 |---|---|---|
 | R1 | Start automatically when the Pi boots | Before any phone or robot connects |
-| R2 | Restart a process that **crashes** | e.g. the `spidev` `IOException`, an unhandled task exception |
+| R2 | Restart a process that **crashes** | e.g. an unhandled task exception |
 | R3 | Restart a process that **shuts down cleanly** | Exit code 0 must also be treated as "should be running" |
 | R4 | Operator can **pause**, **stop**, **restart** | From an SSH shell, one command each |
-| R5 | Handle more than one process | Sense HAT service, future side-cars, all managed as a group |
+| R5 | Handle more than one process | Future side-cars, all managed as a group |
 | R6 | Survive a **hang** (process alive, not serving) | A crash-only policy misses this |
 | R7 | Never end up permanently dead | A crash loop must not latch off forever |
 
@@ -39,7 +39,7 @@ no way to stop/restart the server except finding the terminal it was launched fr
 | **systemd units** | **Chosen.** Already PID 1 on the Pi. Boot ordering, restart policy, `cgroup` freezer for pause, journald log capture, and dependency on `mariadb.service` are all declarative. Zero new runtime processes. |
 | `supervisord` | Adds a Python daemon that itself needs a systemd unit to survive boot, and has no way to express "after MariaDB is up". Pure overhead here. |
 | Custom C# manager | A supervisor that can crash is the thing you least want to write. Would also need its own systemd unit — so systemd is in the picture regardless. |
-| `pm2` / Docker | Node runtime / container overhead on a Pi, and SPI + `/dev/spidev` device passthrough for containers is extra friction for zero gain. |
+| `pm2` / Docker | Node runtime / container overhead on a Pi, and hardware device passthrough for containers is extra friction for zero gain. |
 
 The design is therefore **a set of systemd units + one operator CLI (`mrrctl`) that
 wraps `systemctl` in game-night vocabulary**, plus two small watchdog timers that cover
@@ -55,16 +55,15 @@ multi-user.target                          (normal boot)
     ├── mrr-server.service                 ← game host, :5000 (PartOf the target)
     │     Requires  mariadb.service        ← DB must be up
     │     After     network-online.target
-    │     Wants     mrr-spi.service         ← oneshot: load SPI overlay if missing
     │     Restart=always / RestartSec=5     (R2, R3)
     ├── mrr-config.service                 ← authoring host, :5001 (NOT PartOf — §10.1)
     │     Requires  mariadb.service
-    │     no SPI, no dependency on the game host
+    │     no dependency on the game host
     ├── mrr-health.timer  → mrr-health.service    every 30 s: one probe per host (R6)
     └── mrr-recover.timer → mrr-recover.service   every 2 min: un-latch a failed unit (R7)
 
 /usr/local/bin/mrrctl        operator CLI (R4)
-/usr/local/bin/mrr-preflight ExecStartPre gate, per role: DB? spidev (game only)? port free?
+/usr/local/bin/mrr-preflight ExecStartPre gate, per role: app deployed? DB up? port free?
 /etc/default/mrr             all tunables in one file
 /srv/mrr/game                deployed game host — separate from the git repo
 /srv/mrr/config              deployed authoring host
@@ -98,7 +97,6 @@ act; day-to-day editing in the repo can't disturb a running game.
 | Crash loop: >10 starts in 300 s | start-limit hit | unit → `failed`, backs off. `mrr-recover.timer` resets and retries within 2 min (R7) |
 | Kestrel alive but wedged | *nothing* — that's the gap | health probe fails 3× in a row (90 s) → `systemctl restart` (R6) |
 | MariaDB down at boot | `mrr-preflight` exits 1 | start fails, retried every 5 s until the DB answers |
-| `/dev/spidev0.0` missing | `mrr-spi.service` loads `spi0-2cs`; preflight re-checks | avoids the known startup `IOException` |
 
 Two deliberate choices worth calling out:
 
@@ -149,7 +147,7 @@ Run as `mrr`; a sudoers drop-in makes the privileged verbs password-free.
 | `mrrctl list` | All MRR units and their states |
 
 Any verb takes an optional unit shorthand: `game`/`server`, `config`/`editor`, `health`,
-`recover`, `spi`, `target`, `all`, or any `mrr-*` unit name.
+`recover`, `target`, `all`, or any `mrr-*` unit name.
 
 ### Health probe endpoint
 
@@ -182,7 +180,6 @@ Two URLs the probe deliberately does **not** use:
 |---|---|---|
 | `/etc/systemd/system/mrr.target` | 644 | Group / boot entry point |
 | `/etc/systemd/system/mrr-server.service` | 644 | The game server |
-| `/etc/systemd/system/mrr-spi.service` | 644 | Oneshot SPI overlay loader (root) |
 | `/etc/systemd/system/mrr-health.{service,timer}` | 644 | Hang watchdog |
 | `/etc/systemd/system/mrr-recover.{service,timer}` | 644 | Crash-loop un-latcher |
 | `/usr/local/bin/mrrctl` | 755 | Operator CLI |
@@ -228,8 +225,7 @@ Already true on `mrobopi`, listed so a rebuild is reproducible:
 - .NET 9 SDK at `/home/mrr/.dotnet/dotnet` (9.0.317)
 - `mariadb.service` enabled and running, `rally` schema provisioned
   (`SRRDatabase.sql` + `rallyBoards.sql` — **not** `gameconfig.sql`)
-- `dtparam=spi=on` in `/boot/firmware/config.txt`
-- user `mrr` in groups `spi`, `gpio`, `i2c`, `sudo`, `adm`
+- user `mrr` in groups `gpio`, `i2c`, `sudo`, `adm`
 
 ### 8.2 Stop the hand-started server first
 
@@ -292,7 +288,6 @@ sleep 8 && mrrctl status                            # back up — R3
 | Working on the code | `mrrctl stop`, then `dotnet run` as usual; `mrrctl start` when done |
 | Nothing responds | `mrrctl logs \| tail -50` — preflight lines name the exact blocker |
 | Won't start, DB suspect | `systemctl status mariadb`, then `mrrctl restart` |
-| Won't start, `spidev` | `ls /dev/spidev*`; `sudo dtoverlay spi0-2cs`; confirm `dtparam=spi=on` in config.txt |
 
 ---
 
@@ -320,17 +315,16 @@ If the new process must not outlive the game server, add
 >
 > | File | Change |
 > |---|---|
-> | `mrr-config.service` | **New.** `WantedBy=mrr.target` but deliberately no `PartOf=`, no `mrr-spi` dependency, no `After=mrr-server` |
-> | `mrr-preflight` | Takes a role: `mrr-preflight game` / `config`. Config skips the SPI check and gates on port 5001 |
+> | `mrr-config.service` | **New.** `WantedBy=mrr.target` but deliberately no `PartOf=`, no `After=mrr-server` |
+> | `mrr-preflight` | Takes a role: `mrr-preflight game` / `config`. Each gates on its own app, port and the database |
 > | `mrr-health-check` | Takes a role; per-role strike files at `/run/mrr/health.{role}.strikes` |
 > | `mrr-health.service` | Two `ExecStart=` lines, one probe per host |
 > | `mrrctl` | `config`/`editor` shorthands; bare verbs address the **game host**; `all` for both; per-role `deploy`/`rollback` |
 > | `mrr.env` | Role-scoped `MRR_GAME_*` / `MRR_CONFIG_*`, with unprefixed aliases kept for now |
 > | `install.sh` / `uninstall.sh` | Install, enable and remove the second unit; per-role deploy directories |
 >
-> Verified here: all shell scripts pass `bash -n`, all units pass `systemd-analyze verify`,
-> and the SPI split was tested directly — with `/dev/spidev0.0` absent, `preflight game`
-> fails and `preflight config` still passes.
+> Verified here: all shell scripts pass `bash -n` and all units pass `systemd-analyze verify`.
+> (The SPI check this originally also tested was removed 2026-10-07 along with Sense HAT support.)
 >
 > Deploy layout changed: `/srv/mrr/app` becomes `/srv/mrr/game` and `/srv/mrr/config`, each
 > with its own `.previous`. **A machine with the old layout installed needs a re-run of
@@ -343,10 +337,10 @@ contracts across **two** processes. This section is the supervision half of that
 mrr.target
 ├── mrr-server.service      game host        :5000   Master, Rules, Executor,
 │     PartOf=mrr.target                              Device Gateway, Presentation, Admin
-│     Requires mariadb, Wants mrr-spi
+│     Requires mariadb
 ├── mrr-config.service      authoring host   :5001   Configuration & Authoring
 │     NOT PartOf=mrr.target                          boards, GameData, operators
-│     Requires mariadb, no SPI
+│     Requires mariadb
 ├── mrr-health.timer   → probes both units
 └── mrr-recover.timer  → un-latches both
 ```
@@ -381,20 +375,14 @@ full stop — see the verb table below.
 
 ### `mrr-preflight` changes
 
-The script currently hardcodes one app dir, one port, and an unconditional SPI check. It
-should take a role argument — `mrr-preflight game` / `mrr-preflight config` — and:
+The script originally hardcoded one app dir and one port. It
+takes a role argument — `mrr-preflight game` / `mrr-preflight config` — and:
 
 | Check | `game` | `config` |
 |---|---|---|
 | App DLL present | `$MRR_GAME_APP_DIR/MRR.dll` | `$MRR_CONFIG_APP_DIR/MRR.Config.dll` |
 | MariaDB reachable | yes | yes — it writes board tables |
 | Port free | 5000 | 5001 |
-| `/dev/spidev0.0` present and readable | **yes** | **no — skip** |
-
-The SPI check must not run for `config`. Only the game host constructs `LEDs`
-(`Communication` → `Ws2812b.Update()`), so gating the authoring host on SPI would make board
-editing unavailable on a Pi with no LED hardware attached — and would crash-loop it for a
-reason that has nothing to do with its job.
 
 ### `mrr-health-check` changes
 
@@ -464,7 +452,6 @@ is the case the runbook's "robot fell off the board" entry actually describes.
   still does the TCP check.
 - `mrr-config` must **not** declare `After=mrr-server.service` or `BindsTo=`. It has to come
   up whether or not the game host is healthy; that independence is the deliverable.
-- `mrr-config` does **not** `Wants=mrr-spi.service`.
 - Start-limit and recover-timer behaviour is per-unit and unchanged: a config crash loop
   latches `mrr-config` only, and `mrr-recover` un-latches whichever units are `failed`.
 
@@ -475,9 +462,7 @@ is the case the runbook's "robot fell off the board" entry actually describes.
 - `mrrctl stop all` stops both; `mrrctl start` brings back only the game host.
 - Killing `mrr-config` repeatedly latches it `failed` without affecting the game host, and
   `mrr-recover` clears it within 2 minutes.
-- A cold boot brings up both units with MariaDB satisfied and SPI loaded for the game host
-  only.
-- `mrr-preflight config` passes on a Pi with no `/dev/spidev0.0`.
+- A cold boot brings up both units with MariaDB satisfied.
 
 ---
 

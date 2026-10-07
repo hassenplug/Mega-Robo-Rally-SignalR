@@ -1,7 +1,7 @@
 # Mega Robo Rally — Project Status & Operations Handbook
 
 **Last updated:** 2026-10-07 (§5.2 only; other sections last reviewed 2026-10-01)
-**Target host:** `mrobopi` — Raspberry Pi 5, Debian 13 (trixie), aarch64, kernel 6.18.34 (original build). A second build on a Raspberry Pi 4 with a GeeekPi 3.5" screen and no Sense HAT is covered in §1.2 and §1.8.
+**Target host:** `mrobopi` — Raspberry Pi 5, Debian 13 (trixie), aarch64, kernel 6.18.34 (original build). A second build on a Raspberry Pi 4 with a GeeekPi 3.5" screen is covered in §1.2 and §1.8.
 
 This is the practical document: how to rebuild the machine, how to run the parts, how to
 run a game, what is broken, and what is left. For *why* the code is shaped the way it is,
@@ -39,39 +39,22 @@ cd ~ && git clone https://github.com/hassenplug/Mega-Robo-Rally-SignalR.git
 Optional: `sudo raspi-config` → System Options → Boot / Auto Login → *Console Autologin*,
 if the Pi should come up logged in at the command line.
 
-> **Shortcut:** `install/git.sh` now does §1.1 (from `apt` onward) through §1.6 for you — packages, .NET 9, MariaDB user and schema, and the services. Run it as `mrr` (not with sudo) from the clone: `./install/git.sh` (Pi 4 / no Sense HAT) or `./install/git.sh --sense-hat`. Other options: `--remote-db`, `--reset-db` (wipes the database), `--no-start`; see `--help`. Add `--tft-screen` on the Pi 4 + GeeekPi build to also set up the screen (§1.8). It is safe to re-run. It has **not** been run on a blank Pi yet, so watch its first run. The manual sections below remain the reference for what it does.
+> **Shortcut:** `install/git.sh` now does §1.1 (from `apt` onward) through §1.6 for you — packages, .NET 9, MariaDB user and schema, and the services. Run it as `mrr` (not with sudo) from the clone: `./install/git.sh`. Other options: `--remote-db`, `--reset-db` (wipes the database), `--no-start`; see `--help`. Add `--tft-screen` on the Pi 4 + GeeekPi build to also set up the screen (§1.8). It is safe to re-run. It has **not** been run on a blank Pi yet, so watch its first run. The manual sections below remain the reference for what it does.
 
 ### 1.2 Hardware interfaces
 
-**Which hardware build are you on?**
+The game host needs no special Pi hardware interface: no SPI, no Sense HAT. (Sense HAT support
+was dropped 2026-10-07 and its SPI setup, `mrr-spi.service` and the `MRR_REQUIRE_SPI` start
+gate were removed from the install scripts.)
 
-| Build | Hardware | What to do |
-|---|---|---|
-| **Pi 5 + Sense HAT** (original) | Sense HAT 8×8 LED on SPI | Do the SPI steps below **and** set `MRR_REQUIRE_SPI=yes` in `/etc/default/mrr` if you want the start gate to check for it. |
-| **Pi 4 + GeeekPi 3.5" screen** (no Sense HAT) | 480×320 SPI TFT on the GPIO header | Skip the SPI steps. Leave `MRR_REQUIRE_SPI=no` (the default). Do §1.8 instead (`./install/git.sh --tft-screen` does it for you). |
+Two builds have been used: the original **Pi 5**, and a **Pi 4 + GeeekPi 3.5" screen** (480×320
+SPI TFT on the GPIO header). Only the second needs anything extra — see §1.8 (`./install/git.sh
+--tft-screen` does it for you).
 
-The Sense HAT LED driver is **not in the current source** — `install/todo.md` lists
-`MRR/Sensors/SenseHatService.cs` as not yet written. So nothing in the game host needs SPI,
-and since 2026-09-30 `mrr-preflight` only checks for `/dev/spidev0.0` when
-`MRR_REQUIRE_SPI=yes`. Earlier versions of this handbook said the game host will not start
-without the Sense HAT; that was the preflight gate, not the code. (I confirmed the gate
-change by reading the scripts; I have not started the service on a Pi without `spidev0.0`.)
-
-**Sense HAT build only:**
+The `mrr` user needs these groups:
 
 ```bash
-# /boot/firmware/config.txt must contain:
-dtparam=spi=on
-# then reboot. A runtime "sudo dtoverlay spi0-2cs" works but does NOT survive a reboot.
-
-ls /dev/spidev0.0        # must exist
-```
-
-The `mrr` user needs these groups (current machine has all of them; on the Pi 4 build `spi`
-and `i2c` are harmless but unused):
-
-```bash
-sudo usermod -aG spi,gpio,i2c,dialout,sudo,adm mrr
+sudo usermod -aG gpio,i2c,dialout,sudo,adm mrr
 ```
 
 ### 1.3 .NET
@@ -152,24 +135,8 @@ cd install/service
 sudo ./install.sh          # units, scripts, /etc/default/mrr, sudoers, deploy, enable
 ```
 
-Installs `mrr-server.service` (game, :5000), `mrr-config.service` (authoring, :5001), the
-SPI loader, and the health/recover watchdog timers. See §2.2.
-
-On a Pi without a Sense HAT, `mrr-spi.service` will still try to load the `spi0-2cs` overlay
-if `/dev/spidev0.0` is absent. On the GeeekPi build the screen's own driver owns SPI0 (§1.8), so
-mask the loader so it does not fight the display (`git.sh` does this without `--sense-hat`). `install.sh`
-writes a real unit file into `/etc/systemd/system`, and `systemctl mask` refuses to replace a real file
-("File ... already exists"), so remove it first — the source stays in `install/service/`:
-
-```bash
-sudo rm /etc/systemd/system/mrr-spi.service
-sudo systemctl mask mrr-spi.service
-sudo systemctl daemon-reload
-```
-
-The unit has no `[Install]` section, so `disable` would do nothing. The game unit only *wants* it, so a
-masked loader is skipped and the game still starts — confirmed on the Pi 4 build 2026-10-01 (a
-service restart via `mrrctl deploy`; not yet across a reboot).
+Installs `mrr-server.service` (game, :5000), `mrr-config.service` (authoring, :5001), and the
+health/recover watchdog timers. See §2.2.
 
 ### 1.7 Lines from the old `install/git.sh` that were dropped
 
@@ -180,7 +147,7 @@ service restart via `mrrctl deploy`; not yet across a reboot).
 | "Enable remote commands (reboot) ?? not working" | Unresolved in the original notes; not covered here. |
 | `git clone …/VEX-Robotics/AIM_Websocket_Library.git` ("move this line into the sh file") | Optional reference only. I found no code in this repo that depends on a local copy; robot commands go through `AIMRobot` over WebSocket. The library is the source of truth for the wire format. |
 
-### 1.8 Pi 4 with the GeeekPi 3.5" touch screen (no Sense HAT)
+### 1.8 Pi 4 with the GeeekPi 3.5" touch screen
 
 Hardware: Raspberry Pi 4 Model B, GeeekPi 3.5" 480×320 TFT touch screen with case, fan and
 heatsinks. The panel plugs onto the 40-pin GPIO header and is driven over **SPI0**, not HDMI.
@@ -192,8 +159,7 @@ Pi OS **desktop** image (not Lite) — the kiosk needs Chromium and a desktop se
 
 1. Assemble the case, fan and heatsinks; seat the screen on the GPIO header with the Pi
    powered off.
-2. Do §1.1 as normal, and mask `mrr-spi.service` as in §1.6 so it does not take SPI0. Do
-   **not** enable `dtparam=spi=on` for the Sense HAT. If the screen stays blank, `ssh` in —
+2. Do §1.1 as normal. If the screen stays blank, `ssh` in —
    the game does not need the screen to run.
 3. Add the display overlay to the end of `/boot/firmware/config.txt` (keep a backup):
 
@@ -710,7 +676,6 @@ label on the robot.
 | Symptom | Look at |
 |---|---|
 | Host will not start | `mrrctl logs \| tail -50` — the preflight line names the blocker |
-| `/dev/spidev0.0 missing` | Only matters if `MRR_REQUIRE_SPI=yes` (Sense HAT build): `dtparam=spi=on` in config.txt, then reboot. Otherwise set `MRR_REQUIRE_SPI=no` in `/etc/default/mrr` |
 | Robots do not connect | `RobotBases.IPAddress`, robots powered and on the right network |
 | Odd startup crash / NRE | Check the database connection first. `SqlGateway` swallows database errors and returns empty results, so a bad connection string surfaces later as a null reference somewhere unrelated |
 | Game acts on stale data | `GET /api/admin/diagnostics` for memory-vs-database drift |

@@ -14,9 +14,6 @@ After=mariadb.service
 Wants=network-online.target
 After=network-online.target
 
-# No mrr-spi dependency: only the game host drives the LEDs over SPI. Gating the authoring
-# host on /dev/spidev0.0 would make board editing unavailable for a reason unrelated to it.
-
 # Independent of the game host on purpose -- no After=, no BindsTo=. It has to come up
 # whether or not the game is healthy.
 

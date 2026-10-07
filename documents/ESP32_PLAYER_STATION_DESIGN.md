@@ -168,7 +168,7 @@ charging cable doubles as the flashing cable with no extra hardware.
   IDE/PlatformIO), producing a `.bin`; copy it to the Pi and flash with `esptool.py`
   (pure Python, runs fine on Raspberry Pi OS aarch64) rather than installing the full
   ESP32-S3 toolchain on the Pi — keeps the Pi's footprint limited to a tool it already needs
-  for nothing else, on a box that's also running the game server and Sense HAT.
+  for nothing else, on a box that's also running the game server.
 - **Entering download mode:** hold BOOT, tap RESET — standard ESP32-S3 procedure, documented
   by Freenove. The unit then enumerates as a new `/dev/ttyACM*` device.
 - **No per-unit tracking needed.** Every unit runs identical firmware (seat is chosen by the
