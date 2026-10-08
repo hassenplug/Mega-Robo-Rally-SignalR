@@ -52,12 +52,10 @@
 
 <!-- Swap a disconnected robot onto a different physical base: opened by tapping that robot's name
      (see openBasePicker below). -->
-<div id="basePicker" class="w3-modal" onclick="closeBasePicker();">
-    <div class="w3-modal-content w3-round w3-white" style="max-width:320px; padding:16px;" onclick="event.stopPropagation();">
-        <h3 id="basePickerTitle" style="margin-top:0;">Robot base</h3>
-        <div id="basePickerList"></div>
-        <button class="button" style="margin-top:8px;" onclick="closeBasePicker();">Cancel</button>
-    </div>
+<!-- Just the list of AIM names in a small box: no title, no Cancel button -- tapping anywhere
+     outside the box closes it. -->
+<div id="basePicker" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; z-index:10;" onclick="closeBasePicker();">
+    <div id="basePickerList" style="position:absolute; top:30px; left:30px; background:#ffffff; border:1px solid #808080; padding:2px; max-height:80vh; overflow:auto;" onclick="event.stopPropagation();"></div>
 </div>
 
 <table id="mainTable" bgcolor="ffffff" border=0 width=100%>
@@ -263,13 +261,15 @@ function openBasePicker(r) {
     fetch('/api/robot/bases/' + r.RobotID)
         .then(function (resp) { return resp.json(); })
         .then(function (bases) {
-            document.getElementById('basePickerTitle').textContent = 'Base for ' + r.RobotName;
             var list = document.getElementById('basePickerList');
             list.innerHTML = '';
             bases.forEach(function (b) {
                 var btn = document.createElement('button');
                 btn.className = 'button';
-                btn.style = 'margin:2px; width:100%;' + (b.isCurrent ? ' border:3px solid #000000;' : '');
+                // The global .button class sets width:100%/height:30px; override both so each
+                // entry is only as big as its text.
+                btn.style = 'display:block; width:auto; height:auto; margin:1px 0; padding:2px 8px;' +
+                    (b.isCurrent ? ' border:2px solid #000000;' : '');
                 btn.textContent = b.aimName + (b.isCurrent ? ' (current)' : '');
                 btn.title = b.ipAddress;
                 btn.onclick = function () { chooseBase(r.RobotID, b.robotBaseID); };
