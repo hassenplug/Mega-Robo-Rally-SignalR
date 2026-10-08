@@ -132,11 +132,19 @@ a:visited {
             <td align=center bgcolor=ffffff><img id='Dealt8' src='images/type0.png' onclick='PlayCard(this);' width='50'/></td>
             <td align=center bgcolor=ffffff><img id='Dealt9' src='images/type0.png' onclick='PlayCard(this);' width='50'/></td>
         </tr>
-        <!-- Under the dealt hand, kept as short as the button can be: the global .button class
-             sets height:30px, so height/padding/font-size are all overridden here. -->
+        <!-- Tapping the robot's status swaps the dealt hand (above) for this panel; Haywire and
+             option cards are meant to be added here later. Shown/hidden by showplayerprogram(). -->
+        <tr id="extrasRow" style="display: none;">
+            <td colspan="5" align="center">
+                <button id="shutDownBtn" class="button" style="width:auto; height:auto; margin:6px 0; padding:6px 16px;" onclick="toggleShutDown();">Shut Down</button>
+            </td>
+        </tr>
+        <!-- Bottom of the area, whichever of the two is showing, while shut down is selected. Kept
+             as short as the button can be: the global .button class sets height:30px, so
+             height/padding/font-size are all overridden here. -->
         <tr id="shutDownRow" style="display: none;">
             <td colspan="5" align="center">
-                <button id="shutDownBtn" class="button" style="width:auto; height:auto; margin:0; padding:0 10px; font-size:11px; line-height:1.2;" onclick="toggleShutDown();">Shut Down</button>
+                <button id="shutDownCancelBtn" class="button" style="width:auto; height:auto; margin:0; padding:0 10px; font-size:11px; line-height:1.2; background-color:#ffff00; color:#000000;" onclick="toggleShutDown();">Shutting Down &mdash; Cancel</button>
             </td>
         </tr>
     </table>

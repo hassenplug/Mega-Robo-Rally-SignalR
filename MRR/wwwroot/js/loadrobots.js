@@ -434,9 +434,10 @@ function showplayerprogram(pl) // show program for this line
     }
 
     var active = canProgram();
-    var displayVal = active ? '' : 'none';
-    document.getElementById("DealtRow1").style.display = displayVal;
-    document.getElementById("DealtRow2").style.display = displayVal;
+    var dealtDisplay = (active && !showExtrasPanel) ? "" : "none";
+    document.getElementById("DealtRow1").style.display = dealtDisplay;
+    document.getElementById("DealtRow2").style.display = dealtDisplay;
+    document.getElementById("extrasRow").style.display = (active && showExtrasPanel) ? "" : "none";
 
     var showmessage = "display: none;";
     //console.log("Message:", message);
@@ -458,22 +459,42 @@ function showplayerprogram(pl) // show program for this line
 // (DataService.ToggleShutDown) enforces the same rule; ShutDown 2 = shut down this turn.
 var SHUT_DOWN_CURRENTLY = 2; // tShutDown.Currently (MRR.Contracts/PlayerState.cs)
 
+// The browser only has OK/Cancel (no yes/no popup), so confirm() it is. Asked only when turning
+// shut down on; cancelling an already-set shut down just goes through.
+var SHUT_DOWN_PROMPT =
+    'Do you wish to shut down for the current turn?  At the start of the turn, all your spam ' +
+    'cards will be discarded.  You will still need to program your robot.';
+
 function toggleShutDown() {
+    var rbt = datapacket && datapacket.robots.find(function (r) { return r.RobotID === CurrentPlayer; });
+    var turningOn = !rbt || rbt.ShutDown !== SHUT_DOWN_CURRENTLY;
+    if (turningOn && !confirm(SHUT_DOWN_PROMPT)) return;
     SendUpdate(6, CurrentPlayer);
 }
 
+// Tapping a robot's status flips the right-hand area between the dealt hand and this "extras"
+// panel (the Shut Down toggle now; Haywire and option cards are meant to be added here later).
+// It is only a view setting for this device -- nothing is sent to the server.
+var showExtrasPanel = false;
+
+function toggleExtrasPanel() {
+    showExtrasPanel = !showExtrasPanel;
+    if (datapacket) showplayerprogram(CurrentLine);
+}
+
+// The Shut Down button (extras panel) always toggles, as before; the server only accepts it
+// while programming (GameState 4). The bottom bar -- "Shutting Down - Cancel" -- shows under
+// whichever of the two views is up for as long as shut down is selected.
 function updateShutDownButton(rbt) {
-    var row = document.getElementById('shutDownRow');
-    if (!datapacket || datapacket.gamestate !== 4) {
-        row.style.display = 'none';
-        return;
-    }
     var on = rbt.ShutDown === SHUT_DOWN_CURRENTLY;
-    row.style.display = '';
+
     var btn = document.getElementById('shutDownBtn');
-    btn.textContent = on ? 'Shutting Down — Cancel' : 'Shut Down';
+    btn.textContent = on ? 'Cancel Shut Down' : 'Shut Down';
     btn.style.backgroundColor = on ? '#ffff00' : '';
     btn.style.color = on ? '#000000' : '';
+
+    var showBar = datapacket && datapacket.gamestate === 4 && on;
+    document.getElementById('shutDownRow').style.display = showBar ? '' : 'none';
 }
 
 function showall()
@@ -522,8 +543,11 @@ function showall()
         } else {
             statusbox.innerText = robots[i].StatusToShow;
             statusbox.style.backgroundColor = robots[i].StatusColor;
-            statusbox.style.cursor = 'default';
-            statusbox.onclick = null;
+            // Tapping your own robot's status (any robot's, for the GM) swaps the dealt hand and
+            // the extras panel (toggleExtrasPanel).
+            var canToggle = IsGM || robots[i].RobotID === LoggedInRobotID;
+            statusbox.style.cursor = canToggle ? 'pointer' : 'default';
+            statusbox.onclick = canToggle ? toggleExtrasPanel : null;
         }
 
         document.getElementById("tr" + rid).style = "";
