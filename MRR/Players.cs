@@ -152,7 +152,11 @@ namespace MRR
                     SendColorStatus(cmd.Value);
                     break;
                 case 4: // Set Flash -- cmd.Value: 0=off, 1=on
-                    if (Connection != null) Connection.Flash = cmd.Value != 0;
+                    if (Connection != null) 
+                    {
+                        Connection.ScreenText = cmd.text;
+                        Connection.Flash = cmd.Value != 0;
+                    }
                     break;
                 case 0: // not a move/turn/colour/flash: LED + sound effect, if this command has one
                     RobotEffects.Play(this, cmd);

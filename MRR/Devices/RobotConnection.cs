@@ -129,6 +129,7 @@ namespace MRR.Devices
         private CancellationTokenSource? _statusCts;
         private CancellationTokenSource? _flashCts;
         private Task? _flashTask;
+        private string _screenText = "";
         // Guards concurrent access to wsStatus from both ListenStatusAsync and GetStatusAsync
         private readonly SemaphoreSlim _statusSocketSemaphore = new SemaphoreSlim(1, 1);
         // Guards DisposeAsync itself: RobotConnections.Refresh()/Reconnect()/ReconnectAll() and
@@ -549,6 +550,16 @@ namespace MRR.Devices
                     _flashCts?.Cancel();
                     _flashCts = null;
                 }
+            }
+        }
+
+        public string ScreenText
+        {
+            get => _screenText;
+            set
+            {
+                _screenText = value;
+                _ = PrintAsync(value);
             }
         }
 

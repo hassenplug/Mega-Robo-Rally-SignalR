@@ -908,7 +908,7 @@ namespace MRR
             // find first player on the list and give them the Next Phase button
             var firstplayer = workingPlayers.OrderBy(ob=>ob.Priority).FirstOrDefault();
             
-            ShowMessageToPlayer("Run Phase " + p_PhaseNumber.ToString(),firstplayer);  // set button text & wait for click
+            ShowMessageToPlayer("Run Phase " + p_PhaseNumber.ToString(),firstplayer, "Phase: " + p_PhaseNumber.ToString());  // set button text & wait for click
             //ListOfCommands.AddCommand(3,p_PhaseNumber);
             ListOfCommands.AddCommand((PlayerState?)null, SquareAction.PhaseStart, p_PhaseNumber);
             //ListOfCommands.AddCommand(10,7); // set game state to waiting for input
@@ -1107,7 +1107,7 @@ namespace MRR
                         }
                         // place player on board
                         //ShowMessageToPlayer(thisplayer.Name + " on " + thisplayer.RespawnID + " facing " + thisplayer.CurrentPos.Direction.ToString(), thisplayer);
-                        ShowMessageToPlayer(thisplayer.Name + " on " + thisplayer.RespawnID + " " + thisplayer.CurrentPos.DirectionArrow(thisplayer.DirectionAdjustment), thisplayer);
+                        ShowMessageToPlayer(thisplayer.Name + " on " + thisplayer.RespawnID + " " + thisplayer.CurrentPos.DirectionArrow(thisplayer.DirectionAdjustment), thisplayer, "Respawn: " + thisplayer.RespawnID.ToString() + " facing " + thisplayer.CurrentPos.Direction.ToString());
                         thisplayer.RespawnID = 0;
                         ListOfCommands.AddCommand(thisplayer, SquareAction.Respawn, 0); // clear respawn id
                     }
@@ -1159,7 +1159,7 @@ namespace MRR
             // later-priority robot's still-pending move for this same phase.
             foreach (PlayerState deadRobot in _pendingRemovalMessages)
             {
-                ShowMessageToPlayer("Remove Robot: " + deadRobot.Name, deadRobot);
+                ShowMessageToPlayer("Remove Robot: " + deadRobot.Name, deadRobot, "Remove");
             }
             _pendingRemovalMessages.Clear();
 
@@ -1462,7 +1462,7 @@ namespace MRR
                                 if (AddFlag(thisplayer, 1))
                                 {
                                     //ListOfCommands.AddCommand(thisplayer, SquareAction.GameWinner);
-                                    ShowMessageToPlayer("Game Winner:" + thisplayer.Name,thisplayer); // , SquareAction.GameWinner);
+                                    ShowMessageToPlayer("Game Winner:" + thisplayer.Name,thisplayer, "Winner"); // , SquareAction.GameWinner);
                                 }
                                 else
                                 {
@@ -1825,7 +1825,7 @@ namespace MRR
                 p.CurrentPos.X == location.X && p.CurrentPos.Y == location.Y);
             if (blocking == null) return;
 
-            ShowMessageToPlayer("Remove Robot: " + blocking.Name, blocking);
+            ShowMessageToPlayer("Remove Robot: " + blocking.Name, blocking, "Remove");
             _pendingRemovalMessages.Remove(blocking);
         }
 
@@ -1885,7 +1885,7 @@ namespace MRR
                 }
                 //int pushedPhase = ListOfCommands.AddCommand(p_thisrobot, SquareAction.Dead).Phase;
                 int pushedPhase = ListOfCommands.AddCommand(p_thisrobot, SquareAction.SetPlayerStatus,11).Phase;
-                ShowMessageToPlayer("Remove Robot: " + p_thisrobot.Name, p_thisrobot);  // set button text & wait for click
+                ShowMessageToPlayer("Remove Robot: " + p_thisrobot.Name, p_thisrobot, "Remove");  // set button text & wait for click
 
                 // lose points for dying
                 AddDeathPoints(p_thisrobot, -10);
