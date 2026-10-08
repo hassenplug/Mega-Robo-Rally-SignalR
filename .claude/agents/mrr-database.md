@@ -130,6 +130,7 @@ Live player/robot state. Populated fresh each game from `OperatorData`.
 | CardsDealt | VARCHAR(30) | | CSV of CardTypeIDs in hand (phone display) |
 | CardsPlayed | VARCHAR(20) | | CSV of CardTypeIDs in registers (phone display) |
 | MessageCommandID | INT | | FK→CommandList.CommandID for display message |
+| SeatArrow | VARCHAR(2) | | Arrow (up = the robot's own facing) pointing toward its player: ↑ → ↓ ←. Set from CurrentPosDir + DirectionAdjustment (`SeatArrowSql`, DataService.Players.cs) whenever the robot turns, moves, is placed or respawns, and in RefreshRobotDenormalizedFields. Not in the AllData payload |
 
 **Triggers on Robots:**
 - `Robots_BEFORE_UPDATE`: Damage>9 → Status=11 (Dead), ShutDown=0. ShutDown=4 → Damage=0, ShutDown=2. ShutDown=2 → Status=9 (Shut Down).

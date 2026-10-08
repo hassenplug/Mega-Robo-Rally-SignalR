@@ -209,6 +209,20 @@ namespace MRR.Services
         // ConnectStatusID's own color/description, which is never folded with anything.
 //                JOIN RobotStatus rs ON IF(r.ConnectStatusID = {(int)tPlayerStatus.RobotConnected}, r.Status, 10) = rs.RobotStatusID
 
+        /// <summary>
+        /// SQL expression for Robots.SeatArrow: an arrow, in the robot's own frame (up = the way it
+        /// is facing), pointing toward its player. A seat's DirectionAdjustment is the board
+        /// direction that seat looks in (SeatOrientation.Direction), so the player sits on the
+        /// opposite side of the board; the arrow is that side relative to the robot's facing.
+        /// Directions run 1..4 = Up, Right, Down, Left clockwise, so the quarter-turns from the
+        /// robot's facing to the player's side are (adjustment + 2 - facing) mod 4. Empty until
+        /// both the facing and the seat are known. Pass the column names (or a literal for the
+        /// facing) the surrounding UPDATE uses.
+        /// </summary>
+        private static string SeatArrowSql(string facing = "CurrentPosDir", string adjustment = "DirectionAdjustment") =>
+            $"IF({facing} BETWEEN 1 AND 4 AND {adjustment} BETWEEN 1 AND 4, " +
+            $"ELT(MOD({adjustment} + 2 - {facing} + 4, 4) + 1, '↑', '→', '↓', '←'), '')";
+
         public void RefreshRobotDenormalizedFields()
         {
             string updateSQL = $@"UPDATE Robots r
@@ -229,6 +243,7 @@ namespace MRR.Services
                     r.LEDColor           = rs.LEDColor,
                     r.PlayerStatus       = rs.ShortDescription,
                     r.sDir               = rd.ShortDirDesc,
+                    r.SeatArrow          = {SeatArrowSql("r.CurrentPosDir", "r.DirectionAdjustment")},
                     r.FlagEnergyCards    = CONCAT(r.CurrentFlag,'/',r.Energy,'/',r.CardCount),
                     r.PlayerMsg          = cl.Description,
                     r.ConnectStatusColor = cs.StatusColor,
@@ -1037,7 +1052,8 @@ namespace MRR.Services
         public void SetRobotDirection(int robotID, int direction)
         {
             ExecuteSQL(
-                $"UPDATE Robots SET CurrentPosDir = {direction} WHERE RobotID = {robotID}");
+                $"UPDATE Robots SET CurrentPosDir = {direction}, SeatArrow = {SeatArrowSql(direction.ToString())} " +
+                $"WHERE RobotID = {robotID}");
         }
 
         // =====================================================================
@@ -1144,7 +1160,8 @@ namespace MRR.Services
             // normal robot carries between turns, so this just rejoins it at that point.
             ExecuteSQL(
                 $"UPDATE Robots SET CurrentPosRow = {newRow}, CurrentPosCol = {newCol}, " +
-                $"CurrentPosDir = {newDir}, PositionValid = 0, ShutDown = 0, RespawnID = {respawnID}, " +
+                $"CurrentPosDir = {newDir}, SeatArrow = {SeatArrowSql(newDir.ToString())}, " +
+                $"PositionValid = 0, ShutDown = 0, RespawnID = {respawnID}, " +
                 $"Status = {(int)tPlayerStatus.ReadyToProgram} " +
                 $"WHERE RobotID = {robotID}");
         }

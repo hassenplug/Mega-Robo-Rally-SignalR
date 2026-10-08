@@ -384,6 +384,7 @@ CREATE TABLE `Robots` (
   `ConnectStatusDesc` varchar(20) DEFAULT NULL,
 
   `sDir` varchar(5) DEFAULT NULL,
+  `SeatArrow` varchar(2) DEFAULT NULL,  -- arrow (up = robot's facing) toward its player; existing DB: ALTER TABLE Robots ADD COLUMN SeatArrow varchar(2) DEFAULT NULL AFTER sDir;
   `FlagEnergyCards` varchar(15) DEFAULT NULL,
   `DirectionAdjustment` int(11) DEFAULT 1,
   `StatusToShow` varchar(20) DEFAULT NULL,

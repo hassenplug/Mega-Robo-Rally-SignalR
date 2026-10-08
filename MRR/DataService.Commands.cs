@@ -319,6 +319,7 @@ namespace MRR.Services
                     ExecuteSQL($"UPDATE Robots SET CurrentPosRow = {cRow}, " +
                         $" CurrentPosCol = {cCol}, " +
                         $" CurrentPosDir = {cDir}, " +
+                        $" SeatArrow = {SeatArrowSql(cDir.ToString())}, " +
                         $" Score = {cParameterB} " +
                         $" WHERE RobotID = {cRobotID}");
                     //Console.WriteLine($"ProcessDbCommand: Robot {cRobotID} moved to row={cRow}, col={cCol}, dir={cDir}, score={cParameterB}");

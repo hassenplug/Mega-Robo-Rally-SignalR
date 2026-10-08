@@ -40,6 +40,7 @@ namespace MRR.Devices
         private string _name = "";
         private string _color = "FFFFFF";
         private string _foreColor = "000000";
+        private string _seatArrow = "";
 
         public int RobotID { get; }
         public string? IPAddress { get; private set; }
@@ -70,7 +71,7 @@ namespace MRR.Devices
             using var connection = new MySqlConnection(_connectionString);
             connection.Open();
             using var cmd = new MySqlCommand(@"
-                SELECT RobotName, RobotColor, RobotColorFG, IPAddress
+                SELECT RobotName, RobotColor, RobotColorFG, IPAddress, SeatArrow
                 FROM Robots
                 WHERE RobotID = @id", connection);
             cmd.Parameters.AddWithValue("@id", RobotID);
@@ -82,6 +83,7 @@ namespace MRR.Devices
             _color = reader["RobotColor"]?.ToString() ?? "FFFFFF";
             _foreColor = reader["RobotColorFG"]?.ToString() ?? "000000";
             IPAddress = reader["IPAddress"]?.ToString();
+            _seatArrow = reader["SeatArrow"]?.ToString() ?? "";
             return true;
         }
 
@@ -218,6 +220,29 @@ namespace MRR.Devices
 
             await SendCommandAsync(new { cmd_id = "lcd_set_font", fontname = "mono40" });
             await SendCommandAsync(new { cmd_id = "lcd_print_at", @string = name, x = Math.Max(0, (240 - name.Length * 20) / 2), y = 165, b_opaque = true });
+
+            await ShowSeatArrowAsync(_seatArrow);
+        }
+
+        /// <summary>
+        /// Prints the seat arrow (Robots.SeatArrow: ↑ → ↓ ←, up = the way the robot faces, toward
+        /// its player) centered under the name, small, in the robot's color on a background of
+        /// its foreground color. Draws nothing for an empty arrow (seat or facing not known yet).
+        /// Sets the pen, fill and font itself, so it can be called on its own after the arrow
+        /// changes -- RefreshIdentityDisplayAsync calls it at the end of its redraw.
+        /// </summary>
+        public async Task ShowSeatArrowAsync(string arrow)
+        {
+            if (string.IsNullOrEmpty(arrow)) return;
+
+            var (r, g, b) = ColorHelper.ParseHex(_color);
+            var (fgR, fgG, fgB) = ColorHelper.ParseHex(_foreColor, 255, 255, 255);
+            const int charWidth = 10; // mono20: half the 20px width mono40 uses for the name above
+
+            await SendCommandAsync(new { cmd_id = "lcd_set_pen_color", r, g, b });
+            await SendCommandAsync(new { cmd_id = "lcd_set_fill_color", r = fgR, g = fgG, b = fgB, transparent = false });
+            await SendCommandAsync(new { cmd_id = "lcd_set_font", fontname = "mono20" });
+            await SendCommandAsync(new { cmd_id = "lcd_print_at", @string = arrow, x = Math.Max(0, (240 - arrow.Length * charWidth) / 2), y = 207, b_opaque = true });
         }
 
         public async Task SendCommandAsync(object command)
