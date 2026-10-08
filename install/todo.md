@@ -18,6 +18,11 @@ What to work on next, reordered by the user 2026-10-08.
   advance, Remove (reboot/pit death), Place (respawn placement) so a player knows what they're
   confirming.
 
+- [ ] **Robot screen: show the last flag** the robot has reached (`RobotScreenUI.cs`; the value is
+  `Robots.CurrentFlag`, already in the payload as part of `FlagEnergyCards`)
+
+- [ ] **Robot screen: a small arrow that always points at the player's seat** (`RobotScreenUI.cs`)
+
 - [-] **Robot grid alignment** (`GridAlignmentAgent.cs`)
   - Code complete; constants need tuning against real board + lighting:
     `BlackLuminanceThreshold`, `MinBlackPixels`, `AlignedThreshold`, `NudgeDistanceMm`
@@ -102,8 +107,6 @@ Not being worked on now (user 2026-10-08).
 
 ## Section 2 — Robot Hardware
 *VEX AIM physical integration.*
-
-- [ ] Robot screen: show an arrow pointing toward the player's seat
 
 - [ ] Implement ws_audio upload if server-side audio needed (`ws://{ip}:80/ws_audio`)
   - Wire format is documented (AIM WebSocket Library v1.0.1):
