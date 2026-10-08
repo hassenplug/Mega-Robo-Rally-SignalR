@@ -136,6 +136,32 @@ Not being worked on now (user 2026-10-08).
 - [ ] Dynamic button area — display any buttons/actions that appear based on game state
   - e.g. "Advance Phase", "Skip Robot", admin overrides
 
+### Direction arrows — inventory (2026-10-08, reference)
+
+Every place a direction arrow is used, from a repo search; re-check before relying on it.
+
+- [ ] **Consolidate the arrow tables** (optional cleanup). The ↑ → ↓ ← character map is in C#
+  `Arrow()` and again in JS `DIRECTION_ARROWS` (GM page only); the rotation table
+  `{1: 0, 2: 90, 3: 180, 4: 270}` is repeated in `loadrobots.js`, `gmindex.html` and the ESP32
+  sketch. Candidate: have the GM page use the server's table.
+
+| Where | What |
+|---|---|
+| `MRR.Contracts/Direction.cs` — `Arrow()` | The only C# arrow-character table (↑ → ↓ ←, "?" for None) |
+| `MRR.Contracts/RobotLocations.cs` — `ToString()` | `R2C3↑`; feeds the move/command descriptions that print `StartPos`/`EndPos` |
+| `MRR.Contracts/RobotLocations.cs` — `DirectionArrow(adjustment)` | Facing turned by the seat adjustment, then `Arrow()`; used by the respawn message (`CreateCommands.cs` ~1110) |
+| `install/MRRDatabase.sql` — `RobotDirections.ShortDirDesc` | `^ > V <`, not arrows; sent as `sDir` in the payload (`DataService.Players.cs`). No page seems to display it — possibly unused |
+| `MRR/wwwroot/gmindex.html` — `DIRECTION_ARROWS` | Own copy of the character table, shows `R3 C4 ↑` in the robot status |
+| `MRR/wwwroot/index.html` + `js/loadrobots.js` | Direction picker: `images/Direction1.png` rotated; phone rotation also includes the seat's `DirectionAdjustment` |
+| `MRR/wwwroot/gmindex.html` — `renderGmDirectionArrow` | Same picker image for the GM (no seat adjustment) |
+| `MRR.Config/wwwroot/board-editor.html` ~889–895 | Four ↑ ← → ↓ rotation buttons (the ▼/► are collapse indicators, not directions) |
+| `esp32-player-station/esp32-player-station.ino` — `drawArrow` | Own polygon arrow for the direction picker, same degree table |
+| `MRR/Devices/RobotConnection.cs` ~211 | Forward-pointing arrow drawn on the robot's LCD |
+| *(planned)* above, "Robot screen: a small arrow that always points at the player's seat" | `RobotScreenUI.cs` |
+
+Unreferenced image files: `wwwroot/images/Direction2.png`–`Direction4.png`,
+`arrow_000000.png`, `arrow_FFFFFF.png`.
+
 ---
 
 ## Section 5 — Network Setup

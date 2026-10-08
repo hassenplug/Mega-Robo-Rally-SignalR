@@ -15,7 +15,6 @@ namespace MRR
      */
     public class RobotLocation
     {
-        static private Direction DefaultDirection = Direction.Right;
 
         public RobotLocation(Direction p_Dir, int p_X, int p_Y)
         {
@@ -35,7 +34,7 @@ namespace MRR
         }
 
         public RobotLocation()
-            : this(DefaultDirection, -1, -1)
+            : this(Direction.Right, -1, -1)
         {
         }
 
@@ -82,42 +81,19 @@ namespace MRR
         public int X { get; set; } = -1;
         public int Y { get; set; } = -1;
 
-        private int l_index = 0;
-        public int Index { get { return l_index; } set { l_index = value;   } }
+        public int Index { get; set; }
 
-        public string Location { get { return "[" + X.ToString() + "][" + Y.ToString() + "]"; } set { } }
-
-        public string FullLocation { get { return ToString(); } set { } }
+        // Row (Y) then column (X), e.g. "R2C3".
+        public string Location => $"R{Y}C{X}";
 
         public string DirectionArrow(int p_adjustment = 1)
         {
             Direction dir = (Direction) p_adjustment;
             Direction dir1 = RotationFunctions.SumDirections(Direction, dir);
-            return dir1 switch
-            {
-                Direction.Up => "↑",
-                Direction.Right => "→",
-                Direction.Down => "↓",
-                Direction.Left => "←",
-                _ => "?",
-            };
+            return dir1.Arrow();
         }
 
-        override public string ToString()
-        {
-            if (Index != 0) return Location + Index.ToString();
-
-            string dir = Direction.ToString();
-            switch (Direction)
-            {
-                case Direction.None: dir = "?"; break;
-                case Direction.Up: dir = "↑"; break;
-                case Direction.Right: dir = "→"; break;
-                case Direction.Down: dir = "↓"; break;
-                case Direction.Left: dir = "←"; break;
-            }
-
-            return dir + Location; 
-        }
+        // "R2C3↑", or "R2C3:5" for a damage square carrying an Index.
+        public override string ToString() => Index != 0 ? $"{Location}:{Index}" : Location + Direction.Arrow();
     }
 }

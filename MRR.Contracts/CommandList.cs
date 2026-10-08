@@ -1,10 +1,5 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.ComponentModel;//INotifyPropertyChanged
-//using System.Windows.Media; // brushes
-using System.Xml.Serialization; // serializer
-//using System.Windows.Data; // iconverter
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -24,87 +19,43 @@ namespace MRR
     #region Command List
     public class CommandList : List<CommandItem>
     {
-        public CommandList()
-            : base()
-        {
-            Phase = 0;
-        }
-
-        public CommandItem AddCommand(CommandItem p_InsertBefore, PlayerState p_Player, SquareAction p_Action, tCommandSequence p_Sequence)
-        {
-            // insert turning if this move is a turn... (turn "insert before" move)  (or do it at end of phase generation)
-
-            CommandItem newCommand = new CommandItem(p_InsertBefore.Phase, p_InsertBefore.PhaseStep, p_Player, p_InsertBefore.Value, p_InsertBefore.ValueB, p_InsertBefore.CommandDirection, p_Action);
-
-            int location = this.IndexOf(p_InsertBefore);
-            if (p_Sequence == tCommandSequence.After) location++;
-
-            this.Insert(location, newCommand);
-            //this.Add(newCommand);
-            //newCommand.RunningCounter = this.Count();
-            return newCommand;
-        }
-
-        public CommandItem AddCommand(PlayerState? p_Player, SquareAction p_Action, int p_Value = 0, int p_ValueB = 0)
-        {
-            Direction holddir = Direction.None;
-            if (p_Player != null) holddir = p_Player.CurrentPos.Direction;
-            return AddCommand(p_Player, p_Value, p_ValueB, holddir, p_Action);
-        }
-
-        public CommandItem AddCommand(CommandItem newcommand)
-        {
-            newcommand.Phase = Phase;
-            newcommand.PhaseStep = PhaseStep;   
-            this.Add(newcommand);
-            return newcommand;
-        }
-
-        public CommandItem? AddCommand(PlayerState? p_Player, OptionCard? p_OptionCard, SquareAction p_action = SquareAction.PlayOptionCard)
-        {
-            if (p_OptionCard == null) return null;
-            switch (p_action)
-            {
-                case SquareAction.OptionCountSet:
-                    return AddCommand(p_Player, p_OptionCard.ID,0, (Direction)p_OptionCard.Quantity, p_action);
-                case SquareAction.PlayOptionCard:
-                    return AddCommand(p_Player, p_OptionCard.ID,0, p_OptionCard.OptionDirection, p_action);
-                default:
-                    return null;
-            }
-
-        }
-
-        public CommandItem AddCommand(PlayerState p_Player, tOptionCardCommandType p_OptionCardType)
-        {
-            return AddCommand(p_Player, SquareAction.PlayOptionCard, (int)p_OptionCardType);
-        }
-
-        /// <summary>
-        /// Add command used in the game, with player, value, direction and action
-        /// </summary>
-        /// <param name="p_Player"></param>
-        /// <param name="p_Value"></param>
-        /// <param name="p_Direction"></param>
-        /// <param name="p_Action"></param>
-        /// <returns></returns>
+        /// <summary>Add a fully specified command at the current phase and step.</summary>
         public CommandItem AddCommand(PlayerState? p_Player, int p_Value, int p_ValueB, Direction p_Direction, SquareAction p_Action)
         {
             CommandItem newCommand = new CommandItem(Phase, PhaseStep, p_Player, p_Value, p_ValueB, p_Direction, p_Action);
-            this.Add(newCommand);
-            //newCommand.RunningCounter = this.Count();
-            //if (p_Player.ID ==
+            Add(newCommand);
             return newCommand;
         }
 
+        /// <summary>Add a command that faces the way the robot is currently facing (None if no robot).</summary>
+        public CommandItem AddCommand(PlayerState? p_Player, SquareAction p_Action, int p_Value = 0, int p_ValueB = 0)
+            => AddCommand(p_Player, p_Value, p_ValueB, p_Player?.CurrentPos.Direction ?? Direction.None, p_Action);
 
-        /// <summary>
-        /// Add "move" command
-        /// </summary>
-        /// <param name="p_Player"></param>
-        /// <param name="p_Direction"></param>
-        /// <param name="p_Action"></param>
-        /// <returns></returns>
+        /// <summary>Add a pre-built command, stamping it with the current phase and step.</summary>
+        public CommandItem AddCommand(CommandItem newcommand)
+        {
+            newcommand.Phase = Phase;
+            newcommand.PhaseStep = PhaseStep;
+            Add(newcommand);
+            return newcommand;
+        }
+
+        /// <summary>Add an option-card command; null if there is no card or the action isn't one for option cards.</summary>
+        public CommandItem? AddCommand(PlayerState? p_Player, OptionCard? p_OptionCard, SquareAction p_action = SquareAction.PlayOptionCard)
+        {
+            if (p_OptionCard == null) return null;
+            return p_action switch
+            {
+                SquareAction.OptionCountSet => AddCommand(p_Player, p_OptionCard.ID, 0, (Direction)p_OptionCard.Quantity, p_action),
+                SquareAction.PlayOptionCard => AddCommand(p_Player, p_OptionCard.ID, 0, p_OptionCard.OptionDirection, p_action),
+                _ => null,
+            };
+        }
+
+        public CommandItem AddCommand(PlayerState p_Player, tOptionCardCommandType p_OptionCardType)
+            => AddCommand(p_Player, SquareAction.PlayOptionCard, (int)p_OptionCardType);
+
+        /// <summary>Add a "move" command in an absolute board direction.</summary>
         public CommandItem AddCommand(PlayerState p_Player, Direction p_Direction, SquareAction p_Action)
         {
             // holddir is p_Direction (the move's absolute board direction) expressed relative
@@ -113,61 +64,40 @@ namespace MRR
             int holddir = (int)RotationFunctions.Rotate(
                 RotationFunctions.RotationDifference(p_Player.CurrentPos.Direction, p_Direction),
                 Direction.Up);
-            CommandItem newCommand = new CommandItem(Phase, PhaseStep, p_Player, 1, holddir, p_Direction, p_Action);
-            this.Add(newCommand);
-            //newCommand.RunningCounter = this.Count();
-            //if (p_Player.ID ==
-            return newCommand;
+            return AddCommand(p_Player, 1, holddir, p_Direction, p_Action);
         }
 
-
-        /// <summary>
-        /// Set CurrentGameData for ParameterA to ParameterB
-        /// </summary>
-        /// <param name="p_Value"></param>
-        /// <param name="p_ValueB"></param>
-        /// <returns></returns>
+        /// <summary>Set CurrentGameData key p_Value to p_ValueB.</summary>
         public CommandItem AddCommand(int p_Value, int p_ValueB)
-        {
-            CommandItem newCommand = new CommandItem(Phase, PhaseStep, null, p_Value, p_ValueB, Direction.None, SquareAction.SetCurrentGameData);
-            this.Add(newCommand);
-            return newCommand;
-        }
+            => AddCommand(null, p_Value, p_ValueB, Direction.None, SquareAction.SetCurrentGameData);
 
+        /// <summary>Add a button-text / message command.</summary>
         public CommandItem AddCommand(string p_buttonText, PlayerState? p_Robot = null)
         {
-            CommandItem newCommand = new CommandItem(Phase, PhaseStep, p_Robot, 0, 0, Direction.None, SquareAction.SetButtonText);
+            CommandItem newCommand = AddCommand(p_Robot, 0, 0, Direction.None, SquareAction.SetButtonText);
             newCommand.text = p_buttonText;
-            this.Add(newCommand);
             return newCommand;
         }
-
-
-//        public CommandItem SetPhase(int p_NewPhase)
-//        {
-//            Phase = p_NewPhase;
-//            return AddCommand(null, SquareAction.PhaseStart, p_NewPhase);
-//        }
 
         public CommandItem SetEnergy(PlayerState p_player, int newEnergy)
         {
-            p_player.Energy=newEnergy;
+            p_player.Energy = newEnergy;
             return AddCommand(p_player, SquareAction.SetEnergy, p_player.Energy);
         }
 
         public int PhaseStep { get; set; }
 
-        private int l_phase = 0;
+        // Changing the phase restarts the step count.
+        private int _phase;
         public int Phase
         {
-            get { return l_phase; }
+            get => _phase;
             set
             {
-                l_phase = value;
+                _phase = value;
                 PhaseStep = 0;
             }
         }
-
     }
     #endregion
 
@@ -183,22 +113,8 @@ namespace MRR
         }
 
 
-        //public CommandItem(int p_Phase, int p_PhaseStep, PlayerState p_Robot, int p_Value, SquareAction p_Type)
-        //    :this(p_Phase, p_PhaseStep,2, p_Robot, p_Value, Direction.None, p_Type)
-        //{
-        //}
-
-        /// <summary>
-        /// Create complete command item
-        /// </summary>
-        /// <param name="p_Phase"></param>
-        /// <param name="p_PhaseStep"></param>
-        /// <param name="p_PhaseSubStep"></param>
-        /// <param name="p_Robot"></param>
-        /// <param name="p_Value"></param>
-        /// <param name="p_Direction"></param>
-        /// <param name="p_Type"></param>
-        public CommandItem(int p_Phase, int p_PhaseStep, PlayerState? p_Robot, int p_Value, int p_ValueB, Direction p_Direction, SquareAction p_Type) //, RRGame p_mainGame)
+        /// <summary>Create a complete command item.</summary>
+        public CommandItem(int p_Phase, int p_PhaseStep, PlayerState? p_Robot, int p_Value, int p_ValueB, Direction p_Direction, SquareAction p_Type)
         {
             Phase = p_Phase;
             PhaseStep = p_PhaseStep;
@@ -210,12 +126,11 @@ namespace MRR
             CommandDirection = p_Direction;
             PhaseStepAdder = 5;
 
-			StatusID = (int)CommandStatus.Waiting;
+            StatusID = (int)CommandStatus.Waiting;
 
             if (p_Robot != null)
             {
                 Robot = p_Robot;
-                //RobotID = p_Robot.ID;
                 StartPos = new RobotLocation(p_Robot.CurrentPos);
                 // NextPos always reflects the robot's true state at this point in planning:
                 // equal to CurrentPos when no move is in flight (DataService.
@@ -231,12 +146,9 @@ namespace MRR
             else
             {
                 Robot = new PlayerState();
-                //RobotID = 0;
                 StartPos = new RobotLocation();
                 EndPos = new RobotLocation();
             }
-
-            //Status = CommandStatus.Complete;
         }
 
         [Key]
@@ -312,24 +224,6 @@ namespace MRR
         public int PositionDir { get => (int)EndPos.Direction; set => EndPos.Direction = (Direction)value; }
         public int CommandCatID { get; set; }
 
-        private string GetOptionName()
-        {
-            // if (MainGame.OptionCardNames.ContainsKey(Value))
-            // {
-            //     return MainGame.OptionCardNames[Value].Replace("[quantity]", ValueB.ToString());
-            // }
-            // else
-            // {
-            //     return "invalid option:[" + Value + "]";
-            // }
-            return "";
-        }
-        
-        private string GetRobotName(int p_RobotID)
-        {
-            return "";
-        }
-
         [NotMapped]
         public CommandCategories Category { get { return GetCommandDetails.Category; }}
 
@@ -382,7 +276,6 @@ namespace MRR
                     case SquareAction.TouchFlag:
                     case SquareAction.TouchKotHFlag:
                     case SquareAction.TouchLastManFlag:
-                        //return new SquareActionDetails(CommandCategories.DB,"tag flag: " + Value,0,"3,5");
                         return new SquareActionDetails(CommandCategories.RobotNoReply,"tag flag: " + Value,0,"3,5");
 
                     case SquareAction.GameWinner:return new SquareActionDetails(CommandCategories.RobotNoReply, "wins",0,"3,7");
@@ -390,16 +283,15 @@ namespace MRR
                     case SquareAction.DeletedMove:return new SquareActionDetails(CommandCategories.DB, "move from " + StartPos + " to " + EndPos + " CANCELED");
                     case SquareAction.PhaseStart:return new SquareActionDetails(CommandCategories.DB,"Start Phase: " + Phase,-1); //,Phase * 10000-1);
                     case SquareAction.Dead:return new SquareActionDetails(CommandCategories.RobotNoReply,"is dead",0,"3,3");
-                        //return "35";
                     case SquareAction.LostLife:return new SquareActionDetails(CommandCategories.DB,"lost a life");
-                    case SquareAction.RobotPush:return new SquareActionDetails(CommandCategories.DB,"pushed by " + GetRobotName(Value));
+                    case SquareAction.RobotPush:return new SquareActionDetails(CommandCategories.DB,"pushed by ");
                     case SquareAction.PlayerLocation:return new SquareActionDetails(CommandCategories.DB,"is at " + StartPos);
                     case SquareAction.BlockDirection:return new SquareActionDetails(CommandCategories.DB,"is blocked by a wall");
 
                     case SquareAction.Water: return new SquareActionDetails(CommandCategories.DB,"lost 1 move in water");
 
                     case SquareAction.LogData:return new SquareActionDetails(CommandCategories.DB,"logged data");
-                    case SquareAction.PlayOptionCard: return new SquareActionDetails(CommandCategories.RobotNoReply,"Activate " + GetOptionName(),0,"3,6");
+                    case SquareAction.PlayOptionCard: return new SquareActionDetails(CommandCategories.RobotNoReply,"Activate ",0,"3,6");
                     case SquareAction.None:return new SquareActionDetails(CommandCategories.DB,"No Command");
                     case SquareAction.Option:return new SquareActionDetails(CommandCategories.DB,"Deal option");
                     case SquareAction.DealSpamCard:return new SquareActionDetails(CommandCategories.DB,"Deal Spam Card");
@@ -407,18 +299,16 @@ namespace MRR
                     case SquareAction.BoardDimension:return new SquareActionDetails(CommandCategories.DB,"Board Dimension");
                     case SquareAction.SquareLocation:return new SquareActionDetails(CommandCategories.DB,"Square Location");
                     case SquareAction.SquareTemplate:return new SquareActionDetails(CommandCategories.DB,"Template");
-                    //case SquareAction.Card:return new SquareActionDetails(CommandCategories.DB, "played card: ") ; //+ MainGame.GameCards.FirstOrDefault(gc=>gc.ID == Value).Text + "");
                     case SquareAction.Card:
-                        if (Value==99) return new SquareActionDetails(CommandCategories.DB, "played card: SPAM"); // + MainGame.GameCards.FirstOrDefault(gc=>(gc.ID == Value) && (gc.Owner==RobotID)).Text + "");
+                        if (Value==99) return new SquareActionDetails(CommandCategories.DB, "played card: SPAM");
                         return new SquareActionDetails(CommandCategories.DB, "played card: " + (Robot?.CardsPlayer?.FirstOrDefault(gc => gc.ID == Value)?.Text ?? Value.ToString()));
-                        // return new SquareActionDetails(CommandCategories.DB, "played card: " + MainGame.GameCards.FirstOrDefault(gc=>(gc.ID == Value) && (gc.Owner==RobotID)).Text + "");
                     case SquareAction.Randomizer:return new SquareActionDetails(CommandCategories.DB, "gets random card");
                     case SquareAction.BeginBoardEffects: return new SquareActionDetails(CommandCategories.DB, "begin board effects");
                     case SquareAction.SetPlayerStatus: return new SquareActionDetails(CommandCategories.DB, "Status: " + Value);
                     case SquareAction.DeathPoints: return new SquareActionDetails(CommandCategories.DB, "damage points: " + Value);
-                    case SquareAction.DestroyOptionCard: return new SquareActionDetails(CommandCategories.DB, "destroy " + GetOptionName());
+                    case SquareAction.DestroyOptionCard: return new SquareActionDetails(CommandCategories.DB, "destroy ");
                     case SquareAction.SetGameState: return new SquareActionDetails(CommandCategories.DB, "set game state to:" + Value);
-                    case SquareAction.OptionCountSet: return new SquareActionDetails(CommandCategories.DB, "set Count " + GetOptionName());
+                    case SquareAction.OptionCountSet: return new SquareActionDetails(CommandCategories.DB, "set Count ");
                     case SquareAction.SetDamagePointTotal: return new SquareActionDetails(CommandCategories.DB, "set total to " + Value);
                     case SquareAction.SetShutDownMode: return new SquareActionDetails(CommandCategories.RobotNoReply, "set shut down: " + (tShutDown)Value,0,"3,8");
                     case SquareAction.SetEnergy: return new SquareActionDetails(CommandCategories.RobotNoReply, "set Energy: " + Value,0,"3,9");
@@ -434,69 +324,23 @@ namespace MRR
         }
 
 
-        //public string Description { get {return ToString();} set; }
-
-        // commands
-        // move
-        // turn
-        // end of phase
-        // end of turn
-        // text description
-        // direction
-        // distance
-
+        [NotMapped]
+        public bool IsRobotMoveCommand => CommandType is
+            SquareAction.BoardMove or SquareAction.PushedMove or SquareAction.Move or
+            SquareAction.BoardMoveRotate or SquareAction.BoardRotate or SquareAction.Rotate;
 
         [NotMapped]
-        public bool IsRobotMoveCommand
+        public int CommandMoveType => CommandType switch
         {
-            get
-            {
-                switch (CommandType)
-                {
-                    case SquareAction.BoardMove:
-                    case SquareAction.PushedMove:
-                    case SquareAction.Move:
-                        return true;
-                    case SquareAction.BoardMoveRotate:
-                    case SquareAction.BoardRotate:
-                    case SquareAction.Rotate:
-                        return true;
-                }
-                return false;
-            }
-        }
-        [NotMapped]
-        public int CommandMoveType
-        {
-            get
-            {
-                switch (CommandType)
-                {
-                    case SquareAction.BoardMove:
-                    case SquareAction.PushedMove:
-                    case SquareAction.Move:
-                        return 1;
-                    case SquareAction.BoardMoveRotate:
-                    case SquareAction.BoardRotate:
-                    case SquareAction.Rotate:
-                        return 2;
-                    case SquareAction.StartBotMove:
-                    case SquareAction.StopBotMove:
-                        return 3;
-                    case SquareAction.SetFlash:
-                        return 4;
-                    default:
-                        return 0;
-                }
-            }
-        }
+            SquareAction.BoardMove or SquareAction.PushedMove or SquareAction.Move => 1,
+            SquareAction.BoardMoveRotate or SquareAction.BoardRotate or SquareAction.Rotate => 2,
+            SquareAction.StartBotMove or SquareAction.StopBotMove => 3,
+            SquareAction.SetFlash => 4,
+            _ => 0,
+        };
 
         public bool IsRobotCommand()
-        {
-            //return (StringCommand().Length > 0);
-            CommandCategories cat = Category;
-            return (cat == CommandCategories.RobotwReply || cat == CommandCategories.RobotNoReply);
-        }
+            => Category is CommandCategories.RobotwReply or CommandCategories.RobotNoReply;
 
         //commands
         // 6x = move
@@ -542,63 +386,20 @@ namespace MRR
         #region Compare Function
 
         /// <summary>
-        ///
+        /// 0 = not comparable; 1 = same sequence, this move ends where <paramref name="otherCommand"/>
+        /// starts, same direction; 2 = same, but a different direction.
         /// </summary>
-        /// <param name="that"> item to be renumbered</param>
-        /// <returns></returns>
-        public bool CheckForConflict(CommandItem that)
-        {
-            //CommandItem that = (CommandItem)otherCommand;
-            //if (this == that) return false;
-            if (!this.IsRobotMoveCommand) return false; // move
-            if (!that.IsRobotMoveCommand) return false; // also move
-            //if (this.CommandSequence != that.CommandSequence) return false; // same sequence
-            if (this.EndPos.Location != that.StartPos.Location) return false; // start and end are equal
-
-            return true;
-        }
-
         public int CompareTo(object? otherCommand)
         {
             if (otherCommand == null) return 0;
             CommandItem that = (CommandItem)otherCommand;
             if (this == that) return 0;
-            if (this.CommandType != SquareAction.BoardMove) return 0; // move
-            if (that.CommandType != SquareAction.BoardMove) return 0; // also move
-            if (this.CommandSequence != that.CommandSequence) return 0; // same sequence
-            //if (this.EndPos != that.StartPos) return 0; // start and end are equal
-            if (this.EndPos.Location != that.StartPos.Location) return 0; // start and end are equal
+            if (this.CommandType != SquareAction.BoardMove) return 0;
+            if (that.CommandType != SquareAction.BoardMove) return 0;
+            if (this.CommandSequence != that.CommandSequence) return 0;
+            if (this.EndPos.Location != that.StartPos.Location) return 0;
 
-            // close
-            if (this.CommandDirection == that.CommandDirection) return 1; // Direction is the same
-
-            return 2;  // direction is different
-        }
-
-        //public static bool operator ==(CommandItem com1, CommandItem com2)
-        //{
-        //    return (com1.
-        //    return true;
-        //}
-
-        public class ItemSequenceCompare : IEqualityComparer<CommandItem>
-        {
-            public bool Equals(CommandItem? First, CommandItem? Second)
-            {
-                if (First == null || Second == null) return false;
-                if (First.CommandType != SquareAction.BoardMove) return false;
-                if (First.CommandSequence != Second.CommandSequence) return false;
-                if (First.CommandDirection == Second.CommandDirection) return false;
-                if (First.EndPos != Second.StartPos) return false;
-
-                return true;
-
-            }
-
-            public int GetHashCode(CommandItem First)
-            {
-                return First.ToString().GetHashCode();
-            }
+            return this.CommandDirection == that.CommandDirection ? 1 : 2;
         }
     }
     #endregion
@@ -653,26 +454,6 @@ namespace MRR
         After
     }
 
-
-    //public enum tSequenceSubCommand
-    //{
-    //    Connect = 0,
-    //    Command = 1,
-    //    Disconnect = 2,
-    //    Damage = 3
-    //}
-
-    //public enum tSequences
-    //{
-    //    StartBotMove = 0,
-    //    Turn = 1,
-    //    Command = 2,
-    //    Move2 = 3,
-    //    Move3 = 4,
-    //    Move4 = 5,
-    //    Unturn = 6,
-    //    StopBotMove = 7
-    //}
 
     #endregion
 

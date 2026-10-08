@@ -14,4 +14,17 @@ namespace MRR
         Down = 3,
         Left = 4
     }
+
+    public static class DirectionExtensions
+    {
+        /// <summary>The direction as an arrow character ("?" for None or anything unknown).</summary>
+        public static string Arrow(this Direction direction) => direction switch
+        {
+            Direction.Up => "↑",
+            Direction.Right => "→",
+            Direction.Down => "↓",
+            Direction.Left => "←",
+            _ => "?",
+        };
+    }
 }
