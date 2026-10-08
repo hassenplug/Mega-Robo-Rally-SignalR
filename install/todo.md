@@ -13,12 +13,6 @@ because other documents refer to them; sections with nothing open are omitted.
 
 What to work on next, reordered by the user 2026-10-08.
 
-- [ ] **Show AIM robot battery level on the GM UI** (Section 3)
-  - `ws_status` already delivers `battery` (0–100%); `ProcessStatusEvent` reads it but discards it
-  - Server: add `Player.Battery` property; store in `ProcessStatusEvent`; merge into `GetAllDataJson` robots payload
-  - GM UI: show in each robot status panel when `IsConnected == 1`; color-code ≥50% green, 20–49% yellow, <20% red
-  - Design spec in `.claude/agents/gm-ui.md` § Robot Status Panel
-
 - [ ] **Robot screen: show why a button press is being requested** (`RobotScreenUI.cs`) —
   currently the touchscreen just blocks on a press with no context. Distinguish e.g. Phase
   advance, Remove (reboot/pit death), Place (respawn placement) so a player knows what they're

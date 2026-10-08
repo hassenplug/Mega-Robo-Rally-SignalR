@@ -510,6 +510,103 @@ namespace MRR.Services
         }
 
         /// <summary>
+        /// GM screen's "swap robot base" picker: every RobotBases row not already used by another
+        /// robot in the current game (plus this robot's own, flagged IsCurrent), by AIM name.
+        /// </summary>
+        public object GetAvailableRobotBases(int robotId)
+        {
+            var table = GetQueryResults(
+                "SELECT b.RobotBaseID, b.AIMName, b.IPAddress, " +
+                $"       IF(b.RobotBaseID = (SELECT RobotBaseID FROM Robots WHERE RobotID = {robotId}), 1, 0) AS IsCurrent " +
+                "FROM RobotBases b " +
+                $"WHERE b.RobotBaseID NOT IN (SELECT RobotBaseID FROM Robots WHERE RobotID <> {robotId} AND RobotBaseID IS NOT NULL) " +
+                "ORDER BY b.AIMName");
+
+            return table.Rows.Cast<DataRow>().Select(row => new
+            {
+                robotBaseID = Convert.ToInt32(row["RobotBaseID"]),
+                aimName     = row["AIMName"] as string ?? "",
+                ipAddress   = row["IPAddress"] as string ?? "",
+                isCurrent   = Convert.ToInt32(row["IsCurrent"]) == 1
+            }).ToList();
+        }
+
+        /// <summary>
+        /// Points a disconnected robot at a different physical base for the rest of the current
+        /// game: copies that base's IPAddress onto Robots (the copy RobotConnection dials when the
+        /// robot is next connected) and records the base in Robots.RobotBaseID. RobotBases itself
+        /// is untouched, so the next game -- whose Robots rows StartGame() rebuilds from
+        /// RobotBases -- starts from the original assignments again. Returns null on success,
+        /// otherwise the reason it was refused.
+        /// </summary>
+        public string? SetRobotBase(int robotId, int robotBaseId)
+        {
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+
+            using (var cmd = new MySqlCommand("SELECT ConnectStatusID FROM Robots WHERE RobotID = @r", connection))
+            {
+                cmd.Parameters.AddWithValue("@r", robotId);
+                var status = cmd.ExecuteScalar();
+                if (status == null) return $"Robot {robotId} not found";
+                int connectStatus = status == DBNull.Value ? 0 : Convert.ToInt32(status);
+                if (connectStatus == (int)tPlayerStatus.RobotConnected || connectStatus == (int)tPlayerStatus.Connecting)
+                    return "Disconnect the robot before changing its base";
+            }
+
+            using (var cmd = new MySqlCommand("SELECT COUNT(*) FROM RobotBases WHERE RobotBaseID = @b", connection))
+            {
+                cmd.Parameters.AddWithValue("@b", robotBaseId);
+                if (Convert.ToInt32(cmd.ExecuteScalar()) == 0) return $"Robot base {robotBaseId} not found";
+            }
+
+            using (var cmd = new MySqlCommand(
+                "SELECT COUNT(*) FROM Robots WHERE RobotBaseID = @b AND RobotID <> @r", connection))
+            {
+                cmd.Parameters.AddWithValue("@b", robotBaseId);
+                cmd.Parameters.AddWithValue("@r", robotId);
+                if (Convert.ToInt32(cmd.ExecuteScalar()) > 0) return "That base is already used by another robot";
+            }
+
+            using var update = new MySqlCommand(
+                @"UPDATE Robots r
+                  JOIN RobotBases b ON b.RobotBaseID = @b
+                  SET r.RobotBaseID = b.RobotBaseID,
+                      r.IPAddress   = b.IPAddress
+                  WHERE r.RobotID = @r",
+                connection);
+            update.Parameters.AddWithValue("@b", robotBaseId);
+            update.Parameters.AddWithValue("@r", robotId);
+            update.ExecuteNonQuery();
+            return null;
+        }
+
+        /// <summary>
+        /// GM screen's battery view: each robot's last-recorded battery (RobotBases.BatteryStatus,
+        /// written when a move completes -- see RobotConnection.SaveBattery) and board position.
+        /// A separate call from the AllDataUpdate broadcast on purpose, so the payload every phone
+        /// receives stays unchanged.
+        /// </summary>
+        public object GetRobotInfo()
+        {
+            var table = GetQueryResults(
+                "SELECT r.RobotID, b.BatteryStatus, r.CurrentPosRow, r.CurrentPosCol, r.CurrentPosDir " +
+                "FROM Robots r LEFT JOIN RobotBases b ON b.RobotBaseID = r.RobotBaseID " +
+                "ORDER BY r.RobotID");
+
+            static int Int(object v) => v is DBNull ? 0 : Convert.ToInt32(v);
+
+            return table.Rows.Cast<DataRow>().Select(row => new
+            {
+                robotID = Int(row["RobotID"]),
+                battery = Int(row["BatteryStatus"]),
+                row     = Int(row["CurrentPosRow"]),
+                col     = Int(row["CurrentPosCol"]),
+                dir     = Int(row["CurrentPosDir"])
+            }).ToList();
+        }
+
+        /// <summary>
         /// Writes through to Robots.ConnectStatusID -- and, in the same statement,
         /// ConnectStatusColor/ConnectStatusDesc from the matching RobotStatus row -- so the
         /// connection screen reflects whether we actually have a live socket to the robot.

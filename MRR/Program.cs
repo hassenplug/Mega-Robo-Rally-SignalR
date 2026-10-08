@@ -365,7 +365,25 @@ app.MapGet("/api/robot/setip/{robotId:int}/{ipAddress}", (int robotId, string ip
     return Results.Ok(new { robotId, ipAddress });
 });
 
-app.MapGet("/api/board/{boardID?}", (int? boardID, DataService dataService, IHubContext<DataHub> hubContext, GameController gameController) =>
+// GM screen (gmindex.html): swap a disconnected robot onto a different physical base for the
+// current game. "bases" lists the choices; "setbase" applies one. See DataService.SetRobotBase.
+app.MapGet("/api/robot/bases/{robotId:int}", (int robotId, DataService dataService) =>
+    Results.Ok(dataService.GetAvailableRobotBases(robotId)));
+
+app.MapGet("/api/robot/setbase/{robotId:int}/{robotBaseId:int}", (int robotId, int robotBaseId, DataService dataService, GameController gameController) =>
+{
+    string? error = dataService.SetRobotBase(robotId, robotBaseId);
+    if (error != null) return Results.BadRequest(new { error });
+
+    gameController.UpdateGameState();
+    return Results.Ok(new { robotId, robotBaseId });
+});
+
+// GM screen's battery view: battery + board position per robot (not part of AllDataUpdate).
+app.MapGet("/api/robot/info", (DataService dataService) =>
+    Results.Ok(dataService.GetRobotInfo()));
+
+app.MapGet("/api/board/{boardID?}",(int? boardID, DataService dataService, IHubContext<DataHub> hubContext, GameController gameController) =>
 {
     if (boardID == null) boardID = dataService.BoardID;
     else dataService.BoardID = boardID.Value;

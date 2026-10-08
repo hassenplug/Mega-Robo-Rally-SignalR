@@ -454,6 +454,7 @@ namespace MRR.Devices
 
             // wait for the move to complete
             var post = await WaitForStopAsync();
+            SaveBattery(post.Robot.Battery);
 
             // second move — angle is robot-relative, so subtract preHeading from world angle
             int correctionAngle = (int)post.Robot.DirToOrigin - preHeading;
@@ -464,7 +465,39 @@ namespace MRR.Devices
             await TurnAsync(direction);
 
             // wait for the turn to complete
-            await WaitForStopAsync();
+            var post = await WaitForStopAsync();
+            SaveBattery(post.Robot.Battery);
+        }
+
+        /// <summary>
+        /// Records the robot's battery (ws_status robot.battery) in RobotBases.BatteryStatus --
+        /// the battery belongs to the physical base, so it stays with the base if the GM swaps
+        /// robots onto different bases mid-game. Called when a move or turn completes. A reading
+        /// of 0 is the empty status GetStatusAsync returns when the socket is gone, not a real
+        /// battery level, so it is skipped. Off the move's path and never throws: a database
+        /// hiccup must not hold up or fail a robot move.
+        /// </summary>
+        private void SaveBattery(int battery)
+        {
+            if (battery <= 0) return;
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    using var connection = new MySqlConnection(_connectionString);
+                    connection.Open();
+                    using var cmd = new MySqlCommand(
+                        @"UPDATE RobotBases b JOIN Robots r ON r.RobotBaseID = b.RobotBaseID
+                          SET b.BatteryStatus = @battery WHERE r.RobotID = @id", connection);
+                    cmd.Parameters.AddWithValue("@battery", battery);
+                    cmd.Parameters.AddWithValue("@id", RobotID);
+                    cmd.ExecuteNonQuery();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[{RobotID}] could not save battery: {ex.Message}");
+                }
+            });
         }
 
         public Task StopAsync() =>

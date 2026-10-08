@@ -50,6 +50,16 @@
     </div>
 </div>
 
+<!-- Swap a disconnected robot onto a different physical base: opened by tapping that robot's name
+     (see openBasePicker below). -->
+<div id="basePicker" class="w3-modal" onclick="closeBasePicker();">
+    <div class="w3-modal-content w3-round w3-white" style="max-width:320px; padding:16px;" onclick="event.stopPropagation();">
+        <h3 id="basePickerTitle" style="margin-top:0;">Robot base</h3>
+        <div id="basePickerList"></div>
+        <button class="button" style="margin-top:8px;" onclick="closeBasePicker();">Cancel</button>
+    </div>
+</div>
+
 <table id="mainTable" bgcolor="ffffff" border=0 width=100%>
 <tr bgcolor="#d0d0d0">
 <!-- The header above the connect buttons opens the GM menu (5 taps in 10s still logs out). -->
@@ -139,12 +149,26 @@ function showall() {
         var btn = document.getElementById('button' + rid);
         btn.style = "background-color:" + r.RobotColor + "; color:" + r.RobotColorFG;
         btn.textContent = r.RobotName;
+        btn.onclick = makeBasePickerHandler(r);
 
-        document.getElementById('flags' + rid).innerText = r.FlagEnergyCards;
-
+        var flagsCell = document.getElementById('flags' + rid);
         var statusbox = document.getElementById('playerstatus' + rid);
-        statusbox.innerText = r.StatusToShow;
-        statusbox.style.backgroundColor = r.StatusColor;
+        var info = robotInfo[r.RobotID];
+        if (batteryMode) {
+            // Battery view: last battery reading and board position (/api/robot/info), instead
+            // of flags/energy/cards and the status text.
+            var battery = info ? info.battery : 0;
+            flagsCell.innerText = battery > 0 ? battery + '%' : '--';
+            flagsCell.style.backgroundColor = battery <= 0 ? '#e0e0e0'
+                : battery >= 50 ? '#80ff80' : battery >= 20 ? '#ffff80' : '#ff8080';
+            statusbox.innerText = info ? 'R' + info.row + ' C' + info.col + ' ' + (DIRECTION_ARROWS[info.dir] || '?') : '--';
+            statusbox.style.backgroundColor = '#e0e0e0';
+        } else {
+            flagsCell.innerText = r.FlagEnergyCards;
+            flagsCell.style.backgroundColor = '#e0e0e0';
+            statusbox.innerText = r.StatusToShow;
+            statusbox.style.backgroundColor = r.StatusColor;
+        }
 
         if (r.PlayerMsg && r.PlayerMsg !== 'undefined') msgRobots.push(r);
     }
@@ -188,6 +212,85 @@ function showall() {
 
     document.getElementById('noPlayerButtons').style.display =
         (buttons.children.length || dirButtons.children.length || showGmStart) ? 'none' : '';
+}
+
+// ── Battery view ─────────────────────────────────────────────────────────────
+// Tapping the F/E/C header flips between flags/energy/cards + status and each robot's battery +
+// board position. The battery/position come from their own call, /api/robot/info, not from the
+// AllDataUpdate broadcast; it is re-fetched every couple of seconds while the view is showing.
+// The battery is the robot's own percentage (ws_status robot.battery), recorded when a move
+// completes, so it can be a move or two out of date.
+var batteryMode = false;
+var robotInfo = {};          // RobotID -> {battery, row, col, dir}
+var robotInfoTimer = null;
+var DIRECTION_ARROWS = { 1: '↑', 2: '→', 3: '↓', 4: '←' }; // Up, Right, Down, Left
+
+function toggleFlagsHeader() {
+    batteryMode = !batteryMode;
+    document.getElementById('flagsHeader').innerText = batteryMode ? 'Battery' : 'F/E/C';
+    if (batteryMode) {
+        refreshRobotInfo();
+        robotInfoTimer = setInterval(refreshRobotInfo, 2000);
+    } else {
+        clearInterval(robotInfoTimer);
+        robotInfoTimer = null;
+        if (datapacket) showall();
+    }
+}
+
+function refreshRobotInfo() {
+    fetch('/api/robot/info')
+        .then(function (resp) { return resp.json(); })
+        .then(function (list) {
+            robotInfo = {};
+            list.forEach(function (i) { robotInfo[i.robotID] = i; });
+            if (datapacket) showall();
+        })
+        .catch(function (err) { console.error(err.toString()); });
+}
+
+// ── Swap a robot's base ──────────────────────────────────────────────────────
+// Only for a robot that isn't connected (or connecting). The chosen base's IP is used for this
+// robot for the rest of the current game; connect it afterwards to dial the new address.
+var CONNECT_STATUS_CONNECTING = 21; // tPlayerStatus.Connecting (MRR.Contracts/PlayerState.cs)
+
+function makeBasePickerHandler(r) {
+    var connected = r.ConnectStatusID === CONNECT_STATUS_CONNECTED || r.ConnectStatusID === CONNECT_STATUS_CONNECTING;
+    return connected ? null : function () { openBasePicker(r); };
+}
+
+function openBasePicker(r) {
+    fetch('/api/robot/bases/' + r.RobotID)
+        .then(function (resp) { return resp.json(); })
+        .then(function (bases) {
+            document.getElementById('basePickerTitle').textContent = 'Base for ' + r.RobotName;
+            var list = document.getElementById('basePickerList');
+            list.innerHTML = '';
+            bases.forEach(function (b) {
+                var btn = document.createElement('button');
+                btn.className = 'button';
+                btn.style = 'margin:2px; width:100%;' + (b.isCurrent ? ' border:3px solid #000000;' : '');
+                btn.textContent = b.aimName + (b.isCurrent ? ' (current)' : '');
+                btn.title = b.ipAddress;
+                btn.onclick = function () { chooseBase(r.RobotID, b.robotBaseID); };
+                list.appendChild(btn);
+            });
+            document.getElementById('basePicker').style.display = 'block';
+        })
+        .catch(function (err) { console.error(err.toString()); });
+}
+
+function chooseBase(robotId, robotBaseId) {
+    fetch('/api/robot/setbase/' + robotId + '/' + robotBaseId)
+        .then(function (resp) {
+            if (resp.ok) { closeBasePicker(); return; }
+            return resp.json().then(function (e) { alert(e.error || 'Could not change the base'); });
+        })
+        .catch(function (err) { console.error(err.toString()); });
+}
+
+function closeBasePicker() {
+    document.getElementById('basePicker').style.display = 'none';
 }
 
 var lastPlayerMsgKey = null;
