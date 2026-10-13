@@ -212,6 +212,40 @@ any browser too.
 than the 40 s–2 min quoted in §1.5), and it is a different board, so the kernel and the
 `/boot/firmware/config.txt` contents differ from the versions in the header of this document.
 
+### 1.9 Pi 4 with a Hosyond 5" DSI touch screen (plan, not yet tried)
+
+Alternative to §1.8. Hardware: Raspberry Pi 4 + Hosyond 5" IPS capacitive touch screen
+(800×480, MIPI DSI, listed as "driver-free", compatible with Pi 3/4/5;
+[Amazon B0CXTFN8K9](https://www.amazon.com/dp/B0CXTFN8K9)). A 7" version of the same panel
+exists ([B0D3QB7X4Z](https://www.amazon.com/dp/B0D3QB7X4Z)). **Nothing here has been run on the
+panel, and the listing's spec section was not read** — power draw, included cables and any
+`config.txt` line the seller requires are unconfirmed. Check the seller's page or manual first.
+
+The screen plugs into the Pi 4's **DISPLAY** (DSI) port by ribbon cable, not the GPIO header, so
+there is no SPI overlay and the kiosk files from §1.8 are used unchanged.
+
+1. Do §1.1 as normal, on the Raspberry Pi OS **desktop** image (not Lite).
+2. Power off, connect the ribbon to the DISPLAY port (not CAMERA), and connect the panel's
+   power as its manual says (often a jumper to the Pi's 5 V/GND pins or a USB lead).
+3. Boot. The panel should come up with no config. If it stays blank, check the seller's docs
+   for a `dtoverlay` line. If the picture is rotated, fix it in Screen Configuration.
+4. **Do not add `dtoverlay=piscreen,...` and do not run `git.sh --tft-screen`** — that flag
+   adds the §1.8 SPI overlay, which is for a different panel and may conflict with DSI.
+   Install only the kiosk files and auto-login:
+
+```bash
+install -D -m 0755 install/kiosk/mrr-kiosk.sh      ~/.local/bin/mrr-kiosk.sh
+install -D -m 0644 install/kiosk/mrr-kiosk.desktop ~/.config/autostart/mrr-kiosk.desktop
+sudo raspi-config nonint do_boot_behaviour B4      # desktop, logged in as mrr
+```
+
+5. Reboot. Chromium opens `gmindex.html` full-screen once the game server answers (see §1.8
+   for what the page shows and how to leave kiosk mode).
+6. Check touch targets: the same 800×480 pixels on a 5" panel are physically small. If the
+   connect buttons or GM menu are hard to hit, the page needs a larger layout in `wwwroot/`.
+
+**Not yet done:** `install/git.sh` has no `--dsi-screen` option; the steps above are manual.
+
 ---
 
 ## 2. Running each part
@@ -680,3 +714,42 @@ label on the robot.
 | Odd startup crash / NRE | Check the database connection first. `SqlGateway` swallows database errors and returns empty results, so a bad connection string surfaces later as a null reference somewhere unrelated |
 | Game acts on stale data | `GET /api/admin/diagnostics` for memory-vs-database drift |
 | A turn hangs | A robot stopped responding; commands now time out after 10s (`CommandProcess.CommandDeadline`) and are logged. `POST /api/execution/abort` to stop the turn |
+
+### 6.7 Running on battery (plan, not yet tried)
+
+For the Pi 4 build with either screen (§1.8 GeeekPi 3.5" or §1.9 Hosyond 5" DSI) plus the game
+router, optionally with the six ESP32 player stations. **The figures are typical-value
+estimates, not measurements** — put a USB inline power meter on the real setup before buying.
+The Hosyond figures are guesses from panel size; the listing's power spec was not read.
+
+| Load | Typical | Plan for |
+|---|---|---|
+| Pi 4 (.NET server, MySQL, Chromium kiosk) | 5–7 W | 8 W |
+| GeeekPi 3.5" screen (§1.8) | 0.5–1.5 W | 2 W |
+| Hosyond 5" DSI screen (§1.9), backlight on | 1–2.5 W | 3 W |
+| Hosyond 7" DSI screen (not planned), backlight on | 2–3.5 W | 4 W |
+| Case fan (§1.8 case only) | ~0.5 W | 1 W |
+| TL-WR802N router (5 V, 0.6 A rated) | 1.5–2.5 W | 3 W |
+| **Pi 4 + 3.5" screen + fan + router** | **~8–11 W** | **~14 W** |
+| **Pi 4 + 5" DSI screen + router** | **~8–12 W** | **~14 W** |
+| 6 ESP32 stations (extra) | +6–9 W | +12 W |
+| **Everything (either screen)** | **~14–21 W** | **~26 W** |
+
+The six AIM robots run on their own batteries and are not counted. Lowering the 5" screen's
+backlight (if the panel allows it) is the cheapest saving; the Pi itself is most of the load.
+
+- **Pi 4 + router:** a 20,000 mAh (about 74 Wh) USB-C PD bank, about 6 h at ~10 W.
+- **With the stations:** ~19 W for a 4 h game needs ~90 Wh, so a 26,800 mAh (99 Wh) bank, or a
+  second bank for the stations (multi-port, via a powered USB hub). Banks advertise mAh at
+  3.7 V; usable Wh is about 85% of mAh × 3.7 ÷ 1000. 100 Wh is the air-travel limit.
+- **Pi input:** plain 5 V / 3 A on USB-C. If a C-to-C cable will not power it, use USB-A to C
+  (early Pi 4 e-marker bug). A 2 A bank will brown out.
+- **Router:** its own port on the bank (micro-USB). Some banks switch off below ~100 mA, which
+  matters only if the router is on a bank by itself.
+- **No UPS HAT:** the §1.8 screen occupies the 40-pin header. Power only through USB-C, never
+  the GPIO 5 V pins. The §1.9 DSI screen leaves the header free, but its own power lead may use
+  the 5 V pins — that draws from the Pi's supply, so size the bank for the totals above.
+- **Database safety:** MySQL can corrupt if the bank dies mid-game, and nothing warns the Pi.
+  Shut down by hand first: `ssh` in and run `sudo shutdown -h now`.
+- **Pass-through:** if charging while playing, use a bank that explicitly supports it; many cut
+  output when the charger is plugged in, which reboots the Pi.

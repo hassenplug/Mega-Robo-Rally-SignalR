@@ -22,7 +22,8 @@ What to work on next, reordered by the user 2026-10-08.
   `Robots.CurrentFlag`, already in the payload as part of `FlagEnergyCards`)
 
 - [ ] **Robot screen: a small arrow that always points at the player's seat** (`RobotScreenUI.cs`)
-
+  - May point to the player only when the robot is being placed
+  
 - [-] **Robot grid alignment** (`GridAlignmentAgent.cs`)
   - Code complete; constants need tuning against real board + lighting:
     `BlackLuminanceThreshold`, `MinBlackPixels`, `AlignedThreshold`, `NudgeDistanceMm`
@@ -169,6 +170,15 @@ Unreferenced image files: `wwwroot/images/Direction2.png`–`Direction4.png`,
 - [ ] `Urls: http://*:5000` in `appsettings.json` binds every network interface, not just the
   game LAN (`documents/API_DECOMPOSITION_DESIGN.md` §7, Low) — fine on an isolated game router,
   worth narrowing once the home-network port-forward is in place
+
+- [ ] Battery power for the game (`PROJECT_STATUS.md` §6.7): measure the real draw of the
+  Pi 4 + GeeekPi screen + router (and the 6 ESP32 stations) with a USB inline power meter, then
+  pick the bank(s) — ~20,000 mAh for Pi + router, ~26,800 mAh or a second bank with the stations
+- [ ] Battery power: decide how the Pi shuts down cleanly before the bank empties — the screen
+  blocks a GPIO UPS HAT, so MySQL has no protection from a sudden cutoff. Options: manual
+  `sudo shutdown -h now`, a bank with a battery display, or a shutdown button on the GM menu
+- [ ] Battery power: test a full game on battery, including whether the chosen bank supports
+  pass-through charging without rebooting the Pi
 
 ---
 
