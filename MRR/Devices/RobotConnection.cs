@@ -602,22 +602,87 @@ namespace MRR.Devices
                     if (_flashCts != null) return; // already running
                     _flashCts = new CancellationTokenSource();
                     _flashTask = RunFlashLoopAsync(_flashCts.Token);
+                    if (_screenText.Length > 0) _ = ShowPromptAsync(_screenText);
                 }
                 else
                 {
-                    _flashCts?.Cancel();
+                    if (_flashCts == null) return; // not flashing: screen was never replaced
+                    _flashCts.Cancel();
                     _flashCts = null;
+                    _ = RestoreIdentityAfterFlashAsync(_flashTask);
                 }
             }
         }
 
+        /// <summary>
+        /// The text shown on the robot's LCD for as long as <see cref="Flash"/> is true (the
+        /// reason the player is being asked to press). Set it before setting Flash = true; when
+        /// Flash goes false the robot's name display is redrawn instead.
+        /// </summary>
         public string ScreenText
         {
             get => _screenText;
-            set
+            set => _screenText = value;
+        }
+
+        private const int PromptCharWidth = 10;   // mono20
+        private const int PromptLineHeight = 24;
+        private const int PromptMaxChars = 16;    // keeps lines inside the circular 240x240 LCD
+
+        /// <summary>
+        /// Replaces the identity screen with <paramref name="text"/> only: robot-colored
+        /// background, word-wrapped and centered. Nothing else is drawn.
+        /// </summary>
+        private async Task ShowPromptAsync(string text)
+        {
+            var (bgR, bgG, bgB) = ColorHelper.ParseHex(_color);
+            var (fgR, fgG, fgB) = ColorHelper.ParseHex(_foreColor, 255, 255, 255);
+
+            var lines = new List<string>();
+            var line = "";
+            foreach (var word in text.Split(' ', StringSplitOptions.RemoveEmptyEntries))
             {
-                _screenText = value;
-                _ = PrintAsync(value);
+                var w = word;
+                while (w.Length > PromptMaxChars)
+                {
+                    if (line.Length > 0) { lines.Add(line); line = ""; }
+                    lines.Add(w[..PromptMaxChars]);
+                    w = w[PromptMaxChars..];
+                }
+                if (line.Length > 0 && line.Length + 1 + w.Length > PromptMaxChars)
+                {
+                    lines.Add(line);
+                    line = w;
+                }
+                else line = line.Length == 0 ? w : line + " " + w;
+            }
+            if (line.Length > 0) lines.Add(line);
+
+            await SendCommandAsync(new { cmd_id = "lcd_clear_screen", r = bgR, g = bgG, b = bgB });
+            await SendCommandAsync(new { cmd_id = "lcd_set_pen_color", r = fgR, g = fgG, b = fgB });
+            await SendCommandAsync(new { cmd_id = "lcd_set_fill_color", r = bgR, g = bgG, b = bgB, transparent = false });
+            await SendCommandAsync(new { cmd_id = "lcd_set_font", fontname = "mono20" });
+
+            int y = Math.Max(0, (240 - lines.Count * PromptLineHeight) / 2);
+            foreach (var l in lines)
+            {
+                await SendCommandAsync(new { cmd_id = "lcd_print_at", @string = l, x = Math.Max(0, (240 - l.Length * PromptCharWidth) / 2), y, b_opaque = true });
+                y += PromptLineHeight;
+            }
+        }
+
+        // Waits for the flash loop to finish (so it can't relight an LED after the redraw), then
+        // puts the robot's name/arrow/color back.
+        private async Task RestoreIdentityAfterFlashAsync(Task? flashTask)
+        {
+            try
+            {
+                if (flashTask != null) await flashTask;
+                await RefreshIdentityDisplayAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[{RobotID}] RestoreIdentityAfterFlashAsync failed: {ex.Message}");
             }
         }
 

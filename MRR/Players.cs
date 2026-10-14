@@ -154,7 +154,9 @@ namespace MRR
                 case 4: // Set Flash -- cmd.Value: 0=off, 1=on
                     if (Connection != null) 
                     {
-                        Connection.ScreenText = cmd.text;
+                        // Description, not .text: text is [NotMapped] and is lost once the command
+                        // has been through the CommandList table; Description is saved.
+                        Connection.ScreenText = cmd.Value != 0 ? cmd.Description : "";
                         Connection.Flash = cmd.Value != 0;
                     }
                     break;
