@@ -13,10 +13,30 @@ because other documents refer to them; sections with nothing open are omitted.
 
 What to work on next, reordered by the user 2026-10-08.
 
-- [ ] **Robot screen: show why a button press is being requested** (`RobotScreenUI.cs`) —
-  currently the touchscreen just blocks on a press with no context. Distinguish e.g. Phase
+- [ ] **Robot screen: show why a button press is being requested** (`RobotConnection.cs`,
+  alongside `RefreshIdentityDisplayAsync`/`PrintAsync`; the press itself is polled in
+  `CommandProcess.cs`'s User Input case) — currently the touchscreen just blocks on a press with
+  no context. Distinguish e.g. Phase
   advance, Remove (reboot/pit death), Place (respawn placement) so a player knows what they're
   confirming.
+  - Design: the text shown is the command's `text`/Description — nothing else is added (no
+    "Tap to continue" hint). `ShowMessageToPlayer` (`MRR.Rules/CreateCommands.cs`) already
+    passes it on the SetFlash-on command; `Player.SendRobotCommandAsync` (`Players.cs`) sets
+    `Connection.ScreenText` then `Connection.Flash`.
+  - [ ] Confirm `cmd.text` actually arrives at `Players.cs` (log it during a Phase prompt on a
+    real robot). It is `[NotMapped]` on `CommandItem`; if the command list round-trips through
+    the `CommandList` table it may be empty — then source it from the Description instead
+    (`Robots.PlayerMsg` / `CommandList.Description`) without a schema change.
+  - [ ] Replace the bare `PrintAsync` in `ScreenText`'s setter with a draw helper in
+    `RobotConnection`: clear to the robot's color, set pen/font (lowercase `fontname`), center
+    the Description on the 240×240 circular LCD, wrapping long text (e.g. Respawn).
+  - [ ] When `Flash` goes false, call `RefreshIdentityDisplayAsync` to restore the robot's name,
+    arrow and color (not `ClearScreenAsync`, which paints red).
+  - [ ] Check that touch polling (`CommandProcess.cs`, only while `Flash` is true) doesn't fire
+    a stray touch from the new screen, and that the identity screen returns after a tap or phone
+    confirm.
+  - [ ] Test on a real robot: Phase, Respawn, Remove and Winner each show their own text while
+    flashing, and the name returns after.
 
 - [ ] **Robot screen: show the last flag** the robot has reached (`RobotScreenUI.cs`; the value is
   `Robots.CurrentFlag`, already in the payload as part of `FlagEnergyCards`)
@@ -24,7 +44,8 @@ What to work on next, reordered by the user 2026-10-08.
 - [ ] **Robot screen: a small arrow that always points at the player's seat** (`RobotScreenUI.cs`)
   - May point to the player only when the robot is being placed
   
-- [-] **Robot grid alignment** (`GridAlignmentAgent.cs`)
+- [-] **Robot grid alignment** (`GridAlignmentAgent.cs`; see
+  [tools/ai_agent/grid_alignment_agent.md](../tools/ai_agent/grid_alignment_agent.md))
   - Code complete; constants need tuning against real board + lighting:
     `BlackLuminanceThreshold`, `MinBlackPixels`, `AlignedThreshold`, `NudgeDistanceMm`
   - Confirm the `ws_img` wire format against a live robot:
