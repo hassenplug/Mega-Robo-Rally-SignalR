@@ -131,7 +131,11 @@ namespace MRR.Devices
         private CancellationTokenSource? _statusCts;
         private CancellationTokenSource? _flashCts;
         private Task? _flashTask;
+        private Task? _promptTask;
         private string _screenText = "";
+        // The LCD area ShowPromptAsync painted over (x, width; the name's row), so the restore
+        // can repaint just that area; null when no prompt is on screen.
+        private (int x, int width)? _promptArea;
         // Guards concurrent access to wsStatus from both ListenStatusAsync and GetStatusAsync
         private readonly SemaphoreSlim _statusSocketSemaphore = new SemaphoreSlim(1, 1);
         // Guards DisposeAsync itself: RobotConnections.Refresh()/Reconnect()/ReconnectAll() and
@@ -602,14 +606,15 @@ namespace MRR.Devices
                     if (_flashCts != null) return; // already running
                     _flashCts = new CancellationTokenSource();
                     _flashTask = RunFlashLoopAsync(_flashCts.Token);
-                    if (_screenText.Length > 0) _ = ShowPromptAsync(_screenText);
+                    if (_screenText.Length > 0) _promptTask = ShowPromptAsync(_screenText);
                 }
                 else
                 {
                     if (_flashCts == null) return; // not flashing: screen was never replaced
                     _flashCts.Cancel();
                     _flashCts = null;
-                    _ = RestoreIdentityAfterFlashAsync(_flashTask);
+                    _ = RestoreIdentityAfterFlashAsync(_flashTask, _promptTask);
+                    _promptTask = null;
                 }
             }
         }
@@ -625,60 +630,53 @@ namespace MRR.Devices
             set => _screenText = value;
         }
 
-        private const int PromptCharWidth = 10;   // mono20
-        private const int PromptLineHeight = 24;
-        private const int PromptMaxChars = 16;    // keeps lines inside the circular 240x240 LCD
+        // Same font and position as the robot's name in RefreshIdentityDisplayAsync.
+        private const int NameCharWidth = 20;     // mono40
+        private const int NameHeight = 40;
+        private const int NameY = 165;
 
         /// <summary>
-        /// Replaces the identity screen with <paramref name="text"/> only: robot-colored
-        /// background, word-wrapped and centered. Nothing else is drawn.
+        /// Prints <paramref name="text"/> on one line in place of the robot's name, same font and
+        /// position. Only the name's row (as wide as the longer of the text and the name) is
+        /// painted in the robot color first; the rest of the identity screen is left as is.
         /// </summary>
         private async Task ShowPromptAsync(string text)
         {
             var (bgR, bgG, bgB) = ColorHelper.ParseHex(_color);
             var (fgR, fgG, fgB) = ColorHelper.ParseHex(_foreColor, 255, 255, 255);
 
-            var lines = new List<string>();
-            var line = "";
-            foreach (var word in text.Split(' ', StringSplitOptions.RemoveEmptyEntries))
-            {
-                var w = word;
-                while (w.Length > PromptMaxChars)
-                {
-                    if (line.Length > 0) { lines.Add(line); line = ""; }
-                    lines.Add(w[..PromptMaxChars]);
-                    w = w[PromptMaxChars..];
-                }
-                if (line.Length > 0 && line.Length + 1 + w.Length > PromptMaxChars)
-                {
-                    lines.Add(line);
-                    line = w;
-                }
-                else line = line.Length == 0 ? w : line + " " + w;
-            }
-            if (line.Length > 0) lines.Add(line);
+            int width = Math.Min(240, Math.Max(text.Length, _name.Length) * NameCharWidth);
+            int x = (240 - width) / 2;
+            _promptArea = (x, width);
 
-            await SendCommandAsync(new { cmd_id = "lcd_clear_screen", r = bgR, g = bgG, b = bgB });
+            await SendCommandAsync(new { cmd_id = "lcd_draw_rectangle", x, y = NameY, width, height = NameHeight, r = bgR, g = bgG, b = bgB, transparent = false });
             await SendCommandAsync(new { cmd_id = "lcd_set_pen_color", r = fgR, g = fgG, b = fgB });
             await SendCommandAsync(new { cmd_id = "lcd_set_fill_color", r = bgR, g = bgG, b = bgB, transparent = false });
-            await SendCommandAsync(new { cmd_id = "lcd_set_font", fontname = "mono20" });
-
-            int y = Math.Max(0, (240 - lines.Count * PromptLineHeight) / 2);
-            foreach (var l in lines)
-            {
-                await SendCommandAsync(new { cmd_id = "lcd_print_at", @string = l, x = Math.Max(0, (240 - l.Length * PromptCharWidth) / 2), y, b_opaque = true });
-                y += PromptLineHeight;
-            }
+            await SendCommandAsync(new { cmd_id = "lcd_set_font", fontname = "mono40" });
+            await SendCommandAsync(new { cmd_id = "lcd_print_at", @string = text, x = Math.Max(0, (240 - text.Length * NameCharWidth) / 2), y = NameY, b_opaque = true });
         }
 
-        // Waits for the flash loop to finish (so it can't relight an LED after the redraw), then
-        // puts the robot's name/arrow/color back.
-        private async Task RestoreIdentityAfterFlashAsync(Task? flashTask)
+        // Waits for the flash loop (so it can't relight an LED after the redraw) and the prompt
+        // draw to finish, then repaints only the prompt's area: robot color, the slice of the
+        // arrow's shaft (x 95..145) behind the name, and the name. The rest of the screen is
+        // untouched.
+        private async Task RestoreIdentityAfterFlashAsync(Task? flashTask, Task? promptTask)
         {
             try
             {
                 if (flashTask != null) await flashTask;
-                await RefreshIdentityDisplayAsync();
+                if (promptTask != null) await promptTask;
+                if (_promptArea is not { } a) return;
+                _promptArea = null;
+
+                var (bgR, bgG, bgB) = ColorHelper.ParseHex(_color);
+                var (fgR, fgG, fgB) = ColorHelper.ParseHex(_foreColor, 255, 255, 255);
+                await SendCommandAsync(new { cmd_id = "lcd_draw_rectangle", x = a.x, y = NameY, width = a.width, height = NameHeight, r = bgR, g = bgG, b = bgB, transparent = false });
+                await SendCommandAsync(new { cmd_id = "lcd_draw_rectangle", x = 95, y = NameY, width = 50, height = NameHeight, r = fgR, g = fgG, b = fgB, transparent = false });
+                await SendCommandAsync(new { cmd_id = "lcd_set_pen_color", r = fgR, g = fgG, b = fgB });
+                await SendCommandAsync(new { cmd_id = "lcd_set_fill_color", r = bgR, g = bgG, b = bgB, transparent = false });
+                await SendCommandAsync(new { cmd_id = "lcd_set_font", fontname = "mono40" });
+                await SendCommandAsync(new { cmd_id = "lcd_print_at", @string = _name, x = Math.Max(0, (240 - _name.Length * NameCharWidth) / 2), y = NameY, b_opaque = true });
             }
             catch (Exception ex)
             {

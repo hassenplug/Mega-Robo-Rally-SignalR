@@ -322,7 +322,9 @@ namespace MRR
         }
 
         [XmlIgnore]
-        public string Location { get { return "[" + BoardCol.ToString() + "][" + BoardRow.ToString() + "]"; } set { } }
+        // Must match RobotLocation.Location ("R{row}C{col}"): CreateCommands joins board squares
+        // to robots on this string.
+        public string Location { get { return $"R{BoardRow}C{BoardCol}"; } set { } }
 
 
     }
