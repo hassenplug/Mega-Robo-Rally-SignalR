@@ -37,6 +37,19 @@ What to work on next, reordered by the user 2026-10-08.
     confirm.
   - [ ] Test on a real robot: Phase, Respawn, Remove and Winner each show their own text while
     flashing, and the name returns after.
+  - [ ] **Prompt text doesn't clear cleanly** (reported 2026-10-15; works on a real robot, but
+    old text/pixels remain). Wanted: paint a rectangle in the robot's color over the text area,
+    then print the new text. `ShowPromptAsync` and `RestoreIdentityAfterFlashAsync` already do
+    this, so the actual symptom is not yet pinned down. The rectangle is only
+    `max(text, name).Length * 20` wide (the `width` at `RobotConnection.cs:652`) and 40 px tall
+    at y=165; suspects, in rough order: that rectangle is too narrow/short for the text;
+    a gap or color mismatch where the arrow shaft (x 95..145) is repainted; `Flash` toggling
+    off/on quickly so the restore and the next prompt interleave. Next step: note exactly what
+    is left on screen, then fix (e.g. clear the full 240 px width and a taller band).
+  - [ ] Same symptom, other screen: `RobotScreenUI.RenderAsync` never clears between taps (only
+    the first render after a deal clears), and the player name is re-printed with no background
+    rectangle. Card letters use `mono60` at `y = cy + 5`, which may spill outside their circles
+    and stay behind. Unconfirmed which screen the report was about.
 
 - [ ] **Robot screen: show the last flag** the robot has reached (`RobotScreenUI.cs`; the value is
   `Robots.CurrentFlag`, already in the payload as part of `FlagEnergyCards`)
