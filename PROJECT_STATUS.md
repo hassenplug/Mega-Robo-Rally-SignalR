@@ -39,7 +39,7 @@ cd ~ && git clone https://github.com/hassenplug/Mega-Robo-Rally-SignalR.git
 Optional: `sudo raspi-config` → System Options → Boot / Auto Login → *Console Autologin*,
 if the Pi should come up logged in at the command line.
 
-> **Shortcut:** `install/git.sh` now does §1.1 (from `apt` onward) through §1.6 for you — packages, .NET 9, MariaDB user and schema, and the services. Run it as `mrr` (not with sudo) from the clone: `./install/git.sh`. Other options: `--remote-db`, `--reset-db` (wipes the database), `--no-start`; see `--help`. Add `--dsi-screen` on the Pi 4 + Hosyond 5" build to also set up the GM kiosk screen (§1.9); `--tft-screen` is the old GeeekPi 3.5" build only (§1.8). It is safe to re-run. It has **not** been run on a blank Pi yet, so watch its first run. The manual sections below remain the reference for what it does.
+> **Shortcut:** `install/git.sh` now does §1.1 (from `apt` onward) through §1.6 for you — packages, .NET 9, MariaDB user and schema, and the services. Run it as `mrr` (not with sudo) from the clone: `./install/git.sh`. Other options: `--remote-db`, `--reset-db` (wipes the database), `--no-start`; see `--help`. It sets up the GM kiosk screen for the Pi 4 + Hosyond 5" build by default (`--dsi-screen`, §1.9); add `--no-screen` for a Pi with no screen, or `--tft-screen` for the old GeeekPi 3.5" build (§1.8). It is safe to re-run. It has **not** been run on a blank Pi yet, so watch its first run. The manual sections below remain the reference for what it does.
 
 ### 1.2 Hardware interfaces
 
@@ -248,7 +248,7 @@ sudo raspi-config nonint do_boot_behaviour B4      # desktop, logged in as mrr
 6. Check touch targets: the same 800×480 pixels on a 5" panel are physically small. If the
    connect buttons or GM menu are hard to hit, the page needs a larger layout in `wwwroot/`.
 
-**Shortcut:** `./install/git.sh --dsi-screen` does step 4 (kiosk files + desktop auto-login) and warns if an old `piscreen` overlay is still in `config.txt`. It has not been run on this Pi.
+**Shortcut:** `./install/git.sh` (`--dsi-screen` is its default) does step 4 (kiosk files + desktop auto-login) and warns if an old `piscreen` overlay is still in `config.txt`. It has not been run on this Pi.
 
 ---
 

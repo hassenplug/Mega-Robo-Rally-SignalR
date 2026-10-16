@@ -13,6 +13,28 @@ because other documents refer to them; sections with nothing open are omitted.
 
 What to work on next, reordered by the user 2026-10-08.
 
+- [-] **GM screen: Hosyond 5" DSI (800×480) on the Pi 4** (installed 2026-10-16; `PROJECT_STATUS.md`
+  §1.9; `MRR/wwwroot/gmindex.html`, `install/git.sh --dsi-screen`) — all of this is written but
+  unverified on the real screen
+  - [ ] Confirm the panel works with no `config.txt` change (seller's spec/manual not read; the
+    listing's power draw and included cables are also unconfirmed). Fix the picture rotation in
+    Screen Configuration if it comes up rotated.
+  - [ ] Run `./install/git.sh --dsi-screen` (or the three kiosk commands in §1.9 step 4) and
+    reboot: check that Chromium opens `gmindex.html` full-screen on its own. Make sure no old
+    `dtoverlay=piscreen` line is left in `/boot/firmware/config.txt`.
+  - [ ] View the rebuilt `gmindex.html` on the 800×480 screen: are the touch targets right, does
+    the robot name fit in its button, do long `PlayerMsg` texts and the direction rows fit the
+    right pane, do the ☰ menu and its Program Screen submenu fit and open?
+  - [ ] `js/loadrobots.js` can hide `#mainTable` (setup screen, ~lines 642/666), which would
+    leave the left pane empty on this page — check whether that path is reachable from
+    `gmindex.html`.
+  - [ ] `js/loadrobots.js:510` looks up `#statusHeader`, which `gmindex.html` doesn't have
+    (also true before the rebuild) — harmless unless that code path runs, then it throws.
+  - [ ] `install/git.sh` was edited on Windows; make sure it is still LF (not CRLF) when
+    committed or it won't run on the Pi. `--dsi-screen` itself hasn't been run.
+  - [ ] Measure the real power draw of the Pi 4 + this screen + router (§6.7 figures for the
+    screen are estimates).
+
 - [-] **Robot screen: show why a button press is being requested** (implemented 2026-10-14, builds; needs real-robot test — last sub-item) (`RobotConnection.cs`,
   alongside `RefreshIdentityDisplayAsync`/`PrintAsync`; the press itself is polled in
   `CommandProcess.cs`'s User Input case) — currently the touchscreen just blocks on a press with

@@ -10,11 +10,13 @@
 #      cd Mega-Robo-Rally-SignalR && ./install/git.sh
 #
 # Usage: ./install/git.sh [options]      (run as user mrr, NOT with sudo)
-#   --dsi-screen  Pi 4 + Hosyond 5" DSI touch screen (800x480, GM screen): open gmindex.html
-#                 full-screen in Chromium at desktop login. No config.txt change - the panel is
-#                 driver-free. Needs the Raspberry Pi OS desktop image (Chromium + auto-login).
-#   --tft-screen  Old Pi 4 + GeeekPi 3.5" SPI touch screen: the same kiosk setup, plus the
-#                 display overlay in config.txt. Not for the DSI screen.
+#   --dsi-screen  DEFAULT. Pi 4 + Hosyond 5" DSI touch screen (800x480, GM screen): open
+#                 gmindex.html full-screen in Chromium at desktop login. No config.txt change -
+#                 the panel is driver-free. Needs the Raspberry Pi OS desktop image (Chromium +
+#                 auto-login).
+#   --tft-screen  Old Pi 4 + GeeekPi 3.5" SPI touch screen instead: the same kiosk setup, plus
+#                 the display overlay in config.txt. Not for the DSI screen.
+#   --no-screen   No screen: skip the kiosk and auto-login (headless Pi, or a Pi 5 with none).
 #   --remote-db   Let other machines connect to MariaDB (comments out bind-address).
 #                 Exposes the database to the whole network - game LAN only. The game itself
 #                 does not need it: appsettings.json connects to 127.0.0.1.
@@ -27,11 +29,12 @@
 # Not run by the author on a blank Pi - read the output of the first run.
 set -euo pipefail
 
-TFT_SCREEN=no; DSI_SCREEN=no; REMOTE_DB=no; RESET_DB=no; NO_START=no
+TFT_SCREEN=no; DSI_SCREEN=yes; REMOTE_DB=no; RESET_DB=no; NO_START=no
 for a in "$@"; do
     case "$a" in
-        --tft-screen) TFT_SCREEN=yes ;;
-        --dsi-screen) DSI_SCREEN=yes ;;
+        --tft-screen) TFT_SCREEN=yes; DSI_SCREEN=no ;;
+        --dsi-screen) DSI_SCREEN=yes; TFT_SCREEN=no ;;
+        --no-screen)  DSI_SCREEN=no; TFT_SCREEN=no ;;
         --remote-db) REMOTE_DB=yes ;;
         --reset-db)  RESET_DB=yes ;;
         --no-start)  NO_START=yes ;;
@@ -39,8 +42,6 @@ for a in "$@"; do
         *) echo "unknown option: $a (try --help)" >&2; exit 2 ;;
     esac
 done
-
-[ "$TFT_SCREEN" = yes ] && [ "$DSI_SCREEN" = yes ] && { echo "use only one of --tft-screen and --dsi-screen" >&2; exit 2; }
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 INSTALL="$REPO/install"
