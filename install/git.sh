@@ -10,9 +10,11 @@
 #      cd Mega-Robo-Rally-SignalR && ./install/git.sh
 #
 # Usage: ./install/git.sh [options]      (run as user mrr, NOT with sudo)
-#   --tft-screen  Pi 4 + GeeekPi 3.5" SPI touch screen: add the display overlay to config.txt
-#                 and open gmindex.html full-screen in Chromium at desktop login. Needs the
-#                 Raspberry Pi OS desktop image (Chromium + auto-login).
+#   --dsi-screen  Pi 4 + Hosyond 5" DSI touch screen (800x480, GM screen): open gmindex.html
+#                 full-screen in Chromium at desktop login. No config.txt change - the panel is
+#                 driver-free. Needs the Raspberry Pi OS desktop image (Chromium + auto-login).
+#   --tft-screen  Old Pi 4 + GeeekPi 3.5" SPI touch screen: the same kiosk setup, plus the
+#                 display overlay in config.txt. Not for the DSI screen.
 #   --remote-db   Let other machines connect to MariaDB (comments out bind-address).
 #                 Exposes the database to the whole network - game LAN only. The game itself
 #                 does not need it: appsettings.json connects to 127.0.0.1.
@@ -25,10 +27,11 @@
 # Not run by the author on a blank Pi - read the output of the first run.
 set -euo pipefail
 
-TFT_SCREEN=no; REMOTE_DB=no; RESET_DB=no; NO_START=no
+TFT_SCREEN=no; DSI_SCREEN=no; REMOTE_DB=no; RESET_DB=no; NO_START=no
 for a in "$@"; do
     case "$a" in
         --tft-screen) TFT_SCREEN=yes ;;
+        --dsi-screen) DSI_SCREEN=yes ;;
         --remote-db) REMOTE_DB=yes ;;
         --reset-db)  RESET_DB=yes ;;
         --no-start)  NO_START=yes ;;
@@ -36,6 +39,8 @@ for a in "$@"; do
         *) echo "unknown option: $a (try --help)" >&2; exit 2 ;;
     esac
 done
+
+[ "$TFT_SCREEN" = yes ] && [ "$DSI_SCREEN" = yes ] && { echo "use only one of --tft-screen and --dsi-screen" >&2; exit 2; }
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 INSTALL="$REPO/install"
@@ -83,6 +88,11 @@ if [ "$TFT_SCREEN" = yes ]; then
         printf '\n# GeeekPi 3.5" SPI TFT (ILI9486 + XPT2046 touch)\n%s\n' "$TFT_OVERLAY" | sudo tee -a "$BOOT_CFG" >/dev/null
         echo "added $TFT_OVERLAY (original saved as $BOOT_CFG.bak)"
     fi
+fi
+
+# The DSI panel needs no overlay, and the SPI one would conflict with it - warn, never edit.
+if [ "$DSI_SCREEN" = yes ] && grep -qE '^dtoverlay=piscreen' "$BOOT_CFG" 2>/dev/null; then
+    warn "$BOOT_CFG still has the old piscreen (SPI) overlay - remove it by hand for the DSI screen"
 fi
 
 # ---------------------------------------------------------------- .NET 9
@@ -145,7 +155,7 @@ START_ARG=""
 if [ "$NO_START" = yes ]; then START_ARG="--no-start"; fi
 sudo "$INSTALL/service/install.sh" $START_ARG
 
-if [ "$TFT_SCREEN" = yes ]; then
+if [ "$TFT_SCREEN" = yes ] || [ "$DSI_SCREEN" = yes ]; then
     info "setting the screen to open gmindex.html at login"
     command -v chromium >/dev/null || warn "chromium not found - the kiosk needs the Raspberry Pi OS desktop image"
     install -D -m 0755 "$INSTALL/kiosk/mrr-kiosk.sh" "$HOME/.local/bin/mrr-kiosk.sh"
@@ -177,9 +187,9 @@ fi
 cat <<EOF
 
 Done. Next:
-  sudo reboot                     # group changes (and the screen overlay, if used) take effect; confirms it all comes back on its own
+  sudo reboot                     # group changes (and the screen setup, if used) take effect; confirms it all comes back on its own
   mrrctl status                   # after the reboot
   http://mrobopi:5000/            # player UI     http://mrobopi:5000/gmindex.html   # GM status page
 Still manual: network/router (install/NETWORK_SETUP.md), robot IPs, and the database password
-in appsettings.json if you change it. Screen notes: PROJECT_STATUS.md section 1.8.
+in appsettings.json if you change it. Screen notes: PROJECT_STATUS.md section 1.9 (DSI) / 1.8 (SPI).
 EOF

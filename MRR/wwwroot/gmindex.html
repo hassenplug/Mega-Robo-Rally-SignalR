@@ -17,19 +17,41 @@
 <title>MEGA Robo Rally - GM</title>
 
 <style>
+/* Built around the Pi's 800x480 kiosk screen (Hosyond 5" DSI): one fixed screen, no page scroll.
+   Left pane = robot table, right pane = buttons. Sizes are for finger taps on a 5" panel. */
+html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#ffffff; font-size:18px; }
+#app { display:flex; flex-direction:column; width:100vw; height:100vh; }
+
+#topBar { display:flex; align-items:stretch; height:56px; flex:none; background:#d0d0d0; }
+#robotHeader { position:relative; width:64px; flex:none; display:flex; align-items:center; justify-content:center; font-size:30px; cursor:pointer; user-select:none; }
+#title { flex:1; display:flex; align-items:center; padding:0 10px; font-weight:bold; font-size:20px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+#flagsHeader { width:130px; flex:none; display:flex; align-items:center; justify-content:center; font-weight:bold; cursor:pointer; user-select:none; border-left:1px solid #a0a0a0; }
+
+#panes { display:flex; flex:1; min-height:0; }
+#robotPane { flex:none; width:490px; overflow-y:auto; }
+#buttonPane { flex:1; min-width:0; overflow-y:auto; background:#e0e0e0; padding:6px; box-sizing:border-box; }
+
+#mainTable { width:100%; border-collapse:collapse; table-layout:fixed; }
+#mainTable td { height:66px; padding:2px 3px; border-bottom:1px solid #e0e0e0; overflow:hidden; }
+#mainTable td.cConnect { width:52px; }
+#mainTable td.cFlags   { width:110px; text-align:center; background:#e0e0e0; font-weight:bold; }
+#mainTable td.cStatus  { text-align:center; line-height:1.15; }
+
+/* The global .button is width:100%/height:30px; the GM page wants finger-sized buttons. */
+#app .button { height:auto; min-height:48px; font-size:18px; padding:4px 10px; box-sizing:border-box; }
+#mainTable .button { width:100%; height:56px; font-size:20px; padding:2px 4px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+
 /* Narrow, text-free connect toggle -- its color is the robot's ConnectStatusColor. */
-.connectBtn {
-    width: 16px;
-    min-width: 16px;
-    height: 32px;
-    padding: 0;
-    border: 1px solid #808080;
-    cursor: pointer;
-}
+.connectBtn { width:44px; height:56px; padding:0; border:1px solid #808080; cursor:pointer; }
+
+#gmMenu { display:none; position:absolute; top:100%; left:0; z-index:5; background:#ffffff; padding:6px; width:200px; text-align:left; font-size:18px; }
+#gmMenu .button { display:block; width:100%; margin-bottom:6px; }
+#programScreenSubmenu { display:none; position:absolute; top:0; left:100%; z-index:6; background:#ffffff; padding:6px; width:130px; }
+#playerButtons .button { display:block; width:100%; margin:0 0 6px 0; background-color:#ff0000; color:#ffffff; white-space:normal; }
 </style>
 
 </head>
-<body id='body' style='padding:5px; padding-top:0px'>
+<body id='body'>
 
 <!-- GM-only status page, the Pi's own kiosk screen (~/.local/bin/mrr-kiosk.sh). Same
      js/loadrobots.js as index.html, always logged in as GM and always in GM view, with no card
@@ -55,46 +77,50 @@
 <!-- Just the list of AIM names in a small box: no title, no Cancel button -- tapping anywhere
      outside the box closes it. -->
 <div id="basePicker" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; z-index:10;" onclick="closeBasePicker();">
-    <div id="basePickerList" style="position:absolute; top:30px; left:30px; background:#ffffff; border:1px solid #808080; padding:2px; max-height:80vh; overflow:auto;" onclick="event.stopPropagation();"></div>
+    <div id="basePickerList" style="position:absolute; top:60px; left:60px; background:#ffffff; border:1px solid #808080; padding:4px; max-height:85vh; overflow:auto;" onclick="event.stopPropagation();"></div>
 </div>
 
-<table id="mainTable" bgcolor="ffffff" border=0 width=100%>
-<tr bgcolor="#d0d0d0">
-<!-- The header above the connect buttons opens the GM menu (5 taps in 10s still logs out). -->
-<td id="robotHeader" width="20" align=center style="cursor:pointer; position:relative;" onclick="handleRobotHeaderTap();">&#9776;
-    <div id="gmMenu" class="w3-card-4" style="display:none; position:absolute; top:100%; left:0; z-index:5; background:#ffffff; padding:6px; min-width:140px; text-align:left;">
-        <button class="button" style="margin-bottom:4px;" onclick="event.stopPropagation(); gmAction('nextstate');">Next State</button>
-        <button class="button" style="background-color:#cc0000; color:#ffffff;" onclick="event.stopPropagation(); if(confirm('End the current game and disconnect from robots?')) gmAction('endgame');">End Game</button>
-        <button class="button" style="margin-bottom:4px;" onclick="event.stopPropagation(); gmAction('clearcookies');">Clear Cookies</button>
-        <button class="button" style="margin-bottom:4px;" onclick="event.stopPropagation(); window.open('turnhistory.html', '_blank');">Turn History</button>
-        <div style="position:relative;">
-            <button class="button" style="width:100%;" onclick="event.stopPropagation(); toggleProgramScreenSubmenu();">Program Screen</button>
-            <div id="programScreenSubmenu" class="w3-card-4" style="display:none; position:absolute; top:0; left:100%; z-index:6; background:#ffffff; padding:6px; min-width:100px;">
-                <button class="button" style="margin-bottom:4px;" onclick="event.stopPropagation(); gmSetRobotScreen(true);">Enable</button>
-                <button class="button" onclick="event.stopPropagation(); gmSetRobotScreen(false);">Disable</button>
+<div id="app">
+<div id="topBar">
+    <!-- The header opens the GM menu (5 taps in 10s still logs out). -->
+    <div id="robotHeader" onclick="handleRobotHeaderTap();">&#9776;
+        <div id="gmMenu" class="w3-card-4">
+            <button class="button" onclick="event.stopPropagation(); gmAction('nextstate');">Next State</button>
+            <button class="button" style="background-color:#cc0000; color:#ffffff;" onclick="event.stopPropagation(); if(confirm('End the current game and disconnect from robots?')) gmAction('endgame');">End Game</button>
+            <button class="button" onclick="event.stopPropagation(); gmAction('clearcookies');">Clear Cookies</button>
+            <button class="button" onclick="event.stopPropagation(); window.open('turnhistory.html', '_blank');">Turn History</button>
+            <div style="position:relative;">
+                <button class="button" onclick="event.stopPropagation(); toggleProgramScreenSubmenu();">Program Screen</button>
+                <div id="programScreenSubmenu" class="w3-card-4">
+                    <button class="button" style="margin-bottom:6px;" onclick="event.stopPropagation(); gmSetRobotScreen(true);">Enable</button>
+                    <button class="button" onclick="event.stopPropagation(); gmSetRobotScreen(false);">Disable</button>
+                </div>
             </div>
         </div>
     </div>
-</td>
-<td>Robot</td>
-<td align=center id="flagsHeader" style="cursor:pointer;" onclick="toggleFlagsHeader();">F/E/C</td>
-<!-- Game message (titlemsg) in place of a "Status" label, filled in by showall(). -->
-<td align=center id="title" style="font-weight:bold;">---</td>
-</tr>
-<tbody id="playerRows"></tbody>
-</table>
+    <!-- Game message (titlemsg), filled in by showall(). -->
+    <div id="title">---</div>
+    <div id="flagsHeader" onclick="toggleFlagsHeader();">F/E/C</div>
+</div>
 
-<!-- Player buttons: one per robot with a pending PlayerMsg, a direction row per robot whose
-     direction isn't locked yet, plus the GM start-game picker while no game is running
-     (gamestate 25). -->
-<div id="gmButtons" style="margin-top:6px; padding:4px; background-color:#e0e0e0;">
-    <div id="gmtable" style="display:none; margin-bottom:4px;">
-        <button class="button" style="width:auto; padding:6px 16px; background-color:#008000; color:#ffffff;" onclick="startSelectedGame();">Start</button>
-        <select id="gameDataSelect" class="w3-input" style="display:inline-block; width:auto;"></select>
+<div id="panes">
+    <div id="robotPane">
+        <table id="mainTable" bgcolor="ffffff" border=0><tbody id="playerRows"></tbody></table>
     </div>
-    <div id="playerButtons"></div>
-    <div id="directionButtons"></div>
-    <div id="noPlayerButtons" style="color:#606060;">No player buttons</div>
+
+    <!-- Player buttons: one per robot with a pending PlayerMsg, a direction row per robot whose
+         direction isn't locked yet, plus the GM start-game picker while no game is running
+         (gamestate 25). -->
+    <div id="buttonPane">
+        <div id="gmtable" style="display:none; margin-bottom:6px;">
+            <button class="button" style="width:auto; padding:6px 20px; background-color:#008000; color:#ffffff;" onclick="startSelectedGame();">Start</button>
+            <select id="gameDataSelect" class="w3-input" style="display:inline-block; width:auto; font-size:18px; height:48px;"></select>
+        </div>
+        <div id="playerButtons"></div>
+        <div id="directionButtons"></div>
+        <div id="noPlayerButtons" style="color:#606060;">No player buttons</div>
+    </div>
+</div>
 </div>
 
 <script>
@@ -111,10 +137,10 @@ function buildPlayerRows(robots) {
     for (var i = 0; i < robots.length; i++) {
         var rid = i + 1;
         html += "<tr id='tr" + rid + "'>" +
-            "<td align=center><button class='connectBtn' id='connect" + rid + "'></button></td>" +
+            "<td class='cConnect' align=center><button class='connectBtn' id='connect" + rid + "'></button></td>" +
             "<td><button class='button' id='button" + rid + "'>--</button></td>" +
-            "<td align=center id='flags" + rid + "' bgcolor='#e0e0e0'>--</td>" +
-            "<td align=center id='playerstatus" + rid + "'>--</td>" +
+            "<td class='cFlags' id='flags" + rid + "'>--</td>" +
+            "<td class='cStatus' id='playerstatus" + rid + "'>--</td>" +
             "</tr>";
     }
     document.getElementById('playerRows').innerHTML = html;
@@ -268,7 +294,7 @@ function openBasePicker(r) {
                 btn.className = 'button';
                 // The global .button class sets width:100%/height:30px; override both so each
                 // entry is only as big as its text.
-                btn.style = 'display:block; width:auto; height:auto; margin:1px 0; padding:2px 8px;' +
+                btn.style = 'display:block; width:auto; height:auto; min-height:44px; margin:3px 0; padding:4px 14px; font-size:18px;' +
                     (b.isCurrent ? ' border:2px solid #000000;' : '');
                 btn.textContent = b.aimName + (b.isCurrent ? ' (current)' : '');
                 btn.title = b.ipAddress;
@@ -310,18 +336,18 @@ function renderGmDirectionArrow(robotId) {
 // No seat adjustment on the arrow -- GM sees the board-absolute direction.
 function makeDirectionRow(r) {
     var row = document.createElement('div');
-    row.style = "margin:2px; display:flex; align-items:center; gap:6px;";
+    row.style = "margin:0 0 6px 0; display:flex; align-items:center; gap:8px;";
 
     var label = document.createElement('span');
     label.textContent = r.RobotName;
-    label.style = "min-width:60px; padding:2px 6px; background-color:" + r.RobotColor + "; color:" + r.RobotColorFG;
+    label.style = "min-width:80px; padding:6px 8px; background-color:" + r.RobotColor + "; color:" + r.RobotColorFG;
     row.appendChild(label);
 
     if (r.PositionValid === 0) {
         // Rotation is set by showall() right after the rows are built.
         var arrow = document.createElement('img');
         arrow.src = 'images/Direction1.png';
-        arrow.style = "width:40px; height:40px; cursor:pointer;";
+        arrow.style = "width:52px; height:52px; cursor:pointer;";
         arrow.onclick = function () {
             lastDirectionTap[r.RobotID] = Date.now();
             pendingDirections[r.RobotID] = (pendingDirections[r.RobotID] % 4) + 1; // 1->2->3->4->1
@@ -334,7 +360,7 @@ function makeDirectionRow(r) {
 
     var b = document.createElement('button');
     b.className = 'button';
-    b.style = "width:auto; padding:6px 16px; background-color:#800080; color:#ffffff;";
+    b.style = "width:auto; padding:6px 14px; background-color:#800080; color:#ffffff;";
     b.textContent = r.PositionValid === 0 ? 'Set Direction' : 'Clear Direction';
     var newValid = r.PositionValid === 0 ? 1 : 0;
     b.onclick = function () { SendUpdate(5, r.RobotID, newValid); };
@@ -348,7 +374,7 @@ function makeDirectionRow(r) {
 function makePlayerMsgButton(r) {
     var b = document.createElement('button');
     b.className = 'button';
-    b.style = "margin:2px; background-color:#ff0000; color:#ffffff;";
+    b.style = "";
     b.textContent = r.RobotName + ': ' + r.PlayerMsg;
     b.onclick = function () { SendUpdate(3, r.RobotID); };
     return b;

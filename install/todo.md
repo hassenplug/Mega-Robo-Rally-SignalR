@@ -206,10 +206,11 @@ Unreferenced image files: `wwwroot/images/Direction2.png`–`Direction4.png`,
   worth narrowing once the home-network port-forward is in place
 
 - [ ] Battery power for the game (`PROJECT_STATUS.md` §6.7): measure the real draw of the
-  Pi 4 + GeeekPi screen + router (and the 6 ESP32 stations) with a USB inline power meter, then
+  Pi 4 + Hosyond 5" DSI screen + router (and the 6 ESP32 stations) with a USB inline power meter, then
   pick the bank(s) — ~20,000 mAh for Pi + router, ~26,800 mAh or a second bank with the stations
-- [ ] Battery power: decide how the Pi shuts down cleanly before the bank empties — the screen
-  blocks a GPIO UPS HAT, so MySQL has no protection from a sudden cutoff. Options: manual
+- [ ] Battery power: decide how the Pi shuts down cleanly before the bank empties — there is
+  no UPS HAT, so MySQL has no protection from a sudden cutoff (the DSI screen no longer blocks
+  the GPIO header, so a HAT is now possible). Options: manual
   `sudo shutdown -h now`, a bank with a battery display, or a shutdown button on the GM menu
 - [ ] Battery power: test a full game on battery, including whether the chosen bank supports
   pass-through charging without rebooting the Pi

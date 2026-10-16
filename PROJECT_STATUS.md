@@ -1,7 +1,7 @@
 # Mega Robo Rally — Project Status & Operations Handbook
 
 **Last updated:** 2026-10-07 (§5.2 only; other sections last reviewed 2026-10-01)
-**Target host:** `mrobopi` — Raspberry Pi 5, Debian 13 (trixie), aarch64, kernel 6.18.34 (original build). A second build on a Raspberry Pi 4 with a GeeekPi 3.5" screen is covered in §1.2 and §1.8.
+**Target host:** `mrobopi` — Raspberry Pi 5, Debian 13 (trixie), aarch64, kernel 6.18.34 (original build). A second build on a Raspberry Pi 4 with a Hosyond 5" 800×480 DSI touch screen (installed 2026-10-16) is covered in §1.2 and §1.9; the earlier GeeekPi 3.5" screen build is §1.8.
 
 This is the practical document: how to rebuild the machine, how to run the parts, how to
 run a game, what is broken, and what is left. For *why* the code is shaped the way it is,
@@ -39,7 +39,7 @@ cd ~ && git clone https://github.com/hassenplug/Mega-Robo-Rally-SignalR.git
 Optional: `sudo raspi-config` → System Options → Boot / Auto Login → *Console Autologin*,
 if the Pi should come up logged in at the command line.
 
-> **Shortcut:** `install/git.sh` now does §1.1 (from `apt` onward) through §1.6 for you — packages, .NET 9, MariaDB user and schema, and the services. Run it as `mrr` (not with sudo) from the clone: `./install/git.sh`. Other options: `--remote-db`, `--reset-db` (wipes the database), `--no-start`; see `--help`. Add `--tft-screen` on the Pi 4 + GeeekPi build to also set up the screen (§1.8). It is safe to re-run. It has **not** been run on a blank Pi yet, so watch its first run. The manual sections below remain the reference for what it does.
+> **Shortcut:** `install/git.sh` now does §1.1 (from `apt` onward) through §1.6 for you — packages, .NET 9, MariaDB user and schema, and the services. Run it as `mrr` (not with sudo) from the clone: `./install/git.sh`. Other options: `--remote-db`, `--reset-db` (wipes the database), `--no-start`; see `--help`. Add `--dsi-screen` on the Pi 4 + Hosyond 5" build to also set up the GM kiosk screen (§1.9); `--tft-screen` is the old GeeekPi 3.5" build only (§1.8). It is safe to re-run. It has **not** been run on a blank Pi yet, so watch its first run. The manual sections below remain the reference for what it does.
 
 ### 1.2 Hardware interfaces
 
@@ -47,9 +47,9 @@ The game host needs no special Pi hardware interface: no SPI, no Sense HAT. (Sen
 was dropped 2026-10-07 and its SPI setup, `mrr-spi.service` and the `MRR_REQUIRE_SPI` start
 gate were removed from the install scripts.)
 
-Two builds have been used: the original **Pi 5**, and a **Pi 4 + GeeekPi 3.5" screen** (480×320
-SPI TFT on the GPIO header). Only the second needs anything extra — see §1.8 (`./install/git.sh
---tft-screen` does it for you).
+Two builds have been used: the original **Pi 5**, and a **Pi 4 + Hosyond 5" screen** (800×480
+MIPI DSI, ribbon to the DISPLAY port — installed 2026-10-16, see §1.9). Before that the Pi 4 used
+a GeeekPi 3.5" 480×320 SPI TFT on the GPIO header (§1.8, `./install/git.sh --tft-screen`). The Pi screen is the GM's status screen (`gmindex.html`).
 
 The `mrr` user needs these groups:
 
@@ -147,7 +147,7 @@ health/recover watchdog timers. See §2.2.
 | "Enable remote commands (reboot) ?? not working" | Unresolved in the original notes; not covered here. |
 | `git clone …/VEX-Robotics/AIM_Websocket_Library.git` ("move this line into the sh file") | Optional reference only. I found no code in this repo that depends on a local copy; robot commands go through `AIMRobot` over WebSocket. The library is the source of truth for the wire format. |
 
-### 1.8 Pi 4 with the GeeekPi 3.5" touch screen
+### 1.8 Pi 4 with the GeeekPi 3.5" touch screen (earlier build, replaced by §1.9)
 
 Hardware: Raspberry Pi 4 Model B, GeeekPi 3.5" 480×320 TFT touch screen with case, fan and
 heatsinks. The panel plugs onto the 40-pin GPIO header and is driven over **SPI0**, not HDMI.
@@ -200,10 +200,14 @@ renamed `gmbuttons.html`). It uses the same `js/loadrobots.js` as `index.html`, 
   F/E/C, and the robot's status (`StatusToShow` / `StatusColor`).
 - The **☰ header above the connect buttons** opens the GM menu (Next State, End Game, Clear
   Cookies, Program Screen). Five taps within 10 seconds still opens `logout.html`.
-- The area below the table shows a button for **every robot with a pending `PlayerMsg`**;
+- The pane to the right of the table shows a button for **every robot with a pending `PlayerMsg`**;
   tapping one confirms it for that robot (`/api/player/3/{RobotID}`). While no game is running
   (gamestate 25) it also shows the start-game picker.
-- It does not show the direction picker.
+- **Layout (2026-10-16):** built around the 800×480 DSI screen (§1.9) as one fixed page with no
+  page scroll: a top bar (☰ menu, game message, F/E/C ↔ Battery toggle), the robot table on the
+  left (490 px, 66 px rows), and the buttons on the right. The right pane holds the PlayerMsg
+  buttons, the start-game picker and a direction row for each robot whose direction isn't locked
+  yet. Buttons are sized for finger taps. Not yet viewed on the real screen.
 
 Players still use `http://mrobopi:5000/` on their phones; the GM can open `gmindex.html` from
 any browser too.
@@ -212,13 +216,13 @@ any browser too.
 than the 40 s–2 min quoted in §1.5), and it is a different board, so the kernel and the
 `/boot/firmware/config.txt` contents differ from the versions in the header of this document.
 
-### 1.9 Pi 4 with a Hosyond 5" DSI touch screen (plan, not yet tried)
+### 1.9 Pi 4 with a Hosyond 5" DSI touch screen (current; installed 2026-10-16)
 
-Alternative to §1.8. Hardware: Raspberry Pi 4 + Hosyond 5" IPS capacitive touch screen
+Replaces §1.8. Hardware: Raspberry Pi 4 + Hosyond 5" IPS capacitive touch screen
 (800×480, MIPI DSI, listed as "driver-free", compatible with Pi 3/4/5;
 [Amazon B0CXTFN8K9](https://www.amazon.com/dp/B0CXTFN8K9)). A 7" version of the same panel
-exists ([B0D3QB7X4Z](https://www.amazon.com/dp/B0D3QB7X4Z)). **Nothing here has been run on the
-panel, and the listing's spec section was not read** — power draw, included cables and any
+exists ([B0D3QB7X4Z](https://www.amazon.com/dp/B0D3QB7X4Z)). **The screen is physically installed, but
+the setup steps below have not been confirmed on it, and the listing's spec section was not read** — power draw, included cables and any
 `config.txt` line the seller requires are unconfirmed. Check the seller's page or manual first.
 
 The screen plugs into the Pi 4's **DISPLAY** (DSI) port by ribbon cable, not the GPIO header, so
@@ -244,7 +248,7 @@ sudo raspi-config nonint do_boot_behaviour B4      # desktop, logged in as mrr
 6. Check touch targets: the same 800×480 pixels on a 5" panel are physically small. If the
    connect buttons or GM menu are hard to hit, the page needs a larger layout in `wwwroot/`.
 
-**Not yet done:** `install/git.sh` has no `--dsi-screen` option; the steps above are manual.
+**Shortcut:** `./install/git.sh --dsi-screen` does step 4 (kiosk files + desktop auto-login) and warns if an old `piscreen` overlay is still in `config.txt`. It has not been run on this Pi.
 
 ---
 
@@ -725,13 +729,13 @@ The Hosyond figures are guesses from panel size; the listing's power spec was no
 | Load | Typical | Plan for |
 |---|---|---|
 | Pi 4 (.NET server, MySQL, Chromium kiosk) | 5–7 W | 8 W |
-| GeeekPi 3.5" screen (§1.8) | 0.5–1.5 W | 2 W |
-| Hosyond 5" DSI screen (§1.9), backlight on | 1–2.5 W | 3 W |
+| GeeekPi 3.5" screen (§1.8, replaced) | 0.5–1.5 W | 2 W |
+| Hosyond 5" DSI screen (§1.9, **current**), backlight on | 1–2.5 W | 3 W |
 | Hosyond 7" DSI screen (not planned), backlight on | 2–3.5 W | 4 W |
 | Case fan (§1.8 case only) | ~0.5 W | 1 W |
 | TL-WR802N router (5 V, 0.6 A rated) | 1.5–2.5 W | 3 W |
-| **Pi 4 + 3.5" screen + fan + router** | **~8–11 W** | **~14 W** |
-| **Pi 4 + 5" DSI screen + router** | **~8–12 W** | **~14 W** |
+| Pi 4 + 3.5" screen + fan + router (old build) | **~8–11 W** | **~14 W** |
+| **Pi 4 + 5" DSI screen + router (current)** | **~8–12 W** | **~14 W** |
 | 6 ESP32 stations (extra) | +6–9 W | +12 W |
 | **Everything (either screen)** | **~14–21 W** | **~26 W** |
 
