@@ -133,9 +133,9 @@ namespace MRR.Devices
         private Task? _flashTask;
         private Task? _promptTask;
         private string _screenText = "";
-        // The LCD area ShowPromptAsync painted over (x, width; the name's row), so the restore
-        // can repaint just that area; null when no prompt is on screen.
-        private (int x, int width)? _promptArea;
+        // One text draw at a time: ShowTextAsync is several commands, and two interleaved
+        // (a prompt and the name restore) would leave a mix of both on screen.
+        private readonly SemaphoreSlim _textLock = new SemaphoreSlim(1, 1);
         // Guards concurrent access to wsStatus from both ListenStatusAsync and GetStatusAsync
         private readonly SemaphoreSlim _statusSocketSemaphore = new SemaphoreSlim(1, 1);
         // Guards DisposeAsync itself: RobotConnections.Refresh()/Reconnect()/ReconnectAll() and
@@ -222,8 +222,7 @@ namespace MRR.Devices
             }
             await SendCommandAsync(new { cmd_id = "lcd_draw_rectangle", x = 95, y = 100, width = 50, height = 110, r = fgR, g = fgG, b = fgB, transparent = false });
 
-            await SendCommandAsync(new { cmd_id = "lcd_set_font", fontname = "mono40" });
-            await SendCommandAsync(new { cmd_id = "lcd_print_at", @string = name, x = Math.Max(0, (240 - name.Length * 20) / 2), y = 165, b_opaque = true });
+            await ShowTextAsync(name);
 
             await ShowSeatArrowAsync(_seatArrow);
         }
@@ -470,6 +469,7 @@ namespace MRR.Devices
             // then adjust to the actual target after the move
             var pre = await GetStatusAsync();
             int preHeading = (int)Math.Round(pre.Robot.Heading);
+            preHeading = 0; // ignore heading for now, since the robot's odometry is not accurate enough to rely on it
 
             var newDir = (RotationFunctions.Degrees(angle) + preHeading) * Math.PI / 180.0;
             int newX_mm = (int)(distance * mmPerSquare * Math.Sin(newDir));
@@ -606,7 +606,7 @@ namespace MRR.Devices
                     if (_flashCts != null) return; // already running
                     _flashCts = new CancellationTokenSource();
                     _flashTask = RunFlashLoopAsync(_flashCts.Token);
-                    if (_screenText.Length > 0) _promptTask = ShowPromptAsync(_screenText);
+                    if (_screenText.Length > 0) _promptTask = ShowTextAsync(_screenText);
                 }
                 else
                 {
@@ -636,47 +636,43 @@ namespace MRR.Devices
         private const int NameY = 165;
 
         /// <summary>
-        /// Prints <paramref name="text"/> on one line in place of the robot's name, same font and
-        /// position. Only the name's row (as wide as the longer of the text and the name) is
-        /// painted in the robot color first; the rest of the identity screen is left as is.
+        /// The only place text (the robot's name, or the prompt shown while it flashes) is drawn
+        /// on the LCD. Paints the whole text band (full width) in the robot color so nothing of
+        /// the previous text is left, puts back the slice of the arrow's shaft (x 95..145) that
+        /// runs through that band, then prints <paramref name="text"/> centered in the name's font
+        /// and position. The rest of the screen is untouched.
         /// </summary>
-        private async Task ShowPromptAsync(string text)
+        private async Task ShowTextAsync(string text)
         {
-            var (bgR, bgG, bgB) = ColorHelper.ParseHex(_color);
-            var (fgR, fgG, fgB) = ColorHelper.ParseHex(_foreColor, 255, 255, 255);
+            await _textLock.WaitAsync();
+            try
+            {
+                var (bgR, bgG, bgB) = ColorHelper.ParseHex(_color);
+                var (fgR, fgG, fgB) = ColorHelper.ParseHex(_foreColor, 255, 255, 255);
 
-            int width = Math.Min(240, Math.Max(text.Length, _name.Length) * NameCharWidth);
-            int x = (240 - width) / 2;
-            _promptArea = (x, width);
-
-            await SendCommandAsync(new { cmd_id = "lcd_draw_rectangle", x, y = NameY, width, height = NameHeight, r = bgR, g = bgG, b = bgB, transparent = false });
-            await SendCommandAsync(new { cmd_id = "lcd_set_pen_color", r = fgR, g = fgG, b = fgB });
-            await SendCommandAsync(new { cmd_id = "lcd_set_fill_color", r = bgR, g = bgG, b = bgB, transparent = false });
-            await SendCommandAsync(new { cmd_id = "lcd_set_font", fontname = "mono40" });
-            await SendCommandAsync(new { cmd_id = "lcd_print_at", @string = text, x = Math.Max(0, (240 - text.Length * NameCharWidth) / 2), y = NameY, b_opaque = true });
+                await SendCommandAsync(new { cmd_id = "lcd_draw_rectangle", x = 0, y = NameY, width = 240, height = NameHeight, r = bgR, g = bgG, b = bgB, transparent = false });
+                await SendCommandAsync(new { cmd_id = "lcd_draw_rectangle", x = 95, y = NameY, width = 50, height = NameHeight, r = fgR, g = fgG, b = fgB, transparent = false });
+                await SendCommandAsync(new { cmd_id = "lcd_set_pen_color", r = fgR, g = fgG, b = fgB });
+                await SendCommandAsync(new { cmd_id = "lcd_set_fill_color", r = bgR, g = bgG, b = bgB, transparent = false });
+                await SendCommandAsync(new { cmd_id = "lcd_set_font", fontname = "mono40" });
+                await SendCommandAsync(new { cmd_id = "lcd_print_at", @string = text, x = Math.Max(0, (240 - text.Length * NameCharWidth) / 2), y = NameY, b_opaque = true });
+            }
+            finally
+            {
+                _textLock.Release();
+            }
         }
 
         // Waits for the flash loop (so it can't relight an LED after the redraw) and the prompt
-        // draw to finish, then repaints only the prompt's area: robot color, the slice of the
-        // arrow's shaft (x 95..145) behind the name, and the name. The rest of the screen is
-        // untouched.
+        // draw to finish, then draws the name back over the prompt.
         private async Task RestoreIdentityAfterFlashAsync(Task? flashTask, Task? promptTask)
         {
             try
             {
                 if (flashTask != null) await flashTask;
                 if (promptTask != null) await promptTask;
-                if (_promptArea is not { } a) return;
-                _promptArea = null;
 
-                var (bgR, bgG, bgB) = ColorHelper.ParseHex(_color);
-                var (fgR, fgG, fgB) = ColorHelper.ParseHex(_foreColor, 255, 255, 255);
-                await SendCommandAsync(new { cmd_id = "lcd_draw_rectangle", x = a.x, y = NameY, width = a.width, height = NameHeight, r = bgR, g = bgG, b = bgB, transparent = false });
-                await SendCommandAsync(new { cmd_id = "lcd_draw_rectangle", x = 95, y = NameY, width = 50, height = NameHeight, r = fgR, g = fgG, b = fgB, transparent = false });
-                await SendCommandAsync(new { cmd_id = "lcd_set_pen_color", r = fgR, g = fgG, b = fgB });
-                await SendCommandAsync(new { cmd_id = "lcd_set_fill_color", r = bgR, g = bgG, b = bgB, transparent = false });
-                await SendCommandAsync(new { cmd_id = "lcd_set_font", fontname = "mono40" });
-                await SendCommandAsync(new { cmd_id = "lcd_print_at", @string = _name, x = Math.Max(0, (240 - _name.Length * NameCharWidth) / 2), y = NameY, b_opaque = true });
+                await ShowTextAsync(_name);
             }
             catch (Exception ex)
             {

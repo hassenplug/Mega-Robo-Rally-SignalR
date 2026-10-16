@@ -68,6 +68,9 @@ What to work on next, reordered by the user 2026-10-08.
     a gap or color mismatch where the arrow shaft (x 95..145) is repainted; `Flash` toggling
     off/on quickly so the restore and the next prompt interleave. Next step: note exactly what
     is left on screen, then fix (e.g. clear the full 240 px width and a taller band).
+    **2026-10-16:** text drawing is now one function, `RobotConnection.ShowTextAsync` (name and
+    prompt both use it): clears the full 240 px band, repaints the shaft slice, prints, and is
+    serialized by a lock. Builds; not tested on a robot — if it still isn't clean, report what remains.
   - [ ] Same symptom, other screen: `RobotScreenUI.RenderAsync` never clears between taps (only
     the first render after a deal clears), and the player name is re-printed with no background
     rectangle. Card letters use `mono60` at `y = cy + 5`, which may spill outside their circles
