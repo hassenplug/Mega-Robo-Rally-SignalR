@@ -856,8 +856,6 @@ INSERT INTO `PhaseCounter` VALUES (1),(2),(3),(4),(5);
 -- Bases 1-7 are the VEX AIM robots, renumbered so RobotBaseID matches the robot
 -- number in install/notes.txt. AIMName is the label on the robot (AIM-01..AIM-07);
 -- AIMID is its hardware identifier as reported over ws_status.
--- Base 6 is a placeholder: that robot's address and hardware ID are not yet known.
--- Bases 8-10 are retired Bluetooth-era entries and still hold MAC addresses.
 INSERT INTO `RobotBases` VALUES
 (1,NULL,NULL,'192.168.0.101','AIM-01','AIM-328D8418',1),
 (2,NULL,NULL,'192.168.0.102','AIM-02','AIM-426E8118',2),
@@ -865,10 +863,7 @@ INSERT INTO `RobotBases` VALUES
 (4,NULL,NULL,'192.168.0.104','AIM-04','AIM-3A8A8B18',4),
 (5,NULL,NULL,'192.168.0.105','AIM-05','AIM-12598D18',5),
 (6,NULL,NULL,'192.168.0.106','AIM-06','AIM-427D7018',6),
-(7,NULL,NULL,'192.168.0.107','AIM-07','AIM-1A5E7918',7),
-(8,NULL,NULL,'00:16:53:0A:37:26',NULL,NULL,8),
-(9,NULL,NULL,'00:16:53:0A:36:D5',NULL,NULL,9),
-(10,NULL,NULL,'00:16:53:0A:36:67',NULL,NULL,10);
+(7,NULL,NULL,'192.168.0.107','AIM-07','AIM-1A5E7918',7);
 
 -- RobotBodies
 INSERT INTO `RobotBodies` VALUES
