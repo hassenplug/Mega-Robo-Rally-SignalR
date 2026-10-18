@@ -101,8 +101,7 @@ namespace MRR
                     Connection.SetLedAsync("all", 0, 0, 0).Wait(); // off
                     break;
                 case 1: // Normal
-                    var (r, g, b) = ColorHelper.ParseHex(Color);
-                    Connection.SetLedAsync("all", r, g, b).Wait(); // robot color
+                    Connection.SetLightsAsync(true).Wait(); // robot color (off while shut down)
                     break;
                 case 2: // running
                     Connection.SetLedAsync("all", 0, 255, 0).Wait(); // green
@@ -159,6 +158,9 @@ namespace MRR
                         Connection.ScreenText = cmd.Value != 0 ? cmd.Description : "";
                         Connection.Flash = cmd.Value != 0;
                     }
+                    break;
+                case 5: // Robot shut down this turn -- black screen, LEDs off (until ResetPlayers)
+                    if (Connection != null) Connection.ShutDown = true;
                     break;
                 case 0: // not a move/turn/colour/flash: LED + sound effect, if this command has one
                     RobotEffects.Play(this, cmd);

@@ -76,4 +76,46 @@ public class ShutDownTests
         Assert.DoesNotContain(plan.Commands, c =>
             c.RobotID == ShutDownId && c.CommandType == SquareAction.Move);
     }
+
+    [Fact]
+    public void ShutDownRobot_GetsRobotShutDownCommandAtStartOfTurn()
+    {
+        var running = new PlayerState
+        {
+            ID = MoverId,
+            PlayerStatus = tPlayerStatus.ReadyToRun,
+            Priority = 1,
+            CurrentPos = new RobotLocation(Direction.Up, 1, 1),
+        };
+        var shutDown = new PlayerState
+        {
+            ID = ShutDownId,
+            PlayerStatus = tPlayerStatus.ShutDown,
+            ShutDown = tShutDown.Currently,
+            Priority = 2,
+            CurrentPos = new RobotLocation(Direction.Up, 3, 3),
+        };
+
+        var request = new TurnRequest
+        {
+            Turn = 1,
+            Phase = 0,
+            PhaseCount = 1,
+            GameState = 6,
+            Board = new BoardElementCollection(5, 5),
+            Players = [running, shutDown],
+            GameCards = new CardList(),
+        };
+
+        var plan = new CreateCommands(request).CreateTurn();
+
+        Assert.True(plan.Planned, plan.Summary);
+
+        // Exactly one, for the shut-down robot only, and it is the turn's first command.
+        var command = Assert.Single(plan.Commands, c => c.CommandType == SquareAction.RobotShutDown);
+        Assert.Equal(ShutDownId, command.RobotID);
+        Assert.Equal(0, command.Phase);
+        Assert.Same(command, plan.Commands.First());
+        Assert.Equal(5, command.CommandMoveType);
+    }
 }

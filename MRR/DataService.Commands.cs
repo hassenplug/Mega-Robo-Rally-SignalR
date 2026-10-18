@@ -226,6 +226,7 @@ namespace MRR.Services
 
                 case SquareAction.SetFlash: // Already applied by SendRobotCommandAsync
                     // (CommandMoveType 4, RobotConnection.Flash) -- no DB-side effect.
+                case SquareAction.RobotShutDown: // Same: CommandMoveType 5, RobotConnection.ShutDown
                     break;
 
                 case SquareAction.Respawn: // Respawn robot at reboot token

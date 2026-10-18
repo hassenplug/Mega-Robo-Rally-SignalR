@@ -573,6 +573,15 @@ namespace MRR
             // set button text
 //            ListOfCommands.AddCommand("Phase 1");
 
+            // Start of the turn (phase 0, ahead of every phase): darken the screen of each robot
+            // shutting down this turn (ApplyShutDownAtLockIn already set its status). Read from
+            // AllPlayers: the working copy's PlayerState copy constructor doesn't copy the status.
+            ListOfCommands.Phase = 0;
+            foreach (PlayerState shutDownRobot in AllPlayers.Where(p => p.IsShutDown))
+            {
+                ListOfCommands.AddCommand(shutDownRobot, SquareAction.RobotShutDown);
+            }
+
             // begin moves
             for (int RunningPhase = 1; RunningPhase < PhaseCount + 1; RunningPhase++)
             {

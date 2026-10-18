@@ -589,6 +589,10 @@ namespace MRR
         TouchFlag = 83,
         TouchKotHFlag = 84,
         TouchLastManFlag = 85,
+        // Command to the physical robot: RobotConnection.ShutDown = true (black screen, gray
+        // text, LEDs off) for a robot shut down this turn. Added at the start of the turn by
+        // CreateCommands.CreateTurn; cleared by DataService.ResetPlayers.
+        RobotShutDown = 86,
 
         // special
         SetCurrentGameData = 91,

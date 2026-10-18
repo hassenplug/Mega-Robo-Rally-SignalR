@@ -725,6 +725,11 @@ namespace MRR.Services
 
             // Shutdown lasts only the turn it was chosen in (documents/SHUTDOWN_DESIGN.md).
             ExecuteSQL($"UPDATE Robots SET ShutDown = {(int)tShutDown.None}");
+            // ...and the robots' screens/LEDs go back to normal (a no-op for any that weren't).
+            foreach (var robotConnection in _robotConnections.ToList())
+            {
+                robotConnection.ShutDown = false;
+            }
 
             // Reset RobotOptions.PhasePlayed
             using (var cmd = new MySqlCommand(

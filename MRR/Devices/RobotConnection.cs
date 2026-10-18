@@ -46,6 +46,29 @@ namespace MRR.Devices
         public string? IPAddress { get; private set; }
         public bool IsConnected { get; set; }
 
+        private bool _shutDown;
+
+        /// <summary>
+        /// True while this robot is shut down for the turn: the screen is redrawn black with gray
+        /// text and the LEDs go off; false redraws it in the robot's own colors. Setting the value
+        /// it already has changes nothing. Set by the turn's RobotShutDown command
+        /// (Player.SendRobotCommandAsync), cleared by DataService.ResetPlayers.
+        /// </summary>
+        public bool ShutDown
+        {
+            get => _shutDown;
+            set
+            {
+                if (_shutDown == value) return;
+                _shutDown = value;
+                _ = RefreshIdentityDisplayAsync();
+            }
+        }
+
+        // The screen's background/text colors: the robot's own, or black/gray while shut down.
+        private string DisplayColor => _shutDown ? "000000" : _color;
+        private string DisplayForeColor => _shutDown ? "808080" : _foreColor;
+
         private async Task InitializeAsync()
         {
             if (!LoadFromDatabase())
@@ -204,8 +227,8 @@ namespace MRR.Devices
             }
 
             string name = _name;
-            var (bgR, bgG, bgB) = ColorHelper.ParseHex(_color);
-            var (fgR, fgG, fgB) = ColorHelper.ParseHex(_foreColor, 255, 255, 255);
+            var (bgR, bgG, bgB) = ColorHelper.ParseHex(DisplayColor);
+            var (fgR, fgG, fgB) = ColorHelper.ParseHex(DisplayForeColor, 255, 255, 255);
             Console.WriteLine($"[{RobotID}] RefreshIdentityDisplayAsync: name={name}, color={_color} ({bgR},{bgG},{bgB}), foreColor={_foreColor} ({fgR},{fgG},{fgB})");
 
             await SendCommandAsync(new { cmd_id = "lcd_clear_screen", r = bgR, g = bgG, b = bgB });
@@ -238,8 +261,8 @@ namespace MRR.Devices
         {
             if (string.IsNullOrEmpty(arrow)) return;
 
-            var (r, g, b) = ColorHelper.ParseHex(_color);
-            var (fgR, fgG, fgB) = ColorHelper.ParseHex(_foreColor, 255, 255, 255);
+            var (r, g, b) = ColorHelper.ParseHex(DisplayColor);
+            var (fgR, fgG, fgB) = ColorHelper.ParseHex(DisplayForeColor, 255, 255, 255);
             const int charWidth = 10; // mono20: half the 20px width mono40 uses for the name above
 
             await SendCommandAsync(new { cmd_id = "lcd_set_pen_color", r, g, b });
@@ -577,11 +600,11 @@ namespace MRR.Devices
         }
 
         /// <summary>
-        /// Turns all LEDs on (in this robot's own color) or off.
+        /// Turns all LEDs on (in this robot's own color) or off. Always off while shut down.
         /// </summary>
         public Task SetLightsAsync(bool on)
         {
-            var (r, g, b) = on ? ColorHelper.ParseHex(_color) : (0, 0, 0);
+            var (r, g, b) = on && !_shutDown ? ColorHelper.ParseHex(_color) : (0, 0, 0);
             return SetLedAsync("all", r, g, b);
         }
 
@@ -649,8 +672,8 @@ namespace MRR.Devices
             await _textLock.WaitAsync();
             try
             {
-                var (bgR, bgG, bgB) = ColorHelper.ParseHex(_color);
-                var (fgR, fgG, fgB) = ColorHelper.ParseHex(_foreColor, 255, 255, 255);
+                var (bgR, bgG, bgB) = ColorHelper.ParseHex(DisplayColor);
+                var (fgR, fgG, fgB) = ColorHelper.ParseHex(DisplayForeColor, 255, 255, 255);
 
                 // lcd_draw_rectangle outlines in the pen color, so match the pen to each fill or a
                 // 1px border shows as lines across the screen.
