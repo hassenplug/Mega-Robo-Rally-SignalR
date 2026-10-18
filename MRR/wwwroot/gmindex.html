@@ -48,18 +48,22 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
 #gmMenu .button { display:block; width:100%; margin-bottom:6px; }
 #programScreenSubmenu { display:none; position:absolute; top:0; left:100%; z-index:6; background:#ffffff; padding:6px; width:130px; }
 #playerButtons .button { display:block; width:100%; margin:0 0 6px 0; background-color:#ff0000; color:#ffffff; white-space:normal; }
+#programPanel img { width:50px; cursor:pointer; }
+/* The robot whose program is showing on the right (F/E/C view only). */
+#mainTable .button.selectedRobot { outline:4px solid #000000; outline-offset:-4px; }
 </style>
 
 </head>
 <body id='body'>
 
 <!-- GM-only status page, the Pi's own kiosk screen (~/.local/bin/mrr-kiosk.sh). Same
-     js/loadrobots.js as index.html, always logged in as GM and always in GM view, with no card
-     area: each robot row is [connect toggle][robot][F/E/C][status], and every player's pending
-     PlayerMsg button is collected in #gmButtons below the table. The render functions
-     (buildPlayerRows/showall/showplayerprogram) are replaced by the script at the bottom of
-     this page; everything else (login, GM menu actions, connect/disconnect, start game) is
-     loadrobots.js's own code. -->
+     js/loadrobots.js as index.html, always logged in as GM and always in GM view: each robot
+     row is [connect toggle][robot][F/E/C][status]. In the F/E/C view, tapping a robot shows its
+     program on the right (index.html's card area); in the battery view, tapping a disconnected
+     robot swaps its base and the right side collects every player's pending PlayerMsg and
+     direction buttons. buildPlayerRows/showall are replaced by the script at the bottom of this
+     page; everything else (login, showplayerprogram, GM menu actions, connect/disconnect, start
+     game) is loadrobots.js's own code. -->
 
 <!-- Not normally shown: the GM cookie is set below before the first datapacket. Kept because
      applyLogin() falls back to it if the cookie is ever missing. -->
@@ -108,17 +112,70 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
         <table id="mainTable" bgcolor="ffffff" border=0><tbody id="playerRows"></tbody></table>
     </div>
 
-    <!-- Player buttons: one per robot with a pending PlayerMsg, a direction row per robot whose
-         direction isn't locked yet, plus the GM start-game picker while no game is running
-         (gamestate 25). -->
+    <!-- Right pane. The GM start-game picker while no game is running (gamestate 25), then:
+         F/E/C view: the program panel (index.html's showProgramTemplate, minus its gmtable) for
+         the robot picked by tapping its button -- js/loadrobots.js's showplayerprogram() fills it.
+         Battery view: one button per robot with a pending PlayerMsg, and a direction row per
+         robot whose direction isn't locked yet. -->
     <div id="buttonPane">
         <div id="gmtable" style="display:none; margin-bottom:6px;">
             <button class="button" style="width:auto; padding:6px 20px; background-color:#008000; color:#ffffff;" onclick="startSelectedGame();">Start</button>
             <select id="gameDataSelect" class="w3-input" style="display:inline-block; width:auto; font-size:18px; height:48px;"></select>
         </div>
-        <div id="playerButtons"></div>
-        <div id="directionButtons"></div>
-        <div id="noPlayerButtons" style="color:#606060;">No player buttons</div>
+        <div id="programPanel">
+            <table width="100%">
+                <tr id="messagetable" style="display: none;">
+                    <td colspan="5">
+                        <button class='button' id="btnMessagebox" style='background-color:#ff0000; color:#ffffff; white-space:normal;' onclick='confirmMessage();'>PlayerMsg</button>
+                    </td>
+                </tr>
+                <tr id="directionPickerRow" style="display: none;">
+                    <td colspan="5" align="center">
+                        <img id="directionBtn" src="images/Direction1.png" onclick="cycleDirection();" style="width:48px; height:48px;">
+                        <button id="directionConfirmBtn" class="button" style="width:auto; background-color:#800080; color:#ffffff;" onclick="confirmDirection();">Set Direction</button>
+                    </td>
+                </tr>
+                <tr id="messagetablespace" style="display: none;"><td colspan="5"></td></tr>
+                <tr bgcolor="#d0d0d0">
+                    <td align=center bgcolor=ffffff id='CardCell0'><img id='Played0' src='images/type0.png' onclick='PlayCard(this);'></td>
+                    <td align=center bgcolor=ffffff id='CardCell1'><img id='Played1' src='images/type0.png' onclick='PlayCard(this);'></td>
+                    <td align=center bgcolor=ffffff id='CardCell2'><img id='Played2' src='images/type0.png' onclick='PlayCard(this);'></td>
+                    <td align=center bgcolor=ffffff id='CardCell3'><img id='Played3' src='images/type0.png' onclick='PlayCard(this);'></td>
+                    <td align=center bgcolor=ffffff id='CardCell4'><img id='Played4' src='images/type0.png' onclick='PlayCard(this);'></td>
+                </tr>
+                <tr><td colspan="5" style="height:10px;"></td></tr>
+                <tr id="DealtRow1">
+                    <td align=center bgcolor=ffffff><img id='Dealt0' src='images/type0.png' onclick='PlayCard(this);'></td>
+                    <td align=center bgcolor=ffffff><img id='Dealt1' src='images/type0.png' onclick='PlayCard(this);'></td>
+                    <td align=center bgcolor=ffffff><img id='Dealt2' src='images/type0.png' onclick='PlayCard(this);'></td>
+                    <td align=center bgcolor=ffffff><img id='Dealt3' src='images/type0.png' onclick='PlayCard(this);'></td>
+                    <td align=center bgcolor=ffffff><img id='Dealt4' src='images/type0.png' onclick='PlayCard(this);'></td>
+                </tr>
+                <tr id="DealtRow2">
+                    <td align=center bgcolor=ffffff><img id='Dealt5' src='images/type0.png' onclick='PlayCard(this);'></td>
+                    <td align=center bgcolor=ffffff><img id='Dealt6' src='images/type0.png' onclick='PlayCard(this);'></td>
+                    <td align=center bgcolor=ffffff><img id='Dealt7' src='images/type0.png' onclick='PlayCard(this);'></td>
+                    <td align=center bgcolor=ffffff><img id='Dealt8' src='images/type0.png' onclick='PlayCard(this);'></td>
+                    <td align=center bgcolor=ffffff><img id='Dealt9' src='images/type0.png' onclick='PlayCard(this);'></td>
+                </tr>
+                <!-- Tapping the robot's status swaps the dealt hand for this panel (toggleExtrasPanel). -->
+                <tr id="extrasRow" style="display: none;">
+                    <td colspan="5" align="center">
+                        <button id="shutDownBtn" class="button" style="width:auto; margin:6px 0;" onclick="toggleShutDown();">Shut Down</button>
+                    </td>
+                </tr>
+                <tr id="shutDownRow" style="display: none;">
+                    <td colspan="5" align="center">
+                        <button id="shutDownCancelBtn" class="button" style="width:auto; background-color:#ffff00; color:#000000;" onclick="toggleShutDown();">Shutting Down &mdash; Cancel</button>
+                    </td>
+                </tr>
+            </table>
+        </div>
+        <div id="batteryButtons" style="display:none;">
+            <div id="playerButtons"></div>
+            <div id="directionButtons"></div>
+            <div id="noPlayerButtons" style="color:#606060;">No player buttons</div>
+        </div>
     </div>
 </div>
 </div>
@@ -146,8 +203,11 @@ function buildPlayerRows(robots) {
     document.getElementById('playerRows').innerHTML = html;
 }
 
-// No hand/program area on this page.
-function showplayerprogram(pl) {}
+// F/E/C view: tapping a robot's button shows its program on the right.
+function selectRobot(priority) {
+    showplayerprogram(priority);
+    showall(); // move the selected-robot outline
+}
 
 function showall() {
     var robots = datapacket.robots;
@@ -158,6 +218,18 @@ function showall() {
     var showGmStart = datapacket.gamestate === 25;
     document.getElementById('gmtable').style.display = showGmStart ? '' : 'none';
     if (showGmStart && gameDataOptions === null) loadGameDataOptions();
+
+    document.getElementById('programPanel').style.display = batteryMode ? 'none' : '';
+    document.getElementById('batteryButtons').style.display = batteryMode ? '' : 'none';
+
+    // showplayerprogram() looks robots up by Priority (CurrentLine), which changes every turn:
+    // follow the picked robot's new Priority so the panel stays on the same robot. Nothing
+    // picked yet (or that robot left the game): show the first robot's program.
+    var picked = robots.find(function (r) { return r.RobotID === CurrentPlayer; }) || robots[0];
+    if (picked) {
+        CurrentLine = picked.Priority;
+        CurrentPlayer = picked.RobotID;
+    }
 
     var msgRobots = [];
 
@@ -173,7 +245,8 @@ function showall() {
         var btn = document.getElementById('button' + rid);
         btn.style = "background-color:" + r.RobotColor + "; color:" + r.RobotColorFG;
         btn.textContent = r.RobotName;
-        btn.onclick = makeBasePickerHandler(r);
+        btn.classList.toggle('selectedRobot', !batteryMode && r.RobotID === CurrentPlayer);
+        btn.onclick = batteryMode ? makeBasePickerHandler(r) : makeSelectRobotHandler(r.Priority);
 
         var flagsCell = document.getElementById('flags' + rid);
         var statusbox = document.getElementById('playerstatus' + rid);
@@ -187,11 +260,15 @@ function showall() {
                 : battery >= 50 ? '#80ff80' : battery >= 20 ? '#ffff80' : '#ff8080';
             statusbox.innerText = info ? 'R' + info.row + ' C' + info.col + ' ' + (DIRECTION_ARROWS[info.dir] || '?') : '--';
             statusbox.style.backgroundColor = '#e0e0e0';
+            statusbox.onclick = null;
         } else {
             flagsCell.innerText = r.FlagEnergyCards;
             flagsCell.style.backgroundColor = '#e0e0e0';
             statusbox.innerText = r.StatusToShow;
             statusbox.style.backgroundColor = r.StatusColor;
+            // Same as index.html: tapping a status swaps the dealt hand for the extras panel
+            // (Shut Down) -- for the robot whose program is showing.
+            statusbox.onclick = toggleExtrasPanel;
         }
 
         if (r.PlayerMsg && r.PlayerMsg !== 'undefined') msgRobots.push(r);
@@ -258,8 +335,8 @@ function toggleFlagsHeader() {
     } else {
         clearInterval(robotInfoTimer);
         robotInfoTimer = null;
-        if (datapacket) showall();
     }
+    if (datapacket) showall(); // swap the right pane and the robot buttons' action now
 }
 
 function refreshRobotInfo() {
@@ -281,6 +358,10 @@ var CONNECT_STATUS_CONNECTING = 21; // tPlayerStatus.Connecting (MRR.Contracts/P
 function makeBasePickerHandler(r) {
     var connected = r.ConnectStatusID === CONNECT_STATUS_CONNECTED || r.ConnectStatusID === CONNECT_STATUS_CONNECTING;
     return connected ? null : function () { openBasePicker(r); };
+}
+
+function makeSelectRobotHandler(priority) {
+    return function () { selectRobot(priority); };
 }
 
 function openBasePicker(r) {

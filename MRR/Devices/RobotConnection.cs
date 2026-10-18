@@ -633,7 +633,9 @@ namespace MRR.Devices
         // Same font and position as the robot's name in RefreshIdentityDisplayAsync.
         private const int NameCharWidth = 20;     // mono40
         private const int NameHeight = 40;
-        private const int NameY = 165;
+        private const int NameY = 165;            // lcd_print_at y is the text baseline
+        private const int NameAscent = 32;        // mono40 glyphs reach this far above the baseline
+        private const int NameBandY = NameY - NameAscent;
 
         /// <summary>
         /// The only place text (the robot's name, or the prompt shown while it flashes) is drawn
@@ -650,9 +652,12 @@ namespace MRR.Devices
                 var (bgR, bgG, bgB) = ColorHelper.ParseHex(_color);
                 var (fgR, fgG, fgB) = ColorHelper.ParseHex(_foreColor, 255, 255, 255);
 
-                await SendCommandAsync(new { cmd_id = "lcd_draw_rectangle", x = 0, y = NameY, width = 240, height = NameHeight, r = bgR, g = bgG, b = bgB, transparent = false });
-                await SendCommandAsync(new { cmd_id = "lcd_draw_rectangle", x = 95, y = NameY, width = 50, height = NameHeight, r = fgR, g = fgG, b = fgB, transparent = false });
+                // lcd_draw_rectangle outlines in the pen color, so match the pen to each fill or a
+                // 1px border shows as lines across the screen.
+                await SendCommandAsync(new { cmd_id = "lcd_set_pen_color", r = bgR, g = bgG, b = bgB });
+                await SendCommandAsync(new { cmd_id = "lcd_draw_rectangle", x = 0, y = NameBandY, width = 240, height = NameHeight, r = bgR, g = bgG, b = bgB, transparent = false });
                 await SendCommandAsync(new { cmd_id = "lcd_set_pen_color", r = fgR, g = fgG, b = fgB });
+                await SendCommandAsync(new { cmd_id = "lcd_draw_rectangle", x = 95, y = NameBandY, width = 50, height = NameHeight, r = fgR, g = fgG, b = fgB, transparent = false });
                 await SendCommandAsync(new { cmd_id = "lcd_set_fill_color", r = bgR, g = bgG, b = bgB, transparent = false });
                 await SendCommandAsync(new { cmd_id = "lcd_set_font", fontname = "mono40" });
                 await SendCommandAsync(new { cmd_id = "lcd_print_at", @string = text, x = Math.Max(0, (240 - text.Length * NameCharWidth) / 2), y = NameY, b_opaque = true });

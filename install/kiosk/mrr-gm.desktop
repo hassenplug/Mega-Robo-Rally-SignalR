@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=MRR GM Console
+Comment=Open the Mega Robo Rally GM page in a full-screen kiosk window
+Exec=/home/mrr/.local/bin/mrr-kiosk.sh
+Icon=chromium
+Terminal=false

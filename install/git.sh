@@ -162,6 +162,10 @@ if [ "$TFT_SCREEN" = yes ] || [ "$DSI_SCREEN" = yes ]; then
     install -D -m 0755 "$INSTALL/kiosk/mrr-kiosk.sh" "$HOME/.local/bin/mrr-kiosk.sh"
     install -D -m 0644 "$INSTALL/kiosk/mrr-kiosk.desktop" "$HOME/.config/autostart/mrr-kiosk.desktop"
     echo "installed ~/.local/bin/mrr-kiosk.sh and ~/.config/autostart/mrr-kiosk.desktop"
+    # Desktop icon to reopen the kiosk after it is closed (Alt+F4).
+    install -D -m 0755 "$INSTALL/kiosk/mrr-gm.desktop" "$HOME/Desktop/MRR-GM.desktop"
+    gio set "$HOME/Desktop/MRR-GM.desktop" metadata::trusted true 2>/dev/null || true
+    echo "installed ~/Desktop/MRR-GM.desktop"
     # The kiosk starts with the desktop session, so the Pi must log in to the desktop on its own.
     if grep -qE '^autologin-user=mrr' /etc/lightdm/lightdm.conf 2>/dev/null; then
         echo "desktop auto-login already set for mrr"
