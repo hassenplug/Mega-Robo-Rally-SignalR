@@ -41,6 +41,10 @@ namespace MRR.Devices
         private string _color = "FFFFFF";
         private string _foreColor = "000000";
         private string _seatArrow = "";
+        // Robots.PlayerMsg/ShutDown as of the last LoadFromDatabase -- acted on only when this
+        // connection is created (InitializeAsync).
+        private string _playerMsg = "";
+        private tShutDown _dbShutDown = tShutDown.None;
 
         public int RobotID { get; }
         public string? IPAddress { get; private set; }
@@ -77,7 +81,20 @@ namespace MRR.Devices
                 return;
             }
 
+            // Pick up where the game is for this robot: already shut down (set straight on the
+            // field so ConnectAsync's first draw is the dark one), and any message it is waiting
+            // on a press for.
+            _shutDown = _dbShutDown == tShutDown.Currently;
+
             await ConnectAsync();
+
+            // Shown the same way the SetFlash command shows a prompt, so the SetFlash-off that
+            // follows the press restores the name screen as usual.
+            if (IsConnected && _playerMsg != "")
+            {
+                ScreenText = _playerMsg;
+                Flash = true;
+            }
         }
 
         /// <summary>
@@ -87,14 +104,15 @@ namespace MRR.Devices
         /// (as DataService.GetAllPlayers() also no longer does, same reason): those were INNER
         /// JOINs, so a StartGame() placeholder row (RobotBodyID NULL, not yet claimed via
         /// DataService.SelectSeat) would never match, and this robot would silently never
-        /// connect during setup (install/todo.md "Operator Data Setup").
+        /// connect during setup (install/todo.md "Operator Data Setup"). Also reads PlayerMsg and
+        /// ShutDown, which only InitializeAsync uses.
         /// </summary>
         private bool LoadFromDatabase()
         {
             using var connection = new MySqlConnection(_connectionString);
             connection.Open();
             using var cmd = new MySqlCommand(@"
-                SELECT RobotName, RobotColor, RobotColorFG, IPAddress, SeatArrow
+                SELECT RobotName, RobotColor, RobotColorFG, IPAddress, SeatArrow, PlayerMsg, ShutDown
                 FROM Robots
                 WHERE RobotID = @id", connection);
             cmd.Parameters.AddWithValue("@id", RobotID);
@@ -107,6 +125,8 @@ namespace MRR.Devices
             _foreColor = reader["RobotColorFG"]?.ToString() ?? "000000";
             IPAddress = reader["IPAddress"]?.ToString();
             _seatArrow = reader["SeatArrow"]?.ToString() ?? "";
+            _playerMsg = reader["PlayerMsg"] == DBNull.Value ? "" : reader["PlayerMsg"].ToString() ?? "";
+            _dbShutDown = reader["ShutDown"] == DBNull.Value ? tShutDown.None : (tShutDown)Convert.ToInt32(reader["ShutDown"]);
             return true;
         }
 
