@@ -201,12 +201,17 @@ Not being worked on now (user 2026-10-08).
 - [ ] Dynamic button area — display any buttons/actions that appear based on game state
   - e.g. "Advance Phase", "Skip Robot", admin overrides
 
-- [ ] **Direction on the GM screen should be an arrow, not text** (reported 2026-10-18) — the
+- [ ] **Player screen: no arrow yet pointing at the player who reset the robot** (noted
+  2026-10-18) — the phone player UI doesn't show which player's
+  seat to look toward when a robot is reset. Related to the robot-screen seat arrow in
+  Section 2 ("Robot screen: a small arrow that always points at the player's seat")
+
+- [x] **Direction on the GM screen should be an arrow, not text** (reported 2026-10-18; done, untested in a browser) — the
   battery view's status shows `R3 C4 ↑` using the `DIRECTION_ARROWS` character
   (`gmindex.html`); draw a real arrow (e.g. the rotated `images/Direction1.png`) instead
 
-- [ ] **GM screen battery view: swap the robot location and battery % columns** (requested
-  2026-10-18) — battery % is in the F/E/C column and the location in the status column today
+- [x] **GM screen battery view: swap the robot location and battery % columns** (requested
+  2026-10-18; done, untested in a browser) — battery % is in the F/E/C column and the location in the status column today
   (`gmindex.html` `showall()`, the `batteryMode` branch)
 
 ### Direction arrows — inventory (2026-10-08, reference)

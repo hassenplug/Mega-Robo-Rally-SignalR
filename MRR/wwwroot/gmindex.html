@@ -122,6 +122,12 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
             <button class="button" style="width:auto; padding:6px 20px; background-color:#008000; color:#ffffff;" onclick="startSelectedGame();">Start</button>
             <select id="gameDataSelect" class="w3-input" style="display:inline-block; width:auto; font-size:18px; height:48px;"></select>
         </div>
+        <!-- Player message and direction buttons: shown in both views, above the program panel. -->
+        <div id="batteryButtons">
+            <div id="playerButtons"></div>
+            <div id="directionButtons"></div>
+            <div id="noPlayerButtons" style="color:#606060;">No player buttons</div>
+        </div>
         <div id="programPanel">
             <table width="100%">
                 <tr id="messagetable" style="display: none;">
@@ -171,11 +177,6 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
                 </tr>
             </table>
         </div>
-        <div id="batteryButtons" style="display:none;">
-            <div id="playerButtons"></div>
-            <div id="directionButtons"></div>
-            <div id="noPlayerButtons" style="color:#606060;">No player buttons</div>
-        </div>
     </div>
 </div>
 </div>
@@ -220,7 +221,6 @@ function showall() {
     if (showGmStart && gameDataOptions === null) loadGameDataOptions();
 
     document.getElementById('programPanel').style.display = batteryMode ? 'none' : '';
-    document.getElementById('batteryButtons').style.display = batteryMode ? '' : 'none';
 
     // showplayerprogram() looks robots up by Priority (CurrentLine), which changes every turn:
     // follow the picked robot's new Priority so the panel stays on the same robot. Nothing
@@ -254,12 +254,26 @@ function showall() {
         if (batteryMode) {
             // Battery view: last battery reading and board position (/api/robot/info), instead
             // of flags/energy/cards and the status text.
+            // Location (with a rotated arrow image for the facing) sits in the narrow
+            // column, battery % in the wide status column.
             var battery = info ? info.battery : 0;
-            flagsCell.innerText = battery > 0 ? battery + '%' : '--';
-            flagsCell.style.backgroundColor = battery <= 0 ? '#e0e0e0'
+            if (info) {
+                flagsCell.innerText = 'R' + info.row + ' C' + info.col + ' ';
+                if (DIRECTION_DEGREES[info.dir] !== undefined) {
+                    var dirImg = document.createElement('img');
+                    dirImg.src = 'images/Direction1.png';
+                    dirImg.style = 'width:22px; height:22px; vertical-align:middle; transform:rotate(' + DIRECTION_DEGREES[info.dir] + 'deg);';
+                    flagsCell.appendChild(dirImg);
+                } else {
+                    flagsCell.appendChild(document.createTextNode('?'));
+                }
+            } else {
+                flagsCell.innerText = '--';
+            }
+            flagsCell.style.backgroundColor = '#e0e0e0';
+            statusbox.innerText = battery > 0 ? battery + '%' : '--';
+            statusbox.style.backgroundColor = battery <= 0 ? '#e0e0e0'
                 : battery >= 50 ? '#80ff80' : battery >= 20 ? '#ffff80' : '#ff8080';
-            statusbox.innerText = info ? 'R' + info.row + ' C' + info.col + ' ' + (DIRECTION_ARROWS[info.dir] || '?') : '--';
-            statusbox.style.backgroundColor = '#e0e0e0';
             statusbox.onclick = null;
         } else {
             flagsCell.innerText = r.FlagEnergyCards;
@@ -312,7 +326,7 @@ function showall() {
     });
 
     document.getElementById('noPlayerButtons').style.display =
-        (buttons.children.length || dirButtons.children.length || showGmStart) ? 'none' : '';
+        (!batteryMode || buttons.children.length || dirButtons.children.length || showGmStart) ? 'none' : '';
 }
 
 // ── Battery view ─────────────────────────────────────────────────────────────
@@ -324,7 +338,6 @@ function showall() {
 var batteryMode = false;
 var robotInfo = {};          // RobotID -> {battery, row, col, dir}
 var robotInfoTimer = null;
-var DIRECTION_ARROWS = { 1: '↑', 2: '→', 3: '↓', 4: '←' }; // Up, Right, Down, Left
 
 function toggleFlagsHeader() {
     batteryMode = !batteryMode;
