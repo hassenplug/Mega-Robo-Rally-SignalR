@@ -238,12 +238,12 @@ function showall() {
         var rid = i + 1;
 
         var conn = document.getElementById('connect' + rid);
-        conn.style.backgroundColor = r.ConnectStatusColor;
+        conn.style.backgroundColor = "#" + r.ConnectStatusColor;
         conn.title = r.ConnectStatusDesc;
         conn.onclick = makeConnectHandler(r.RobotID, r.ConnectStatusID === CONNECT_STATUS_CONNECTED);
 
         var btn = document.getElementById('button' + rid);
-        btn.style = "background-color:" + r.RobotColor + "; color:" + r.RobotColorFG;
+        btn.style = "background-color:#" + r.RobotColor + "; color:#" + r.RobotColorFG;
         btn.textContent = r.RobotName;
         btn.classList.toggle('selectedRobot', !batteryMode && r.RobotID === CurrentPlayer);
         btn.onclick = batteryMode ? makeBasePickerHandler(r) : makeSelectRobotHandler(r.Priority);
@@ -265,7 +265,7 @@ function showall() {
             flagsCell.innerText = r.FlagEnergyCards;
             flagsCell.style.backgroundColor = '#e0e0e0';
             statusbox.innerText = r.StatusToShow;
-            statusbox.style.backgroundColor = r.StatusColor;
+            statusbox.style.backgroundColor = "#" + r.StatusColor;
             // Same as index.html: tapping a status swaps the dealt hand for the extras panel
             // (Shut Down) -- for the robot whose program is showing.
             statusbox.onclick = toggleExtrasPanel;
@@ -421,7 +421,7 @@ function makeDirectionRow(r) {
 
     var label = document.createElement('span');
     label.textContent = r.RobotName;
-    label.style = "min-width:80px; padding:6px 8px; background-color:" + r.RobotColor + "; color:" + r.RobotColorFG;
+    label.style = "min-width:80px; padding:6px 8px; background-color:#" + r.RobotColor + "; color:#" + r.RobotColorFG;
     row.appendChild(label);
 
     if (r.PositionValid === 0) {

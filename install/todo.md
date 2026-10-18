@@ -1,6 +1,6 @@
 # Mega Robo Rally — Project TODO
 
-**Last updated:** 2026-10-08
+**Last updated:** 2026-10-18
 **Legend:** `[x]` Done &nbsp; `[-]` Partial / In Progress &nbsp; `[ ]` Not started
 
 Resolved items are removed from this file once done rather than kept as a checked-off log —
@@ -162,6 +162,11 @@ Not being worked on now (user 2026-10-08).
     of writing a negative/out-of-bounds position. Still open: belt movement passing through a
     wall — it doesn't appear to run the same wall check as normal moves (see
     `CalcMoveDistance`'s wall check, Section 6).
+- [ ] **Respawn points are not coming back correct** (reported 2026-10-18; details not yet
+  pinned down — note which robot, the expected vs. actual square/direction, and the game state)
+- [ ] **Respawn location does not show up on the player screen while setting direction**
+  (reported 2026-10-18) — the phone's direction picker (`js/loadrobots.js`
+  `updateDirectionPicker`) shows only the arrow, not where the robot is respawning
 
 ---
 
@@ -195,6 +200,14 @@ Not being worked on now (user 2026-10-08).
 
 - [ ] Dynamic button area — display any buttons/actions that appear based on game state
   - e.g. "Advance Phase", "Skip Robot", admin overrides
+
+- [ ] **Direction on the GM screen should be an arrow, not text** (reported 2026-10-18) — the
+  battery view's status shows `R3 C4 ↑` using the `DIRECTION_ARROWS` character
+  (`gmindex.html`); draw a real arrow (e.g. the rotated `images/Direction1.png`) instead
+
+- [ ] **GM screen battery view: swap the robot location and battery % columns** (requested
+  2026-10-18) — battery % is in the F/E/C column and the location in the status column today
+  (`gmindex.html` `showall()`, the `batteryMode` branch)
 
 ### Direction arrows — inventory (2026-10-08, reference)
 

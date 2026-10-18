@@ -527,7 +527,7 @@ function showall()
         // so multiple robots can share Priority 0 there and "button0" doesn't exist at all.
         var rid = i + 1;
         var btn = document.getElementById("button" + rid);
-        btn.style = "background-color:" + robots[i].RobotColor + "; color:" + robots[i].RobotColorFG;
+        btn.style = "background-color:#" + robots[i].RobotColor + "; color:#" + robots[i].RobotColorFG;
         btn.textContent = robots[i].RobotName;
         document.getElementById("flags" + rid).innerText = robots[i].FlagEnergyCards;
 
@@ -537,12 +537,12 @@ function showall()
             // per RobotStatus already encodes "not connected" as red, so no need to special-
             // case that color here (see install/todo.md Section 8).
             statusbox.innerText = robots[i].ConnectStatusDesc;
-            statusbox.style.backgroundColor = robots[i].ConnectStatusColor;
+            statusbox.style.backgroundColor = "#" + robots[i].ConnectStatusColor;
             statusbox.style.cursor = 'pointer';
             statusbox.onclick = makeConnectHandler(robots[i].RobotID, robots[i].ConnectStatusID === CONNECT_STATUS_CONNECTED);
         } else {
             statusbox.innerText = robots[i].StatusToShow;
-            statusbox.style.backgroundColor = robots[i].StatusColor;
+            statusbox.style.backgroundColor = "#" + robots[i].StatusColor;
             // Tapping your own robot's status (any robot's, for the GM) swaps the dealt hand and
             // the extras panel (toggleExtrasPanel).
             var canToggle = IsGM || robots[i].RobotID === LoggedInRobotID;
