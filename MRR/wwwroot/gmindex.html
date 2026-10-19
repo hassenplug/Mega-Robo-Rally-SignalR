@@ -84,12 +84,28 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
     <div id="basePickerList" style="position:absolute; top:60px; left:60px; background:#ffffff; border:1px solid #808080; padding:4px; max-height:85vh; overflow:auto;" onclick="event.stopPropagation();"></div>
 </div>
 
+<!-- QR codes for players joining: the game Wi-Fi (Mega_Robo_Rally) and this server's player
+     page. Opened from the GM menu; tapping anywhere closes it. Images made once with the Python
+     qrcode package: "WIFI:T:WPA;S:Mega_Robo_Rally;P:Rallypass;;" and
+     "http://192.168.0.100:5000/index.html". -->
+<div id="qrCodes" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; z-index:10; background:rgba(0,0,0,0.6); text-align:center; overflow:auto;" onclick="this.style.display='none';">
+    <div style="display:inline-block; background:#ffffff; margin-top:30px; padding:12px; border-radius:6px;">
+        <div style="display:inline-block; margin:8px; vertical-align:top;">
+            <img src="images/qr_wifi.png" style="width:240px; height:240px;"><br>1. Join Wi-Fi: Mega_Robo_Rally
+        </div>
+        <div style="display:inline-block; margin:8px; vertical-align:top;">
+            <img src="images/qr_index.png" style="width:240px; height:240px;"><br>2. Open http://192.168.0.100:5000
+        </div>
+    </div>
+</div>
+
 <div id="app">
 <div id="topBar">
     <!-- The header opens the GM menu (5 taps in 10s still logs out). -->
     <div id="robotHeader" onclick="handleRobotHeaderTap();">&#9776;
         <div id="gmMenu" class="w3-card-4">
             <button class="button" onclick="event.stopPropagation(); window.open('turnhistory.html', '_blank');">Turn History</button>
+            <button class="button" onclick="event.stopPropagation(); document.getElementById('qrCodes').style.display='block';">QR Codes</button>
             <button class="button" id="showCardsBtn" onclick="event.stopPropagation(); toggleShowCards();">Show Cards: Off</button>
             <div style="position:relative;">
                 <button class="button" onclick="event.stopPropagation(); toggleProgramScreenSubmenu();">Program Screen</button>
