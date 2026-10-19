@@ -72,6 +72,7 @@ namespace MRR
         public string ConnectStatusColor { get; set; } = "";
         public string ConnectStatusDesc { get; set; } = "";
         public string IPAddress { get; set; } = "";
+        public string RespawnLetter { get; set; } = "";  // PlayerState.RespawnLetter: respawn square letter, else the robot ID
 
         public override string ToString() =>
             $"[{RobotID}] {RobotName} ({PlayerStatus}) X={X} Y={Y} Cards={CardsDealt} Played={CardsPlayed} Status={StatusToShow}";

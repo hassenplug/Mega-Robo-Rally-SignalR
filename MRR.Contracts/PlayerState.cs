@@ -207,6 +207,12 @@ namespace MRR
         // fell back to ArchivePos (no Respawn square on the board) or has never died.
         public int RespawnID { get; set; }
 
+        // RespawnID as the letter printed on the square ("A" for 1); the robot's ID when there is
+        // no respawn square (RespawnID 0).
+        public string RespawnLetter => ToRespawnLetter(RespawnID, ID);
+        public static string ToRespawnLetter(int respawnID, int robotID) =>
+            respawnID > 0 ? ((char)('A' + respawnID - 1)).ToString() : robotID.ToString();
+
         public int? MessageCommandID { get; set; }
         public int Score { get; set; }
 
@@ -390,6 +396,7 @@ namespace MRR
             StatusToShow        = StatusToShow,
             PlayerMsg           = PlayerMsg,
             CardCount           = CardsPlayer.Count,
+            RespawnLetter       = RespawnLetter,
         };
         public override string ToString()
         {

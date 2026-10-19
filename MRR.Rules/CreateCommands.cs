@@ -1116,7 +1116,7 @@ namespace MRR
                         }
                         // place player on board
                         //ShowMessageToPlayer(thisplayer.Name + " on " + thisplayer.RespawnID + " facing " + thisplayer.CurrentPos.Direction.ToString(), thisplayer);
-                        ShowMessageToPlayer(thisplayer.Name + " on " + thisplayer.RespawnID + " " + thisplayer.CurrentPos.DirectionArrow(thisplayer.DirectionAdjustment), thisplayer, "On: " + thisplayer.RespawnID.ToString() + " " + thisplayer.CurrentPos.DirectionArrow(thisplayer.DirectionAdjustment));
+                        ShowMessageToPlayer(thisplayer.Name + " on " + thisplayer.RespawnLetter + " " + thisplayer.CurrentPos.DirectionArrow(thisplayer.DirectionAdjustment), thisplayer, "On: " + thisplayer.RespawnLetter + " " + thisplayer.CurrentPos.Direction.SeatArrow(thisplayer.DirectionAdjustment));
                         thisplayer.RespawnID = 0;
                         ListOfCommands.AddCommand(thisplayer, SquareAction.Respawn, 0); // clear respawn id
                     }

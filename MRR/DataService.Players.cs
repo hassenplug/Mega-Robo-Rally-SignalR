@@ -210,18 +210,16 @@ namespace MRR.Services
 //                JOIN RobotStatus rs ON IF(r.ConnectStatusID = {(int)tPlayerStatus.RobotConnected}, r.Status, 10) = rs.RobotStatusID
 
         /// <summary>
-        /// SQL expression for Robots.SeatArrow: an arrow, in the robot's own frame (up = the way it
-        /// is facing), pointing toward its player. A seat's DirectionAdjustment is the board
-        /// direction that seat looks in (SeatOrientation.Direction), so the player sits on the
-        /// opposite side of the board; the arrow is that side relative to the robot's facing.
-        /// Directions run 1..4 = Up, Right, Down, Left clockwise, so the quarter-turns from the
-        /// robot's facing to the player's side are (adjustment + 2 - facing) mod 4. Empty until
-        /// both the facing and the seat are known. Pass the column names (or a literal for the
-        /// facing) the surrounding UPDATE uses.
+        /// SQL expression for Robots.SeatArrow: the same arrow as DirectionExtensions.SeatArrow
+        /// (^ > v <, in the robot's own frame, pointing toward its player), computed in SQL from
+        /// the same characters. A seat's DirectionAdjustment is the board direction that seat
+        /// looks in (SeatOrientation.Direction). Empty until both the facing and the seat are
+        /// known. Pass the column names (or a literal for the facing) the surrounding UPDATE uses.
         /// </summary>
         private static string SeatArrowSql(string facing = "CurrentPosDir", string adjustment = "DirectionAdjustment") =>
             $"IF({facing} BETWEEN 1 AND 4 AND {adjustment} BETWEEN 1 AND 4, " +
-            $"ELT(MOD({adjustment} + 2 - {facing} + 4, 4) + 1, '↑', '→', '↓', '←'), '')";
+            $"ELT(MOD({adjustment} + 2 - {facing} + 4, 4) + 1, " +
+            string.Join(", ", DirectionExtensions.SeatArrowChars.Select(c => $"'{c}'")) + "), '')";
 
         public void RefreshRobotDenormalizedFields()
         {
@@ -307,6 +305,7 @@ namespace MRR.Services
                     ConnectStatusColor  = row["ConnectStatusColor"].ToString() ?? "",
                     ConnectStatusDesc   = row["ConnectStatusDesc"].ToString() ?? "",
                     IPAddress           = row["IPAddress"].ToString() ?? "",
+                    RespawnLetter       = PlayerState.ToRespawnLetter(row["RespawnID"] is int respawnID ? respawnID : 0, (int)row["RobotID"]),
                 });
             }
 

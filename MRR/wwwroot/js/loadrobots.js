@@ -225,7 +225,7 @@ function updateDirectionPicker(rbt) {
     }
     row.style.display = '';
     document.getElementById('directionConfirmBtn').textContent =
-        (gmMode && rbt.PositionValid) ? 'Clear Direction' : 'Set Direction';
+        (gmMode && rbt.PositionValid) ? 'Clear Direction' : 'Set Dir: ' + rbt.RespawnLetter;
     // Follow the server's CurrentPosDir so a change made on another device (GM screen, the
     // GM's own phone) shows up here too -- except just after a tap on this device, so a
     // broadcast landing between two quick taps doesn't snap the arrow back to a stale value.
@@ -385,7 +385,7 @@ function showplayerprogram(pl) // show program for this line
 
     CurrentLine = pl;
     CurrentPlayer = rbt.RobotID;
-    var dealt = rbt.CardsDealt.split(",");
+    var dealt = displayedDealt(rbt).split(",");
     var played = rbt.CardsPlayed.split(",");
     var executed = rbt.StatusToShow.split(",");
 //    var messagetype = rbt.msgtype;
@@ -561,10 +561,47 @@ function canProgram()
     return gs >= 2 && gs <= 4;
 }
 
+// A dealt card tapped on this device leaves the hand on screen straight away, before the server
+// has handled it: RobotID -> { from: the CardsDealt the server last sent, dealt: the hand to show
+// instead, time }. Used until a broadcast with a different CardsDealt arrives (the server has
+// caught up), or after PENDING_DEALT_MS if none does (e.g. the server ignored the play).
+var pendingDealt = {};
+var PENDING_DEALT_MS = 3000;
+
+function displayedDealt(rbt) {
+    var pending = pendingDealt[rbt.RobotID];
+    if (pending && rbt.CardsDealt === pending.from && Date.now() - pending.time < PENDING_DEALT_MS) {
+        return pending.dealt;
+    }
+    delete pendingDealt[rbt.RobotID];
+    return rbt.CardsDealt;
+}
+
 function PlayCard(cardObj)
 {
     if (!canProgram()) return;
-    SendUpdate( 1, CurrentPlayer, cardObj.cid, cardObj.loc);
+
+    // Read before redrawing: the redraw reuses these <img>s for the cards that shift left.
+    var cardType = cardObj.cid;
+    var location = cardObj.loc;
+
+    // From the dealt hand (loc -1) with a register still free: take the card out of the hand
+    // and redraw first, then tell the server. A full program is left alone -- the server
+    // ignores the play then, so the card stays.
+    var rbt = datapacket.robots.find(function (r) { return r.RobotID === CurrentPlayer; });
+    if (rbt && location === -1 && cardType > 0) {
+        // CardsPlayed has one entry per register; an empty one is "0".
+        var registerFree = rbt.CardsPlayed.split(",").some(function (c) { return c === "" || c === "0"; });
+        var hand = displayedDealt(rbt).split(",");
+        var index = hand.indexOf(String(cardType));
+        if (registerFree && index >= 0) {
+            hand.splice(index, 1);
+            pendingDealt[rbt.RobotID] = { from: rbt.CardsDealt, dealt: hand.join(","), time: Date.now() };
+            showplayerprogram(CurrentLine);
+        }
+    }
+
+    SendUpdate( 1, CurrentPlayer, cardType, location);
 }
 
 function confirmMessage()

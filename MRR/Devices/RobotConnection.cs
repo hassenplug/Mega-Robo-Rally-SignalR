@@ -271,7 +271,7 @@ namespace MRR.Devices
         }
 
         /// <summary>
-        /// Prints the seat arrow (Robots.SeatArrow: ↑ → ↓ ←, up = the way the robot faces, toward
+        /// Prints the seat arrow (Robots.SeatArrow: ^ > v <, up = the way the robot faces, toward
         /// its player) centered under the name, small, in the robot's color on a background of
         /// its foreground color. Draws nothing for an empty arrow (seat or facing not known yet).
         /// Sets the pen, fill and font itself, so it can be called on its own after the arrow
