@@ -93,6 +93,7 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
             <button class="button" style="background-color:#cc0000; color:#ffffff;" onclick="event.stopPropagation(); if(confirm('End the current game and disconnect from robots?')) gmAction('endgame');">End Game</button>
             <button class="button" onclick="event.stopPropagation(); gmAction('clearcookies');">Clear Cookies</button>
             <button class="button" onclick="event.stopPropagation(); window.open('turnhistory.html', '_blank');">Turn History</button>
+            <button class="button" id="showCardsBtn" onclick="event.stopPropagation(); toggleShowCards();">Show Cards: Off</button>
             <div style="position:relative;">
                 <button class="button" onclick="event.stopPropagation(); toggleProgramScreenSubmenu();">Program Screen</button>
                 <div id="programScreenSubmenu" class="w3-card-4">
@@ -142,6 +143,10 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
                     </td>
                 </tr>
                 <tr id="messagetablespace" style="display: none;"><td colspan="5"></td></tr>
+                <!-- Played and dealt cards: hidden unless "Show Cards" is on in the menu
+                     (toggleShowCards). A tbody of their own because showplayerprogram() sets the
+                     dealt rows' display itself on every update. -->
+                <tbody id="cardRows" style="display:none;">
                 <tr bgcolor="#d0d0d0">
                     <td align=center bgcolor=ffffff id='CardCell0'><img id='Played0' src='images/type0.png' onclick='PlayCard(this);'></td>
                     <td align=center bgcolor=ffffff id='CardCell1'><img id='Played1' src='images/type0.png' onclick='PlayCard(this);'></td>
@@ -164,6 +169,7 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
                     <td align=center bgcolor=ffffff><img id='Dealt8' src='images/type0.png' onclick='PlayCard(this);'></td>
                     <td align=center bgcolor=ffffff><img id='Dealt9' src='images/type0.png' onclick='PlayCard(this);'></td>
                 </tr>
+                </tbody>
                 <!-- Tapping the robot's status swaps the dealt hand for this panel (toggleExtrasPanel). -->
                 <tr id="extrasRow" style="display: none;">
                     <td colspan="5" align="center">
@@ -202,6 +208,16 @@ function buildPlayerRows(robots) {
             "</tr>";
     }
     document.getElementById('playerRows').innerHTML = html;
+}
+
+// Menu "Show Cards" toggle, off on every page load: whether the right panel shows the picked
+// robot's played and dealt cards.
+var showCards = false;
+
+function toggleShowCards() {
+    showCards = !showCards;
+    document.getElementById('showCardsBtn').textContent = 'Show Cards: ' + (showCards ? 'On' : 'Off');
+    document.getElementById('cardRows').style.display = showCards ? '' : 'none';
 }
 
 // F/E/C view: tapping a robot's button shows its program on the right.

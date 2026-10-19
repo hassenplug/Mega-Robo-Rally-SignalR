@@ -9,7 +9,6 @@
     h1 { font-size: 20px; margin: 0 0 10px; }
     .nav { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
     .nav button { font-size: 18px; padding: 4px 14px; }
-    .nav input { width: 60px; font-size: 18px; padding: 4px; }
     table { border-collapse: collapse; width: 100%; max-width: 640px; }
     th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #444; }
     th { color: #aaa; font-weight: normal; font-size: 13px; }
@@ -23,8 +22,6 @@
 <h1>Turn <span id="turn">-</span> &mdash; start positions &amp; cards, in priority order</h1>
 <div class="nav">
     <button id="prev">&laquo; Prev</button>
-    <input id="turnInput" type="number" min="1">
-    <button id="go">Go</button>
     <button id="next">Next &raquo;</button>
     <button onclick="window.close()">Close</button>
 </div>
@@ -41,7 +38,6 @@
         fetch(url).then(function (r) { return r.json(); }).then(function (d) {
             shownTurn = d.turn;
             document.getElementById('turn').textContent = d.turn;
-            document.getElementById('turnInput').value = d.turn;
             document.getElementById('next').disabled = d.turn + 1 >= d.currentTurn;
             document.getElementById('prev').disabled = d.turn <= 1;
 
@@ -85,10 +81,6 @@
 
     document.getElementById('prev').onclick = function () { load(shownTurn - 1); };
     document.getElementById('next').onclick = function () { load(shownTurn + 1); };
-    document.getElementById('go').onclick = function () {
-        var t = parseInt(document.getElementById('turnInput').value, 10);
-        if (t > 0) load(t);
-    };
 
     // ?turn=N shows that turn; no parameter shows the previous turn.
     var requested = parseInt(new URLSearchParams(location.search).get('turn'), 10);

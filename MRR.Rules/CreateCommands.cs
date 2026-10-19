@@ -1265,7 +1265,10 @@ namespace MRR
                     // need to create a list of players to iderate through, but add to while iderating
                     List<PlayerState> liveplayers = [];
                     
-                    foreach (PlayerState thisplayer in workingPlayers.Where(wp => wp.IsRunning))
+                    // Shut-down robots don't fire. Checked on AllPlayers: the working copy's
+                    // PlayerState copy constructor doesn't copy the status, so IsRunning alone
+                    // can't see it.
+                    foreach (PlayerState thisplayer in workingPlayers.Where(wp => wp.IsRunning && !(AllPlayers.GetPlayer(wp.ID)?.IsShutDown ?? false)))
                     {
                         liveplayers.Add(thisplayer);
                         OptionCard? RearLaser = OptionCards.GetOption(tOptionCardCommandType.RearLaser, thisplayer);
@@ -1310,7 +1313,9 @@ namespace MRR
 
                         int CheckX = thisplayer.CurrentPos.X;
                         int CheckY = thisplayer.CurrentPos.Y;
-                        while ((CheckX > 0)  && (CheckY > 0) && (CheckX < g_BoardElements.BoardCols-1) && (CheckY < g_BoardElements.BoardRows-1))
+                        // Ends when the beam leaves the board (checked after each step below), so a
+                        // robot standing on the outer edge still fires into the board.
+                        while (true)
                         {
                             /// check wall in same square
                             if (g_BoardElements.GetSquare(CheckX, CheckY)?.ActionList.Count(al => ((al.SquareAction == SquareAction.BlockDirection) && (al.Parameter == (int)canndir2))) > 0)
@@ -1328,6 +1333,10 @@ namespace MRR
 
                             CheckX += AddX;
                             CheckY += AddY;
+                            if ((CheckX < 0) || (CheckY < 0) || (CheckX >= g_BoardElements.BoardCols) || (CheckY >= g_BoardElements.BoardRows))
+                            {
+                                break; // off the board
+                            }
                             // check for close wall
                             // check for opponent
                             // check for far wall
