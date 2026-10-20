@@ -1,6 +1,6 @@
 # Mega Robo Rally — Project TODO
 
-**Last updated:** 2026-10-18
+**Last updated:** 2026-10-20
 **Legend:** `[x]` Done &nbsp; `[-]` Partial / In Progress &nbsp; `[ ]` Not started
 
 Resolved items are removed from this file once done rather than kept as a checked-off log —
@@ -16,9 +16,6 @@ What to work on next, reordered by the user 2026-10-08.
 - [-] **GM screen: Hosyond 5" DSI (800×480) on the Pi 4** (installed 2026-10-16; `PROJECT_STATUS.md`
   §1.9; `MRR/wwwroot/gmindex.html`, `install/git.sh --dsi-screen`) — all of this is written but
   unverified on the real screen
-  - [x] Confirm the panel works with no `config.txt` change (seller's spec/manual not read; the
-    listing's power draw and included cables are also unconfirmed). Fix the picture rotation in
-    Screen Configuration if it comes up rotated.
   - [ ] Run `./install/git.sh --dsi-screen` (or the three kiosk commands in §1.9 step 4) and
     reboot: check that Chromium opens `gmindex.html` full-screen on its own. Make sure no old
     `dtoverlay=piscreen` line is left in `/boot/firmware/config.txt`.
@@ -35,59 +32,6 @@ What to work on next, reordered by the user 2026-10-08.
     - The script waits up to 4 minutes for the game server, then launches anyway, so a slow
       server delays the kiosk.
     - Keep `install/git.sh` and `install/kiosk/*` LF, not CRLF, when committing from Windows.
-  - [x] View the rebuilt `gmindex.html` on the 800×480 screen: are the touch targets right, does
-    the robot name fit in its button, do long `PlayerMsg` texts and the direction rows fit the
-    right pane, do the ☰ menu and its Program Screen submenu fit and open?
-  - [x] `js/loadrobots.js` can hide `#mainTable` (setup screen, ~lines 642/666), which would
-    leave the left pane empty on this page — check whether that path is reachable from
-    `gmindex.html`.
-  - [x] `js/loadrobots.js:510` looks up `#statusHeader`, which `gmindex.html` doesn't have
-    (also true before the rebuild) — harmless unless that code path runs, then it throws.
-  - [x] `install/git.sh` was edited on Windows; make sure it is still LF (not CRLF) when
-    committed or it won't run on the Pi. `--dsi-screen` itself hasn't been run.
-  - [x] Measure the real power draw of the Pi 4 + this screen + router (§6.7 figures for the
-    screen are estimates).
-
-- [-] **Robot screen: show why a button press is being requested** (implemented 2026-10-14, builds; needs real-robot test — last sub-item) (`RobotConnection.cs`,
-  alongside `RefreshIdentityDisplayAsync`/`PrintAsync`; the press itself is polled in
-  `CommandProcess.cs`'s User Input case) — currently the touchscreen just blocks on a press with
-  no context. Distinguish e.g. Phase
-  advance, Remove (reboot/pit death), Place (respawn placement) so a player knows what they're
-  confirming.
-  - Design: the text shown is the command's `text`/Description — nothing else is added (no
-    "Tap to continue" hint). `ShowMessageToPlayer` (`MRR.Rules/CreateCommands.cs`) already
-    passes it on the SetFlash-on command; `Player.SendRobotCommandAsync` (`Players.cs`) sets
-    `Connection.ScreenText` then `Connection.Flash`.
-  - [x] Confirm `cmd.text` actually arrives at `Players.cs` (log it during a Phase prompt on a
-    real robot). It is `[NotMapped]` on `CommandItem`; if the command list round-trips through
-    the `CommandList` table it may be empty — then source it from the Description instead
-    (`Robots.PlayerMsg` / `CommandList.Description`) without a schema change.
-  - [x] Replace the bare `PrintAsync` in `ScreenText`'s setter with a draw helper in
-    `RobotConnection`: clear to the robot's color, set pen/font (lowercase `fontname`), center
-    the Description on the 240×240 circular LCD, wrapping long text (e.g. Respawn).
-  - [x] When `Flash` goes false, call `RefreshIdentityDisplayAsync` to restore the robot's name,
-    arrow and color (not `ClearScreenAsync`, which paints red).
-  - [x] Check that touch polling (`CommandProcess.cs`, only while `Flash` is true) doesn't fire
-    a stray touch from the new screen, and that the identity screen returns after a tap or phone
-    confirm.
-  - [ ] Test on a real robot: Phase, Respawn, Remove and Winner each show their own text while
-    flashing, and the name returns after.
-  - [ ] **Prompt text doesn't clear cleanly** (reported 2026-10-15; works on a real robot, but
-    old text/pixels remain). Wanted: paint a rectangle in the robot's color over the text area,
-    then print the new text. `ShowPromptAsync` and `RestoreIdentityAfterFlashAsync` already do
-    this, so the actual symptom is not yet pinned down. The rectangle is only
-    `max(text, name).Length * 20` wide (the `width` at `RobotConnection.cs:652`) and 40 px tall
-    at y=165; suspects, in rough order: that rectangle is too narrow/short for the text;
-    a gap or color mismatch where the arrow shaft (x 95..145) is repainted; `Flash` toggling
-    off/on quickly so the restore and the next prompt interleave. Next step: note exactly what
-    is left on screen, then fix (e.g. clear the full 240 px width and a taller band).
-    **2026-10-16:** text drawing is now one function, `RobotConnection.ShowTextAsync` (name and
-    prompt both use it): clears the full 240 px band, repaints the shaft slice, prints, and is
-    serialized by a lock. Builds; not tested on a robot — if it still isn't clean, report what remains.
-  - [ ] Same symptom, other screen: `RobotScreenUI.RenderAsync` never clears between taps (only
-    the first render after a deal clears), and the player name is re-printed with no background
-    rectangle. Card letters use `mono60` at `y = cy + 5`, which may spill outside their circles
-    and stay behind. Unconfirmed which screen the report was about.
 
 - [ ] **Robot screen: show the last flag** the robot has reached (`RobotScreenUI.cs`; the value is
   `Robots.CurrentFlag`, already in the payload as part of `FlagEnergyCards`)
@@ -95,7 +39,7 @@ What to work on next, reordered by the user 2026-10-08.
 - [ ] **Robot screen: a small arrow that always points at the player's seat** (`RobotScreenUI.cs`)
   - May point to the player only when the robot is being placed
   
-- [-] **Robot grid alignment** (`GridAlignmentAgent.cs`; see
+- [ ] **Robot grid alignment** (`GridAlignmentAgent.cs`; see
   [tools/ai_agent/grid_alignment_agent.md](../tools/ai_agent/grid_alignment_agent.md))
   - Code complete; constants need tuning against real board + lighting:
     `BlackLuminanceThreshold`, `MinBlackPixels`, `AlignedThreshold`, `NudgeDistanceMm`
@@ -175,11 +119,6 @@ Not being worked on now (user 2026-10-08).
     of writing a negative/out-of-bounds position. Still open: belt movement passing through a
     wall — it doesn't appear to run the same wall check as normal moves (see
     `CalcMoveDistance`'s wall check, Section 6).
-- [ ] **Respawn points are not coming back correct** (reported 2026-10-18; details not yet
-  pinned down — note which robot, the expected vs. actual square/direction, and the game state)
-- [ ] **Respawn location does not show up on the player screen while setting direction**
-  (reported 2026-10-18) — the phone's direction picker (`js/loadrobots.js`
-  `updateDirectionPicker`) shows only the arrow, not where the robot is respawning
 
 ---
 
@@ -210,22 +149,6 @@ Not being worked on now (user 2026-10-08).
   exist today — Start Game, Next State, End Game — rather than literal "Restart"/"Reboot"
   buttons, since neither of those is a real distinct action in the codebase (no "restart game"
   endpoint, and "Reboot" is the per-robot mechanic in Section 1, not a game-level control).
-
-- [ ] Dynamic button area — display any buttons/actions that appear based on game state
-  - e.g. "Advance Phase", "Skip Robot", admin overrides
-
-- [ ] **Player screen: no arrow yet pointing at the player who reset the robot** (noted
-  2026-10-18) — the phone player UI doesn't show which player's
-  seat to look toward when a robot is reset. Related to the robot-screen seat arrow in
-  Section 2 ("Robot screen: a small arrow that always points at the player's seat")
-
-- [x] **Direction on the GM screen should be an arrow, not text** (reported 2026-10-18; done, untested in a browser) — the
-  battery view's status shows `R3 C4 ↑` using the `DIRECTION_ARROWS` character
-  (`gmindex.html`); draw a real arrow (e.g. the rotated `images/Direction1.png`) instead
-
-- [x] **GM screen battery view: swap the robot location and battery % columns** (requested
-  2026-10-18; done, untested in a browser) — battery % is in the F/E/C column and the location in the status column today
-  (`gmindex.html` `showall()`, the `batteryMode` branch)
 
 ### Direction arrows — inventory (2026-10-08, reference)
 
@@ -261,15 +184,10 @@ Unreferenced image files: `wwwroot/images/Direction2.png`–`Direction4.png`,
   game LAN (`documents/API_DECOMPOSITION_DESIGN.md` §7, Low) — fine on an isolated game router,
   worth narrowing once the home-network port-forward is in place
 
-- [ ] Battery power for the game (`PROJECT_STATUS.md` §6.7): measure the real draw of the
-  Pi 4 + Hosyond 5" DSI screen + router (and the 6 ESP32 stations) with a USB inline power meter, then
-  pick the bank(s) — ~20,000 mAh for Pi + router, ~26,800 mAh or a second bank with the stations
 - [ ] Battery power: decide how the Pi shuts down cleanly before the bank empties — there is
   no UPS HAT, so MySQL has no protection from a sudden cutoff (the DSI screen no longer blocks
   the GPIO header, so a HAT is now possible). Options: manual
   `sudo shutdown -h now`, a bank with a battery display, or a shutdown button on the GM menu
-- [ ] Battery power: test a full game on battery, including whether the chosen bank supports
-  pass-through charging without rebooting the Pi
 
 ---
 
