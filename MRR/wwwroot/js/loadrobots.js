@@ -170,6 +170,7 @@ var pendingDirection = null;         // Direction int (1-4) currently shown on t
 var directionPickerForRobotID = null; // which robot pendingDirection belongs to
 var lastDirectionTapTime = 0;        // Date.now() of this device's last arrow tap
 var DIRECTION_TAP_HOLD_MS = 1500;
+var directionEditable = false;       // false: the arrow is only shown, tapping it does nothing
 
 // GM's extra powers here only kick in once they've tapped into GM view (see "GM view"
 // section below) -- logged in as GM but still on the plain player view behaves exactly like
@@ -179,6 +180,7 @@ function isGmModeActive() {
 }
 
 function cycleDirection() {
+    if (!directionEditable) return;
     lastDirectionTapTime = Date.now();
     pendingDirection = (pendingDirection % 4) + 1; // 1->2->3->4->1
     renderDirectionArrow();
@@ -214,17 +216,25 @@ function updateDirectionPicker(rbt) {
     var row = document.getElementById('directionPickerRow');
     var gmMode = isGmModeActive();
     // PositionValid: 0=not set, 1=user set, 2=locked (the turn using it already started
-    // executing -- GameController.NextState()'s state 4->5 gate). Locked never shows the
-    // picker, even for GM; a normal player also never sees it once set (1) or locked (2).
-    var hide = (rbt.PositionValid === 2) || (!gmMode && rbt.PositionValid);
-    if (hide) {
+    // executing -- GameController.NextState()'s state 4->5 gate). The arrow shows while the
+    // direction isn't locked (0 or 1) or the robot is respawning (RespawnLetter is the respawn
+    // square's letter while RespawnID > 0, otherwise the robot ID). Only 0 can be changed and
+    // confirmed -- plus 1 in GM view, where the button clears it back to 0; otherwise the
+    // arrow is display-only and the button is hidden.
+    var respawning = /^[A-Z]$/.test(rbt.RespawnLetter || '');
+    if (!respawning && rbt.PositionValid >= 2) {
         row.style.display = 'none';
         pendingDirection = null;
         directionPickerForRobotID = null;
+        directionEditable = false;
         return;
     }
     row.style.display = '';
-    document.getElementById('directionConfirmBtn').textContent =
+    directionEditable = rbt.PositionValid === 0 || (gmMode && rbt.PositionValid === 1);
+    document.getElementById('directionBtn').style.cursor = directionEditable ? 'pointer' : 'default';
+    var confirmBtn = document.getElementById('directionConfirmBtn');
+    confirmBtn.style.display = directionEditable ? '' : 'none';
+    confirmBtn.textContent =
         (gmMode && rbt.PositionValid) ? 'Clear Direction' : 'Set Dir: ' + rbt.RespawnLetter;
     // Follow the server's CurrentPosDir so a change made on another device (GM screen, the
     // GM's own phone) shows up here too -- except just after a tap on this device, so a

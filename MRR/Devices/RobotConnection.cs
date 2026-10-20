@@ -267,7 +267,7 @@ namespace MRR.Devices
 
             await ShowTextAsync(name);
 
-            await ShowSeatArrowAsync(_seatArrow);
+            //await ShowSeatArrowAsync(_seatArrow);
         }
 
         /// <summary>
@@ -288,7 +288,7 @@ namespace MRR.Devices
             await SendCommandAsync(new { cmd_id = "lcd_set_pen_color", r, g, b });
             await SendCommandAsync(new { cmd_id = "lcd_set_fill_color", r = fgR, g = fgG, b = fgB, transparent = false });
             await SendCommandAsync(new { cmd_id = "lcd_set_font", fontname = "mono20" });
-            await SendCommandAsync(new { cmd_id = "lcd_print_at", @string = arrow, x = Math.Max(0, (240 - arrow.Length * charWidth) / 2), y = 207, b_opaque = true });
+            await SendCommandAsync(new { cmd_id = "lcd_print_at", @string = arrow, x = Math.Max(0, (240 - arrow.Length * charWidth) / 2), y = 204, b_opaque = true });
         }
 
         public async Task SendCommandAsync(object command)

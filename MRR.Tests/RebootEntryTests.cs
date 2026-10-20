@@ -151,4 +151,53 @@ public class RebootEntryTests
             c.text == $"Place: {entering.Name} on {RespawnTokenId} facing {Direction.Right}");
         Assert.DoesNotContain(plan.Commands, c => c.CommandType == SquareAction.PushedMove);
     }
+
+    [Theory]
+    // Hulk X90, Hammerbot and Smashbot in a live game: the respawn message's arrow must turn
+    // the robot's facing by its seat (DirectionAdjustment), which the copied players used to lose.
+    [InlineData(Direction.Up, 3, "↓")]
+    [InlineData(Direction.Down, 2, "←")]
+    [InlineData(Direction.Left, 2, "↑")]
+    public void RespawnMessage_ArrowUsesSeatDirection(Direction facing, int directionAdjustment, string arrow)
+    {
+        var board = new BoardElementCollection(5, 5);
+        var respawnActions = new BoardActionsCollection
+        {
+            new BoardAction { SquareAction = SquareAction.Respawn, Parameter = RespawnTokenId },
+        };
+        board.SetSquare(2, 2, SquareType.RebootToken, Direction.Right, respawnActions);
+
+        var entering = new PlayerState
+        {
+            ID = EnteringId,
+            Name = "Robot",
+            PlayerStatus = tPlayerStatus.ReadyToRun,
+            Priority = 1,
+            RespawnID = RespawnTokenId,
+            DirectionAdjustment = directionAdjustment,
+            CurrentPos = new RobotLocation(facing, 2, 2),
+        };
+        entering.NextPos = new RobotLocation(entering.CurrentPos);
+
+        var request = new TurnRequest
+        {
+            Turn = 1,
+            Phase = 0,
+            PhaseCount = 1,
+            GameState = 6,
+            Board = board,
+            Players = [entering],
+            GameCards = new CardList
+            {
+                new MoveCard(1, MoveCard.tCardType.PowerUp) { Owner = EnteringId, PhasePlayed = 1 },
+            },
+        };
+
+        var plan = new CreateCommands(request).CreateTurn();
+
+        Assert.True(plan.Planned, plan.Summary);
+        Assert.Contains(plan.Commands, c =>
+            c.RobotID == EnteringId && c.CommandType == SquareAction.SetButtonText &&
+            c.text == $"Robot on {entering.RespawnLetter} {arrow}");
+    }
 }

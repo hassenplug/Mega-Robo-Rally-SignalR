@@ -118,6 +118,7 @@ namespace MRR
             Priority = p_Player.Priority;
             Energy = p_Player.Energy;
             PlayerSeat = p_Player.PlayerSeat;
+            DirectionAdjustment = p_Player.DirectionAdjustment;
             RespawnID = p_Player.RespawnID;
         }
 
