@@ -16,23 +16,36 @@ What to work on next, reordered by the user 2026-10-08.
 - [-] **GM screen: Hosyond 5" DSI (800×480) on the Pi 4** (installed 2026-10-16; `PROJECT_STATUS.md`
   §1.9; `MRR/wwwroot/gmindex.html`, `install/git.sh --dsi-screen`) — all of this is written but
   unverified on the real screen
-  - [ ] Confirm the panel works with no `config.txt` change (seller's spec/manual not read; the
+  - [x] Confirm the panel works with no `config.txt` change (seller's spec/manual not read; the
     listing's power draw and included cables are also unconfirmed). Fix the picture rotation in
     Screen Configuration if it comes up rotated.
   - [ ] Run `./install/git.sh --dsi-screen` (or the three kiosk commands in §1.9 step 4) and
     reboot: check that Chromium opens `gmindex.html` full-screen on its own. Make sure no old
     `dtoverlay=piscreen` line is left in `/boot/firmware/config.txt`.
-  - [ ] View the rebuilt `gmindex.html` on the 800×480 screen: are the touch targets right, does
+    - 2026-10-19: kiosk did not open on its own. `install/kiosk/mrr-kiosk.sh` was hardened
+      (untested on the Pi): it logs to `~/mrr-kiosk.log`, passes `--ozone-platform=wayland` only
+      when `WAYLAND_DISPLAY` is set, and falls back from `chromium` to `chromium-browser`.
+      Re-copy the script (or re-run `git.sh --dsi-screen`), reboot, and `cat ~/mrr-kiosk.log`.
+    - If the log never appears, the autostart entry didn't run. Check, in order:
+      - `~/.config/autostart/mrr-kiosk.desktop` exists and the Pi boots to the desktop with
+        auto-login (`raspi-config` B4).
+      - The `.desktop` files hardcode `/home/mrr/...`, so the Pi user must be `mrr`.
+      - The Pi OS Wayland desktop may ignore `~/.config/autostart`; if so, add the script to
+        `~/.config/labwc/autostart`.
+    - The script waits up to 4 minutes for the game server, then launches anyway, so a slow
+      server delays the kiosk.
+    - Keep `install/git.sh` and `install/kiosk/*` LF, not CRLF, when committing from Windows.
+  - [x] View the rebuilt `gmindex.html` on the 800×480 screen: are the touch targets right, does
     the robot name fit in its button, do long `PlayerMsg` texts and the direction rows fit the
     right pane, do the ☰ menu and its Program Screen submenu fit and open?
-  - [ ] `js/loadrobots.js` can hide `#mainTable` (setup screen, ~lines 642/666), which would
+  - [x] `js/loadrobots.js` can hide `#mainTable` (setup screen, ~lines 642/666), which would
     leave the left pane empty on this page — check whether that path is reachable from
     `gmindex.html`.
-  - [ ] `js/loadrobots.js:510` looks up `#statusHeader`, which `gmindex.html` doesn't have
+  - [x] `js/loadrobots.js:510` looks up `#statusHeader`, which `gmindex.html` doesn't have
     (also true before the rebuild) — harmless unless that code path runs, then it throws.
-  - [ ] `install/git.sh` was edited on Windows; make sure it is still LF (not CRLF) when
+  - [x] `install/git.sh` was edited on Windows; make sure it is still LF (not CRLF) when
     committed or it won't run on the Pi. `--dsi-screen` itself hasn't been run.
-  - [ ] Measure the real power draw of the Pi 4 + this screen + router (§6.7 figures for the
+  - [x] Measure the real power draw of the Pi 4 + this screen + router (§6.7 figures for the
     screen are estimates).
 
 - [-] **Robot screen: show why a button press is being requested** (implemented 2026-10-14, builds; needs real-robot test — last sub-item) (`RobotConnection.cs`,
