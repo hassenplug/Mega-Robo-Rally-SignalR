@@ -81,14 +81,27 @@
 
         /* ── Palette ── */
         #palette {
-            width: 130px;
-            min-width: 130px;
+            width: 130px; /* changed by dragging #paletteResizer -- see initPaletteResizer */
+            min-width: 70px;
             background: #1c1c1c;
-            border-right: 2px solid #444;
             overflow-y: auto;
             padding: 4px;
             flex-shrink: 0;
         }
+        /* Columns follow the palette's width: as many 56px+ tiles as fit. */
+        #paletteItems {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+            gap: 2px;
+        }
+        #paletteResizer {
+            width: 6px;
+            flex-shrink: 0;
+            cursor: col-resize;
+            background: #444;
+            touch-action: none;
+        }
+        #paletteResizer:hover, #paletteResizer.dragging { background: #ffcc00; }
         #palette h3 {
             margin: 4px 0 6px;
             font-size: 12px;
@@ -104,7 +117,6 @@
             cursor: pointer;
             border-radius: 3px;
             border: 2px solid transparent;
-            margin-bottom: 2px;
         }
         .palette-item:hover { background: #333; }
         .palette-item.active { border-color: #ffcc00; background: #333; }
@@ -319,6 +331,7 @@
         <h3>Palette</h3>
         <div id="paletteItems"></div>
     </div>
+    <div id="paletteResizer" title="Drag to resize the palette (double-click to reset)"></div>
     <div id="gridArea">
         <div id="boardGrid"></div>
     </div>
@@ -382,10 +395,10 @@ function toggleSection(id) {
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────
-const SA = { Move:12, Rotate:13, Damage:14, Archive:15, Flag:16, Option:17, BlockDirection:18, PlayerStart:19, Respawn:25, Water:55, FireCannon:60 };
+const SA = { Move:12, Rotate:13, Damage:14, Archive:15, Flag:16, Option:17, BlockDirection:18, PlayerStart:19, Respawn:25, OptionalRotate:26, Water:55, FireCannon:60 };
 const DIR = { None:0, Up:1, Right:2, Down:3, Left:4 };
 const DIR_NAMES = ['None','Up','Right','Down','Left'];
-const SA_NAMES = {12:'Move', 13:'Rotate', 14:'Damage', 15:'Archive', 16:'Flag', 17:'Option', 18:'BlockDirection', 19:'PlayerStart', 25:'Respawn', 55:'Water', 60:'FireCannon'};
+const SA_NAMES = {12:'Move', 13:'Rotate', 14:'Damage', 15:'Archive', 16:'Flag', 17:'Option', 18:'BlockDirection', 19:'PlayerStart', 25:'Respawn', 26:'OptionalRotate', 55:'Water', 60:'FireCannon'};
 const SA_SORTED = Object.entries(SA_NAMES).sort((a,b) => parseInt(a[0])-parseInt(b[0]));
 
 // Respawn squares (SquareType 120) are lettered A, B, C, ... (SquareAction.Respawn's
@@ -446,8 +459,56 @@ function renderActionsPanel() {
     container.innerHTML = html;
 }
 
+// ── Palette resizing ───────────────────────────────────────────────────────
+// Drag the bar between the palette and the board; the palette's grid adds columns as it
+// widens. The width is remembered per browser.
+const PALETTE_WIDTH_KEY = 'boardEditor.paletteWidth';
+const PALETTE_DEFAULT_WIDTH = 130;
+
+function setPaletteWidth(px) {
+    const palette = document.getElementById('palette');
+    const max = Math.max(70, window.innerWidth * 0.6);
+    const width = Math.round(Math.min(Math.max(px, 70), max));
+    palette.style.width = width + 'px';
+    return width;
+}
+
+function initPaletteResizer() {
+    const palette = document.getElementById('palette');
+    const resizer = document.getElementById('paletteResizer');
+
+    try {
+        const saved = parseInt(localStorage.getItem(PALETTE_WIDTH_KEY));
+        if (saved) setPaletteWidth(saved);
+    } catch (e) { /* storage unavailable -- keep the default */ }
+
+    const save = width => { try { localStorage.setItem(PALETTE_WIDTH_KEY, width); } catch (e) {} };
+
+    resizer.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        resizer.setPointerCapture(e.pointerId);
+        resizer.classList.add('dragging');
+        const startX = e.clientX;
+        const startWidth = palette.getBoundingClientRect().width;
+
+        const onMove = ev => setPaletteWidth(startWidth + ev.clientX - startX);
+        const onUp = ev => {
+            resizer.releasePointerCapture(ev.pointerId);
+            resizer.classList.remove('dragging');
+            resizer.removeEventListener('pointermove', onMove);
+            resizer.removeEventListener('pointerup', onUp);
+            save(palette.getBoundingClientRect().width);
+        };
+        resizer.addEventListener('pointermove', onMove);
+        resizer.addEventListener('pointerup', onUp);
+    });
+
+    resizer.addEventListener('dblclick', () => save(setPaletteWidth(PALETTE_DEFAULT_WIDTH)));
+}
+
 // ── Init ───────────────────────────────────────────────────────────────────
 async function init() {
+    initPaletteResizer();
     await Promise.all([loadTypes(), loadBoards(), loadGameData()]);
     buildGrid(parseInt(document.getElementById('boardW').value), parseInt(document.getElementById('boardH').value));
     renderGrid();

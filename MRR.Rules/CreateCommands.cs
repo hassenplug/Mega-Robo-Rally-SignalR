@@ -395,6 +395,21 @@ namespace MRR
 
         }
 
+        /// <summary>
+        /// Turn for a merging belt (SquareAction.OptionalRotate): -1 if the robot's previous
+        /// square is to the left of the arrow, 1 if to the right, 0 otherwise (behind, or no
+        /// previous square).
+        /// </summary>
+        public static int MergeRotation(PlayerState p_Robot, Direction p_Arrow)
+        {
+            foreach (int turn in new[] { -1, 1 })
+            {
+                RobotLocation side = p_Robot.CurrentPos.CalcNewLocation(1, RotationFunctions.Rotate(turn, p_Arrow));
+                if (side.X == p_Robot.PreviousPos.X && side.Y == p_Robot.PreviousPos.Y) return turn;
+            }
+            return 0;
+        }
+
         public bool MoveRobot(PlayerState p_Robot, RobotLocation p_NewLocation, Direction p_Direction, SquareAction p_MoveType)
         {
             bool StillAlive = true;
@@ -413,6 +428,7 @@ namespace MRR
             FlushRemovalMessageIfBlocking(p_NewLocation);
 
             // move robot...
+            p_Robot.PreviousPos = new RobotLocation(p_Robot.CurrentPos); // for merging belts (OptionalRotate)
             p_Robot.NextPos.SetLocation(p_NewLocation); // end location?
 
             // always move one square at a time, even if distance is more than 1
@@ -1196,6 +1212,14 @@ namespace MRR
             int CurrentAction = 0;
             ListOfCommands.AddCommand((PlayerState?)null, SquareAction.BeginBoardEffects);
 
+            // Merging belts only turn a robot a conveyor carried onto them, so forget the
+            // square each robot came from via its program card (or an earlier phase -- a robot
+            // stuck on a merge must not turn again every phase).
+            foreach (PlayerState thisplayer in workingPlayers)
+            {
+                thisplayer.ClearPreviousPos();
+            }
+
             while (true)
             {
                 /// ActiveSquares is a list of board squares which have robots on them
@@ -1530,6 +1554,23 @@ namespace MRR
                             RotateRobot(thisplayer, turndirection); //,SquareAction.BoardRotate);
 
                             break;
+                        case SquareAction.OptionalRotate: // merging belt...
+                            int mergeturn = MergeRotation(thisplayer, (Direction)thisaction.Parameter);
+                            // One turn per arrival: a fast merge checks again at seq 4, and a robot
+                            // carried in at seq 1 whose seq 3 move was blocked must not turn twice.
+                            thisplayer.ClearPreviousPos();
+                            if (mergeturn == 0) break; // came from behind, or wasn't carried here
+
+                            OptionCard? optMergeGyroscopicStabilizer = OptionCards.GetOption(tOptionCardCommandType.GyroscopicStabilizer, thisplayer, p_PhaseNumber);
+                            if (optMergeGyroscopicStabilizer != null)
+                            {
+                                ListOfCommands.AddCommand(thisplayer, optMergeGyroscopicStabilizer);
+                                break; // GyroscopicStabilizer Active
+                            }
+
+                            RotateRobot(thisplayer, mergeturn);
+
+                            break;
                         case SquareAction.PlayOptionCard:
                             if (!AllowOptions) break;
 
@@ -1657,6 +1698,7 @@ namespace MRR
                                 PlayerState? thisWorkingPlayer = workingPlayers.GetPlayer(thisplayer.PlayerID);
                                 thisWorkingPlayer?.SetLocation(firstmove.StartPos);
                                 thisWorkingPlayer?.NextPos.SetLocation(thisWorkingPlayer.CurrentPos);
+                                thisWorkingPlayer?.ClearPreviousPos(); // the move that set it was undone
                             }
                         }
 

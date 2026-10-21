@@ -491,6 +491,7 @@ namespace MRR
             switch (SquareAction)
             {
                 case SquareAction.Move:
+                case SquareAction.OptionalRotate:
                 case SquareAction.BlockDirection:
                     //case SquareAction.PlayerStart:
                     //case SquareAction.Flag:
@@ -543,6 +544,11 @@ namespace MRR
         // more than one, printed as letters -- 1=A, 2=B, 3=C, ... -- same numbered-Parameter
         // convention PlayerStart/Flag already use for their own per-square numbering).
         Respawn = 25,
+        // Board-authored: merging conveyor belt (SquareType 13-16, 23-26). Turns the robot only if it
+        // came onto this square from the side -- left of the arrow turns left, right turns
+        // right, from behind no turn. Parameter is the arrow direction (rotated with the
+        // square, see ActionIncludesRotation); compared against PlayerState.PreviousPos.
+        OptionalRotate = 26,
         PhaseStart = 30,
         PhaseStep = 31,
         PhaseEnd = 32,
@@ -613,9 +619,21 @@ namespace MRR
         NormalBelt = 10,
         NormalTurnCW = 11,
         NormalTurnCCW = 12,
+        // Merging normal belts: Move plus SquareAction.OptionalRotate. Named for the sides
+        // that feed in (relative to the arrow).
+        NormalMergeLeft = 13,
+        NormalMergeRight = 14,
+        NormalMergeBothSides = 15, // left + right, nothing behind
+        NormalMergeAll = 16,       // left + right + behind
         FastBelt = 20,
         FastTurnCW = 21,
         FastTurnCCW = 22,
+        // Merging fast belts: the fast belt's Moves plus OptionalRotate at both rotate steps
+        // (seq 2 and 4), like the fast turns. Same sides as 13-16.
+        FastMergeLeft = 23,
+        FastMergeRight = 24,
+        FastMergeBothSides = 25, // left + right, nothing behind
+        FastMergeAll = 26,       // left + right + behind
         GearCW = 31,
         GearCCW = 32,
         Pit = 40,

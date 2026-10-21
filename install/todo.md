@@ -119,7 +119,13 @@ Not being worked on now (user 2026-10-08).
 *Renegade rules completeness.*
 
 - [-] Conveyor belts (`CreateCommands.cs`) — express-then-normal movement and chained belts are done
-  - [ ] Merge conveyor belts (splitting paths converge)
+  - [-] Merge conveyor belts (splitting paths converge) — done 2026-10-21: normal merges
+    SquareType 13-16 carry `SquareAction.OptionalRotate` (26) at seq 4, fast merges 23-26 at
+    seq 2 and 4. It turns a robot the conveyor carried in from the side
+    (`PlayerState.PreviousPos`, `CreateCommands.MergeRotation`; tests in
+    `MRR.Tests/MergeBeltTests.cs`). `install/add_merge_belt_types.sql` adds them to the editor
+    palette (applied to the Pi's `rally` DB 2026-10-21). Still open: placing merges on real
+    boards.
   - [-] Conveyor belts can push a robot off the board (into a pit/off the edge) and through
     walls — off-board half fixed 2026-09-10: `InValidPos()` now guards the `SquareAction.Move`
     case in `CreateCommands.cs`, so a belt push toward an out-of-range square is skipped instead

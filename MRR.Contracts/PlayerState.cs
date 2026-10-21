@@ -157,6 +157,21 @@ namespace MRR
         [NotMapped]
         public RobotLocation CurrentPos { get; set; } = new RobotLocation();
 
+        // Square the robot was on before its last one-square move (CreateCommands.MoveRobot),
+        // read by merging conveyor belts (SquareAction.OptionalRotate). Defaults to CurrentPos
+        // -- "no previous square" -- until set, and again after ClearPreviousPos().
+        private RobotLocation? _previousPos;
+
+        [NotMapped]
+        [XmlIgnore]
+        public RobotLocation PreviousPos
+        {
+            get => _previousPos ?? CurrentPos;
+            set => _previousPos = value;
+        }
+
+        public void ClearPreviousPos() => _previousPos = null;
+
         public tShutDown ShutDown { get; set; }
 
         [NotMapped]
