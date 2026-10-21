@@ -1092,33 +1092,39 @@ namespace MRR
 
             }
 
-            foreach (MoveCard thiscard in GameCards.Where(gc => gc.PhasePlayed == p_PhaseNumber).OrderBy(gc => gc.Priority))
+            var cardlist = GameCards.Where(gc => gc.PhasePlayed == p_PhaseNumber);
+
+            foreach (PlayerState respawning in workingPlayers.Where(p => p.RespawnID > 0 ))
+            {
+                var newcard = new MoveCard(100,MoveCard.tCardType.Respawn)
+                {
+                    Owner = respawning.ID,
+                    PhasePlayed = 1,
+                    Priority = respawning.Priority - 1
+                };
+                cardlist = cardlist.Append(newcard);
+            }
+
+
+
+            // A respawning robot with no card this phase (e.g. it came back shut down, so its cards
+            // were discarded) is placed at the start of the phase; the rest are placed in card
+            // priority order below.
+            //foreach (PlayerState respawning in workingPlayers.Where(p => p.RespawnID > 0 &&
+            //             !GameCards.Any(gc => gc.PhasePlayed == p_PhaseNumber && gc.Owner == p.ID)).ToList())
+            //    PlaceRespawningRobot(respawning);
+
+            foreach (MoveCard thiscard in cardlist.OrderBy(gc => gc.Priority))
             {
                 PlayerState? thisplayer = workingPlayers.GetPlayer(thiscard.Owner);
                 if (thisplayer != null)
                 {
-                    // check if player needs placement on board (reboot token)
-                    // if the respawn id is set, then the player needs to be placed on the board
-                    if (thisplayer.RespawnID > 0)
+                    // A respawning robot isn't IsRunning (RespawnID > 0, and maybe shut down), so
+                    // its placement card is handled here, before that check.
+                    if (thiscard.Type == MoveCard.tCardType.Respawn)
                     {
-                        // check if there is a player on the square
-                        PlayerState? blockingPlayer = workingPlayers.FirstOrDefault(p => p.CurrentPos.X == thisplayer.CurrentPos.X && p.CurrentPos.Y == thisplayer.CurrentPos.Y && p.ID != thisplayer.ID && p.IsOnBoard);
-
-                        // find the rotation of the respawn square with id thisplayer.RespawnID --
-                        // needed for the placement message below regardless of whether anyone
-                        // needs pushing off it first
-                        Direction respawndir = g_BoardElements.BoardElements.FirstOrDefault(be => be.ActionList.Count(al => al.SquareAction == SquareAction.Respawn && al.Parameter == thisplayer.RespawnID) > 0)?.Rotation ?? Direction.Up;
-
-                        if (blockingPlayer != null)
-                        {
-                            // push the blocking player off the square
-                            CalcMoveDistance(blockingPlayer, 1, respawndir, SquareAction.PushedMove);
-                        }
-                        // place player on board
-                        //ShowMessageToPlayer(thisplayer.Name + " on " + thisplayer.RespawnID + " facing " + thisplayer.CurrentPos.Direction.ToString(), thisplayer);
-                        ShowMessageToPlayer(thisplayer.Name + " on " + thisplayer.RespawnLetter + " dir: " + thisplayer.CurrentPos.DirectionArrow(thisplayer.DirectionAdjustment), thisplayer, "On " + thisplayer.RespawnLetter + ":" + thisplayer.CurrentPos.Direction.SeatArrow(thisplayer.DirectionAdjustment));
-                        thisplayer.RespawnID = 0;
-                        ListOfCommands.AddCommand(thisplayer, SquareAction.Respawn, 0); // clear respawn id
+                        PlaceRespawningRobot(thisplayer);
+                        continue;
                     }
 
                     if (thisplayer.IsRunning) // player not dead
@@ -1715,6 +1721,37 @@ namespace MRR
         #endregion  Run Phase
 
         #region Helper Functions
+
+        /// <summary>
+        /// Puts a robot coming back from a reboot (RespawnID > 0) onto its respawn square: pushes
+        /// any robot already there off it, tells the player, and clears RespawnID. Does nothing
+        /// for any other robot.
+        /// </summary>
+        private void PlaceRespawningRobot(PlayerState thisplayer)
+        {
+            // if the respawn id is set, then the player needs to be placed on the board
+            //if (thisplayer.RespawnID > 0)
+            //{
+                // check if there is a player on the square
+                PlayerState? blockingPlayer = workingPlayers.FirstOrDefault(p => p.CurrentPos.X == thisplayer.CurrentPos.X && p.CurrentPos.Y == thisplayer.CurrentPos.Y && p.ID != thisplayer.ID && p.IsOnBoard);
+
+                // find the rotation of the respawn square with id thisplayer.RespawnID --
+                // needed for the placement message below regardless of whether anyone
+                // needs pushing off it first
+                Direction respawndir = g_BoardElements.BoardElements.FirstOrDefault(be => be.ActionList.Count(al => al.SquareAction == SquareAction.Respawn && al.Parameter == thisplayer.RespawnID) > 0)?.Rotation ?? Direction.Up;
+
+                if (blockingPlayer != null)
+                {
+                    // push the blocking player off the square
+                    CalcMoveDistance(blockingPlayer, 1, respawndir, SquareAction.PushedMove);
+                }
+                // place player on board
+                //ShowMessageToPlayer(thisplayer.Name + " on " + thisplayer.RespawnID + " facing " + thisplayer.CurrentPos.Direction.ToString(), thisplayer);
+                ShowMessageToPlayer(thisplayer.Name + " on " + thisplayer.RespawnLetter + " dir: " + thisplayer.CurrentPos.DirectionArrow(thisplayer.DirectionAdjustment), thisplayer, "On " + thisplayer.RespawnLetter + ":" + thisplayer.CurrentPos.Direction.SeatArrow(thisplayer.DirectionAdjustment));
+                thisplayer.RespawnID = 0;
+                ListOfCommands.AddCommand(thisplayer, SquareAction.Respawn, 0); // clear respawn id
+            //}
+        }
 
         public void ShowMessageToPlayer(string p_Message, PlayerState? p_Player = null, string shortmessage = "")
         {

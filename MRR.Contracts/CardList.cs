@@ -86,6 +86,8 @@ namespace MRR
             Spam = 10,
             [Description("Haywire")]
             Haywire = 11,
+            [Description("Respawn")]
+            Respawn = 12,
             [Description("Option Card")]
             Option = 30,
         }

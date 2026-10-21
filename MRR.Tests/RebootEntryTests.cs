@@ -198,6 +198,47 @@ public class RebootEntryTests
         Assert.True(plan.Planned, plan.Summary);
         Assert.Contains(plan.Commands, c =>
             c.RobotID == EnteringId && c.CommandType == SquareAction.SetButtonText &&
-            c.text == $"Robot on {entering.RespawnLetter} {arrow}");
+            c.text == $"Robot on {entering.RespawnLetter} dir: {arrow}");
+    }
+
+    [Fact]
+    public void ShutDownRobotWithPendingRespawn_NoCards_IsPlacedInPhaseOne()
+    {
+        // A robot that comes back from a reboot shut down has no cards, but still goes onto
+        // its respawn square this turn.
+        var board = new BoardElementCollection(5, 5);
+        var respawnActions = new BoardActionsCollection
+        {
+            new BoardAction { SquareAction = SquareAction.Respawn, Parameter = RespawnTokenId },
+        };
+        board.SetSquare(2, 2, SquareType.RebootToken, Direction.Right, respawnActions);
+
+        var entering = new PlayerState
+        {
+            ID = EnteringId,
+            PlayerStatus = tPlayerStatus.ShutDown,
+            Priority = 1,
+            RespawnID = RespawnTokenId,
+            CurrentPos = new RobotLocation(Direction.Right, 2, 2),
+        };
+        entering.NextPos = new RobotLocation(entering.CurrentPos);
+
+        var request = new TurnRequest
+        {
+            Turn = 1,
+            Phase = 0,
+            PhaseCount = 5,
+            GameState = 6,
+            Board = board,
+            Players = [entering],
+            GameCards = new CardList(),
+        };
+
+        var plan = new CreateCommands(request).CreateTurn();
+
+        Assert.True(plan.Planned, plan.Summary);
+        var placed = Assert.Single(plan.Commands, c =>
+            c.RobotID == EnteringId && c.CommandType == SquareAction.Respawn && c.Value == 0);
+        Assert.Equal(1, placed.Phase);
     }
 }
