@@ -1,6 +1,6 @@
 # Mega Robo Rally — Project TODO
 
-**Last updated:** 2026-10-20
+**Last updated:** 2026-10-21
 **Legend:** `[x]` Done &nbsp; `[-]` Partial / In Progress &nbsp; `[ ]` Not started
 
 Resolved items are removed from this file once done rather than kept as a checked-off log —
@@ -32,6 +32,13 @@ What to work on next, reordered by the user 2026-10-08.
     - The script waits up to 4 minutes for the game server, then launches anyway, so a slow
       server delays the kiosk.
     - Keep `install/git.sh` and `install/kiosk/*` LF, not CRLF, when committing from Windows.
+  - [ ] **Install the kiosk as part of every Pi setup.** 2026-10-21: the kiosk never appeared
+    because its install step had never run on this Pi — `~/.local/bin/mrr-kiosk.sh` and
+    `~/.config/autostart/mrr-kiosk.desktop` were missing, though desktop auto-login was already
+    set. The kiosk is only installed when `git.sh` gets `--dsi-screen` or `--tft-screen`, so a
+    plain `git.sh` run leaves it out. Make the kiosk install the default for a Pi with a screen
+    (skip it only with `--no-screen`), and have the verify step warn if the kiosk files are
+    missing. The files were copied by hand on 2026-10-21; still check after a reboot that it opens.
 
 - [ ] **Robot screen: show the last flag** the robot has reached (`RobotScreenUI.cs`; the value is
   `Robots.CurrentFlag`, already in the payload as part of `FlagEnergyCards`)
