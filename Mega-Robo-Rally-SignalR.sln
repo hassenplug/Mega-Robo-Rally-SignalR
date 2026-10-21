@@ -19,6 +19,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MRR.Tools.RobotSpriteDraw",
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MRR.Tools.FontTest", "MRR.Tools.FontTest\MRR.Tools.FontTest.csproj", "{7B07DB2C-5312-4D07-9984-F493F4BF5CF5}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MRR.Tools.SoundTest", "MRR.Tools.SoundTest\MRR.Tools.SoundTest.csproj", "{91377BB5-F103-45BE-BD8D-4377A1086586}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -125,6 +127,18 @@ Global
 		{7B07DB2C-5312-4D07-9984-F493F4BF5CF5}.Release|x64.Build.0 = Release|Any CPU
 		{7B07DB2C-5312-4D07-9984-F493F4BF5CF5}.Release|x86.ActiveCfg = Release|Any CPU
 		{7B07DB2C-5312-4D07-9984-F493F4BF5CF5}.Release|x86.Build.0 = Release|Any CPU
+		{91377BB5-F103-45BE-BD8D-4377A1086586}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{91377BB5-F103-45BE-BD8D-4377A1086586}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{91377BB5-F103-45BE-BD8D-4377A1086586}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{91377BB5-F103-45BE-BD8D-4377A1086586}.Debug|x64.Build.0 = Debug|Any CPU
+		{91377BB5-F103-45BE-BD8D-4377A1086586}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{91377BB5-F103-45BE-BD8D-4377A1086586}.Debug|x86.Build.0 = Debug|Any CPU
+		{91377BB5-F103-45BE-BD8D-4377A1086586}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{91377BB5-F103-45BE-BD8D-4377A1086586}.Release|Any CPU.Build.0 = Release|Any CPU
+		{91377BB5-F103-45BE-BD8D-4377A1086586}.Release|x64.ActiveCfg = Release|Any CPU
+		{91377BB5-F103-45BE-BD8D-4377A1086586}.Release|x64.Build.0 = Release|Any CPU
+		{91377BB5-F103-45BE-BD8D-4377A1086586}.Release|x86.ActiveCfg = Release|Any CPU
+		{91377BB5-F103-45BE-BD8D-4377A1086586}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
