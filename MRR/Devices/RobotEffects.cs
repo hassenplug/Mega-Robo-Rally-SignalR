@@ -40,7 +40,7 @@ namespace MRR.Devices
             {
                 case SquareAction.FireCannon: // shooter only; the victim's effect comes from Damage
                 {
-                    var s = new List<Step> { new Snd("send") }; //
+                    var s = new List<Step> { new Snd("reverse") }; //
                     foreach (var led in Ring)
                     {
                         s.Add(new Led(led, 255, 255, 255));
@@ -79,7 +79,7 @@ namespace MRR.Devices
                 }
 
                 case SquareAction.SetEnergy: // only ever emitted when energy is gained
-                    return new List<Step> { new Snd("pickup"), All(0, 255, 0), new Wait(300) };
+                    return new List<Step> { new Snd("forward"), All(0, 255, 0), new Wait(300) };
 
                 case SquareAction.PlayOptionCard:
                     return new List<Step>
@@ -101,11 +101,11 @@ namespace MRR.Devices
                 }
 
                 case SquareAction.SetShutDownMode:
-                    return new List<Step> { new Snd("pause"), All(40, 40, 40), new Wait(400) };
+                    return new List<Step> { new Snd("brakes"), All(40, 40, 40), new Wait(400) };
 
                 case SquareAction.GameWinner:
                 {
-                    var s = new List<Step> { new Snd("cheer") };
+                    var s = new List<Step> { new Snd("act_happy") };
                     (int r, int g, int b)[] colors = { (255, 0, 0), (255, 160, 0), (255, 255, 0), (0, 255, 0), (0, 128, 255), (160, 0, 255) };
                     for (int lap = 0; lap < 3; lap++)
                         for (int i = 0; i < Ring.Length; i++)
