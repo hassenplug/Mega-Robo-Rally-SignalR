@@ -35,15 +35,17 @@ namespace MRR
         public const string SeatArrowChars = "^>v<";
 
         /// <summary>
-        /// The arrow, in the robot's own frame (up = the way it faces), pointing toward its player.
-        /// A seat's DirectionAdjustment is the board direction that seat looks in, so the player
-        /// sits on the opposite side of the board: (adjustment + 2 - facing) mod 4 quarter-turns.
-        /// Empty until both the facing and the seat are known.
+        /// The arrow shown on the robot's screen pointing toward its player, as
+        /// (6 - adjustment - facing) mod 4 quarter-turns clockwise from the top of the screen.
+        /// DirectionAdjustment is SeatOrientation.Direction -- the same value the phone adds to a
+        /// facing to show it from the player's side (js/loadrobots.js renderDirectionArrow) -- not
+        /// simply the board direction the seat looks in; the formula was checked on the live
+        /// table for seats with DirectionAdjustment 2 and 3. Empty until both are known.
         /// </summary>
         public static string SeatArrow(this Direction facing, int directionAdjustment)
         {
             if (facing < Direction.Up || facing > Direction.Left || directionAdjustment < 1 || directionAdjustment > 4) return "";
-            return SeatArrowChars[(directionAdjustment + 2 - (int)facing + 4) % 4].ToString();
+            return SeatArrowChars[(10 - directionAdjustment - (int)facing) % 4].ToString();
         }
     }
 }

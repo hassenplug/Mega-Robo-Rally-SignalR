@@ -211,14 +211,13 @@ namespace MRR.Services
 
         /// <summary>
         /// SQL expression for Robots.SeatArrow: the same arrow as DirectionExtensions.SeatArrow
-        /// (^ > v <, in the robot's own frame, pointing toward its player), computed in SQL from
-        /// the same characters. A seat's DirectionAdjustment is the board direction that seat
-        /// looks in (SeatOrientation.Direction). Empty until both the facing and the seat are
-        /// known. Pass the column names (or a literal for the facing) the surrounding UPDATE uses.
+        /// (^ > v <, pointing toward its player), computed in SQL with the same formula and
+        /// characters. DirectionAdjustment is SeatOrientation.Direction. Empty until both the
+        /// facing and the seat are known. Pass the column names (or a literal for the facing) the surrounding UPDATE uses.
         /// </summary>
         private static string SeatArrowSql(string facing = "CurrentPosDir", string adjustment = "DirectionAdjustment") =>
             $"IF({facing} BETWEEN 1 AND 4 AND {adjustment} BETWEEN 1 AND 4, " +
-            $"ELT(MOD({adjustment} + 2 - {facing} + 4, 4) + 1, " +
+            $"ELT(MOD(10 - {adjustment} - {facing}, 4) + 1, " +
             string.Join(", ", DirectionExtensions.SeatArrowChars.Select(c => $"'{c}'")) + "), '')";
 
         public void RefreshRobotDenormalizedFields()
