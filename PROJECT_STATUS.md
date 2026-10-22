@@ -221,9 +221,10 @@ than the 40 s–2 min quoted in §1.5), and it is a different board, so the kern
 Replaces §1.8. Hardware: Raspberry Pi 4 + Hosyond 5" IPS capacitive touch screen
 (800×480, MIPI DSI, listed as "driver-free", compatible with Pi 3/4/5;
 [Amazon B0CXTFN8K9](https://www.amazon.com/dp/B0CXTFN8K9)). A 7" version of the same panel
-exists ([B0D3QB7X4Z](https://www.amazon.com/dp/B0D3QB7X4Z)). **The screen is physically installed, but
-the setup steps below have not been confirmed on it, and the listing's spec section was not read** — power draw, included cables and any
-`config.txt` line the seller requires are unconfirmed. Check the seller's page or manual first.
+exists ([B0D3QB7X4Z](https://www.amazon.com/dp/B0D3QB7X4Z)). **Working: confirmed 2026-10-21 that the kiosk opens `gmindex.html` on this screen** (kiosk
+files installed by hand with the step 4 commands; no `piscreen` overlay in `config.txt`). The
+listing's spec section was still not read — power draw, included cables and any `config.txt`
+line the seller requires are unconfirmed, so check the seller's page or manual on a new build.
 
 The screen plugs into the Pi 4's **DISPLAY** (DSI) port by ribbon cable, not the GPIO header, so
 there is no SPI overlay and the kiosk files from §1.8 are used unchanged.

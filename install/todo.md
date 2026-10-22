@@ -13,32 +13,12 @@ because other documents refer to them; sections with nothing open are omitted.
 
 What to work on next, reordered by the user 2026-10-08.
 
-- [-] **GM screen: Hosyond 5" DSI (800×480) on the Pi 4** (installed 2026-10-16; `PROJECT_STATUS.md`
-  §1.9; `MRR/wwwroot/gmindex.html`, `install/git.sh --dsi-screen`) — all of this is written but
-  unverified on the real screen
-  - [ ] Run `./install/git.sh --dsi-screen` (or the three kiosk commands in §1.9 step 4) and
-    reboot: check that Chromium opens `gmindex.html` full-screen on its own. Make sure no old
-    `dtoverlay=piscreen` line is left in `/boot/firmware/config.txt`.
-    - 2026-10-19: kiosk did not open on its own. `install/kiosk/mrr-kiosk.sh` was hardened
-      (untested on the Pi): it logs to `~/mrr-kiosk.log`, passes `--ozone-platform=wayland` only
-      when `WAYLAND_DISPLAY` is set, and falls back from `chromium` to `chromium-browser`.
-      Re-copy the script (or re-run `git.sh --dsi-screen`), reboot, and `cat ~/mrr-kiosk.log`.
-    - If the log never appears, the autostart entry didn't run. Check, in order:
-      - `~/.config/autostart/mrr-kiosk.desktop` exists and the Pi boots to the desktop with
-        auto-login (`raspi-config` B4).
-      - The `.desktop` files hardcode `/home/mrr/...`, so the Pi user must be `mrr`.
-      - The Pi OS Wayland desktop may ignore `~/.config/autostart`; if so, add the script to
-        `~/.config/labwc/autostart`.
-    - The script waits up to 4 minutes for the game server, then launches anyway, so a slow
-      server delays the kiosk.
-    - Keep `install/git.sh` and `install/kiosk/*` LF, not CRLF, when committing from Windows.
-  - [ ] **Install the kiosk as part of every Pi setup.** 2026-10-21: the kiosk never appeared
-    because its install step had never run on this Pi — `~/.local/bin/mrr-kiosk.sh` and
-    `~/.config/autostart/mrr-kiosk.desktop` were missing, though desktop auto-login was already
-    set. The kiosk is only installed when `git.sh` gets `--dsi-screen` or `--tft-screen`, so a
-    plain `git.sh` run leaves it out. Make the kiosk install the default for a Pi with a screen
-    (skip it only with `--no-screen`), and have the verify step warn if the kiosk files are
-    missing. The files were copied by hand on 2026-10-21; still check after a reboot that it opens.
+- [ ] **`git.sh` verify step: warn if the kiosk files are missing** on a Pi with a screen
+  (`~/.local/bin/mrr-kiosk.sh`, `~/.config/autostart/mrr-kiosk.desktop`). The GM kiosk on the
+  Pi 4 + Hosyond 5" DSI screen works (confirmed 2026-10-21, `PROJECT_STATUS.md` §1.9) — it
+  had only failed because its install step had never run on that Pi. `git.sh` already
+  installs it by default (`--dsi-screen`); this check would catch a Pi set up some other way.
+  Keep `install/git.sh` and `install/kiosk/*` LF, not CRLF, when committing from Windows.
 
 - [ ] **Robot screen: show the last flag** the robot has reached (`RobotScreenUI.cs`; the value is
   `Robots.CurrentFlag`, already in the payload as part of `FlagEnergyCards`)
@@ -162,6 +142,17 @@ Not being worked on now (user 2026-10-08).
   exist today — Start Game, Next State, End Game — rather than literal "Restart"/"Reboot"
   buttons, since neither of those is a real distinct action in the codebase (no "restart game"
   endpoint, and "Reboot" is the per-robot mechanic in Section 1, not a game-level control).
+- [ ] **Game Report** — a new web page, opened from the GM page (`gmindex.html` ☰ menu, next to
+  Turn History). Shows:
+  - Start time, end time (= now), and average move time, all from `HistoryRobotTurns.SavedAt`
+    (start = the first turn's SavedAt; average = mean gap between consecutive turns' SavedAt).
+    SavedAt only exists from 2026-10-21 on, so older turns have no times.
+  - One row per robot, sorted by most flags touched, then shortest Manhattan distance
+    (|row − flag row| + |col − flag col|) from the robot's current square to its next flag.
+  - Per-robot stats include Spam cards received = max(MoveCards.CardID) − 20 for that robot
+    (CardIDs 1–20 are the starting deck). Check before relying on it: DealSpamToPlayer gives a
+    new Spam card MAX(CardID)+1, so if the highest-numbered Spam cards were deleted at a deal,
+    their IDs are reused and this undercounts. A running count would be exact.
 
 ### Direction arrows — inventory (2026-10-08, reference)
 
