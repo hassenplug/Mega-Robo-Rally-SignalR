@@ -382,8 +382,15 @@ namespace MRR
                         // with no message anywhere.
                         var sentTo = robot;
                         var sentCommand = onecommand;
+                        // GM page Timing panel: only commands the loop waits on (with reply).
+                        bool timed = onecommand.CommandCatID == 1;
+                        long startedAt = System.Diagnostics.Stopwatch.GetTimestamp();
+                        if (timed) CommandTiming.CommandStarted();
                         _ = robot.SendRobotCommandAsync(onecommand).ContinueWith(t =>
                         {
+                            if (timed)
+                                CommandTiming.CommandFinished(sentTo.ID,
+                                    System.Diagnostics.Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds);
                             if (!t.IsFaulted) return;
                             var error = t.Exception?.GetBaseException();
                             Console.WriteLine(
@@ -437,6 +444,7 @@ namespace MRR
                     return true;
 
                 case 6: // User Input
+                    CommandTiming.UserWait(); // waiting on a person -- not a server gap
                     var robotPlayer = _dataService.AllPlayers.GetPlayer(p => p.ID == onecommand.RobotID);
                     if (onecommand.StatusID < 4)
                     {

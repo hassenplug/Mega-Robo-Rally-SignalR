@@ -51,6 +51,15 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
 #programPanel img { width:50px; cursor:pointer; }
 /* The robot whose program is showing on the right (F/E/C view only). */
 #mainTable .button.selectedRobot { outline:4px solid #000000; outline-offset:-4px; }
+/* Timing panel (menu: Timing) -- robot message speed, see MRR/Devices/CommandTiming.cs. */
+#timingPanel { display:none; background:#ffffff; padding:4px; margin-bottom:6px; font-size:14px; }
+#timingPanel table { width:100%; border-collapse:collapse; }
+#timingPanel th, #timingPanel td { padding:2px 3px; text-align:right; border-bottom:1px solid #e0e0e0; white-space:nowrap; }
+#timingPanel th { font-weight:normal; color:#606060; }
+#timingPanel td.tName { text-align:left; font-weight:bold; overflow:hidden; text-overflow:ellipsis; max-width:80px; }
+#timingPanel .slow { color:#cc0000; font-weight:bold; }
+#timingPanel .tFoot { display:flex; justify-content:space-between; align-items:center; margin-top:4px; color:#606060; font-size:13px; }
+#timingPanel .tFoot .button { min-height:36px; width:auto; font-size:14px; }
 </style>
 
 </head>
@@ -107,6 +116,7 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
             <button class="button" onclick="event.stopPropagation(); window.open('turnhistory.html', '_blank');">Turn History</button>
             <button class="button" onclick="event.stopPropagation(); document.getElementById('qrCodes').style.display='block';">QR Codes</button>
             <button class="button" id="showCardsBtn" onclick="event.stopPropagation(); toggleShowCards();">Show Cards: Off</button>
+            <button class="button" id="timingBtn" onclick="event.stopPropagation(); toggleTiming();">Timing: Off</button>
             <div style="position:relative;">
                 <button class="button" onclick="event.stopPropagation(); toggleProgramScreenSubmenu();">Program Screen</button>
                 <div id="programScreenSubmenu" class="w3-card-4">
@@ -134,6 +144,18 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
          Battery view: one button per robot with a pending PlayerMsg, and a direction row per
          robot whose direction isn't locked yet. -->
     <div id="buttonPane">
+        <!-- Robot message timing, toggled from the menu (toggleTiming). Times are ms, avg / max. -->
+        <div id="timingPanel">
+            <table>
+                <thead><tr><th style="text-align:left;">ms avg/max</th><th title="Command message: send to robot's reply">Ack</th><th title="Status poll round trip (every 50ms while moving)">Poll</th><th title="Whole move/turn, sent to finished">Move</th></tr></thead>
+                <tbody id="timingRows"></tbody>
+            </table>
+            <div class="tFoot">
+                <span id="timingGap" title="Server time between one robot command finishing and the next being sent"></span>
+                <button class="button" onclick="resetTiming();">Reset</button>
+            </div>
+            <div id="timingSince" style="color:#808080; font-size:12px;"></div>
+        </div>
         <div id="gmtable" style="display:none; margin-bottom:6px;">
             <button class="button" style="width:auto; padding:6px 20px; background-color:#008000; color:#ffffff;" onclick="startSelectedGame();">Start</button>
             <select id="gameDataSelect" class="w3-input" style="display:inline-block; width:auto; font-size:18px; height:48px;"></select>
@@ -228,6 +250,67 @@ function buildPlayerRows(robots) {
 // Menu "Show Cards" toggle, off on every page load: whether the right panel shows the picked
 // robot's played and dealt cards.
 var showCards = false;
+
+// ── Timing panel ─────────────────────────────────────────────────────────────
+// Polls /api/timing every 2s while it is on. Ack/Poll are network + robot round trips
+// (a few ms on a healthy network); Move is a whole drive/turn; Server gap is time spent in
+// the server between robot commands. Averages over SLOW_MS are shown in red.
+var timingOn = false;
+var timingTimer = null;
+var TIMING_SLOW_MS = { ack: 100, status: 100 };
+
+function toggleTiming() {
+    timingOn = !timingOn;
+    document.getElementById('timingBtn').textContent = 'Timing: ' + (timingOn ? 'On' : 'Off');
+    document.getElementById('timingPanel').style.display = timingOn ? 'block' : 'none';
+    clearInterval(timingTimer);
+    timingTimer = null;
+    if (timingOn) {
+        loadTiming();
+        timingTimer = setInterval(loadTiming, 2000);
+    }
+}
+
+function timingCell(stat, slowMs) {
+    var td = document.createElement('td');
+    if (!stat || stat.count === 0) { td.textContent = '-'; return td; }
+    td.textContent = stat.avgMs + '/' + stat.maxMs;
+    td.title = stat.count + ' samples, last ' + stat.lastMs + 'ms';
+    if (slowMs && stat.avgMs > slowMs) td.className = 'slow';
+    return td;
+}
+
+function loadTiming() {
+    fetch('/api/timing').then(function (r) { return r.json(); }).then(function (t) {
+        var robots = (typeof datapacket !== 'undefined' && datapacket && datapacket.robots) || [];
+        var tbody = document.getElementById('timingRows');
+        tbody.innerHTML = '';
+        t.robots.forEach(function (row) {
+            var r = robots.find(function (x) { return x.RobotID === row.robotID; });
+            var tr = document.createElement('tr');
+            var name = document.createElement('td');
+            name.className = 'tName';
+            name.textContent = r ? r.RobotName : 'Robot ' + row.robotID;
+            if (r) { name.style.background = '#' + r.RobotColor; name.style.color = '#' + r.RobotColorFG; }
+            tr.appendChild(name);
+            tr.appendChild(timingCell(row.ack, TIMING_SLOW_MS.ack));
+            tr.appendChild(timingCell(row.status, TIMING_SLOW_MS.status));
+            tr.appendChild(timingCell(row.command));
+            tbody.appendChild(tr);
+        });
+        if (!t.robots.length) tbody.innerHTML = '<tr><td colspan="4" style="text-align:left; color:#808080;">No robot messages yet</td></tr>';
+        var gap = t.serverGap;
+        document.getElementById('timingGap').textContent = 'Server gap: ' +
+            (gap.count ? gap.avgMs + '/' + gap.maxMs + ' ms' : '-');
+        document.getElementById('timingSince').textContent = 'Since ' + t.since;
+    }).catch(function () {
+        document.getElementById('timingSince').textContent = 'Could not load timing.';
+    });
+}
+
+function resetTiming() {
+    fetch('/api/timing/reset', { method: 'POST' }).then(loadTiming);
+}
 
 function toggleShowCards() {
     showCards = !showCards;

@@ -105,6 +105,14 @@ app.MapGet("/api/gamedata", (DataService dataService) =>
         "SELECT GameDataID, Description FROM GameData ORDER BY GameDataID;", "games"),
         "application/json"));
 
+// Robot message / command timing for the GM page's Timing panel (MRR.Devices.CommandTiming).
+app.MapGet("/api/timing", () => Results.Ok(MRR.Devices.CommandTiming.Snapshot()));
+app.MapPost("/api/timing/reset", () =>
+{
+    MRR.Devices.CommandTiming.Reset();
+    return Results.Ok();
+});
+
 // One saved turn's start positions + programmed cards, in that turn's priority order
 // (turnhistory.html). No turn = the previous one.
 app.MapGet("/api/history/turn/{turn:int?}", (int? turn, DataService dataService) =>

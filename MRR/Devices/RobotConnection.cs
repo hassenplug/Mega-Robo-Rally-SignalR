@@ -309,6 +309,7 @@ namespace MRR.Devices
                 //Console.WriteLine($"[{RobotID}] cmd: {jsonCommand}");
                 var bytes = Encoding.UTF8.GetBytes(jsonCommand);
 
+                long sentAt = System.Diagnostics.Stopwatch.GetTimestamp(); // after the lock: network + robot only
                 await wsCmd.SendAsync(
                     new ArraySegment<byte>(bytes),
                     WebSocketMessageType.Binary,
@@ -319,6 +320,7 @@ namespace MRR.Devices
                 var result = await wsCmd.ReceiveAsync(
                     new ArraySegment<byte>(buffer),
                     CancellationToken.None);
+                CommandTiming.RecordAck(RobotID, System.Diagnostics.Stopwatch.GetElapsedTime(sentAt).TotalMilliseconds);
 
                 if (result.MessageType == WebSocketMessageType.Binary)
                 {
@@ -378,11 +380,13 @@ namespace MRR.Devices
             await _statusSocketSemaphore.WaitAsync();
             try
             {
+                long sentAt = System.Diagnostics.Stopwatch.GetTimestamp();
                 await wsStatus.SendAsync(new ArraySegment<byte>(StatusPollRequest),
                     WebSocketMessageType.Binary, true, CancellationToken.None);
 
                 var buffer = new byte[4096];
                 var result = await wsStatus.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+                CommandTiming.RecordStatus(RobotID, System.Diagnostics.Stopwatch.GetElapsedTime(sentAt).TotalMilliseconds);
                 if (result.MessageType == WebSocketMessageType.Close)
                     return new RobotStatus();
 
