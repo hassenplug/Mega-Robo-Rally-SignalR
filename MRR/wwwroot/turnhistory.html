@@ -15,6 +15,9 @@
     .name { font-weight: bold; border-radius: 4px; }
     .cards { font-family: monospace; font-size: 24px; letter-spacing: 4px; }
     .pri { font-size: 20px; color: #aaa; }
+    .fec { font-family: monospace; font-size: 16px; }
+    .dir { width: 22px; height: 22px; vertical-align: middle; }
+    #savedAt { color: #aaa; font-size: 14px; margin-left: 6px; }
     #msg { color: #aaa; margin-top: 12px; }
 </style>
 </head>
@@ -24,20 +27,25 @@
     <button id="prev">&laquo; Prev</button>
     <button id="next">Next &raquo;</button>
     <button onclick="window.close()">Close</button>
+    <span id="savedAt"></span>
 </div>
 <table>
-    <thead><tr><th>#</th><th>Robot</th><th>Start</th><th>Cards</th></tr></thead>
+    <thead><tr><th>#</th><th>Robot</th><th>Start</th><th title="Flag / Energy / Cards at the start of the turn">F/E/C</th><th>Cards</th></tr></thead>
     <tbody id="rows"></tbody>
 </table>
 <div id="msg"></div>
 <script>
     var shownTurn = null;
+    var DIRECTION_DEGREES = { 1: 0, 2: 90, 3: 180, 4: 270 }; // Up, Right, Down, Left
 
     function load(turn) {
         var url = '/api/history/turn' + (turn == null ? '' : '/' + turn);
         fetch(url).then(function (r) { return r.json(); }).then(function (d) {
             shownTurn = d.turn;
             document.getElementById('turn').textContent = d.turn;
+            // Timestamp of the first robot in priority order (the row shown first).
+            var first = d.robots[0];
+            document.getElementById('savedAt').textContent = first && first.savedAt ? first.savedAt : '';
             document.getElementById('next').disabled = d.turn + 1 >= d.currentTurn;
             document.getElementById('prev').disabled = d.turn <= 1;
 
@@ -62,8 +70,25 @@
                 tr.appendChild(name);
 
                 var start = document.createElement('td');
-                start.textContent = 'R' + r.startRow + ' C' + r.startCol + ' ' + r.startDir;
+                start.textContent = 'R' + r.startRow + ' C' + r.startCol + ' ';
+                // Same rotated arrow as gmindex.html's robot list. ShortDirDesc can't be shown
+                // as text: RobotDirections stores > and < as the entities &gt; / &lt;.
+                if (DIRECTION_DEGREES[r.startDirID] !== undefined) {
+                    var dirImg = document.createElement('img');
+                    dirImg.className = 'dir';
+                    dirImg.src = 'images/Direction1.png';
+                    dirImg.alt = ['', 'Up', 'Right', 'Down', 'Left'][r.startDirID];
+                    dirImg.style.transform = 'rotate(' + DIRECTION_DEGREES[r.startDirID] + 'deg)';
+                    start.appendChild(dirImg);
+                } else {
+                    start.appendChild(document.createTextNode('?'));
+                }
                 tr.appendChild(start);
+
+                var fec = document.createElement('td');
+                fec.className = 'fec';
+                fec.textContent = r.fec || '-';
+                tr.appendChild(fec);
 
                 var cards = document.createElement('td');
                 cards.className = 'cards';

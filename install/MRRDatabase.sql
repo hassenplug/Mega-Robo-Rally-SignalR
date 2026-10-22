@@ -526,6 +526,8 @@ CREATE TABLE `HistoryRobotOptions` (
 -- that turn's execution, its turn-order Priority (1 acts first), and which cards drove it
 -- there. An existing database needs:
 --   ALTER TABLE HistoryRobotTurns ADD COLUMN Priority int(11) DEFAULT 0 AFTER RobotID;
+--   ALTER TABLE HistoryRobotTurns ADD COLUMN FlagEnergyCards varchar(20) DEFAULT NULL AFTER MoveCards,
+--     ADD COLUMN SavedAt datetime DEFAULT NULL AFTER FlagEnergyCards;
 -- Written by DataService.Players.cs's
 -- SaveToHistory(turn) -- a single bulk `INSERT ... SELECT ... FROM Robots`, called from
 -- GameController.CreateTurn() right after BuildTurnRequest() and before the planner
@@ -543,6 +545,8 @@ CREATE TABLE `HistoryRobotTurns` (
   `StartCol` int(11) DEFAULT 0,
   `StartDir` int(11) DEFAULT 0,
   `MoveCards` varchar(30) DEFAULT NULL,
+  `FlagEnergyCards` varchar(20) DEFAULT NULL,  -- Robots.FlagEnergyCards (flag/energy/cards) at the start of the turn
+  `SavedAt` datetime DEFAULT NULL,              -- when SaveToHistory wrote the row (server local time)
   PRIMARY KEY (`RobotID`,`Turn`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 

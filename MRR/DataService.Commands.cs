@@ -250,10 +250,11 @@ namespace MRR.Services
                     break;
 
                 case SquareAction.DealSpamCard: // Deal Spam card to player
-                    int cardcount = DealSpamToPlayer(cRobotID);
-                    ExecuteSQL($"UPDATE Robots SET CardCount = {cardcount} " +
-                        $" WHERE RobotID = {cRobotID}");
-                    RefreshFlagEnergyCards(cRobotID);
+                    // DealSpamToPlayer refreshes CardCount and FlagEnergyCards itself. Its
+                    // return value is the new card's CardID, not a count -- CardIDs have gaps
+                    // (Spam is deleted at each deal), so writing it to CardCount inflated F/E/C
+                    // until the next deal recounted.
+                    DealSpamToPlayer(cRobotID);
                     break;
 
                 case SquareAction.SetShutDownMode: // Set ShutDown

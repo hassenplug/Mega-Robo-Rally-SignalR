@@ -991,8 +991,8 @@ namespace MRR.Services
             // Priority is the turn's turn-order rank (1 acts first, same as the planner's
             // OrderBy(Priority)); MoveCardsShuffleAndDeal rotates it before CreateTurn runs, so
             // this is already the value this turn executes with.
-            ExecuteSQL($@"INSERT INTO HistoryRobotTurns (Turn, RobotID, Priority, StartRow, StartCol, StartDir, MoveCards)
-                    Select {Turn}, RobotID, Priority, CurrentPosRow, CurrentPosCol, CurrentPosDir, CardsPlayed FROM Robots ");
+            ExecuteSQL($@"INSERT INTO HistoryRobotTurns (Turn, RobotID, Priority, StartRow, StartCol, StartDir, MoveCards, FlagEnergyCards, SavedAt)
+                    Select {Turn}, RobotID, Priority, CurrentPosRow, CurrentPosCol, CurrentPosDir, CardsPlayed, FlagEnergyCards, NOW() FROM Robots ");
 
         }
 
@@ -1013,7 +1013,7 @@ namespace MRR.Services
                 cardLetters[Convert.ToInt32(row["CardTypeID"])] = row["ShortDescription"] as string ?? "?";
 
             var table = GetQueryResults(
-                "SELECT h.RobotID, h.Priority, h.StartRow, h.StartCol, h.StartDir, h.MoveCards, " +
+                "SELECT h.RobotID, h.Priority, h.StartRow, h.StartCol, h.StartDir, h.MoveCards, h.FlagEnergyCards, h.SavedAt, " +
                 "       r.RobotName, r.RobotColor, r.RobotColorFG, d.ShortDirDesc " +
                 "FROM HistoryRobotTurns h " +
                 "LEFT JOIN Robots r ON r.RobotID = h.RobotID " +
@@ -1034,10 +1034,14 @@ namespace MRR.Services
                 startRow  = Int(row["StartRow"]),
                 startCol  = Int(row["StartCol"]),
                 startDir  = Str(row["ShortDirDesc"]),
+                startDirID = Int(row["StartDir"]), // 1-4 Up/Right/Down/Left; turnhistory.html draws the arrow from this
                 cards     = string.Concat(Str(row["MoveCards"])
                                 .Split(',', StringSplitOptions.RemoveEmptyEntries)
                                 .Select(id => int.TryParse(id, out int typeId) && typeId > 0
-                                    ? cardLetters.GetValueOrDefault(typeId, "?") : "-"))
+                                    ? cardLetters.GetValueOrDefault(typeId, "?") : "-")),
+                fec       = Str(row["FlagEnergyCards"]),
+                // null for turns saved before the SavedAt column existed
+                savedAt   = row["SavedAt"] is DBNull ? null : Convert.ToDateTime(row["SavedAt"]).ToString("yyyy-MM-dd HH:mm:ss")
             }).ToList();
 
             return new { turn = turnNumber, currentTurn = Turn, robots };
