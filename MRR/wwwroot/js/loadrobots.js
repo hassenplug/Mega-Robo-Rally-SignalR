@@ -473,7 +473,7 @@ var SHUT_DOWN_CURRENTLY = 2; // tShutDown.Currently (MRR.Contracts/PlayerState.c
 // shut down on; cancelling an already-set shut down just goes through.
 var SHUT_DOWN_PROMPT =
     'Do you wish to shut down for the current turn?  At the start of the turn, all your spam ' +
-    'cards will be discarded.  You will still need to program your robot.';
+    'cards will be discarded.  Your first five cards will be put in your program for you.';
 
 function toggleShutDown() {
     var rbt = datapacket && datapacket.robots.find(function (r) { return r.RobotID === CurrentPlayer; });

@@ -760,7 +760,30 @@ namespace MRR.Services
             ExecuteSQL(
                 $"UPDATE Robots SET ShutDown = IF(ShutDown = {(int)tShutDown.Currently}, " +
                 $"{(int)tShutDown.None}, {(int)tShutDown.Currently}) WHERE RobotID = {robotID}");
+
+            if (GetIntFromDB($"SELECT ShutDown FROM Robots WHERE RobotID = {robotID}") == (int)tShutDown.Currently)
+                FillEmptyRegisters(robotID);
             return true;
+        }
+
+        // A shut-down robot's program is discarded at lock-in anyway, so fill it in for the
+        // player: the first cards of the hand, in the order the phone shows them (CardsDealt,
+        // CardTypeID descending), go into the empty registers -- the same as tapping each one.
+        // Registers the player already filled are kept. Turning shut down off leaves them.
+        private void FillEmptyRegisters(int robotID)
+        {
+            int empty = GetIntFromDB(
+                "SELECT COUNT(*) FROM PhaseCounter pc " +
+                $"LEFT JOIN MoveCards mc ON pc.ID = mc.PhasePlayed AND mc.Owner = {robotID} " +
+                $"WHERE pc.ID <= {PhaseCount} AND mc.CardID IS NULL");
+            if (empty <= 0) return;
+
+            var cardTypes = GetIntList(
+                $"SELECT CardTypeID FROM MoveCards WHERE Owner = {robotID} AND CardLocation = 1 " +
+                $"ORDER BY CardTypeID DESC LIMIT {empty}");
+
+            foreach (int cardType in cardTypes)
+                UpdateCardPlayed(robotID, cardType, -1); // -1: first empty register
         }
 
         // =====================================================================

@@ -225,7 +225,8 @@ app.MapGet("/api/player/{command:int}/{playerId:int?}/{data1:int?}/{data2:int?}"
             dataService.ConfirmRobotDirection(pid, d1);
             break;
         case 6: // Toggle shutdown for this turn (programming phase only; additive command)
-            dataService.ToggleShutDown(pid);
+            if (dataService.ToggleShutDown(pid))
+                gameController.RefreshPlayerScreenUI(pid); // turning it on may have filled the program
             break;
     }
 

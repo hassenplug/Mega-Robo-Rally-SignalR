@@ -71,7 +71,11 @@ For each robot with `ShutDown == Currently`:
   its programming cards (registers/hand) to the discard pile — see the rules table above.
 
 A robot that chose shutdown must still complete its program (and direction) like any other:
-state 4 waits on it the same way, and its cards are only discarded here at lock-in.
+state 4 waits on it the same way, and its cards are only discarded here at lock-in. Since
+2026-10-23, turning shutdown on fills the empty registers with the first cards of the hand
+(phone order) for the player (`DataService.FillEmptyRegisters`, via `UpdateCardPlayed`), so
+only the direction is left to choose; registers already filled are kept, and turning shutdown
+off leaves the cards where they are.
 
 Do this at lock-in, not at toggle time, so toggling off loses nothing.
 **To verify before writing:** how Spam and programmed cards are stored (`MoveCards.Owner`,
