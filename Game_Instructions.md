@@ -37,6 +37,7 @@ Commands that need to happen for a game.  These should all be part of a GM scree
 - [ ] Explain phone orientation
   - **Phones should line up with the board**
   - **Arrows are from your point of view**
+  - **If the screens sleep, pull down to refresh**
 - [ ] Explain Rules
   - [ ] The goal is to get touch each flag in order
   - [ ] Players will select 5 commands and tap on them
