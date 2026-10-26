@@ -48,6 +48,33 @@ What to work on next, reordered by the user 2026-10-08.
 
 ---
 
+## After the first event (notes added 2026-10-26)
+
+Game software:
+- [ ] Make a practice round
+  - [ ] The players would program 2 cards, then play the round
+  - [ ] Have a GM setting/button to skip/show the practice round
+  - [ ] Maybe have another button to return robots to their starting position
+  - [ ] Can we change the orientation of the robots for the practice round?
+- [ ] Show the discard pile and Spam to the player
+  - [ ] add a menu on the player screen
+- [x] A GM wrap-up of standings (overlaps the **Game Report** item in Section 3 — decide whether
+  standings belong on that page)
+- [ ] A calendar of events, shared
+
+Hardware / equipment:
+- [x] New router (see `install/NETWORK_SETUP.md`)
+- [ ] Order more AIM bots (`install/notes.txt` has the robot inventory; robot 6 has no address,
+  `PROJECT_STATUS.md` §4.5)
+- [ ] 3D print all the robots and paint them
+- [ ] 3D-print a box for the Raspberry Pi
+- [ ] Make a piece of wood to help with disassembling the factory floor
+
+Promotion:
+- [ ] Make a QR-code tile that links to the website
+
+---
+
 ## On hold
 
 Not being worked on now (user 2026-10-08).
@@ -153,7 +180,8 @@ Not being worked on now (user 2026-10-08).
     (CardIDs 1–20 are the starting deck). Check before relying on it: DealSpamToPlayer gives a
     new Spam card MAX(CardID)+1, so if the highest-numbered Spam cards were deleted at a deal,
     their IDs are reused and this undercounts. A running count would be exact.
-
+    - Scan the command list to see when how many cards were received by a robot
+    
 ### Direction arrows — inventory (2026-10-08, reference)
 
 Every place a direction arrow is used, from a repo search; re-check before relying on it.
