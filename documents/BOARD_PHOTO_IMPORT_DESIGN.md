@@ -129,6 +129,39 @@ Add `SixLabors.ImageSharp` (same version as `MRR/MRR.csproj:15`, `3.1.12`) to
   in matcher tuning.
 - Confirm `dotnet build` succeeds for `MRR.Config` after adding ImageSharp.
 
+## Implementation status (2026-10-26)
+
+**Steps 2–7 built; step 1 (the real-photo feasibility check) has not been done**, so nobody
+knows yet whether this works on the 3D-printed tiles. Do that before tuning anything.
+
+- Code: `MRR.Config/BoardPhotoImport/` (`TileFeatures`, `TileTemplateCatalog`,
+  `PerspectiveRectifier`, `TileMatcher`, `BoardPhotoImportService`), endpoint
+  `POST /api/boardeditor/{id}/import-photo` in `MRR.Config/Program.cs`, page
+  `MRR.Config/wwwroot/board-import.html` (linked from the editor's top bar).
+- Matching modes `Color`, `Grayscale` (default) and `Edges`, chosen per import on the page,
+  so step 1 can compare them without a rebuild. All three use normalized cross-correlation of
+  48×48 vectors. Threshold `DefaultThreshold = 0.5` is a guess.
+- The template supplies actions, as planned. Numbered tiles (flag, start, respawn) take
+  their number from the matched image's file name. Tiles with no BoardID 0 row are imported
+  with no actions and flagged for review. `element34` has no `SquareType` at all.
+- Walls (`element200`) are only a bar along one edge, about 4% of the tile. Cells are not
+  cropped for that reason, which means the gaps between physical tiles are included in the
+  comparison. Wall vs. Blank is the distinction most likely to fail on a real photo.
+- Review hand-off: the page runs `/validate` and shows the result. "Review in editor" opens
+  `board-editor.html?board={id}` with the flagged squares outlined in orange (passed in
+  `sessionStorage`). A square's mark clears when it is edited.
+- Corner order is TL, TR, BR, BL; the page numbers the markers 1–4. Its guide grid is
+  approximate (linear, not perspective-correct).
+- Upload limits: 12 MB, 40 MP, image content type, 1–40 cols/rows. The page shrinks
+  photos to 2000 px before upload. There is no login on the config host, so this endpoint is
+  as open as the existing PUT.
+- Tests: `MRR.Tests/BoardPhotoImportTests.cs`: homography recovery, rectify round-trip,
+  every catalog tile matches itself at every rotation in all three modes, and a synthetic
+  3×3 warped "photo" that imports correctly end to end. All synthetic.
+- **ImageSharp 3.1.12 has published high-severity advisories** (`dotnet list package
+  --vulnerable`), and this endpoint decodes uploaded files with it. Upgrade both projects
+  together once the fixed version is confirmed.
+
 ## Status and build plan (added 2026-09-30)
 
 **Status: design only, nothing built.** Input is confirmed as a photo of **physical tiles**

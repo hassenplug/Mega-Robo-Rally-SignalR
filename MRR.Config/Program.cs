@@ -2,7 +2,12 @@ using System.Data;
 using System.Text.Json;
 using MRR;
 using MRR.Config;
+using MRR.Config.BoardPhotoImport;
+using Microsoft.AspNetCore.Http.Features;
 using MySqlConnector;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Processing;
 
 // Configuration & Authoring host (mrr-config.service, :5001).
 // Owns Boards / BoardItems / BoardItemActions / GameData. Never writes CurrentGameData,
@@ -11,6 +16,8 @@ using MySqlConnector;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSingleton<BoardData>();
+builder.Services.AddSingleton(sp => new BoardPhotoImportService(new TileTemplateCatalog(
+    Path.Combine(sp.GetRequiredService<IWebHostEnvironment>().WebRootPath, "images"))));
 var app = builder.Build();
 
 // UseDefaultFiles before UseStaticFiles, so "/" serves board-editor.html. The game host has
@@ -378,6 +385,137 @@ app.MapPost("/api/boardeditor/{boardId:int}/import", async (int boardId, BoardDa
         cols = board.BoardCols,
         rows = board.BoardRows
     });
+});
+
+// ── Photo import ────────────────────────────────────────────────────────────
+// Photo of the physical tiles -> board, by matching each cell against the tile images. See
+// BOARD_PHOTO_IMPORT_DESIGN.md. Like every other endpoint on this host there is no login:
+// anyone who can reach :5001 can overwrite a board with this, as they already can with PUT.
+// Replaces every square of board {boardId}; board-import.html confirms before overwriting.
+
+const long MaxPhotoBytes = 12 * 1024 * 1024;
+const int MaxPhotoPixels = 40_000_000;  // a phone camera is ~12-50 MP; board-import.html sends <= 2000px
+const int MaxImportCells = 40;          // same limit as the editor's W/H inputs
+
+app.MapPost("/api/boardeditor/{boardId:int}/import-photo", async (
+    int boardId, BoardData data, BoardPhotoImportService importer, HttpRequest request) =>
+{
+    if (boardId == 0)
+        return Results.BadRequest(new { error = "Board 0 is the palette template and cannot be imported over." });
+
+    var sizeLimit = request.HttpContext.Features.Get<IHttpMaxRequestBodySizeFeature>();
+    if (sizeLimit is { IsReadOnly: false }) sizeLimit.MaxRequestBodySize = MaxPhotoBytes + 64 * 1024;
+    if (request.ContentLength > MaxPhotoBytes + 64 * 1024 || !request.HasFormContentType)
+        return Results.BadRequest(new { error = $"Send multipart/form-data with a photo of at most {MaxPhotoBytes / 1024 / 1024} MB." });
+
+    IFormCollection form;
+    try { form = await request.ReadFormAsync(); }
+    catch (Exception ex) when (ex is InvalidDataException or BadHttpRequestException)
+    {
+        return Results.BadRequest(new { error = $"Could not read the upload: {ex.Message}" });
+    }
+
+    var file = form.Files.GetFile("photo");
+    if (file == null || file.Length == 0)
+        return Results.BadRequest(new { error = "No photo uploaded (form field 'photo')." });
+    if (file.Length > MaxPhotoBytes)
+        return Results.BadRequest(new { error = $"Photo is larger than {MaxPhotoBytes / 1024 / 1024} MB." });
+    if (!file.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+        return Results.BadRequest(new { error = $"Expected an image, got {file.ContentType}." });
+
+    if (!int.TryParse(form["cols"], out int cols) || !int.TryParse(form["rows"], out int rows)
+        || cols < 1 || rows < 1 || cols > MaxImportCells || rows > MaxImportCells)
+        return Results.BadRequest(new { error = $"cols and rows must be whole numbers from 1 to {MaxImportCells}." });
+
+    // corners = "x,y;x,y;x,y;x,y" in photo pixels: top-left, top-right, bottom-right, bottom-left.
+    var corners = new List<PointF>();
+    foreach (var pair in form["corners"].ToString().Split(';', StringSplitOptions.RemoveEmptyEntries))
+    {
+        var xy = pair.Split(',');
+        if (xy.Length != 2
+            || !float.TryParse(xy[0], System.Globalization.CultureInfo.InvariantCulture, out float cx)
+            || !float.TryParse(xy[1], System.Globalization.CultureInfo.InvariantCulture, out float cy))
+            return Results.BadRequest(new { error = $"Bad corner '{pair}'; expected x,y." });
+        corners.Add(new PointF(cx, cy));
+    }
+    if (corners.Count != 4)
+        return Results.BadRequest(new { error = $"Expected 4 corners (top-left, top-right, bottom-right, bottom-left), got {corners.Count}." });
+
+    var modeText = form["mode"].ToString();
+    var mode = MatchMode.Grayscale;
+    if (modeText.Length > 0 && !Enum.TryParse(modeText, ignoreCase: true, out mode))
+        return Results.BadRequest(new { error = $"Unknown mode '{modeText}'; use {string.Join(", ", Enum.GetNames<MatchMode>())}." });
+
+    float threshold = BoardPhotoImportService.DefaultThreshold;
+    if (form.ContainsKey("threshold")
+        && !float.TryParse(form["threshold"], System.Globalization.CultureInfo.InvariantCulture, out threshold))
+        return Results.BadRequest(new { error = "threshold must be a number." });
+
+    var header = data.GetQueryResults(
+        "SELECT BoardName, LaserDamage, GameType FROM Boards WHERE BoardID=@id;", ("@id", boardId));
+    if (header.Rows.Count == 0)
+        return Results.NotFound(new { error = $"Board {boardId} not found. Create it first." });
+
+    // The template supplies every matched tile's actions. Without it the board would import
+    // with no walls, belts or flags and still look right in the editor.
+    var template = data.BoardLoadFromDB(0);
+    if (template.BoardElements.Count == 0)
+        return Results.Conflict(new { error = "The palette template (BoardID 0) is empty, so imported tiles would have no actions. " +
+                                              "Seed it with POST /api/boardeditor/template/seed and try again." });
+
+    Image<Rgb24> photo;
+    try
+    {
+        await using var stream = file.OpenReadStream();
+        var info = await Image.IdentifyAsync(stream);
+        if ((long)info.Width * info.Height > MaxPhotoPixels)
+            return Results.BadRequest(new { error = $"Photo is {info.Width}x{info.Height}; the limit is {MaxPhotoPixels / 1_000_000} megapixels." });
+        stream.Position = 0;
+        photo = await Image.LoadAsync<Rgb24>(stream);
+    }
+    catch (Exception ex) when (ex is UnknownImageFormatException or InvalidImageContentException)
+    {
+        return Results.BadRequest(new { error = $"Could not read the photo: {ex.Message}" });
+    }
+
+    using (photo)
+    {
+        // Phone JPEGs are often stored sideways with an EXIF flag; the browser showed the
+        // turned version, so the corners are in those coordinates.
+        photo.Mutate(ctx => ctx.AutoOrient());
+        if (corners.Any(p => p.X < 0 || p.Y < 0 || p.X > photo.Width || p.Y > photo.Height))
+            return Results.BadRequest(new { error = $"A corner lies outside the {photo.Width}x{photo.Height} photo." });
+
+        BoardElementCollection board;
+        List<ImportedCell> cells;
+        try
+        {
+            (board, cells) = importer.Import(photo, corners, cols, rows, mode, threshold, template);
+        }
+        catch (ArgumentException ex)
+        {
+            return Results.BadRequest(new { error = ex.Message });
+        }
+
+        // BoardSaveToDB writes these header fields from the collection; keep the target board's.
+        var row = header.Rows[0];
+        board.BoardName = row["BoardName"]?.ToString();
+        board.LaserDamage = BoardData.AsInt(row["LaserDamage"], 1);
+        board.GameType = BoardData.AsInt(row["GameType"]);
+        data.BoardSaveToDB(boardId, board);
+
+        return Results.Ok(new
+        {
+            boardId,
+            cols,
+            rows,
+            mode = mode.ToString(),
+            threshold,
+            totalFlags = board.CalcTotalFlags(),
+            needsReview = cells.Count(c => c.NeedsReview),
+            cells
+        });
+    }
 });
 
 // ── Square-type palette template (BoardID 0) ────────────────────────────────
