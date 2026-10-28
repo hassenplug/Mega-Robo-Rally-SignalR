@@ -734,7 +734,7 @@ The Hosyond figures are guesses from panel size; the listing's power spec was no
 | Hosyond 5" DSI screen (§1.9, **current**), backlight on | 1–2.5 W | 3 W |
 | Hosyond 7" DSI screen (not planned), backlight on | 2–3.5 W | 4 W |
 | Case fan (§1.8 case only) | ~0.5 W | 1 W |
-| TL-WR802N router (5 V, 0.6 A rated) | 1.5–2.5 W | 3 W |
+| UTR router (replaced TL-WR802N 2026-10-25; USB-C 5 V / 2 A input, ~5 W max per retailer listings) | 1.5–3 W (estimate) | 5 W |
 | Pi 4 + 3.5" screen + fan + router (old build) | **~8–11 W** | **~14 W** |
 | **Pi 4 + 5" DSI screen + router (current)** | **~8–12 W** | **~14 W** |
 | 6 ESP32 stations (extra) | +6–9 W | +12 W |
@@ -749,7 +749,7 @@ backlight (if the panel allows it) is the cheapest saving; the Pi itself is most
   3.7 V; usable Wh is about 85% of mAh × 3.7 ÷ 1000. 100 Wh is the air-travel limit.
 - **Pi input:** plain 5 V / 3 A on USB-C. If a C-to-C cable will not power it, use USB-A to C
   (early Pi 4 e-marker bug). A 2 A bank will brown out.
-- **Router:** its own port on the bank (micro-USB). Some banks switch off below ~100 mA, which
+- **Router:** its own port on the bank (USB-C, 5 V / 2 A per retailer listings; the old TL-WR802N used micro-USB). Some banks switch off below ~100 mA, which
   matters only if the router is on a bank by itself.
 - **No UPS HAT:** the §1.8 screen occupies the 40-pin header. Power only through USB-C, never
   the GPIO 5 V pins. The §1.9 DSI screen leaves the header free, but its own power lead may use
