@@ -286,17 +286,17 @@ namespace MRR.Controller
             BoardElementCollection g_BoardElements = _dataService.BoardLoadFromDB(_dataService.BoardID);
             IEnumerable<BoardElement> StartList = g_BoardElements.BoardElements.Where(be => be.ActionList.Count(al => al.SquareAction == SquareAction.PlayerStart) > 0);
 
-            var bases = _dataService.GetQueryResults("Select RobotBaseID, IPAddress from RobotBases order by RobotBaseID");
+            var bases = _dataService.GetQueryResults("Select RobotBaseID, Hostname from RobotBases order by RobotBaseID");
             foreach (DataRow baseRow in bases.Rows)
             {
                 int baseId = Convert.ToInt32(baseRow["RobotBaseID"]);
-                string ip = baseRow["IPAddress"] == DBNull.Value ? "" : (string)baseRow["IPAddress"];
+                string hostname = baseRow["Hostname"] == DBNull.Value ? "" : (string)baseRow["Hostname"];
 
                 // Use Any(...) to avoid calling First(...) inside the predicate which can throw if no matching action exists.
                 BoardElement? thisSquare = StartList.FirstOrDefault(be => be.ActionList.Any(al => al.SquareAction == SquareAction.PlayerStart && al.Parameter == baseId));
                 if (thisSquare == null) continue; // no start square for this base on the current board -- skip it, same as the old code's "remove player from game" no-op
 
-                _dataService.InsertPlaceholderRobot(baseId, ip, thisSquare.BoardRow, thisSquare.BoardCol, (int)thisSquare.Rotation);
+                _dataService.InsertPlaceholderRobot(baseId, hostname, thisSquare.BoardRow, thisSquare.BoardCol, (int)thisSquare.Rotation);
             }
 
             // If the current game's PlayerListID matches an OperatorListID with active

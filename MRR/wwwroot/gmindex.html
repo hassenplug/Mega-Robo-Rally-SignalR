@@ -46,7 +46,7 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
 
 #gmMenu { display:none; position:absolute; top:100%; left:0; z-index:5; background:#ffffff; padding:6px; width:200px; text-align:left; font-size:18px; }
 #gmMenu .button { display:block; width:100%; margin-bottom:6px; }
-#programScreenSubmenu { display:none; position:absolute; top:0; left:100%; z-index:6; background:#ffffff; padding:6px; width:130px; }
+#programScreenSubmenu, #allConnectionsSubmenu { display:none; position:absolute; top:0; left:100%; z-index:6; background:#ffffff; padding:6px; width:130px; }
 #playerButtons .button { display:block; width:100%; margin:0 0 6px 0; background-color:#ff0000; color:#ffffff; white-space:normal; }
 #programPanel img { width:50px; cursor:pointer; }
 /* The robot whose program is showing on the right (F/E/C view only). */
@@ -122,6 +122,13 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
                 <div id="programScreenSubmenu" class="w3-card-4">
                     <button class="button" style="margin-bottom:6px;" onclick="event.stopPropagation(); gmSetRobotScreen(true);">Enable</button>
                     <button class="button" onclick="event.stopPropagation(); gmSetRobotScreen(false);">Disable</button>
+                </div>
+            </div>
+            <div style="position:relative;">
+                <button class="button" onclick="event.stopPropagation(); toggleAllConnectionsSubmenu();">All Connections</button>
+                <div id="allConnectionsSubmenu" class="w3-card-4">
+                    <button class="button" style="margin-bottom:6px;" onclick="event.stopPropagation(); gmConnectAll(true);">Connect</button>
+                    <button class="button" onclick="event.stopPropagation(); gmConnectAll(false);">Disconnect</button>
                 </div>
             </div>
             <button class="button" onclick="event.stopPropagation(); gmAction('nextstate');">Next State</button>
@@ -478,8 +485,8 @@ function refreshRobotInfo() {
 }
 
 // ── Swap a robot's base ──────────────────────────────────────────────────────
-// Only for a robot that isn't connected (or connecting). The chosen base's IP is used for this
-// robot for the rest of the current game; connect it afterwards to dial the new address.
+// Only for a robot that isn't connected (or connecting). The chosen base's hostname is used for
+// this robot for the rest of the current game; connect it afterwards to dial the new hostname.
 var CONNECT_STATUS_CONNECTING = 21; // tPlayerStatus.Connecting (MRR.Contracts/PlayerState.cs)
 
 function makeBasePickerHandler(r) {
@@ -505,7 +512,7 @@ function openBasePicker(r) {
                 btn.style = 'display:block; width:auto; height:auto; min-height:44px; margin:3px 0; padding:4px 14px; font-size:18px;' +
                     (b.isCurrent ? ' border:2px solid #000000;' : '');
                 btn.textContent = b.aimName + (b.isCurrent ? ' (current)' : '');
-                btn.title = b.ipAddress;
+                btn.title = b.hostname;
                 btn.onclick = function () { chooseBase(r.RobotID, b.robotBaseID); };
                 list.appendChild(btn);
             });

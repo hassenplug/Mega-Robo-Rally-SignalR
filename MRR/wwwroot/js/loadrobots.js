@@ -261,7 +261,7 @@ function toggleGmView() {
     gmViewActive = !gmViewActive;
     if (!gmViewActive) {
         document.getElementById('gmMenu').style.display = 'none';
-        document.getElementById('programScreenSubmenu').style.display = 'none';
+        closeGmSubmenus();
     }
     showall();
     showplayerprogram(CurrentLine); // refresh the direction picker's GM-mode visibility/label immediately
@@ -272,7 +272,16 @@ function toggleGmMenu() {
     var menu = document.getElementById('gmMenu');
     var wasOpen = menu.style.display === 'block';
     menu.style.display = wasOpen ? 'none' : 'block';
-    if (wasOpen) document.getElementById('programScreenSubmenu').style.display = 'none';
+    if (wasOpen) closeGmSubmenus();
+}
+
+// Hides the GM menu's nested submenus. "All Connections" exists only on gmindex.html, so each
+// is looked up rather than assumed.
+function closeGmSubmenus() {
+    ['programScreenSubmenu', 'allConnectionsSubmenu'].forEach(function (id) {
+        var submenu = document.getElementById(id);
+        if (submenu) submenu.style.display = 'none';
+    });
 }
 
 // "Program Screen" submenu (Enable/Disable) nested under the GM menu -- see gmSetRobotScreen()
@@ -285,7 +294,7 @@ function toggleProgramScreenSubmenu() {
 // GET /api/settings/robot-screen?enabled=true|false (Program.cs) flips
 // GameController.UseRobotScreen, which gates whether RobotScreenUI runs at all.
 function gmSetRobotScreen(enabled) {
-    document.getElementById('programScreenSubmenu').style.display = 'none';
+    closeGmSubmenus();
     document.getElementById('gmMenu').style.display = 'none';
     fetch('/api/settings/robot-screen?enabled=' + enabled).catch(err => console.error(err.toString()));
 }
@@ -313,7 +322,7 @@ document.addEventListener('click', function (ev) {
     var menu = document.getElementById('gmMenu');
     if (menu && menu.style.display === 'block' && !menu.contains(ev.target) && ev.target.id !== 'robotHeader') {
         menu.style.display = 'none';
-        document.getElementById('programScreenSubmenu').style.display = 'none';
+        closeGmSubmenus();
     }
 });
 
@@ -322,6 +331,21 @@ document.addEventListener('click', function (ev) {
 function gmAction(action) {
     document.getElementById('gmMenu').style.display = 'none';
     fetch('/api/state/' + action).catch(err => console.error(err.toString()));
+}
+
+// "All Connections" submenu (Connect/Disconnect) nested under gmindex.html's GM menu.
+function toggleAllConnectionsSubmenu() {
+    var submenu = document.getElementById('allConnectionsSubmenu');
+    submenu.style.display = (submenu.style.display === 'block') ? 'none' : 'block';
+}
+
+// GET /api/robot/connect/all or /api/robot/disconnect/all (Program.cs) -- every robot at once,
+// via GameController.ConnectToAllRobots/DisconnectAllRobots.
+function gmConnectAll(connect) {
+    closeGmSubmenus();
+    document.getElementById('gmMenu').style.display = 'none';
+    fetch('/api/robot/' + (connect ? 'connect' : 'disconnect') + '/all')
+        .catch(err => console.error(err.toString()));
 }
 
 function toggleRobotConnect(robotId, isConnected) {
@@ -520,7 +544,7 @@ function showall()
     document.getElementById('statusHeader').innerText = showGmControls ? 'Connect' : 'Status';
     if (!showGmControls) {
         document.getElementById('gmMenu').style.display = 'none';
-        document.getElementById('programScreenSubmenu').style.display = 'none';
+        closeGmSubmenus();
     }
 
     // GM mode + no game running (gamestate===25, was a separate IsRunning flag): offer to

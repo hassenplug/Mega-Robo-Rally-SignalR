@@ -71,7 +71,7 @@ namespace MRR
         public int ConnectStatusID { get; set; }
         public string ConnectStatusColor { get; set; } = "";
         public string ConnectStatusDesc { get; set; } = "";
-        public string IPAddress { get; set; } = "";
+        public string Hostname { get; set; } = "";
         public string RespawnLetter { get; set; } = "";  // PlayerState.RespawnLetter: respawn square letter, else the robot ID
 
         public override string ToString() =>

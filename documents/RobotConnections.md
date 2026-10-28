@@ -24,7 +24,7 @@ an AIM robot — `Player` never owns a socket; it only forwards to whichever
 
 A `RobotConnection` connects itself: its constructor takes nothing but a `RobotID` and a
 connection string, polls `Robots` (joined to `RobotBodies`/`RobotBases`) for its own name,
-color, and IP address, and then dials the robot
+color, and hostname (`Robots.Hostname`), and then dials the robot by that name
 ([RobotConnection.cs:24-57](../MRR/Devices/RobotConnection.cs#L24)). `ConnectAsync` is
 private for exactly this reason — it is never called a second time on a live object. To
 reconnect a robot, `RobotConnections.Reconnect`/`ReconnectAll`
@@ -117,16 +117,17 @@ than opened per-phase and closed again:
 - `EndGame()` sets `GameState=25` ("not running") and calls `DisconnectAllRobots()`
   ([GameController.cs:657-671](../MRR/GameController.cs#L657)), so connections do not
   outlive the game they belong to.
-- The GM's manual "Connect"/"Disconnect" controls (`connectscreen.html`,
+- The GM's manual "Connect"/"Disconnect" controls (the per-robot toggles in `gmindex.html`,
   `ConnectToRobot`/`DisconnectRobot`) use the same `Reconnect`/dispose mechanism for the case
   a single robot needs to be reconnected without restarting the game.
 
 ## Robot network addresses
 
-Each robot has a fixed address (set 2026-10-01), so the IP stored in `RobotBases.IPAddress`
-stays valid across reboots. `RobotBases.IPAddress` must match this table, and so does the
-`RobotBases` seed in `install/MRRDatabase.sql`. The robots themselves only use DHCP (VEX AIM
-has no static-IP setting), so the address is pinned by MAC on the router's DHCP server.
+The server dials each robot by its device name, stored in `RobotBases.Hostname` (copied to
+`Robots.Hostname`); there is no IP column. The name must resolve on the game LAN, and
+`RobotBases.Hostname` and the seed in `install/MRRDatabase.sql` must match the device names
+below. The robots themselves only use DHCP (VEX AIM has no static-IP setting); each one's
+address was also pinned by MAC on the router's DHCP server (2026-10-01).
 
 | Robot | Device name | MAC address | IP address |
 |---|---|---|---|

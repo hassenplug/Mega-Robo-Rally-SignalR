@@ -356,22 +356,21 @@ app.MapGet("/api/robot/{function?}/{parameter1?}", async (string? function, stri
     return Results.Ok(dataout);
 });
 
-// Section 8 (install/todo.md) connection screen: "Update IP" -- lets the operator type a new
-// address into the box where the robot's name was, without going through the board/DB editor.
-// Writes to both RobotBases.IPAddress (the column actually read for connecting) and
-// Robots.IPAddress, so they stay in sync. Parameterized in DataService.UpdateRobotIPAddress
-// since this value is user-typed.
-app.MapGet("/api/robot/setip/{robotId:int}/{ipAddress}", (int robotId, string ipAddress, DataService dataService, IHubContext<DataHub> hubContext, GameController gameController) =>
+// Sets a robot's hostname without going through the DB editor. No page calls this since the
+// connection screen was removed; call it directly. Writes to both RobotBases.Hostname and Robots.Hostname (the copy RobotConnection
+// dials), so they stay in sync. Parameterized in DataService.UpdateRobotHostname since this
+// value is user-typed.
+app.MapGet("/api/robot/sethostname/{robotId:int}/{hostname}", (int robotId, string hostname, DataService dataService, IHubContext<DataHub> hubContext, GameController gameController) =>
 {
-    if (!System.Net.IPAddress.TryParse(ipAddress, out _))
-        return Results.BadRequest(new { error = $"'{ipAddress}' is not a valid IP address" });
+    if (hostname.Length > 25 || Uri.CheckHostName(hostname) == UriHostNameType.Unknown)
+        return Results.BadRequest(new { error = $"'{hostname}' is not a valid hostname" });
 
-    bool updated = dataService.UpdateRobotIPAddress(robotId, ipAddress);
+    bool updated = dataService.UpdateRobotHostname(robotId, hostname);
     if (!updated)
         return Results.NotFound(new { error = $"Robot {robotId} not found" });
 
     gameController.UpdateGameState();
-    return Results.Ok(new { robotId, ipAddress });
+    return Results.Ok(new { robotId, hostname });
 });
 
 // GM screen (gmindex.html): swap a disconnected robot onto a different physical base for the

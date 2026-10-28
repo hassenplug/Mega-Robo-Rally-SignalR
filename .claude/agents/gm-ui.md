@@ -562,9 +562,9 @@ becomes read-only) once the game is running.
 
 **`RobotBases`** — physical hardware unit (VEX AIM robot):
 10 entries (IDs 1–10), each with a MAC address and a `DefaultBody`.
-**Note:** `IPAddress` is NOT a column in the `Robots` DB table. It is a `[NotMapped]`
-property on the `Player` class, populated at runtime from the `IPAddress` column via
-inline SQL in `DataService.GetAllPlayers()`. Do not try to read or write it via the table API.
+**Note:** `Hostname` is a `[NotMapped]` property on the `Player` class, populated at
+runtime from the `Robots.Hostname` column via inline SQL in `DataService.GetAllPlayers()`.
+Do not try to read or write it via the table API. There is no `IPAddress` column.
 
 **`Robots.PlayerSeat`** — seat number 1–8 indicating where the player sits
 around the physical board. Drives `SeatOrientation`:
