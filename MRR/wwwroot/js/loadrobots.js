@@ -314,7 +314,9 @@ function handleRobotHeaderTap() {
         window.location.href = 'logout.html';
         return;
     }
-    toggleGmMenu();
+    // index.html: the view menu, unless the GM view is on. gmindex.html has only the GM menu.
+    if (document.getElementById('viewMenu') && !(IsGM && gmViewActive)) toggleViewMenu();
+    else toggleGmMenu();
 }
 
 // Close the GM menu on an outside tap rather than leaving it open over the rest of the page.
@@ -323,6 +325,10 @@ document.addEventListener('click', function (ev) {
     if (menu && menu.style.display === 'block' && !menu.contains(ev.target) && ev.target.id !== 'robotHeader') {
         menu.style.display = 'none';
         closeGmSubmenus();
+    }
+    var viewMenu = document.getElementById('viewMenu');
+    if (viewMenu && viewMenu.style.display === 'block' && !viewMenu.contains(ev.target) && ev.target.id !== 'robotHeader') {
+        viewMenu.style.display = 'none';
     }
 });
 
@@ -468,10 +474,20 @@ function showplayerprogram(pl) // show program for this line
     }
 
     var active = canProgram();
-    var dealtDisplay = (active && !showExtrasPanel) ? "" : "none";
-    document.getElementById("DealtRow1").style.display = dealtDisplay;
-    document.getElementById("DealtRow2").style.display = dealtDisplay;
-    document.getElementById("extrasRow").style.display = (active && showExtrasPanel) ? "" : "none";
+    var cardsView = rightPanelView === 'program' || rightPanelView === 'shutdown';
+    showRow("PlayedRow", cardsView);
+    showRow("PlayedSpacer", cardsView);
+    showRow("DealtRow1", active && rightPanelView === 'program');
+    showRow("DealtRow2", active && rightPanelView === 'program');
+    showRow("extrasRow", active && rightPanelView === 'shutdown');
+    showRow("cardListRow", !cardsView || (!active && rightPanelView === 'shutdown'));
+    var listCell = document.getElementById("cardListCell");
+    if (listCell && !cardsView) {
+        updateCardList(rbt);
+    } else if (listCell && !active && rightPanelView === 'shutdown') {
+        listCell.textContent = 'Shut Down can only be chosen while programming.';
+        cardListKey = null; // the list was overwritten, so fetch it again next time
+    }
 
     var showmessage = "display: none;";
     //console.log("Message:", message);
@@ -506,14 +522,124 @@ function toggleShutDown() {
     SendUpdate(6, CurrentPlayer);
 }
 
-// Tapping a robot's status flips the right-hand area between the dealt hand and this "extras"
-// panel (the Shut Down toggle now; Haywire and option cards are meant to be added here later).
-// It is only a view setting for this device -- nothing is sent to the server.
-var showExtrasPanel = false;
+// ── Right-hand panel views (index.html's ☰ menu) ─────────────────────────────
+// 'program'  -- the program registers + dealt hand (the default)
+// 'shutdown' -- the program registers + the "extras" panel: the Shut Down toggle now; Haywire
+//               and option cards are meant to be added here later
+// 'spam'     -- every card the robot owns, by location (/api/cards/{robotId})
+// 'lasthand' -- the robot's program from the previous turn (/api/history/turn)
+// Only a view setting for this device -- nothing is sent to the server. gmindex.html has no
+// menu and only the first two views, so rows it lacks are skipped (showRow).
+var rightPanelView = 'program';
+var VIEW_MENU_ITEMS = ['program', 'shutdown', 'spam', 'lasthand'];
 
-function toggleExtrasPanel() {
-    showExtrasPanel = !showExtrasPanel;
+function setRightPanelView(view) {
+    rightPanelView = view;
+    var menu = document.getElementById('viewMenu');
+    if (menu) menu.style.display = 'none';
     if (datapacket) showplayerprogram(CurrentLine);
+}
+
+function toggleViewMenu() {
+    var menu = document.getElementById('viewMenu');
+    var opening = menu.style.display !== 'block';
+    menu.style.display = opening ? 'block' : 'none';
+    if (!opening) return;
+    // Outline the view that is showing now.
+    VIEW_MENU_ITEMS.forEach(function (view) {
+        document.getElementById('viewMenu-' + view).style.outline = view === rightPanelView ? '3px solid #000000' : '';
+    });
+}
+
+// Tapping a robot's status flips between the dealt hand and the Shut Down panel.
+function toggleExtrasPanel() {
+    setRightPanelView(rightPanelView === 'shutdown' ? 'program' : 'shutdown');
+}
+
+function showRow(id, show) {
+    var row = document.getElementById(id);
+    if (row) row.style.display = show ? '' : 'none';
+}
+
+// The Spam Cards / Last Hand lists are fetched, not broadcast. showplayerprogram runs on every
+// broadcast, so fetch again only when something that could change the list has changed: the
+// robot, the view, the game state, or the robot's dealt/played cards.
+var cardListKey = null;
+
+function updateCardList(rbt) {
+    var key = [rightPanelView, rbt.RobotID, datapacket.gamestate, rbt.CardsDealt, rbt.CardsPlayed].join('|');
+    if (key === cardListKey) return;
+    cardListKey = key;
+
+    var cell = document.getElementById('cardListCell');
+    cell.textContent = 'Loading...';
+    var robotId = rbt.RobotID;
+    var url = rightPanelView === 'spam' ? '/api/cards/' + robotId : '/api/history/turn';
+    fetch(url)
+        .then(function (resp) { return resp.json(); })
+        .then(function (data) {
+            if (key !== cardListKey) return; // a newer view/robot has been asked for since
+            if (rightPanelView === 'spam') renderSpamCards(cell, data);
+            else renderLastHand(cell, data, robotId);
+        })
+        .catch(function (err) {
+            if (key === cardListKey) { cell.textContent = 'Could not load the cards.'; cardListKey = null; }
+            console.error(err.toString());
+        });
+}
+
+function cardImage(cardTypeID, title) {
+    var img = document.createElement('img');
+    img.src = 'images/type' + cardTypeID + '.png';
+    img.width = 50;
+    img.style.margin = '2px';
+    if (title) img.title = title;
+    return img;
+}
+
+// cards: [{location, locationName, cardTypeID, cardName}], already sorted by location.
+function renderSpamCards(cell, cards) {
+    cell.innerHTML = '';
+    if (!cards.length) { cell.textContent = 'No cards.'; return; }
+    var spam = cards.filter(function (c) { return c.cardTypeID === 10; }).length;
+    var summary = document.createElement('div');
+    summary.style.fontWeight = 'bold';
+    summary.textContent = cards.length + ' cards, ' + spam + ' Spam';
+    cell.appendChild(summary);
+
+    var group = null;
+    var lastLocation = null;
+    cards.forEach(function (c) {
+        if (c.location !== lastLocation) {
+            lastLocation = c.location;
+            var count = cards.filter(function (x) { return x.location === c.location; }).length;
+            var heading = document.createElement('div');
+            heading.style.marginTop = '6px';
+            heading.textContent = (c.locationName || 'Location ' + c.location) + ' (' + count + ')';
+            cell.appendChild(heading);
+            group = document.createElement('div');
+            cell.appendChild(group);
+        }
+        group.appendChild(cardImage(c.cardTypeID, c.cardName));
+    });
+}
+
+// history: GetTurnHistory's {turn, currentTurn, robots: [{robotID, cardTypes, ...}]}.
+function renderLastHand(cell, history, robotId) {
+    cell.innerHTML = '';
+    var robot = history.robots.find(function (r) { return r.robotID === robotId; });
+    if (!robot) { cell.textContent = 'No last hand yet.'; return; }
+
+    var heading = document.createElement('div');
+    heading.style.fontWeight = 'bold';
+    heading.textContent = 'Turn ' + history.turn;
+    cell.appendChild(heading);
+
+    var row = document.createElement('div');
+    for (var i = 0; i < 5; i++) {
+        row.appendChild(cardImage(robot.cardTypes[i] || 0));
+    }
+    cell.appendChild(row);
 }
 
 // The Shut Down button (extras panel) always toggles, as before; the server only accepts it
@@ -540,7 +666,9 @@ function showall()
     document.getElementById("title").innerText = datapacket.titlemsg;
 
     var showGmControls = IsGM && gmViewActive;
-    document.getElementById('robotHeader').style.cursor = showGmControls ? 'pointer' : 'default';
+    var viewMenu = document.getElementById('viewMenu');
+    document.getElementById('robotHeader').style.cursor = (showGmControls || viewMenu) ? 'pointer' : 'default';
+    if (viewMenu && showGmControls) viewMenu.style.display = 'none';
     document.getElementById('statusHeader').innerText = showGmControls ? 'Connect' : 'Status';
     if (!showGmControls) {
         document.getElementById('gmMenu').style.display = 'none';

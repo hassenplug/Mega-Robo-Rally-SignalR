@@ -1062,6 +1062,11 @@ namespace MRR.Services
                                 .Split(',', StringSplitOptions.RemoveEmptyEntries)
                                 .Select(id => int.TryParse(id, out int typeId) && typeId > 0
                                     ? cardLetters.GetValueOrDefault(typeId, "?") : "-")),
+                // Same registers as CardTypeIDs (0 = empty), for pages that draw card images
+                cardTypes = Str(row["MoveCards"])
+                                .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                                .Select(id => int.TryParse(id, out int typeId) ? typeId : 0)
+                                .ToList(),
                 fec       = Str(row["FlagEnergyCards"]),
                 // null for turns saved before the SavedAt column existed
                 savedAt   = row["SavedAt"] is DBNull ? null : Convert.ToDateTime(row["SavedAt"]).ToString("yyyy-MM-dd HH:mm:ss")
