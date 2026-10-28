@@ -199,7 +199,7 @@ renamed `gmbuttons.html`). It uses the same `js/loadrobots.js` as `index.html`, 
   the robot's `ConnectStatusColor` (tap to connect/disconnect), the robot name in its colors,
   F/E/C, and the robot's status (`StatusToShow` / `StatusColor`).
 - The **☰ header above the connect buttons** opens the GM menu (Next State, End Game, Clear
-  Cookies, Program Screen). Five taps within 10 seconds still opens `logout.html`.
+  Cookies, Program Screen, All Connections > Connect / Disconnect). Five taps within 10 seconds still opens `logout.html`.
 - The pane to the right of the table shows a button for **every robot with a pending `PlayerMsg`**;
   tapping one confirms it for that robot (`/api/player/3/{RobotID}`). While no game is running
   (gamestate 25) it also shows the start-game picker.
@@ -452,8 +452,8 @@ Replace `127.0.0.1` with `mrobopi`. Two exceptions:
 
 ### 3.1 Before a game
 
-1. **Robots on and on the network.** Check `RobotBases.IPAddress` matches reality; the
-   discovered addresses are recorded in [install/notes.txt](install/notes.txt).
+1. **Robots on and on the network.** Check `RobotBases.Hostname` matches reality and that
+   each name resolves from the Pi; the robots are recorded in [install/notes.txt](install/notes.txt).
 2. **Pick a board.** Validate it first — 12 of the 89 playable boards fail (§4.2):
    ```
    curl http://mrobopi:5001/api/boardeditor/{boardId}/validate
@@ -707,15 +707,15 @@ thing to check if the game behaves as though it has stale data.
 
 `RobotBases` maps `RobotBaseID` → robot. Numbering lines up end to end:
 `RobotID N` → `RobotBaseID N` → `AIM-0N`. Addresses are in
-[install/notes.txt](install/notes.txt); `AIMID` is the hardware identifier, `AIMName` the
-label on the robot.
+[install/notes.txt](install/notes.txt); `Hostname` is the hardware identifier (and the name the
+server dials), `AIMName` the label on the robot.
 
 ### 6.6 Diagnosing a bad start
 
 | Symptom | Look at |
 |---|---|
 | Host will not start | `mrrctl logs \| tail -50` — the preflight line names the blocker |
-| Robots do not connect | `RobotBases.IPAddress`, robots powered and on the right network |
+| Robots do not connect | `RobotBases.Hostname` (does the name resolve from the Pi?), robots powered and on the right network |
 | Odd startup crash / NRE | Check the database connection first. `SqlGateway` swallows database errors and returns empty results, so a bad connection string surfaces later as a null reference somewhere unrelated |
 | Game acts on stale data | `GET /api/admin/diagnostics` for memory-vs-database drift |
 | A turn hangs | A robot stopped responding; commands now time out after 10s (`CommandProcess.CommandDeadline`) and are logged. `POST /api/execution/abort` to stop the turn |

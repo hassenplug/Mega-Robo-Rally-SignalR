@@ -147,9 +147,8 @@ CREATE TABLE `RobotBases` (
   `RobotBaseID` int(11) NOT NULL,
   `Port` varchar(20) DEFAULT 'COM00',
   `BatteryStatus` int(11) DEFAULT NULL,
-  `IPAddress` varchar(25) DEFAULT NULL,
   `AIMName` varchar(20) DEFAULT NULL,
-  `AIMID` varchar(15) DEFAULT NULL,
+  `Hostname` varchar(25) DEFAULT NULL,
   `DefaultBody` int(11) DEFAULT NULL,
   PRIMARY KEY (`RobotBaseID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
@@ -389,7 +388,7 @@ CREATE TABLE `Robots` (
   `DirectionAdjustment` int(11) DEFAULT 1,
   `StatusToShow` varchar(20) DEFAULT NULL,
   `PlayerMsg` varchar(50) DEFAULT NULL,
-  `IPAddress` varchar(15) DEFAULT NULL,
+  `Hostname` varchar(25) DEFAULT NULL,
 
   PRIMARY KEY (`RobotID`),
   KEY `fk_Players_RobotBases_idx` (`RobotBaseID`),
@@ -859,15 +858,16 @@ INSERT INTO `PhaseCounter` VALUES (1),(2),(3),(4),(5);
 -- RobotBases
 -- Bases 1-7 are the VEX AIM robots, renumbered so RobotBaseID matches the robot
 -- number in install/notes.txt. AIMName is the label on the robot (AIM-01..AIM-07);
--- AIMID is its hardware identifier as reported over ws_status.
+-- Hostname is its hardware identifier as reported over ws_status, and the name the
+-- server dials (RobotConnection).
 INSERT INTO `RobotBases` VALUES
-(1,NULL,NULL,'192.168.0.101','AIM-01','AIM-328D8418',1),
-(2,NULL,NULL,'192.168.0.102','AIM-02','AIM-426E8118',2),
-(3,NULL,NULL,'192.168.0.103','AIM-03','AIM-1AA57518',3),
-(4,NULL,NULL,'192.168.0.104','AIM-04','AIM-3A8A8B18',4),
-(5,NULL,NULL,'192.168.0.105','AIM-05','AIM-12598D18',5),
-(6,NULL,NULL,'192.168.0.106','AIM-06','AIM-427D7018',6),
-(7,NULL,NULL,'192.168.0.107','AIM-07','AIM-1A5E7918',7);
+(1,NULL,NULL,'AIM-01','AIM-328D8418',1),
+(2,NULL,NULL,'AIM-02','AIM-426E8118',2),
+(3,NULL,NULL,'AIM-03','AIM-1AA57518',3),
+(4,NULL,NULL,'AIM-04','AIM-3A8A8B18',4),
+(5,NULL,NULL,'AIM-05','AIM-12598D18',5),
+(6,NULL,NULL,'AIM-06','AIM-427D7018',6),
+(7,NULL,NULL,'AIM-07','AIM-1A5E7918',7);
 
 -- RobotBodies
 INSERT INTO `RobotBodies` VALUES

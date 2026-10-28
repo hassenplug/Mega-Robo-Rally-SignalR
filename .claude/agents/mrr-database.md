@@ -320,36 +320,35 @@ ShutDown is advanced to NextState each turn in `procResetPlayers`. ShutDown=4 ze
 
 Bluetooth is gone: the `BluetoothDongles` table was dropped 2026-08-22 and `MACID` was
 renamed to **`IPAddress`** the same day — every code path already treated it as an IP
-(`Player.IPAddress`, the align endpoint). Two columns were added at the same time:
+(`Player.IPAddress`, the align endpoint). `AIMName` and `AIMID` were added at the same time.
+On 2026-10-27 `AIMID` was renamed to **`Hostname`** and `IPAddress` was dropped (from
+`Robots` too); robots are reached by hostname only.
 
 | Column | Type | Meaning |
 |---|---|---|
-| `IPAddress` | varchar(25) | The robot's IP. Bases 8–10 still hold retired Bluetooth MACs. |
 | `AIMName` | varchar(20) | The label on the robot — `AIM-01` … `AIM-07`. |
-| `AIMID` | varchar(15) | The robot's hardware identifier, e.g. `AIM-328D8418`. A **string**, not a number. |
+| `Hostname` | varchar(25) | The robot's hardware identifier and network hostname, e.g. `AIM-328D8418`. A **string**, not a number. Renamed from `AIMID` 2026-10-27. |
 
 Bases 1–7 were renumbered so that `RobotBaseID` = the robot number, which makes the whole
 chain line up: `RobotID N` → `RobotBaseID N` → `AIM-0N`.
 
-| RobotBaseID | IPAddress | AIMName | AIMID |
-|---|---|---|---|
-| 1 | 192.168.0.101 | AIM-01 | AIM-328D8418 |
-| 2 | 192.168.0.102 | AIM-02 | AIM-426E8118 |
-| 3 | 192.168.0.103 | AIM-03 | AIM-1AA57518 |
-| 4 | 192.168.0.104 | AIM-04 | AIM-3A8A8B18 |
-| 5 | 192.168.0.105 | AIM-05 | AIM-12598D18 |
-| 6 | 192.168.0.106 | AIM-06 | AIM-427D7018 |
-| 7 | 192.168.0.107 | AIM-07 | AIM-1A5E7918 |
-| 8 | 00:16:53:0A:37:26 | — | — |
-| 9 | 00:16:53:0A:36:D5 | — | — |
-| 10 | 00:16:53:0A:36:67 | — | — |
+| RobotBaseID | AIMName | Hostname |
+|---|---|---|
+| 1 | AIM-01 | AIM-328D8418 |
+| 2 | AIM-02 | AIM-426E8118 |
+| 3 | AIM-03 | AIM-1AA57518 |
+| 4 | AIM-04 | AIM-3A8A8B18 |
+| 5 | AIM-05 | AIM-12598D18 |
+| 6 | AIM-06 | AIM-427D7018 |
+| 7 | AIM-07 | AIM-1A5E7918 |
 
-The addresses are fixed (pinned by MAC on the router, 2026-10-01); the MAC table is in
-`documents/RobotConnections.md`. If a robot is ever unreachable, `Player.ConnectAsync()`
+The router's MAC/IP reservations are in `documents/RobotConnections.md`. If a robot is ever unreachable, `Player.ConnectAsync()`
 catches the failure and logs `Connection failed`, leaving `isConnected` false.
 
-No C# reads `AIMName` or `AIMID` yet; they are reference data. `IPAddress` is the column
-the game actually uses, via `DataService.GetAllPlayers()` → `Player.IPAddress`.
+`Hostname` is the address the game dials: `GameController.StartGame()` (via
+`InsertPlaceholderRobot`) and `DataService.SetRobotBase` copy it onto `Robots.Hostname`, and
+`RobotConnection` connects to `ws://{Hostname}:80/...`. `GET /api/robot/sethostname/{robotId}/{hostname}`
+writes both copies.
 
 ---
 

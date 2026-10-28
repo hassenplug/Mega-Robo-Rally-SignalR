@@ -54,7 +54,7 @@ Model Info label or the Arduino Tools menu):
   matters for §7 "charging"
 
 **Out of scope:** GM control panel (`gmindex.html` stays on its existing device), the
-`board-viewer.html`/`connectscreen.html` displays, and any change to the phone UI itself —
+`board-viewer.html` display, and any change to the phone UI itself —
 phones and ESP32 stations can coexist during rollout since both just talk to the same
 existing REST endpoints.
 

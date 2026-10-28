@@ -376,7 +376,7 @@ namespace MRR
         public string Password { get; set; } = "";
 
         [NotMapped]
-        public string? IPAddress { get; set; }
+        public string? Hostname { get; set; }
 
         public RobotData ToRobotData() => new()
         {

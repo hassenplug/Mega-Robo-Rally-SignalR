@@ -162,6 +162,11 @@
             display: block;
             pointer-events: none;
         }
+        /* Square board-import.html could not read confidently -- see reviewCells. */
+        .cell.review {
+            outline: 3px dashed #f80;
+            outline-offset: -3px;
+        }
         .cell.selected {
             outline: 2px solid #0ff;
             outline-offset: -2px;
@@ -324,6 +329,7 @@
         <option value="">-- select --</option>
     </select>
     <span id="statusMsg">Ready</span>
+    <a href="board-import.html" class="btn" style="text-decoration:none">Import from photo</a>
 </div>
 
 <div id="main">
@@ -436,6 +442,10 @@ let justPlaced = false;
 let editingActions = [];
 let gameDataRows = [];
 let selectedGameDataId = null;
+// Squares board-import.html flagged for review, as "x,y" -> reason. Handed over in
+// sessionStorage; a square's mark goes when it is edited, and what is left is kept on save.
+const REVIEW_KEY_PREFIX = 'boardImport.review.';
+let reviewCells = new Map();
 
 // ── Phase helpers ──────────────────────────────────────────────────────────
 function phaseToBitmask(phases) { return phases.reduce((m, p) => m | (1 << (p - 1)), 0); }
@@ -512,6 +522,33 @@ async function init() {
     await Promise.all([loadTypes(), loadBoards(), loadGameData()]);
     buildGrid(parseInt(document.getElementById('boardW').value), parseInt(document.getElementById('boardH').value));
     renderGrid();
+
+    // board-import.html links here as ?board={id} after an import.
+    const boardParam = parseInt(new URLSearchParams(location.search).get('board'));
+    if (boardParam > 0) {
+        document.getElementById('boardSelect').value = boardParam;
+        await loadBoard(boardParam);
+    }
+}
+
+function loadReviewCells(boardId) {
+    reviewCells = new Map();
+    try {
+        const saved = JSON.parse(sessionStorage.getItem(REVIEW_KEY_PREFIX + boardId) || '[]');
+        for (const c of saved) reviewCells.set(`${c.x},${c.y}`, c.reason || 'Check this square');
+    } catch (e) { /* storage unavailable or malformed -- no highlights */ }
+}
+
+function saveReviewCells(boardId) {
+    try {
+        const key = REVIEW_KEY_PREFIX + boardId;
+        if (reviewCells.size === 0) { sessionStorage.removeItem(key); return; }
+        const list = [...reviewCells].map(([xy, reason]) => {
+            const [x, y] = xy.split(',').map(Number);
+            return { x, y, reason };
+        });
+        sessionStorage.setItem(key, JSON.stringify(list));
+    } catch (e) { /* storage unavailable */ }
 }
 
 async function loadTypes() {
@@ -590,6 +627,7 @@ async function loadBoard(boardId) {
 
         buildGrid(data.x, data.y);
         overlayBoardData(data.items, data.actions);
+        loadReviewCells(data.boardId);
         renderGrid();
         selectedCell = null;
         paletteCell = null;
@@ -684,6 +722,8 @@ function renderGrid() {
 function renderCell(x, y) {
     const div = document.getElementById(`cell-${x}-${y}`);
     if (!div) return;
+    // Every renderCell caller is an edit to this square, so the GM has dealt with it.
+    reviewCells.delete(`${x},${y}`);
     fillCell(div, x, y);
     if (selectedCell && selectedCell.x === x && selectedCell.y === y) {
         div.classList.add('selected');
@@ -693,6 +733,9 @@ function renderCell(x, y) {
 function fillCell(div, x, y) {
     const cell = grid[y][x];
     div.innerHTML = '';
+    const reviewReason = reviewCells.get(`${x},${y}`);
+    div.classList.toggle('review', reviewReason !== undefined);
+    div.title = reviewReason !== undefined ? `(${x}, ${y}) ${reviewReason}` : `(${x}, ${y})`;
 
     const img = document.createElement('img');
     img.src = imageSrcForType(cell.squareType, cell.actions);
@@ -1228,6 +1271,7 @@ async function saveBoard() {
         }
         const data = await res.json();
         isDirty = false;
+        saveReviewCells(currentBoard.boardId);
         showStatus(`Saved! Flags: ${data.totalFlags}, Starts: ${data.totalPlayers}`, 'saved');
         currentBoard.boardName = payload.boardName;
         currentBoard.x = w;

@@ -67,11 +67,10 @@ that every robot and player device is contending for.
    ([RobotConnections.md](../documents/RobotConnections.md)). Without a reservation, a robot
    that gets a different DHCP lease after a reboot leaves the server dialing a stale IP until
    the DB is corrected.
-6. **Re-point the DB's stored robot IPs once, after the move.** These robots are joining a
-   brand-new network for the first time, so whatever's currently in `RobotBases.IPAddress`
-   almost certainly won't match. Either set the DHCP reservations to match the *existing* DB
-   values, or update the DB to match the *new* addresses (the connection screen's "Update IP"
-   sets `RobotBases.IPAddress` by hand).
+6. **Make sure the robots' hostnames resolve on the new network.** The server dials
+   `RobotBases.Hostname` (e.g. `AIM-328D8418`), not an IP, so the router's DNS (or mDNS)
+   must resolve each device name. `GET /api/robot/sethostname/{robotId}/{hostname}`
+   sets `RobotBases.Hostname` by hand if a name is wrong.
 7. **Keep using `mrobopi.local`**, not a hardcoded IP, for the Pi itself. Raspberry Pi OS's
    Avahi/mDNS works fine within a single subnet like this one, and `CLAUDE.md` already
    requires never hardcoding that hostname.
@@ -119,7 +118,6 @@ options, different tradeoffs:
   guarantee no overlap.
 - Decide whether player devices are phones, ESP32 stations, or a mix for the first real test
   on this network.
-- After first connecting all 6 robots, check (using the connection screen's Update IP
-  fields) that `RobotBases.IPAddress` is right for the new subnet.
+- After first connecting all 6 robots, check (on the GM screen's connect toggles) that `RobotBases.Hostname` resolves on the new subnet.
 - Decide between §6's port-forward vs. bridge approach if home-network access to the Pi is
   wanted, and configure it.

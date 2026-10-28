@@ -81,8 +81,8 @@ namespace MRR.Services
                 var players = new Players();
 
                 // Reads straight off Robots' own denormalized RobotName/RobotColor/RobotColorFG/
-                // IPAddress/DirectionAdjustment columns (kept current by RefreshRobotDenormalizedFields/
-                // UpdateRobotIPAddress, and -- for DirectionAdjustment specifically -- by the
+                // Hostname/DirectionAdjustment columns (kept current by RefreshRobotDenormalizedFields/
+                // UpdateRobotHostname, and -- for DirectionAdjustment specifically -- by the
                 // SeatOrientation join in SelectSeat/SetupPlayersFromOperatorData's own UPDATE,
                 // set once at seat-claim time since PlayerSeat itself never changes after that)
                 // instead of joining RobotBodies/RobotBases/SeatOrientation fresh -- those were
@@ -91,7 +91,7 @@ namespace MRR.Services
                 // never get connected to its physical robot. See install/todo.md "Operator Data
                 // Setup".
                 string strSQL = @"SELECT r.RobotID, r.RobotName, r.RobotColor, r.RobotColorFG,
-                       r.OperatorName, r.Password, r.PlayerSeat, r.IPAddress,
+                       r.OperatorName, r.Password, r.PlayerSeat, r.Hostname,
                        r.DirectionAdjustment
                 FROM Robots r
                 ORDER BY r.RobotID";
@@ -119,12 +119,12 @@ namespace MRR.Services
                         Color               = row["RobotColor"].ToString() ?? "FFFFFF",
                         ForeColor           = row["RobotColorFG"].ToString() ?? "000000",
                         Password            = row["Password"]?.ToString() ?? "",
-                        IPAddress           = row["IPAddress"].ToString(),
+                        Hostname            = row["Hostname"].ToString(),
                         DirectionAdjustment = Convert.ToInt32(row["DirectionAdjustment"]),
                         AllGameCards        = GameCards,
                         Connection          = _robotConnections.Get(robotId),
                     });
-                    //Console.WriteLine("Loaded player ID:" + row["RobotID"].ToString() + " Name:" + row["RobotName"].ToString() + " IP:" + IPAddress);
+                    //Console.WriteLine("Loaded player ID:" + row["RobotID"].ToString() + " Name:" + row["RobotName"].ToString() + " Host:" + Hostname);
                 }
                 _allPlayers = players;
 
@@ -256,10 +256,10 @@ namespace MRR.Services
         // CurrentPosDir. CardCount is a real column, kept current by RefreshCardCount
         // (DataService.Cards.cs) whenever a robot's cards change.
         // ConnectStatusColor/ConnectStatusDesc are likewise real columns now, kept current by
-        // RefreshRobotDenormalizedFields -- no join needed here for them. IPAddress reads
-        // Robots.IPAddress directly; UpdateRobotIPAddress keeps it in sync with the
-        // RobotBases.IPAddress that RobotConnection actually dials (it polls for its own copy
-        // by RobotID), so no join is needed here either.
+        // RefreshRobotDenormalizedFields -- no join needed here for them. Hostname reads
+        // Robots.Hostname directly; UpdateRobotHostname keeps it in sync with
+        // RobotBases.Hostname (RobotConnection polls for its own copy by RobotID), so no join
+        // is needed here either.
         public List<RobotData> GetRobotsFromTable()
         {
             //RefreshRobotDenormalizedFields();
@@ -303,7 +303,7 @@ namespace MRR.Services
                     ConnectStatusID     = (int)row["ConnectStatusID"],
                     ConnectStatusColor  = row["ConnectStatusColor"].ToString() ?? "",
                     ConnectStatusDesc   = row["ConnectStatusDesc"].ToString() ?? "",
-                    IPAddress           = row["IPAddress"].ToString() ?? "",
+                    Hostname            = row["Hostname"].ToString() ?? "",
                     RespawnLetter       = PlayerState.ToRespawnLetter(row["RespawnID"] is int respawnID ? respawnID : 0, (int)row["RobotID"]),
                 });
             }
@@ -317,19 +317,19 @@ namespace MRR.Services
         /// the column's schema default of 0, which has no matching RobotBodies row and would
         /// fail the FK) until a player claims this seat via SelectSeat.
         /// </summary>
-        public void InsertPlaceholderRobot(int baseId, string ip, int row, int col, int dir)
+        public void InsertPlaceholderRobot(int baseId, string hostname, int row, int col, int dir)
         {
             using var connection = new MySqlConnection(_connectionString);
             connection.Open();
             using var insert = new MySqlCommand(
                 @"insert into Robots (RobotID, RobotBaseID, RobotBodyID, OperatorName, RobotName, RobotColor, RobotColorFG,
-                      `Status`, IPAddress, CurrentPosRow, CurrentPosCol, CurrentPosDir, ArchivePosRow, ArchivePosCol, ArchivePosDir, PositionValid)
+                      `Status`, Hostname, CurrentPosRow, CurrentPosCol, CurrentPosDir, ArchivePosRow, ArchivePosCol, ArchivePosDir, PositionValid)
                   values (@baseId, @baseId, NULL, 'Seat ?', @robotName, '000000', 'FFFFFF',
-                      0, @ip, @row, @col, @dir, @row, @col, @dir, 0)",
+                      0, @hostname, @row, @col, @dir, @row, @col, @dir, 0)",
                 connection);
             insert.Parameters.AddWithValue("@baseId", baseId);
             insert.Parameters.AddWithValue("@robotName", "Start " + baseId);
-            insert.Parameters.AddWithValue("@ip", ip);
+            insert.Parameters.AddWithValue("@hostname", hostname);
             insert.Parameters.AddWithValue("@row", row);
             insert.Parameters.AddWithValue("@col", col);
             insert.Parameters.AddWithValue("@dir", dir);
@@ -500,24 +500,24 @@ namespace MRR.Services
         }
 
         /// <summary>
-        /// Section 8 (install/todo.md) "Update IP": writes the robot's IP address to both
-        /// RobotBases.IPAddress -- the column RobotConnection actually reads when it (re)dials --
-        /// and Robots.IPAddress, so the two stay in sync instead of the latter going stale.
+        /// /api/robot/sethostname: writes the robot's hostname to both
+        /// RobotBases.Hostname and Robots.Hostname -- the copy RobotConnection dials -- so the
+        /// two stay in sync instead of the latter going stale.
         /// Parameterized because the value comes straight from a form field on the connection
         /// screen.
         /// </summary>
-        public bool UpdateRobotIPAddress(int robotId, string ipAddress)
+        public bool UpdateRobotHostname(int robotId, string hostname)
         {
             using var connection = new MySqlConnection(_connectionString);
             connection.Open();
             using var update = new MySqlCommand(
                 @"UPDATE RobotBases rb
                   JOIN Robots r ON r.RobotBaseID = rb.RobotBaseID
-                  SET rb.IPAddress = @ip,
-                      r.IPAddress = @ip
+                  SET rb.Hostname = @hostname,
+                      r.Hostname = @hostname
                   WHERE r.RobotID = @robotId",
                 connection);
-            update.Parameters.AddWithValue("@ip", ipAddress);
+            update.Parameters.AddWithValue("@hostname", hostname);
             update.Parameters.AddWithValue("@robotId", robotId);
             return update.ExecuteNonQuery() > 0;
         }
@@ -529,7 +529,7 @@ namespace MRR.Services
         public object GetAvailableRobotBases(int robotId)
         {
             var table = GetQueryResults(
-                "SELECT b.RobotBaseID, b.AIMName, b.IPAddress, " +
+                "SELECT b.RobotBaseID, b.AIMName, b.Hostname, " +
                 $"       IF(b.RobotBaseID = (SELECT RobotBaseID FROM Robots WHERE RobotID = {robotId}), 1, 0) AS IsCurrent " +
                 "FROM RobotBases b " +
                 $"WHERE b.RobotBaseID NOT IN (SELECT RobotBaseID FROM Robots WHERE RobotID <> {robotId} AND RobotBaseID IS NOT NULL) " +
@@ -539,15 +539,15 @@ namespace MRR.Services
             {
                 robotBaseID = Convert.ToInt32(row["RobotBaseID"]),
                 aimName     = row["AIMName"] as string ?? "",
-                ipAddress   = row["IPAddress"] as string ?? "",
+                hostname    = row["Hostname"] as string ?? "",
                 isCurrent   = Convert.ToInt32(row["IsCurrent"]) == 1
             }).ToList();
         }
 
         /// <summary>
         /// Points a disconnected robot at a different physical base for the rest of the current
-        /// game: copies that base's IPAddress onto Robots (the copy RobotConnection dials when the
-        /// robot is next connected) and records the base in Robots.RobotBaseID. RobotBases itself
+        /// game: copies that base's Hostname onto Robots (the copy RobotConnection
+        /// dials when the robot is next connected) and records the base in Robots.RobotBaseID. RobotBases itself
         /// is untouched, so the next game -- whose Robots rows StartGame() rebuilds from
         /// RobotBases -- starts from the original assignments again. Returns null on success,
         /// otherwise the reason it was refused.
@@ -585,7 +585,7 @@ namespace MRR.Services
                 @"UPDATE Robots r
                   JOIN RobotBases b ON b.RobotBaseID = @b
                   SET r.RobotBaseID = b.RobotBaseID,
-                      r.IPAddress   = b.IPAddress
+                      r.Hostname    = b.Hostname
                   WHERE r.RobotID = @r",
                 connection);
             update.Parameters.AddWithValue("@b", robotBaseId);
@@ -622,7 +622,7 @@ namespace MRR.Services
         /// <summary>
         /// Writes through to Robots.ConnectStatusID -- and, in the same statement,
         /// ConnectStatusColor/ConnectStatusDesc from the matching RobotStatus row -- so the
-        /// connection screen reflects whether we actually have a live socket to the robot.
+        /// GM screen's connect toggles reflect whether we actually have a live socket to the robot.
         /// Deliberately narrower than RefreshRobotDenormalizedFields: this touches only the
         /// three connect-status columns for one robot, never the gameplay Status/StatusColor/
         /// LEDColor columns -- a connection dropping or recovering must never look like a

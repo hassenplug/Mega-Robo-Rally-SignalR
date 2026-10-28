@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Board Photo Import - Mega Robo Rally</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; }
+
+        body {
+            background: #222;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0 0 24px;
+        }
+
+        #topbar {
+            background: #1a1a1a;
+            border-bottom: 2px solid #444;
+            padding: 6px 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        #topbar h2 { margin: 0; font-size: 16px; color: #ffcc00; white-space: nowrap; }
+        #topbar a { color: #ccc; font-size: 13px; margin-left: auto; }
+
+        .panel { padding: 8px 10px; max-width: 900px; margin: 0 auto; }
+        .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
+        label { font-size: 13px; color: #ccc; }
+        select, input[type="text"], input[type="number"] {
+            background: #333;
+            color: #fff;
+            border: 1px solid #555;
+            padding: 6px;
+            border-radius: 3px;
+            font-size: 15px;
+        }
+        input[type="number"] { width: 64px; }
+        .btn {
+            background: #444;
+            color: #fff;
+            border: 1px solid #666;
+            padding: 8px 14px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 15px;
+        }
+        .btn:hover { background: #555; }
+        .btn:disabled { opacity: 0.5; cursor: default; }
+        .btn-primary { background: #2a6; border-color: #3b7; }
+        .btn-primary:hover { background: #3b7; }
+        .hint { font-size: 13px; color: #aaa; margin: 4px 0 8px; line-height: 1.4; }
+        .hint b { color: #ffcc00; }
+
+        #photoWrap { position: relative; width: 100%; touch-action: none; }
+        #photoCanvas { width: 100%; display: block; background: #111; border: 1px solid #444; }
+
+        #statusMsg {
+            font-size: 14px;
+            padding: 6px 8px;
+            border-radius: 3px;
+            background: #333;
+            color: #aaa;
+            margin-bottom: 8px;
+        }
+        #statusMsg.saved { background: #253; color: #4f8; }
+        #statusMsg.error { background: #522; color: #f88; }
+
+        #result h3 { font-size: 14px; color: #aaa; text-transform: uppercase; margin: 12px 0 6px; }
+        #result ul { margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.5; }
+        .err { color: #f88; }
+        .warn { color: #fc6; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+<div id="topbar">
+    <h2>Board Photo Import</h2>
+    <a href="board-editor.html">Board editor</a>
+</div>
+
+<div class="panel">
+    <div class="row">
+        <label>Target board:</label>
+        <select id="boardSelect" onchange="onBoardSelectChange()">
+            <option value="new">New board…</option>
+        </select>
+        <input type="text" id="newBoardName" value="Photo Import" placeholder="Name">
+    </div>
+    <div class="row">
+        <label>Columns</label><input type="number" id="cols" value="5" min="1" max="40">
+        <label>Rows</label><input type="number" id="rows" value="4" min="1" max="40">
+        <label>Match</label>
+        <select id="mode" title="How tiles are compared. Not yet checked against a real photo -- try another if the result is poor.">
+            <option value="Grayscale">Grayscale</option>
+            <option value="Color">Color</option>
+            <option value="Edges">Edges</option>
+        </select>
+    </div>
+    <div class="row">
+        <input type="file" id="photoInput" accept="image/*" capture="environment" onchange="onPhotoChosen()">
+    </div>
+
+    <p class="hint">
+        Photograph the board from above, then drag the four markers onto the board's outer corners.
+        <b>1</b> is the top-left square (column 0, row 0), then clockwise: <b>2</b> top-right,
+        <b>3</b> bottom-right, <b>4</b> bottom-left. If the markers are out of order the board
+        imports rotated. The grid drawn between them is approximate; it is only a guide.
+    </p>
+
+    <div id="photoWrap"><canvas id="photoCanvas" width="800" height="200"></canvas></div>
+
+    <div class="row" style="margin-top:8px">
+        <button class="btn btn-primary" id="btnImport" onclick="runImport()" disabled>Import</button>
+        <button class="btn" id="btnEditor" onclick="openInEditor()" disabled>Review in editor</button>
+    </div>
+    <div id="statusMsg">Choose a photo.</div>
+    <div id="result"></div>
+</div>
+
+<script>
+// The photo is shrunk to this many pixels on its long side before upload: phone photos are
+// 12-50 MP, the server caps uploads at 12 MB, and the matcher only needs ~64px per square.
+const MAX_UPLOAD_SIDE = 2000;
+// Where board-editor.html picks up the cells to highlight (same origin, so sessionStorage works).
+const REVIEW_KEY_PREFIX = 'boardImport.review.';
+const MARKER_RADIUS = 22;  // in canvas pixels; big enough to grab with a finger
+
+let boards = [];
+let photo = null;        // canvas holding the shrunk photo, at upload resolution
+let corners = [];        // [{x,y}] in photo coordinates: TL, TR, BR, BL
+let dragIndex = -1;
+let lastImport = null;   // { boardId, cells }
+
+// ── Boards ─────────────────────────────────────────────────────────────────
+async function loadBoards() {
+    try {
+        const res = await fetch('/api/boardeditor/boards');
+        if (res.ok) boards = ((await res.json()).boards || []).filter(b => b.BoardID !== 0);
+    } catch (e) { console.error('Failed to load boards', e); }
+    const sel = document.getElementById('boardSelect');
+    for (const b of boards) {
+        const opt = document.createElement('option');
+        opt.value = b.BoardID;
+        opt.textContent = `${b.BoardID}: ${b.BoardName} (${b.X}x${b.Y})`;
+        sel.appendChild(opt);
+    }
+}
+
+function onBoardSelectChange() {
+    const value = document.getElementById('boardSelect').value;
+    document.getElementById('newBoardName').classList.toggle('hidden', value !== 'new');
+    const board = boards.find(b => String(b.BoardID) === value);
+    if (board) {
+        document.getElementById('cols').value = board.X;
+        document.getElementById('rows').value = board.Y;
+    }
+    drawPhoto();
+}
+
+// ── Photo ──────────────────────────────────────────────────────────────────
+function onPhotoChosen() {
+    const file = document.getElementById('photoInput').files[0];
+    if (!file) return;
+    const img = new Image();
+    img.onload = () => {
+        // Drawing to a canvas applies the EXIF orientation, so the upload, the markers and
+        // what the GM sees all use the same, upright pixels.
+        const scale = Math.min(1, MAX_UPLOAD_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
+        photo = document.createElement('canvas');
+        photo.width = Math.round(img.naturalWidth * scale);
+        photo.height = Math.round(img.naturalHeight * scale);
+        photo.getContext('2d').drawImage(img, 0, 0, photo.width, photo.height);
+        URL.revokeObjectURL(img.src);
+
+        const w = photo.width, h = photo.height, m = 0.15;
+        corners = [
+            { x: w * m, y: h * m }, { x: w * (1 - m), y: h * m },
+            { x: w * (1 - m), y: h * (1 - m) }, { x: w * m, y: h * (1 - m) },
+        ];
+        const canvas = document.getElementById('photoCanvas');
+        canvas.width = w;
+        canvas.height = h;
+        drawPhoto();
+        document.getElementById('btnImport').disabled = false;
+        showStatus('Drag the four markers onto the board corners, then Import.');
+    };
+    img.onerror = () => showStatus('Could not open that file as an image.', 'error');
+    img.src = URL.createObjectURL(file);
+}
+
+function lerp(a, b, t) { return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }; }
+
+function drawPhoto() {
+    if (!photo) return;
+    const canvas = document.getElementById('photoCanvas');
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(photo, 0, 0);
+
+    // Canvas pixels per screen pixel, so lines and markers stay the same size on screen.
+    const px = canvas.width / canvas.getBoundingClientRect().width;
+    const cols = parseInt(document.getElementById('cols').value) || 1;
+    const rows = parseInt(document.getElementById('rows').value) || 1;
+    const [tl, tr, br, bl] = corners;
+
+    // Guide grid: straight lines between evenly spaced points on opposite edges. Under
+    // perspective the true lines bunch up towards the far edge, so this is only close.
+    ctx.strokeStyle = 'rgba(0,255,255,0.7)';
+    ctx.lineWidth = 1.5 * px;
+    ctx.beginPath();
+    for (let c = 0; c <= cols; c++) {
+        const a = lerp(tl, tr, c / cols), b = lerp(bl, br, c / cols);
+        ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+    }
+    for (let r = 0; r <= rows; r++) {
+        const a = lerp(tl, bl, r / rows), b = lerp(tr, br, r / rows);
+        ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+    }
+    ctx.stroke();
+
+    corners.forEach((p, i) => {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, MARKER_RADIUS * px, 0, Math.PI * 2);
+        ctx.fillStyle = i === 0 ? 'rgba(255,204,0,0.55)' : 'rgba(0,170,170,0.55)';
+        ctx.fill();
+        ctx.lineWidth = 2 * px;
+        ctx.strokeStyle = '#fff';
+        ctx.stroke();
+        ctx.fillStyle = '#fff';
+        ctx.font = `bold ${18 * px}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(i + 1), p.x, p.y);
+    });
+}
+
+// ── Dragging the corner markers ────────────────────────────────────────────
+function canvasPoint(e) {
+    const canvas = document.getElementById('photoCanvas');
+    const rect = canvas.getBoundingClientRect();
+    return {
+        x: (e.clientX - rect.left) * canvas.width / rect.width,
+        y: (e.clientY - rect.top) * canvas.height / rect.height,
+    };
+}
+
+function initMarkers() {
+    const canvas = document.getElementById('photoCanvas');
+    canvas.addEventListener('pointerdown', e => {
+        if (!photo) return;
+        const p = canvasPoint(e);
+        const reach = MARKER_RADIUS * 1.5 * canvas.width / canvas.getBoundingClientRect().width;
+        let best = -1, bestDist = Infinity;
+        corners.forEach((c, i) => {
+            const d = Math.hypot(c.x - p.x, c.y - p.y);
+            if (d < bestDist) { bestDist = d; best = i; }
+        });
+        if (bestDist > reach) return;
+        dragIndex = best;
+        canvas.setPointerCapture(e.pointerId);
+        e.preventDefault();
+    });
+    canvas.addEventListener('pointermove', e => {
+        if (dragIndex < 0) return;
+        const p = canvasPoint(e);
+        corners[dragIndex] = {
+            x: Math.min(Math.max(p.x, 0), canvas.width),
+            y: Math.min(Math.max(p.y, 0), canvas.height),
+        };
+        drawPhoto();
+    });
+    const end = e => {
+        if (dragIndex < 0) return;
+        dragIndex = -1;
+        canvas.releasePointerCapture(e.pointerId);
+    };
+    canvas.addEventListener('pointerup', end);
+    canvas.addEventListener('pointercancel', end);
+    document.getElementById('cols').addEventListener('input', drawPhoto);
+    document.getElementById('rows').addEventListener('input', drawPhoto);
+    window.addEventListener('resize', drawPhoto);
+}
+
+// ── Import ─────────────────────────────────────────────────────────────────
+async function createBoard(name, cols, rows) {
+    const res = await fetch('/api/boardeditor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ boardName: name, x: cols, y: rows, laserDamage: 1, phaseCount: 5, gameType: 0 })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not create the board');
+    return data.boardId;
+}
+
+async function runImport() {
+    const cols = parseInt(document.getElementById('cols').value);
+    const rows = parseInt(document.getElementById('rows').value);
+    if (!(cols >= 1 && cols <= 40 && rows >= 1 && rows <= 40)) {
+        showStatus('Columns and rows must be 1 to 40.', 'error');
+        return;
+    }
+    const target = document.getElementById('boardSelect').value;
+    if (target !== 'new') {
+        const board = boards.find(b => String(b.BoardID) === target);
+        if (!confirm(`Replace every square of board ${target}${board ? ' (' + board.BoardName + ')' : ''} with the photo? This cannot be undone.`)) return;
+    }
+
+    const btn = document.getElementById('btnImport');
+    btn.disabled = true;
+    document.getElementById('btnEditor').disabled = true;
+    document.getElementById('result').innerHTML = '';
+    lastImport = null;
+    try {
+        const blob = await new Promise(resolve => photo.toBlob(resolve, 'image/jpeg', 0.9));
+        let boardId;
+        if (target === 'new') {
+            showStatus('Creating board…');
+            boardId = await createBoard(document.getElementById('newBoardName').value || 'Photo Import', cols, rows);
+        } else {
+            boardId = parseInt(target);
+        }
+
+        showStatus('Matching tiles…');
+        const form = new FormData();
+        form.append('photo', blob, 'board.jpg');
+        form.append('cols', cols);
+        form.append('rows', rows);
+        form.append('mode', document.getElementById('mode').value);
+        form.append('corners', corners.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(';'));
+        const res = await fetch(`/api/boardeditor/${boardId}/import-photo`, { method: 'POST', body: form });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Import failed');
+
+        lastImport = { boardId, cells: data.cells };
+        if (target === 'new') {
+            // A new board was created: refresh the list so a second import can target it.
+            document.getElementById('boardSelect').length = 1;
+            boards = [];
+            await loadBoards();
+            document.getElementById('boardSelect').value = boardId;
+            onBoardSelectChange();
+        }
+
+        let validation = null;
+        try {
+            const v = await fetch(`/api/boardeditor/${boardId}/validate`);
+            if (v.ok) validation = await v.json();
+        } catch (e) { console.error('Validation failed', e); }
+
+        renderResult(data, validation);
+        document.getElementById('btnEditor').disabled = false;
+        showStatus(`Imported into board ${boardId}.`, 'saved');
+    } catch (e) {
+        showStatus(e.message || 'Network error', 'error');
+        console.error(e);
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+}
+
+function renderResult(data, validation) {
+    const review = data.cells.filter(c => c.needsReview);
+    let html = `<h3>Result</h3><ul>`;
+    html += `<li>${data.cols}×${data.rows} squares, ${data.totalFlags} flag(s), matched by ${escapeHtml(data.mode)}.</li>`;
+    html += `<li>${review.length} square(s) need review; they are outlined in orange in the editor.</li>`;
+    html += `</ul>`;
+
+    if (validation) {
+        html += `<h3>Validation</h3><ul>`;
+        for (const e of validation.errors) html += `<li class="err">${escapeHtml(e)}</li>`;
+        for (const w of validation.warnings) html += `<li class="warn">${escapeHtml(w)}</li>`;
+        if (!validation.errors.length && !validation.warnings.length) html += `<li>No problems found.</li>`;
+        html += `</ul>`;
+    }
+
+    if (review.length) {
+        html += `<h3>Squares to check</h3><ul>`;
+        for (const c of review) html += `<li>(${c.x}, ${c.y}) ${escapeHtml(c.reason || '')}</li>`;
+        html += `</ul>`;
+    }
+    document.getElementById('result').innerHTML = html;
+}
+
+function openInEditor() {
+    if (!lastImport) return;
+    const review = lastImport.cells.filter(c => c.needsReview).map(c => ({ x: c.x, y: c.y, reason: c.reason }));
+    try { sessionStorage.setItem(REVIEW_KEY_PREFIX + lastImport.boardId, JSON.stringify(review)); }
+    catch (e) { /* storage unavailable -- the editor just won't highlight */ }
+    location.href = `board-editor.html?board=${lastImport.boardId}`;
+}
+
+function showStatus(msg, type) {
+    const el = document.getElementById('statusMsg');
+    el.textContent = msg;
+    el.className = type || '';
+}
+
+// ── Start ──────────────────────────────────────────────────────────────────
+initMarkers();
+loadBoards();
+</script>
+</body>
+</html>

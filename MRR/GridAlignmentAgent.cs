@@ -82,12 +82,12 @@ public static class GridAlignmentAgent
             var bytes = await robot.GetCameraImageAsync();
             if (bytes == null)
             {
-                Console.WriteLine($"[GridAlign] No image from {robot.IPAddress}");
+                Console.WriteLine($"[GridAlign] No image from {robot.Hostname}");
                 return last;
             }
 
             var imageData = ExtractImageBytes(bytes);
-            SaveDebugImages(imageData, robot.IPAddress ?? "unknown");
+            SaveDebugImages(imageData, robot.Hostname ?? "unknown");
             last = FindGridLines(imageData);
             Console.WriteLine(
                 $"[GridAlign] iter={i} found={last.Found} " +
@@ -307,13 +307,13 @@ public static class GridAlignmentAgent
 
     // Save original image and a red-highlighted copy (black pixels → red) to images/align/.
     // Both files share the same timestamp so they pair up in the directory listing.
-    private static void SaveDebugImages(byte[] imageData, string ipAddress)
+    private static void SaveDebugImages(byte[] imageData, string hostname)
     {
         try
         {
             var dir = Path.Combine("images", "align");
             Directory.CreateDirectory(dir);
-            var safe = ipAddress.Replace('.', '_');
+            var safe = hostname.Replace('.', '_');
             var ts   = DateTime.Now.ToString("yyyyMMdd_HHmmss_fff");
 
             File.WriteAllBytes(Path.Combine(dir, $"align_{safe}_{ts}_orig.jpg"), imageData);

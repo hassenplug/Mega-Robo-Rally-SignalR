@@ -192,6 +192,22 @@
             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
         }
 
+        /* One-row result: every field is an input, saved when it loses focus (saveField). */
+        input.field-edit {
+            width: 100%;
+            min-width: 60px;
+            padding: 4px 6px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            font-family: inherit;
+            font-size: 14px;
+        }
+        input.field-edit:focus { outline: none; border-color: #667eea; box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15); }
+        input.field-edit.saving { border-color: #f0ad4e; }
+        input.field-edit.saved  { border-color: #28a745; background: #eafaf0; }
+        input.field-edit.failed { border-color: #dc3545; background: #fdecee; }
+        td.edit-cell { overflow: visible; padding: 4px 6px; }
+
         .status-bar {
             padding: 15px 30px;
             background: #f8f9fa;
@@ -583,6 +599,13 @@
             }
             //console.log('Rendering table with data:', tableData);
 
+            // Exactly one row from a table (not a free-form SQL result, which may be a join):
+            // every field is editable and saves when you leave it.
+            if (tableData.length === 1 && tableName) {
+                renderSingleRowEditor(tableName);
+                return;
+            }
+
             const keys = Object.keys(tableData[0]);
             const html = `
                 <table>
@@ -609,6 +632,97 @@
                     populateFilter(colName, colValue);
                 });
             });
+        }
+
+        // ─── Single-row editing ─────────────────────────────────────────────────
+        // When a table (or a filter on it) returns exactly one row, each field is an input.
+        // Leaving a field whose value changed runs one UPDATE through POST /api/admin/sql.
+        // Typing NULL (exactly) stores SQL NULL. The row is found by its primary key; a table
+        // with none (e.g. BoardItemActions) is matched on every original value, LIMIT 1.
+        const primaryKeyCache = {};
+
+        async function getPrimaryKeys(tableName) {
+            if (primaryKeyCache[tableName]) return primaryKeyCache[tableName];
+            const resp = await adminFetch('/api/admin/sql', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sql: `SHOW KEYS FROM \`${tableName}\` WHERE Key_name = 'PRIMARY';` })
+            });
+            if (!resp.ok) throw new Error('Could not read the primary key: HTTP ' + resp.status);
+            const data = await resp.json();
+            primaryKeyCache[tableName] = (data.rows || []).map(r => r.Column_name);
+            return primaryKeyCache[tableName];
+        }
+
+        // A value as it came from the server (number, boolean, null or string), as SQL.
+        function sqlLiteral(value) {
+            if (value === null || value === undefined) return 'NULL';
+            if (typeof value === 'boolean') return value ? '1' : '0';
+            if (typeof value === 'number') return String(value);
+            return "'" + String(value).replace(/\\/g, '\\\\').replace(/'/g, "''") + "'";
+        }
+
+        function renderSingleRowEditor(tableName) {
+            const row = tableData[0];
+            const keys = Object.keys(row);
+            const table = document.createElement('table');
+            table.innerHTML = `<thead><tr>${keys.map(k => `<th>${escapeHtml(k)}</th>`).join('')}</tr></thead>`;
+            const tr = document.createElement('tr');
+            keys.forEach(k => {
+                const td = document.createElement('td');
+                td.className = 'edit-cell';
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.className = 'field-edit';
+                input.value = row[k] === null || row[k] === undefined ? 'NULL' : String(row[k]);
+                input.dataset.colname = k;
+                input.addEventListener('change', () => saveField(tableName, k, input)); // fires on blur, only if changed
+                input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
+                td.appendChild(input);
+                tr.appendChild(td);
+            });
+            const tbody = document.createElement('tbody');
+            tbody.appendChild(tr);
+            table.appendChild(tbody);
+            const container = document.getElementById('gridContainer');
+            container.innerHTML = '';
+            container.appendChild(table);
+            updateStatus('One row: edit a field and leave it to save');
+        }
+
+        async function saveField(tableName, colName, input) {
+            const row = originalTableData[0];
+            const newValue = input.value === 'NULL' ? null : input.value;
+            input.classList.remove('saved', 'failed');
+            input.classList.add('saving');
+            try {
+                const pk = await getPrimaryKeys(tableName);
+                const matchCols = pk.length && pk.every(c => c in row) ? pk : Object.keys(row);
+                const where = matchCols.map(c => `\`${c}\` <=> ${sqlLiteral(row[c])}`).join(' AND ');
+                const sql = `UPDATE \`${tableName}\` SET \`${colName}\` = ${sqlLiteral(newValue)} WHERE ${where} LIMIT 1;`;
+
+                const resp = await adminFetch('/api/admin/sql', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sql })
+                });
+                const text = await resp.text();
+                let data = null;
+                try { data = text ? JSON.parse(text) : null; } catch (e) { /* not JSON */ }
+                if (!resp.ok) throw new Error((data && data.error) ? data.error : (text || `HTTP ${resp.status}`));
+
+                const affected = data && typeof data.rowsAffected === 'number' ? data.rowsAffected : 0;
+                // Keep both copies in step so the next field's WHERE uses the new value.
+                tableData[0][colName] = newValue;
+                originalTableData[0][colName] = newValue;
+                input.classList.remove('saving');
+                input.classList.add('saved');
+                updateStatus(affected ? `Saved ${colName}` : `${colName}: no row changed (same value, or row not found)`);
+            } catch (error) {
+                input.classList.remove('saving');
+                input.classList.add('failed');
+                showError(`Failed to save ${colName}: ` + (error.message || error));
+            }
         }
 
         function populateFilter(columnName, value) {

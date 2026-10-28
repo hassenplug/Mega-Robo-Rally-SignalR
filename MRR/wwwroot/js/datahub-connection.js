@@ -1,5 +1,4 @@
-// Shared SignalR connection to /datahub used by index.html, connectscreen.html and
-// board-viewer.html. Handles connect/reconnect and the initial /api/alldata fetch;
+// Shared SignalR connection to /datahub used by index.html and board-viewer.html. Handles connect/reconnect and the initial /api/alldata fetch;
 // each page listens for the "datapacket" event on `document` to get the payload.
 (function () {
     const connection = new signalR.HubConnectionBuilder()

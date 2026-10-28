@@ -47,7 +47,7 @@ namespace MRR.Devices
         private tShutDown _dbShutDown = tShutDown.None;
 
         public int RobotID { get; }
-        public string? IPAddress { get; private set; }
+        public string? Hostname { get; private set; }
         public bool IsConnected { get; set; }
 
         private bool _shutDown;
@@ -98,7 +98,7 @@ namespace MRR.Devices
         }
 
         /// <summary>
-        /// Polls <c>Robots</c>' own denormalized RobotName/RobotColor/RobotColorFG/IPAddress
+        /// Polls <c>Robots</c>' own denormalized RobotName/RobotColor/RobotColorFG/Hostname
         /// columns for this robot alone -- the only value read from anywhere else is <see
         /// cref="RobotID"/>. Reads straight off Robots rather than joining RobotBodies/RobotBases
         /// (as DataService.GetAllPlayers() also no longer does, same reason): those were INNER
@@ -112,7 +112,7 @@ namespace MRR.Devices
             using var connection = new MySqlConnection(_connectionString);
             connection.Open();
             using var cmd = new MySqlCommand(@"
-                SELECT RobotName, RobotColor, RobotColorFG, IPAddress, SeatArrow, PlayerMsg, ShutDown
+                SELECT RobotName, RobotColor, RobotColorFG, Hostname, SeatArrow, PlayerMsg, ShutDown
                 FROM Robots
                 WHERE RobotID = @id", connection);
             cmd.Parameters.AddWithValue("@id", RobotID);
@@ -123,7 +123,7 @@ namespace MRR.Devices
             _name = reader["RobotName"]?.ToString() ?? "";
             _color = reader["RobotColor"]?.ToString() ?? "FFFFFF";
             _foreColor = reader["RobotColorFG"]?.ToString() ?? "000000";
-            IPAddress = reader["IPAddress"]?.ToString();
+            Hostname = reader["Hostname"]?.ToString();
             _seatArrow = reader["SeatArrow"]?.ToString() ?? "";
             _playerMsg = reader["PlayerMsg"] == DBNull.Value ? "" : reader["PlayerMsg"].ToString() ?? "";
             _dbShutDown = reader["ShutDown"] == DBNull.Value ? tShutDown.None : (tShutDown)Convert.ToInt32(reader["ShutDown"]);
@@ -205,9 +205,9 @@ namespace MRR.Devices
 
             try
             {
-                await wsCmd.ConnectAsync(new Uri($"ws://{IPAddress}:80/ws_cmd"), CancellationToken.None);
-                await wsStatus.ConnectAsync(new Uri($"ws://{IPAddress}:80/ws_status"), CancellationToken.None);
-                //await wsImage.ConnectAsync(new Uri($"ws://{IPAddress}:80/ws_img"), CancellationToken.None);
+                await wsCmd.ConnectAsync(new Uri($"ws://{Hostname}:80/ws_cmd"), CancellationToken.None);
+                await wsStatus.ConnectAsync(new Uri($"ws://{Hostname}:80/ws_status"), CancellationToken.None);
+                //await wsImage.ConnectAsync(new Uri($"ws://{Hostname}:80/ws_img"), CancellationToken.None);
 
                 IsConnected = true;
 
@@ -772,12 +772,12 @@ namespace MRR.Devices
         // Returns raw JPEG bytes or null on failure/timeout.
         public async Task<byte[]?> GetCameraImageAsync(int timeoutMs = 5000)
         {
-            if (IPAddress == null) return null;
+            if (string.IsNullOrEmpty(Hostname)) return null;
             using var ws = new ClientWebSocket();
             using var cts = new CancellationTokenSource(timeoutMs);
             try
             {
-                await ws.ConnectAsync(new Uri($"ws://{IPAddress}:80/ws_img"), cts.Token);
+                await ws.ConnectAsync(new Uri($"ws://{Hostname}:80/ws_img"), cts.Token);
 
                 // Trigger the stream — robot sends nothing until it receives 0x01.
                 await ws.SendAsync(new ArraySegment<byte>([0x01]),
@@ -806,7 +806,7 @@ namespace MRR.Devices
 
                 if (segments.Count == 0)
                 {
-                    Console.WriteLine($"[ws_img] {IPAddress}: no data received");
+                    Console.WriteLine($"[ws_img] {Hostname}: no data received");
                     return null;
                 }
                 int total = segments.Sum(s => s.Length);
@@ -814,13 +814,13 @@ namespace MRR.Devices
                 int pos = 0;
                 foreach (var seg in segments) { seg.CopyTo(combined, pos); pos += seg.Length; }
 
-                Console.WriteLine($"[ws_img] {IPAddress}: {total} bytes, first={BitConverter.ToString(combined[..Math.Min(4, total)])}");
+                Console.WriteLine($"[ws_img] {Hostname}: {total} bytes, first={BitConverter.ToString(combined[..Math.Min(4, total)])}");
                 SaveAlignImage(combined);
                 return combined;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"ws_img error for {IPAddress}: {ex.Message}");
+                Console.WriteLine($"ws_img error for {Hostname}: {ex.Message}");
                 return null;
             }
         }
@@ -831,7 +831,7 @@ namespace MRR.Devices
             {
                 var dir = Path.Combine("images", "align");
                 Directory.CreateDirectory(dir);
-                var safe = (IPAddress ?? "unknown").Replace('.', '_');
+                var safe = (Hostname ?? "unknown").Replace('.', '_');
                 var filename = $"align_{safe}_{DateTime.Now:yyyyMMdd_HHmmss_fff}.jpg";
                 File.WriteAllBytes(Path.Combine(dir, filename), imageData);
             }
