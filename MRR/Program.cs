@@ -118,6 +118,10 @@ app.MapPost("/api/timing/reset", () =>
 app.MapGet("/api/history/turn/{turn:int?}", (int? turn, DataService dataService) =>
     Results.Ok(dataService.GetTurnHistory(turn)));
 
+// Every card one robot owns, by location (index.html's "Spam Cards" view).
+app.MapGet("/api/cards/{robotId:int}", (int robotId, DataService dataService) =>
+    Results.Ok(dataService.GetRobotCards(robotId)));
+
 app.MapGet("/api/state/{newstate?}/{parameter1?}", async (string? newstate, string? parameter1, DataService dataService, IHubContext<DataHub> hubContext, GameController gameController) =>
 {
 

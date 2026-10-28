@@ -363,6 +363,30 @@ namespace MRR.Services
         }
 
         /// <summary>
+        /// index.html's "Spam Cards" view: every card the robot owns, by CardLocation
+        /// (MoveCardLocations: Deck, Hand, Played, Discard, Locked, Played Spam). Within a
+        /// location cards are sorted by type, not CurrentOrder, so the draw order isn't shown.
+        /// </summary>
+        public object GetRobotCards(int robotID)
+        {
+            var table = GetQueryResults(
+                "SELECT mc.CardLocation, l.Description AS LocationName, mc.CardTypeID, t.Description AS CardName " +
+                "FROM MoveCards mc " +
+                "LEFT JOIN MoveCardLocations l ON l.LocationID = mc.CardLocation " +
+                "LEFT JOIN MoveCardTypes t ON t.CardTypeID = mc.CardTypeID " +
+                $"WHERE mc.Owner = {robotID} " +
+                "ORDER BY mc.CardLocation, mc.CardTypeID");
+
+            return table.Rows.Cast<System.Data.DataRow>().Select(row => new
+            {
+                location     = Convert.ToInt32(row["CardLocation"]),
+                locationName = row["LocationName"] as string ?? "",
+                cardTypeID   = Convert.ToInt32(row["CardTypeID"]),
+                cardName     = row["CardName"] as string ?? ""
+            }).ToList();
+        }
+
+        /// <summary>
         /// The cards a robot would draw, in order, when Spam forces a replacement: its deck
         /// (CardLocation 0) first, then its discard pile (3), each by CurrentOrder.
         ///

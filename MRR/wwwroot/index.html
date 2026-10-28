@@ -57,7 +57,15 @@ a:visited {
 
 <table id="mainTable" bgcolor="ffffff" border=0 width=100%>
 <tr bgcolor="#d0d0d0">
-<td id="robotHeader" style="cursor:pointer; position:relative;" onclick="handleRobotHeaderTap();">Robot
+<td id="robotHeader" style="cursor:pointer; position:relative; font-size:24px;" onclick="handleRobotHeaderTap();">&#9776;
+    <!-- Chooses what the right-hand panel shows. See setRightPanelView() in js/loadrobots.js.
+         Opened by the header tap unless the GM view is on (then the GM menu below opens). -->
+    <div id="viewMenu" class="w3-card-4" style="display:none; position:absolute; top:100%; left:0; z-index:5; background:#ffffff; padding:6px; min-width:160px; font-size:16px;">
+        <button class="button" id="viewMenu-program" style="margin-bottom:4px;" onclick="event.stopPropagation(); setRightPanelView('program');">Program Cards</button>
+        <button class="button" id="viewMenu-shutdown" style="margin-bottom:4px;" onclick="event.stopPropagation(); setRightPanelView('shutdown');">Shut Down</button>
+        <button class="button" id="viewMenu-spam" style="margin-bottom:4px;" onclick="event.stopPropagation(); setRightPanelView('spam');">Spam Cards</button>
+        <button class="button" id="viewMenu-lasthand" onclick="event.stopPropagation(); setRightPanelView('lasthand');">Last Hand</button>
+    </div>
     <!-- GM-only game controls, shown on tap while logged in as GM. See toggleGmMenu()/
          gmAction() in js/loadrobots.js. Positioned relative to this <td> so it drops down
          right under the header regardless of scroll position. -->
@@ -111,14 +119,14 @@ a:visited {
             </td>
         </tr>
         <tr id="messagetablespace" style="display: none;"><td colspan="5"><br></td></tr>
-        <tr bgcolor="#d0d0d0">
+        <tr id="PlayedRow" bgcolor="#d0d0d0">
             <td align=center bgcolor=ffffff id='CardCell0'><img id='Played0' src='images/type0.png' onclick='PlayCard(this);' width='50' tag=1/></td>
             <td align=center bgcolor=ffffff id='CardCell1'><img id='Played1' src='images/type0.png' onclick='PlayCard(this);' width='50'/></td>
             <td align=center bgcolor=ffffff id='CardCell2'><img id='Played2' src='images/type0.png' onclick='PlayCard(this);' width='50' tag=3/></td>
             <td align=center bgcolor=ffffff id='CardCell3'><img id='Played3' src='images/type0.png' onclick='PlayCard(this);' width='50' tag=4/></td>
             <td align=center bgcolor=ffffff id='CardCell4'><img id='Played4' src='images/type0.png' onclick='PlayCard(this);' width='50' tag=5/></td>
         </tr>
-        <tr><td colspan="5"><br></td></tr>
+        <tr id="PlayedSpacer"><td colspan="5"><br></td></tr>
         <tr id="DealtRow1">
             <td align=center bgcolor=ffffff><img id='Dealt0' src='images/type0.png' onclick='PlayCard(this);' width='50'/></td>
             <td align=center bgcolor=ffffff><img id='Dealt1' src='images/type0.png' onclick='PlayCard(this);' width='50'/></td>
@@ -133,14 +141,20 @@ a:visited {
             <td align=center bgcolor=ffffff><img id='Dealt8' src='images/type0.png' onclick='PlayCard(this);' width='50'/></td>
             <td align=center bgcolor=ffffff><img id='Dealt9' src='images/type0.png' onclick='PlayCard(this);' width='50'/></td>
         </tr>
-        <!-- Tapping the robot's status swaps the dealt hand (above) for this panel; Haywire and
-             option cards are meant to be added here later. Shown/hidden by showplayerprogram(). -->
+        <!-- The menu's "Shut Down" view (or tapping the robot's status) swaps the dealt hand
+             (above) for this panel; Haywire and option cards are meant to be added here later.
+             Shown/hidden by showplayerprogram(). -->
         <tr id="extrasRow" style="display: none;">
             <td colspan="5" align="center">
                 <button id="shutDownBtn" class="button" style="width:auto; height:auto; margin:6px 0; padding:6px 16px;" onclick="toggleShutDown();">Shut Down</button>
             </td>
         </tr>
-        <!-- Bottom of the area, whichever of the two is showing, while shut down is selected. Kept
+        <!-- The menu's "Spam Cards" and "Last Hand" views, in place of the rows above. Filled
+             by renderCardList() in js/loadrobots.js. -->
+        <tr id="cardListRow" style="display: none;">
+            <td colspan="5" id="cardListCell" align="left"></td>
+        </tr>
+        <!-- Bottom of the area, whichever view is showing, while shut down is selected. Kept
              as short as the button can be: the global .button class sets height:30px, so
              height/padding/font-size are all overridden here. -->
         <tr id="shutDownRow" style="display: none;">
