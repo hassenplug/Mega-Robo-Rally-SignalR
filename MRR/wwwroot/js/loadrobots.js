@@ -275,10 +275,10 @@ function toggleGmMenu() {
     if (wasOpen) closeGmSubmenus();
 }
 
-// Hides the GM menu's nested submenus. "All Connections" exists only on gmindex.html, so each
-// is looked up rather than assumed.
+// Hides the GM menu's nested submenus. "All Connections" and "Right Panel" exist only on
+// gmindex.html, so each is looked up rather than assumed.
 function closeGmSubmenus() {
-    ['programScreenSubmenu', 'allConnectionsSubmenu'].forEach(function (id) {
+    ['programScreenSubmenu', 'allConnectionsSubmenu', 'rightPanelSubmenu'].forEach(function (id) {
         var submenu = document.getElementById(id);
         if (submenu) submenu.style.display = 'none';
     });
@@ -475,14 +475,15 @@ function showplayerprogram(pl) // show program for this line
 
     var active = canProgram();
     var cardsView = rightPanelView === 'program' || rightPanelView === 'shutdown';
+    var listView = rightPanelView === 'spam' || rightPanelView === 'lasthand';
     showRow("PlayedRow", cardsView);
     showRow("PlayedSpacer", cardsView);
     showRow("DealtRow1", active && rightPanelView === 'program');
     showRow("DealtRow2", active && rightPanelView === 'program');
     showRow("extrasRow", active && rightPanelView === 'shutdown');
-    showRow("cardListRow", !cardsView || (!active && rightPanelView === 'shutdown'));
+    showRow("cardListRow", listView || (!active && rightPanelView === 'shutdown'));
     var listCell = document.getElementById("cardListCell");
-    if (listCell && !cardsView) {
+    if (listCell && listView) {
         updateCardList(rbt);
     } else if (listCell && !active && rightPanelView === 'shutdown') {
         listCell.textContent = 'Shut Down can only be chosen while programming.';
@@ -522,21 +523,24 @@ function toggleShutDown() {
     SendUpdate(6, CurrentPlayer);
 }
 
-// ── Right-hand panel views (index.html's ☰ menu) ─────────────────────────────
-// 'program'  -- the program registers + dealt hand (the default)
+// ── Right-hand panel views (index.html's ☰ menu, gmindex.html's "Right Panel") ──
+// 'off'      -- no cards at all; messages and the direction picker still show (gmindex.html's
+//               default)
+// 'program'  -- the program registers + dealt hand (index.html's default)
 // 'shutdown' -- the program registers + the "extras" panel: the Shut Down toggle now; Haywire
 //               and option cards are meant to be added here later
 // 'spam'     -- every card the robot owns, by location (/api/cards/{robotId})
 // 'lasthand' -- the robot's program from the previous turn (/api/history/turn)
-// Only a view setting for this device -- nothing is sent to the server. gmindex.html has no
-// menu and only the first two views, so rows it lacks are skipped (showRow).
+// Only a view setting for this device -- nothing is sent to the server. Each page's menu items
+// are id'd viewMenu-<view>; rows or items a page lacks are skipped (showRow, markViewMenu).
 var rightPanelView = 'program';
-var VIEW_MENU_ITEMS = ['program', 'shutdown', 'spam', 'lasthand'];
+var VIEW_MENU_ITEMS = ['off', 'program', 'shutdown', 'spam', 'lasthand'];
 
 function setRightPanelView(view) {
     rightPanelView = view;
     var menu = document.getElementById('viewMenu');
     if (menu) menu.style.display = 'none';
+    markViewMenu();
     if (datapacket) showplayerprogram(CurrentLine);
 }
 
@@ -544,10 +548,14 @@ function toggleViewMenu() {
     var menu = document.getElementById('viewMenu');
     var opening = menu.style.display !== 'block';
     menu.style.display = opening ? 'block' : 'none';
-    if (!opening) return;
-    // Outline the view that is showing now.
+    if (opening) markViewMenu();
+}
+
+// Outline the menu item for the view that is showing now.
+function markViewMenu() {
     VIEW_MENU_ITEMS.forEach(function (view) {
-        document.getElementById('viewMenu-' + view).style.outline = view === rightPanelView ? '3px solid #000000' : '';
+        var item = document.getElementById('viewMenu-' + view);
+        if (item) item.style.outline = view === rightPanelView ? '3px solid #000000' : '';
     });
 }
 

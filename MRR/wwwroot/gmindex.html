@@ -46,7 +46,7 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
 
 #gmMenu { display:none; position:absolute; top:100%; left:0; z-index:5; background:#ffffff; padding:6px; width:200px; text-align:left; font-size:18px; }
 #gmMenu .button { display:block; width:100%; margin-bottom:6px; }
-#programScreenSubmenu, #allConnectionsSubmenu { display:none; position:absolute; top:0; left:100%; z-index:6; background:#ffffff; padding:6px; width:130px; }
+#programScreenSubmenu, #allConnectionsSubmenu, #rightPanelSubmenu { display:none; position:absolute; top:0; left:100%; z-index:6; background:#ffffff; padding:6px; width:130px; }
 #playerButtons .button { display:block; width:100%; margin:0 0 6px 0; background-color:#ff0000; color:#ffffff; white-space:normal; }
 #programPanel img { width:50px; cursor:pointer; }
 /* The robot whose program is showing on the right (F/E/C view only). */
@@ -115,7 +115,18 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
         <div id="gmMenu" class="w3-card-4">
             <button class="button" onclick="event.stopPropagation(); window.open('turnhistory.html', '_blank');">Turn History</button>
             <button class="button" onclick="event.stopPropagation(); document.getElementById('qrCodes').style.display='block';">QR Codes</button>
-            <button class="button" id="showCardsBtn" onclick="event.stopPropagation(); toggleShowCards();">Show Cards: Off</button>
+            <!-- What the right panel shows for the picked robot: the same views as index.html's
+                 menu (setRightPanelView in js/loadrobots.js), plus Off. -->
+            <div style="position:relative;">
+                <button class="button" id="rightPanelBtn" onclick="event.stopPropagation(); toggleRightPanelSubmenu();">Right Panel: Off</button>
+                <div id="rightPanelSubmenu" class="w3-card-4">
+                    <button class="button" id="viewMenu-off" onclick="event.stopPropagation(); gmSetRightPanel('off');">Off</button>
+                    <button class="button" id="viewMenu-program" onclick="event.stopPropagation(); gmSetRightPanel('program');">Program Cards</button>
+                    <button class="button" id="viewMenu-shutdown" onclick="event.stopPropagation(); gmSetRightPanel('shutdown');">Shut Down</button>
+                    <button class="button" id="viewMenu-spam" onclick="event.stopPropagation(); gmSetRightPanel('spam');">Spam Cards</button>
+                    <button class="button" id="viewMenu-lasthand" onclick="event.stopPropagation(); gmSetRightPanel('lasthand');">Last Hand</button>
+                </div>
+            </div>
             <button class="button" id="timingBtn" onclick="event.stopPropagation(); toggleTiming();">Timing: Off</button>
             <div style="position:relative;">
                 <button class="button" onclick="event.stopPropagation(); toggleProgramScreenSubmenu();">Program Screen</button>
@@ -187,38 +198,39 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
                     </td>
                 </tr>
                 <tr id="messagetablespace" style="display: none;"><td colspan="5"></td></tr>
-                <!-- Played and dealt cards: hidden unless "Show Cards" is on in the menu
-                     (toggleShowCards). A tbody of their own because showplayerprogram() sets the
-                     dealt rows' display itself on every update. -->
-                <tbody id="cardRows" style="display:none;">
-                <tr bgcolor="#d0d0d0">
+                <!-- Played and dealt cards, the Shut Down panel and the Spam Cards / Last Hand
+                     list: which of them show is set by the menu's "Right Panel" (rightPanelView,
+                     applied by showplayerprogram() in js/loadrobots.js). -->
+                <tr id="PlayedRow" bgcolor="#d0d0d0" style="display: none;">
                     <td align=center bgcolor=ffffff id='CardCell0'><img id='Played0' src='images/type0.png' onclick='PlayCard(this);'></td>
                     <td align=center bgcolor=ffffff id='CardCell1'><img id='Played1' src='images/type0.png' onclick='PlayCard(this);'></td>
                     <td align=center bgcolor=ffffff id='CardCell2'><img id='Played2' src='images/type0.png' onclick='PlayCard(this);'></td>
                     <td align=center bgcolor=ffffff id='CardCell3'><img id='Played3' src='images/type0.png' onclick='PlayCard(this);'></td>
                     <td align=center bgcolor=ffffff id='CardCell4'><img id='Played4' src='images/type0.png' onclick='PlayCard(this);'></td>
                 </tr>
-                <tr><td colspan="5" style="height:10px;"></td></tr>
-                <tr id="DealtRow1">
+                <tr id="PlayedSpacer" style="display: none;"><td colspan="5" style="height:10px;"></td></tr>
+                <tr id="DealtRow1" style="display: none;">
                     <td align=center bgcolor=ffffff><img id='Dealt0' src='images/type0.png' onclick='PlayCard(this);'></td>
                     <td align=center bgcolor=ffffff><img id='Dealt1' src='images/type0.png' onclick='PlayCard(this);'></td>
                     <td align=center bgcolor=ffffff><img id='Dealt2' src='images/type0.png' onclick='PlayCard(this);'></td>
                     <td align=center bgcolor=ffffff><img id='Dealt3' src='images/type0.png' onclick='PlayCard(this);'></td>
                     <td align=center bgcolor=ffffff><img id='Dealt4' src='images/type0.png' onclick='PlayCard(this);'></td>
                 </tr>
-                <tr id="DealtRow2">
+                <tr id="DealtRow2" style="display: none;">
                     <td align=center bgcolor=ffffff><img id='Dealt5' src='images/type0.png' onclick='PlayCard(this);'></td>
                     <td align=center bgcolor=ffffff><img id='Dealt6' src='images/type0.png' onclick='PlayCard(this);'></td>
                     <td align=center bgcolor=ffffff><img id='Dealt7' src='images/type0.png' onclick='PlayCard(this);'></td>
                     <td align=center bgcolor=ffffff><img id='Dealt8' src='images/type0.png' onclick='PlayCard(this);'></td>
                     <td align=center bgcolor=ffffff><img id='Dealt9' src='images/type0.png' onclick='PlayCard(this);'></td>
                 </tr>
-                </tbody>
-                <!-- Tapping the robot's status swaps the dealt hand for this panel (toggleExtrasPanel). -->
+                <!-- Right Panel "Shut Down", or tapping the robot's status (toggleExtrasPanel). -->
                 <tr id="extrasRow" style="display: none;">
                     <td colspan="5" align="center">
                         <button id="shutDownBtn" class="button" style="width:auto; margin:6px 0;" onclick="toggleShutDown();">Shut Down</button>
                     </td>
+                </tr>
+                <tr id="cardListRow" style="display: none;">
+                    <td colspan="5" id="cardListCell" align="left"></td>
                 </tr>
                 <tr id="shutDownRow" style="display: none;">
                     <td colspan="5" align="center">
@@ -254,9 +266,9 @@ function buildPlayerRows(robots) {
     document.getElementById('playerRows').innerHTML = html;
 }
 
-// Menu "Show Cards" toggle, off on every page load: whether the right panel shows the picked
-// robot's played and dealt cards.
-var showCards = false;
+// Menu "Right Panel": Off on every page load, so no cards show until the GM picks a view.
+rightPanelView = 'off';
+var RIGHT_PANEL_LABELS = { off: 'Off', program: 'Program Cards', shutdown: 'Shut Down', spam: 'Spam Cards', lasthand: 'Last Hand' };
 
 // ── Timing panel ─────────────────────────────────────────────────────────────
 // Polls /api/timing every 2s while it is on. Ack/Poll are network + robot round trips
@@ -319,10 +331,28 @@ function resetTiming() {
     fetch('/api/timing/reset', { method: 'POST' }).then(loadTiming);
 }
 
-function toggleShowCards() {
-    showCards = !showCards;
-    document.getElementById('showCardsBtn').textContent = 'Show Cards: ' + (showCards ? 'On' : 'Off');
-    document.getElementById('cardRows').style.display = showCards ? '' : 'none';
+function toggleRightPanelSubmenu() {
+    var submenu = document.getElementById('rightPanelSubmenu');
+    var opening = submenu.style.display !== 'block';
+    submenu.style.display = opening ? 'block' : 'none';
+    if (opening) markViewMenu();
+}
+
+function gmSetRightPanel(view) {
+    closeGmSubmenus();
+    document.getElementById('gmMenu').style.display = 'none';
+    setRightPanelView(view);
+    updateRightPanelLabel();
+}
+
+// Status tap: Program Cards <-> Shut Down, as on index.html, keeping the menu label in step.
+function gmToggleExtrasPanel() {
+    toggleExtrasPanel();
+    updateRightPanelLabel();
+}
+
+function updateRightPanelLabel() {
+    document.getElementById('rightPanelBtn').textContent = 'Right Panel: ' + RIGHT_PANEL_LABELS[rightPanelView];
 }
 
 // F/E/C view: tapping a robot's button shows its program on the right.
@@ -403,7 +433,7 @@ function showall() {
             statusbox.style.backgroundColor = "#" + r.StatusColor;
             // Same as index.html: tapping a status swaps the dealt hand for the extras panel
             // (Shut Down) -- for the robot whose program is showing.
-            statusbox.onclick = toggleExtrasPanel;
+            statusbox.onclick = gmToggleExtrasPanel;
         }
 
         if (r.PlayerMsg && r.PlayerMsg !== 'undefined') msgRobots.push(r);
