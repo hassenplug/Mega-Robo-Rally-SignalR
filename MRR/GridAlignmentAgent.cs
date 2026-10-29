@@ -1,4 +1,5 @@
-// Given an image, find the black grid lines and determine how to align the robot.
+// Given an image, find the two black-line "plus" intersections at the front corners of the
+// robot's square and determine how to align the robot.
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using System.IO;
@@ -7,38 +8,33 @@ using MRR.Devices;
 
 namespace MRR;
 
-// Result from the line-detection analysis.
-// All X/Y positions are normalized 0..1 (0 = left/top, 1 = right/bottom).
-// LeftLineX / RightLineX are -1 when that line was not found.
-public record GridLineAnalysis(
+// Result from the plus detection.
+// All X/Y positions are normalized 0..1 (0 = left/top, 1 = right/bottom), -1 when not found.
+public record PlusAnalysis(
     bool Found,
-    double HorizontalLineY,         // normalized Y of the horizontal grid line
-    double HorizontalLineTiltDeg,   // positive = right side of line is lower (CW tilt)
-    double LeftLineX,               // normalized X of left vertical line, or -1
-    double RightLineX,              // normalized X of right vertical line, or -1
-    bool HasBothVerticalLines)
+    double LeftPlusX,
+    double LeftPlusY,
+    double RightPlusX,
+    double RightPlusY,
+    double TiltDeg)                 // positive = right plus is lower (CW tilt)
 {
-    // Normalized offset of the vertical-line midpoint from image center.
+    public static readonly PlusAnalysis NotFound = new(false, -1, -1, -1, -1, 0);
+
+    // Normalized offset of the plus midpoint from image center.
     // Positive = midpoint is right of center = robot shifted left = strafe right.
     // Negative = midpoint is left of center = robot shifted right = strafe left.
-    public double LateralOffsetNorm =>
-        HasBothVerticalLines ? (LeftLineX + RightLineX) / 2.0 - 0.5 : 0;
+    public double LateralOffsetNorm => Found ? (LeftPlusX + RightPlusX) / 2.0 - 0.5 : 0;
+
+    // Normalized Y of the plus midpoint.
+    public double MidY => Found ? (LeftPlusY + RightPlusY) / 2.0 : 0;
 }
 
-// Legacy result from the quadrant-counting method (preserved for reference).
-public record GridAlignmentResult(
-    bool HasLines,
-    double OffsetX,
-    double OffsetY,
-    int BlackPixelCount,
-    bool IsAligned
-);
-
-// Captures a camera frame via ws_img, detects the black grid lines between board
-// squares, and nudges the robot into alignment in three phases:
-//   1. Rotate until the horizontal line is level.
-//   2. Strafe until the two vertical lines are equidistant from center.
-//   3. Drive forward/back until the horizontal line is at TargetLineHeightNorm.
+// Captures a camera frame via ws_img, finds the two "plus" intersections of the black grid
+// lines at the front-left and front-right corners of the robot's square, and nudges the robot
+// until the pluses sit symmetrically about the image center:
+//   1. Rotate until the two pluses are level.
+//   2. Strafe until their midpoint is horizontally centered.
+//   3. Drive forward/back until they are at TargetPlusHeightNorm.
 public static class GridAlignmentAgent
 {
     // ── Tunable constants ─────────────────────────────────────────────────────
@@ -46,9 +42,29 @@ public static class GridAlignmentAgent
     // Pixels with (R+G+B)/3 below this are treated as black.
     private const int BlackLuminanceThreshold = 60;
 
-    // Minimum fraction of a row/column that must be dark to count as a grid line.
+    // Only rows below this fraction of the height are searched (0 = whole frame).
+    private const double SearchTopNorm = 0.5;
+
+    // Minimum fraction of a row/column (within the search region) that must be dark to
+    // count as a grid line.
     private const double MinHorizontalLineFraction = 0.15;
     private const double MinVerticalLineFraction   = 0.15;
+
+    // Rows/columns within ±this fraction of the image size are summed together when looking
+    // for lines, so a few degrees of robot rotation doesn't smear a line below the threshold.
+    private const double LineBandNorm = 0.02;
+
+    // Half-size of the window around a rough line crossing used to locate the plus center,
+    // as a fraction of image width.
+    private const double PlusWindowNorm = 0.08;
+
+    // Plus verification: each of the 4 arms is sampled from ArmGapNorm to ArmLengthNorm
+    // (fractions of image width) away from the center, allowing ±ArmHalfWidthPx of drift
+    // across the arm. At least MinArmFraction of the samples must be dark.
+    private const double ArmGapNorm     = 0.02;
+    private const double ArmLengthNorm  = 0.07;
+    private const int    ArmHalfWidthPx = 4;
+    private const double MinArmFraction = 0.6;
 
     // Correction thresholds — don't move if already within these limits.
     private const double RotationThresholdDeg  = 1.0;   // degrees
@@ -62,20 +78,17 @@ public static class GridAlignmentAgent
     // Speed used for nudge corrections (percent).
     private const int NudgeSpeed = 50;
 
-    // Max ms to wait for each nudge move to complete.
-    private const int MotionTimeoutMs = 3000;
-
-    // Where we want the horizontal line to sit vertically in the frame (0=top, 1=bottom).
+    // Where we want the two pluses to sit vertically in the frame (0=top, 1=bottom).
     // Tune this based on camera mount position and desired centering point.
-    public static double TargetLineHeightNorm { get; set; } = 0.5;
+    public static double TargetPlusHeightNorm { get; set; } = 0.75;
 
     // ── Main entry point ─────────────────────────────────────────────────────
 
-    // Capture image → detect lines → correct in order: rotation, lateral, forward/back.
+    // Capture image → find pluses → correct in order: rotation, lateral, forward/back.
     // Loops until aligned or maxIterations exhausted.
-    public static async Task<GridLineAnalysis> AlignAsync(RobotConnection robot, int maxIterations = 10)
+    public static async Task<PlusAnalysis> AlignAsync(RobotConnection robot, int maxIterations = 10)
     {
-        var last = new GridLineAnalysis(false, 0, 0, -1, -1, false);
+        var last = PlusAnalysis.NotFound;
 
         for (int i = 0; i < maxIterations; i++)
         {
@@ -87,31 +100,30 @@ public static class GridAlignmentAgent
             }
 
             var imageData = ExtractImageBytes(bytes);
-            SaveDebugImages(imageData, robot.Hostname ?? "unknown");
-            last = FindGridLines(imageData);
+            last = FindPluses(imageData);
+            SaveDebugImages(imageData, robot.Hostname ?? "unknown", last);
             Console.WriteLine(
                 $"[GridAlign] iter={i} found={last.Found} " +
-                $"hY={last.HorizontalLineY:F3} tilt={last.HorizontalLineTiltDeg:F2}° " +
-                $"lx={last.LeftLineX:F3} rx={last.RightLineX:F3} " +
-                $"lateral={last.LateralOffsetNorm:F3}");
+                $"left=({last.LeftPlusX:F3},{last.LeftPlusY:F3}) " +
+                $"right=({last.RightPlusX:F3},{last.RightPlusY:F3}) " +
+                $"tilt={last.TiltDeg:F2}° lateral={last.LateralOffsetNorm:F3} midY={last.MidY:F3}");
 
             if (!last.Found) break;
 
-            bool needsRotation = Math.Abs(last.HorizontalLineTiltDeg) > RotationThresholdDeg;
-            bool needsLateral  = last.HasBothVerticalLines
-                                 && Math.Abs(last.LateralOffsetNorm) > LateralThresholdNorm;
-            bool needsForward  = Math.Abs(last.HorizontalLineY - TargetLineHeightNorm) > ForwardThresholdNorm;
+            bool needsRotation = Math.Abs(last.TiltDeg) > RotationThresholdDeg;
+            bool needsLateral  = Math.Abs(last.LateralOffsetNorm) > LateralThresholdNorm;
+            bool needsForward  = Math.Abs(last.MidY - TargetPlusHeightNorm) > ForwardThresholdNorm;
 
             if (!needsRotation && !needsLateral && !needsForward) break;
 
             // Phase 1: resolve rotation before lateral/forward corrections are meaningful.
             if (needsRotation)
             {
-                // tiltDeg > 0 = line tilts CW = robot rotated CW = turn CCW (negative angle).
+                // tiltDeg > 0 = right plus lower = robot rotated CW = turn CCW (negative angle).
                 await robot.SendCommandAsync(new
                 {
                     cmd_id    = "turn_for",
-                    angle     = -last.HorizontalLineTiltDeg,
+                    angle     = -last.TiltDeg,
                     turn_rate = 50,
                     stacking_type = 0
                 });
@@ -119,7 +131,7 @@ public static class GridAlignmentAgent
                 continue;
             }
 
-            // Phase 2: strafe until vertical lines are centered.
+            // Phase 2: strafe until the plus midpoint is centered.
             if (needsLateral)
             {
                 double nudgeMm = last.LateralOffsetNorm * LateralScaleMm;
@@ -139,12 +151,12 @@ public static class GridAlignmentAgent
                 continue;
             }
 
-            // Phase 3: drive forward/back until horizontal line is at target height.
+            // Phase 3: drive forward/back until the pluses are at target height.
             if (needsForward)
             {
-                double forwardOffset = last.HorizontalLineY - TargetLineHeightNorm;
-                // forwardOffset > 0 = line is below target = robot is past the line = move back (180°).
-                // forwardOffset < 0 = line is above target = robot hasn't reached the line = move forward (0°).
+                double forwardOffset = last.MidY - TargetPlusHeightNorm;
+                // forwardOffset > 0 = pluses below target = robot is too far forward = move back (180°).
+                // forwardOffset < 0 = pluses above target = robot hasn't reached them = move forward (0°).
                 double nudgeMm = Math.Abs(forwardOffset) * ForwardScaleMm;
                 await robot.SendCommandAsync(new
                 {
@@ -163,27 +175,29 @@ public static class GridAlignmentAgent
         return last;
     }
 
-    // ── Line detection ────────────────────────────────────────────────────────
+    // ── Plus detection ────────────────────────────────────────────────────────
 
-    // Detect the horizontal grid line and the vertical grid lines on each side.
+    // Find the front-left and front-right plus intersections.
     //
-    // Pass 1 — row/column histograms → horizontal line position + vertical line positions.
-    // Pass 2 — narrow band around the detected row → centroid-per-slice regression → tilt.
-    public static GridLineAnalysis FindGridLines(byte[] imageData)
+    // Pass 1 — row/column histograms over the search region give the rough front line
+    //          (strongest row) and the two side lines (strongest column in each half).
+    // Pass 2 — around each rough crossing, local row/column histograms give the plus center.
+    // Pass 3 — each center must have dark arms in all four directions, or it is a T/L, not a plus.
+    public static PlusAnalysis FindPluses(byte[] imageData)
     {
         try
         {
             using var img = Image.Load<Rgb24>(imageData);
             int w = img.Width, h = img.Height;
-            int halfH = h / 2;
+            int top = (int)(h * SearchTopNorm);
 
+            var dark = new bool[w * h];
             var rowCounts = new int[h];
             var colCounts = new int[w];
 
-            // Pass 1: row and column histograms across the bottom half.
             img.ProcessPixelRows(accessor =>
             {
-                for (int y = halfH; y < h; y++)
+                for (int y = top; y < h; y++)
                 {
                     var row = accessor.GetRowSpan(y);
                     for (int x = 0; x < w; x++)
@@ -191,6 +205,7 @@ public static class GridAlignmentAgent
                         var p = row[x];
                         if ((p.R + p.G + p.B) / 3 < BlackLuminanceThreshold)
                         {
+                            dark[y * w + x] = true;
                             rowCounts[y]++;
                             colCounts[x]++;
                         }
@@ -198,116 +213,101 @@ public static class GridAlignmentAgent
                 }
             });
 
-            // Horizontal line: row with the most dark pixels across the full width.
-            int hLineRow = PeakIndex(rowCounts, halfH, h);
-            if (rowCounts[hLineRow] < w * MinHorizontalLineFraction)
-                return new GridLineAnalysis(false, 0, 0, -1, -1, false);
+            // Pass 1: rough front line and side lines, from histograms summed over a band
+            // so a tilted robot's lines still peak.
+            var rowBands = BandSums(rowCounts, (int)(h * LineBandNorm));
+            var colBands = BandSums(colCounts, (int)(w * LineBandNorm));
 
-            // Pass 2: within a narrow band around hLineRow, accumulate dark-pixel
-            // centroid Y per vertical slice, then fit a least-squares line through
-            // (sliceCenterX, centroidY) to get a precise tilt angle.
-            const int numSlices  = 16;
-            const int bandRadius = 14;
-            int sliceW     = Math.Max(1, w / numSlices);
-            int yMin       = Math.Max(halfH,  hLineRow - bandRadius);
-            int yMax       = Math.Min(h - 1,  hLineRow + bandRadius);
-            var sliceSumY  = new double[numSlices];
-            var sliceCount = new int[numSlices];
+            int hLineRow = PeakCenter(rowBands, top, h);
+            if (rowBands[hLineRow] < w * MinHorizontalLineFraction)
+                return PlusAnalysis.NotFound;
 
-            img.ProcessPixelRows(accessor =>
-            {
-                for (int y = yMin; y <= yMax; y++)
-                {
-                    var row = accessor.GetRowSpan(y);
-                    for (int x = 0; x < w; x++)
-                    {
-                        var p = row[x];
-                        if ((p.R + p.G + p.B) / 3 < BlackLuminanceThreshold)
-                        {
-                            int s = Math.Min(x / sliceW, numSlices - 1);
-                            sliceSumY[s]  += y;
-                            sliceCount[s]++;
-                        }
-                    }
-                }
-            });
+            int leftLineCol  = PeakCenter(colBands, 0,     w / 2);
+            int rightLineCol = PeakCenter(colBands, w / 2, w);
+            int minVertical  = (int)((h - top) * MinVerticalLineFraction);
+            if (colBands[leftLineCol] < minVertical || colBands[rightLineCol] < minVertical)
+                return PlusAnalysis.NotFound;
 
-            double tiltDeg = TiltFromSliceCentroids(sliceSumY, sliceCount, sliceW, numSlices);
+            // Passes 2 and 3: refine and verify each crossing.
+            var left  = LocatePlus(dark, w, h, top, leftLineCol,  hLineRow);
+            var right = LocatePlus(dark, w, h, top, rightLineCol, hLineRow);
+            if (left == null || right == null)
+                return PlusAnalysis.NotFound;
 
-            // Vertical lines: peak column in each half of the image.
-            int leftLineCol  = PeakIndex(colCounts, 0,     w / 2);
-            int rightLineCol = PeakIndex(colCounts, w / 2, w);
-            bool hasLeftLine  = colCounts[leftLineCol]  >= halfH * MinVerticalLineFraction;
-            bool hasRightLine = colCounts[rightLineCol] >= halfH * MinVerticalLineFraction;
+            var (lx, ly) = left.Value;
+            var (rx, ry) = right.Value;
+            double tiltDeg = Math.Atan2(ry - ly, rx - lx) * 180.0 / Math.PI;
 
-            return new GridLineAnalysis(
-                Found:                true,
-                HorizontalLineY:      (double)hLineRow / h,
-                HorizontalLineTiltDeg: tiltDeg,
-                LeftLineX:            hasLeftLine  ? (double)leftLineCol  / w : -1,
-                RightLineX:           hasRightLine ? (double)rightLineCol / w : -1,
-                HasBothVerticalLines: hasLeftLine && hasRightLine
-            );
+            return new PlusAnalysis(
+                Found:      true,
+                LeftPlusX:  (double)lx / w,
+                LeftPlusY:  (double)ly / h,
+                RightPlusX: (double)rx / w,
+                RightPlusY: (double)ry / h,
+                TiltDeg:    tiltDeg);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[GridAlign] Line analysis error: {ex.Message}");
-            return new GridLineAnalysis(false, 0, 0, -1, -1, false);
+            Console.WriteLine($"[GridAlign] Plus analysis error: {ex.Message}");
+            return PlusAnalysis.NotFound;
         }
     }
 
-    // ── Legacy quadrant method (preserved) ───────────────────────────────────
-
-    // Original approach: counts dark pixels in each image quadrant and returns
-    // normalized imbalances. Kept for comparison / fallback.
-    // OffsetX > 0 = more dark pixels on right = robot shifted right.
-    // OffsetY > 0 = more dark pixels on top   = robot shifted forward.
-    public static GridAlignmentResult AnalyzeImageByQuadrant(byte[] imageData)
+    // Find the plus center near (roughX, roughY) and confirm it has four dark arms.
+    // Returns pixel coordinates, or null if no plus is there.
+    private static (int X, int Y)? LocatePlus(bool[] dark, int w, int h, int top, int roughX, int roughY)
     {
-        try
-        {
-            using var img = Image.Load<Rgb24>(imageData);
-            int midX = img.Width / 2, midY = img.Height / 2;
-            long leftBlack = 0, rightBlack = 0, topBlack = 0, bottomBlack = 0;
+        int r  = Math.Max(4, (int)(w * PlusWindowNorm));
+        int x0 = Math.Max(0, roughX - r), x1 = Math.Min(w, roughX + r + 1);
+        int y0 = Math.Max(top, roughY - r), y1 = Math.Min(h, roughY + r + 1);
 
-            img.ProcessPixelRows(accessor =>
-            {
-                for (int y = 0; y < img.Height; y++)
+        var rowCounts = new int[y1 - y0];
+        var colCounts = new int[x1 - x0];
+        for (int y = y0; y < y1; y++)
+            for (int x = x0; x < x1; x++)
+                if (dark[y * w + x])
                 {
-                    var row = accessor.GetRowSpan(y);
-                    for (int x = 0; x < img.Width; x++)
-                    {
-                        var p = row[x];
-                        if ((p.R + p.G + p.B) / 3 < BlackLuminanceThreshold)
-                        {
-                            if (x < midX) leftBlack++; else rightBlack++;
-                            if (y < midY) topBlack++; else bottomBlack++;
-                        }
-                    }
+                    rowCounts[y - y0]++;
+                    colCounts[x - x0]++;
                 }
-            });
 
-            int total = (int)(leftBlack + rightBlack);
-            if (total < 100)
-                return new GridAlignmentResult(false, 0, 0, total, false);
+        int cy = y0 + PeakCenter(rowCounts, 0, rowCounts.Length);
+        int cx = x0 + PeakCenter(colCounts, 0, colCounts.Length);
 
-            double dx = (double)(rightBlack - leftBlack) / total;
-            double dy = (double)(topBlack - bottomBlack) / total;
-            bool aligned = Math.Abs(dx) < 0.05 && Math.Abs(dy) < 0.05;
-            return new GridAlignmentResult(true, dx, dy, total, aligned);
-        }
-        catch (Exception ex)
+        int gap = Math.Max(1, (int)(w * ArmGapNorm));
+        int len = Math.Max(gap + 1, (int)(w * ArmLengthNorm));
+        bool isPlus =
+            ArmIsDark(dark, w, h, top, cx, cy,  1,  0, gap, len) &&
+            ArmIsDark(dark, w, h, top, cx, cy, -1,  0, gap, len) &&
+            ArmIsDark(dark, w, h, top, cx, cy,  0,  1, gap, len) &&
+            ArmIsDark(dark, w, h, top, cx, cy,  0, -1, gap, len);
+
+        return isPlus ? (cx, cy) : null;
+    }
+
+    // True if enough steps along (dx, dy) from (cx, cy) have a dark pixel within
+    // ±ArmHalfWidthPx across the arm. Steps outside the search region count as not dark.
+    private static bool ArmIsDark(bool[] dark, int w, int h, int top, int cx, int cy, int dx, int dy, int gap, int len)
+    {
+        int hits = 0;
+        for (int step = gap; step <= len; step++)
         {
-            Console.WriteLine($"[GridAlign] Quadrant analysis error: {ex.Message}");
-            return new GridAlignmentResult(false, 0, 0, 0, false);
+            for (int across = -ArmHalfWidthPx; across <= ArmHalfWidthPx; across++)
+            {
+                int x = cx + dx * step + dy * across;
+                int y = cy + dy * step + dx * across;
+                if (x < 0 || x >= w || y < top || y >= h) continue;
+                if (dark[y * w + x]) { hits++; break; }
+            }
         }
+        return hits >= (len - gap + 1) * MinArmFraction;
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    // Save original image and a red-highlighted copy (black pixels → red) to images/align/.
-    // Both files share the same timestamp so they pair up in the directory listing.
-    private static void SaveDebugImages(byte[] imageData, string hostname)
+    // Save original image and an annotated copy (black pixels → red, found pluses → green)
+    // to images/align/. Both files share the same timestamp so they pair up in the listing.
+    private static void SaveDebugImages(byte[] imageData, string hostname, PlusAnalysis analysis)
     {
         try
         {
@@ -319,15 +319,16 @@ public static class GridAlignmentAgent
             File.WriteAllBytes(Path.Combine(dir, $"align_{safe}_{ts}_orig.jpg"), imageData);
 
             using var img = Image.Load<Rgb24>(imageData);
-            int halfH = img.Height / 2;
+            int w = img.Width, h = img.Height;
+            int top = (int)(h * SearchTopNorm);
             img.ProcessPixelRows(accessor =>
             {
-                for (int y = 0; y < img.Height; y++)
+                for (int y = 0; y < h; y++)
                 {
                     var row = accessor.GetRowSpan(y);
-                    for (int x = 0; x < img.Width; x++)
+                    for (int x = 0; x < w; x++)
                     {
-                        if (y < halfH)
+                        if (y < top)
                         {
                             // Gray out ignored region so it's visually distinct.
                             var p = row[x];
@@ -339,8 +340,23 @@ public static class GridAlignmentAgent
                         }
                     }
                 }
+
+                if (!analysis.Found) return;
+                int arm = Math.Max(4, (int)(w * ArmLengthNorm));
+                foreach (var (nx, ny) in new[] { (analysis.LeftPlusX, analysis.LeftPlusY), (analysis.RightPlusX, analysis.RightPlusY) })
+                {
+                    int px = (int)(nx * w), py = (int)(ny * h);
+                    for (int d = -arm; d <= arm; d++)
+                        for (int t = -1; t <= 1; t++)
+                        {
+                            if (px + d >= 0 && px + d < w && py + t >= 0 && py + t < h)
+                                accessor.GetRowSpan(py + t)[px + d] = new Rgb24(0, 255, 0);
+                            if (px + t >= 0 && px + t < w && py + d >= 0 && py + d < h)
+                                accessor.GetRowSpan(py + d)[px + t] = new Rgb24(0, 255, 0);
+                        }
+                }
             });
-            img.Save(Path.Combine(dir, $"align_{safe}_{ts}_lines.jpg"));
+            img.Save(Path.Combine(dir, $"align_{safe}_{ts}_pluses.jpg"));
         }
         catch (Exception ex)
         {
@@ -357,30 +373,32 @@ public static class GridAlignmentAgent
         return best;
     }
 
-    // Least-squares linear regression on per-slice centroid Y values.
-    // slope = (n·ΣxY - Σx·ΣY) / (n·Σx² - (Σx)²)
-    // Returns tilt in degrees: positive = right side lower = CW rotation.
-    // Returns 0 if fewer than 3 slices have usable data.
-    private static double TiltFromSliceCentroids(double[] sliceSumY, int[] sliceCount, int sliceW, int numSlices)
+    // Middle of the run of values >= half the maximum around the peak in arr[start..end),
+    // so a thick line reports its center instead of its first row/column.
+    private static int PeakCenter(int[] arr, int start, int end)
     {
-        double sumX = 0, sumY = 0, sumXX = 0, sumXY = 0;
-        int n = 0;
-        for (int s = 0; s < numSlices; s++)
+        int best = PeakIndex(arr, start, end);
+        int half = arr[best] / 2;
+        int lo = best, hi = best;
+        while (lo > start && arr[lo - 1] >= half) lo--;
+        while (hi < end - 1 && arr[hi + 1] >= half) hi++;
+        return (lo + hi) / 2;
+    }
+
+    // Each entry becomes the sum of arr over ±radius, so a slightly tilted line, whose
+    // dark pixels spread over several rows/columns, still forms one strong peak.
+    private static int[] BandSums(int[] arr, int radius)
+    {
+        var sums = new int[arr.Length];
+        int running = 0;
+        for (int i = 0; i < arr.Length + radius; i++)
         {
-            if (sliceCount[s] < 2) continue;
-            double cx = (s + 0.5) * sliceW;
-            double cy = sliceSumY[s] / sliceCount[s];
-            sumX  += cx;
-            sumY  += cy;
-            sumXX += cx * cx;
-            sumXY += cx * cy;
-            n++;
+            if (i < arr.Length) running += arr[i];
+            if (i - 2 * radius - 1 >= 0) running -= arr[i - 2 * radius - 1];
+            int center = i - radius;
+            if (center >= 0 && center < arr.Length) sums[center] = running;
         }
-        if (n < 3) return 0;
-        double denom = n * sumXX - sumX * sumX;
-        if (Math.Abs(denom) < 1e-10) return 0;
-        double slope = (n * sumXY - sumX * sumY) / denom;
-        return Math.Atan(slope) * 180.0 / Math.PI;
+        return sums;
     }
 
     // If the payload is a JSON object with a base64 image field, extract and decode it.

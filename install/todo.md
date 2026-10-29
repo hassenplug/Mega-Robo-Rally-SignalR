@@ -29,9 +29,10 @@ What to work on next, reordered by the user 2026-10-08.
 - [ ] **Robot grid alignment** (`GridAlignmentAgent.cs`; see
   [tools/ai_agent/grid_alignment_agent.md](../tools/ai_agent/grid_alignment_agent.md))
   - Code complete; constants need tuning against real board + lighting:
-    `BlackLuminanceThreshold`, `MinBlackPixels`, `AlignedThreshold`, `NudgeDistanceMm`
+    `BlackLuminanceThreshold`, `TargetPlusHeightNorm`, `ArmHalfWidthPx`, `LateralScaleMm`/`ForwardScaleMm`
+    (two-plus method since 2026-10-28; see the doc)
   - Confirm the `ws_img` wire format against a live robot:
-    - [ ] `GridAlignmentAgent.ExtractImageBytes()` succeeds and `AnalyzeImage` returns `HasLines=true` on a real board
+    - [ ] `GridAlignmentAgent.ExtractImageBytes()` succeeds and `FindPluses` returns `Found=true` on a real board; then set `TargetPlusHeightNorm` from that frame
     - [ ] Does `ws_img` stream frames continuously once connected, or only after a trigger command?
     - [ ] Is the frame rate controllable?
     - [ ] Does `ws_img` require `program_init` first, the way `ws_cmd` does?

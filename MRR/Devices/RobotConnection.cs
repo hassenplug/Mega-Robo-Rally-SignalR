@@ -764,7 +764,7 @@ namespace MRR.Devices
             }
         }
 
-        public Task<GridLineAnalysis> AlignAsync(int maxIterations = 10) =>
+        public Task<PlusAnalysis> AlignAsync(int maxIterations = 10) =>
             GridAlignmentAgent.AlignAsync(this, maxIterations);
 
         // Connect to the robot's ws_img channel and receive one image frame.

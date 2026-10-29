@@ -19,17 +19,17 @@ This is a regex and brace-depth scan, **not** a compiler. Treat it as a map to s
 
 | File | Covers | Members |
 |---|---|---|
-| [MRR.md](MRR.md) | C# methods and constructors in `MRR/` | 227 |
-| [MRR.Config.md](MRR.Config.md) | C# methods and constructors in `MRR.Config/` | 10 |
+| [MRR.md](MRR.md) | C# methods and constructors in `MRR/` | 231 |
+| [MRR.Config.md](MRR.Config.md) | C# methods and constructors in `MRR.Config/` | 31 |
 | [MRR.Contracts.md](MRR.Contracts.md) | C# methods and constructors in `MRR.Contracts/` | 114 |
 | [MRR.Rules.md](MRR.Rules.md) | C# methods and constructors in `MRR.Rules/` | 24 |
-| [MRR.Tests.md](MRR.Tests.md) | C# methods and constructors in `MRR.Tests/` | 41 |
+| [MRR.Tests.md](MRR.Tests.md) | C# methods and constructors in `MRR.Tests/` | 62 |
 | [MRR.Tools.CodeReference.md](MRR.Tools.CodeReference.md) | C# methods and constructors in `MRR.Tools.CodeReference/` | 5 |
 | [MRR.Tools.FirmwareCompare.md](MRR.Tools.FirmwareCompare.md) | C# methods and constructors in `MRR.Tools.FirmwareCompare/` | 14 |
 | [MRR.Tools.RobotSpriteDraw.md](MRR.Tools.RobotSpriteDraw.md) | C# methods and constructors in `MRR.Tools.RobotSpriteDraw/` | 10 |
-| [web.md](web.md) | JavaScript in `MRR/wwwroot` (including inline page scripts) | 167 |
-| [api.md](api.md) | 36 HTTP endpoints, SignalR events, hub methods | — |
+| [web.md](web.md) | JavaScript in `MRR/wwwroot` (including inline page scripts) | 192 |
+| [api.md](api.md) | 38 HTTP endpoints, SignalR events, hub methods | — |
 | [data.md](data.md) | Database tables, robot `cmd_id` commands, `appsettings.json` keys | — |
-| [unreferenced.md](unreferenced.md) | Functions with no call sites found | 34 |
+| [unreferenced.md](unreferenced.md) | Functions with no call sites found | 32 |
 
 Related hand-written docs: [PROJECT_STATUS.md](../../PROJECT_STATUS.md) (how to run it), [CLAUDE.md](../../CLAUDE.md) (architecture and state machine), [API_DECOMPOSITION_DESIGN.md](../API_DECOMPOSITION_DESIGN.md).

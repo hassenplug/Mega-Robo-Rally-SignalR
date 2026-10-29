@@ -180,9 +180,9 @@ namespace MRR
         public Task SetLightsAsync(bool on) =>
             Connection == null ? Task.CompletedTask : Connection.SetLightsAsync(on);
 
-        public Task<GridLineAnalysis> AlignAsync(int maxIterations = 10) =>
+        public Task<PlusAnalysis> AlignAsync(int maxIterations = 10) =>
             Connection == null
-                ? Task.FromResult(new GridLineAnalysis(false, 0, 0, -1, -1, false))
+                ? Task.FromResult(PlusAnalysis.NotFound)
                 : Connection.AlignAsync(maxIterations);
 
         public Task<byte[]?> GetCameraImageAsync(int timeoutMs = 5000) =>

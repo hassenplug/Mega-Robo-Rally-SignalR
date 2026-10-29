@@ -15,7 +15,7 @@ The wire format has **never been tested against a live robot** (as of 2026-04-28
 1. **Raw JPEG** — bytes starting with `0xFF 0xD8 0xFF`
 2. **JSON with base64 image** — a JSON object with one of these keys: `"image"`, `"data"`, `"frame"`, `"jpeg"`
 
-If neither matches, `Image.Load<Rgb24>()` will throw and `AnalyzeImage` returns `HasLines = false` with a console error.
+If neither matches, `Image.Load<Rgb24>()` will throw and `FindPluses` returns `Found = false` with a console error.
 
 ## How to Determine the Format
 

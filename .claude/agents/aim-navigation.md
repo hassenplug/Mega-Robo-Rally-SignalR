@@ -27,7 +27,7 @@ You are improving the physical navigation accuracy of VEX AIM robots in the
 Two complementary sensor systems are available:
 
 1. **IMU** — onboard gyro + accelerometer → heading, odometry (`robot_x/robot_y`)
-2. **Camera** — black grid lines on the board → `GridAlignmentAgent.AlignAsync`
+2. **Camera** — the two black-line pluses at the front corners of the square → `GridAlignmentAgent.AlignAsync`
 
 **Always read these files before making changes:**
 
@@ -355,34 +355,31 @@ Log a warning and skip the move if `IsTiltedAsync()` returns true.
 ## 11. GridAlignmentAgent Integration Notes
 
 `GridAlignmentAgent` is in `MRR/GridAlignmentAgent.cs` (static class).
-It already handles rotation, lateral, and forward/back correction via
-camera image analysis.  Key points when integrating:
+It finds the two plus intersections at the front-left and front-right corners
+of the robot's square and corrects rotation (pluses level), then lateral
+(midpoint centered), then forward/back (pluses at target height).  Full
+description and tunables: `tools/ai_agent/grid_alignment_agent.md`.
+Key points when integrating:
 
-- Call `AlignAsync(this, maxIterations: 5)` — `this` is the `Player` instance
-  (the robot); `maxIterations` limits correction attempts.
-- Returns the final `GridLineAnalysis`.  If `!result.Found`, the camera saw no
-  grid lines — log and proceed rather than retrying indefinitely.
-- `TargetLineHeightNorm` is a tunable public property (default 0.5); adjust for
-  the camera mount height if needed.
+- Call `player.AlignAsync(maxIterations: 5)` (or `RobotConnection.AlignAsync`);
+  `maxIterations` limits correction attempts.
+- Returns the final `PlusAnalysis`.  If `!result.Found`, the camera did not see
+  both pluses — log and proceed rather than retrying indefinitely.
+- `TargetPlusHeightNorm` is a tunable public property (default 0.75); set it
+  from a real camera frame for the mount height.
+- Detection fails beyond about ±5° of rotation at the default `ArmHalfWidthPx`;
+  run IMU heading correction first.
 - Camera images are saved to `images/align/` for debugging.
-- `GridAlignmentAgent` calls `robot.GetCameraImageAsync()` — ensure `wsImage`
-  is connected in `ConnectAsync` (currently commented out; uncomment when the
-  camera is in use).
+- `FindPluses` is pure (bytes in, result out) and is unit-tested in
+  `MRR.Tests/GridAlignmentTests.cs`.
 
 ---
 
-## 12. wsImage Connection
+## 12. Camera Frames
 
-Camera alignment requires `wsImage`.  It is currently commented out in
-`ConnectAsync`.  Uncomment and handle it:
-
-```csharp
-wsImage = new ClientWebSocket();
-await wsImage.ConnectAsync(new Uri($"ws://{IPAddress}:80/ws_img"), CancellationToken.None);
-```
-
-Close it in `DisposeAsync` (already present).  Only connect when
-`UseGridAlignment` is true to avoid opening unnecessary sockets.
+`RobotConnection.GetCameraImageAsync()` opens its own one-shot socket to
+`ws://{Hostname}:80/ws_img` for each frame, sends `0x01` to trigger it, and
+reads one message.  No persistent `wsImage` connection is needed.
 
 ---
 
@@ -404,7 +401,7 @@ Close it in `DisposeAsync` (already present).  Only connect when
 - **GridAlignmentAgent only looks at the bottom half of the image** — the top
   half is masked as the camera typically faces upward or the grid line is in
   the lower portion of the frame.  If this does not match your camera mount,
-  adjust the `halfH` boundary in `FindGridLines`.
+  adjust `SearchTopNorm`.
 - **WaitForMotionCompleteAsync uses ListenStatusAsync** — the motion-complete
   signal comes from the background `ListenStatusAsync` task via
   `_motionComplete.TrySetResult`.  Do not call `GetStatusAsync` while waiting

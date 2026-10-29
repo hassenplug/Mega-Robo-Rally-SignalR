@@ -274,8 +274,8 @@ app.MapGet("/api/setup/select/{seat:int}/{startPosition:int}/{robotBodyId:int}",
         : Results.Conflict(dataout);
 });
 
-// Grid-alignment endpoint: download a camera frame, detect black grid lines,
-// and nudge the robot until it is centered on its board square.
+// Grid-alignment endpoint: download a camera frame, find the two black-line pluses at the
+// front corners of the robot's square, and nudge the robot until they are centered.
 // GET /api/robot/align/{robotId}
 app.MapGet("/api/robot/alignthis/{robotId:int}", async (int robotId, DataService dataService, GameController gameController) =>
 {
