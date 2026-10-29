@@ -14,6 +14,7 @@
     th { color: #aaa; font-weight: normal; font-size: 13px; }
     .name { font-weight: bold; border-radius: 4px; }
     .cards { font-family: monospace; font-size: 24px; letter-spacing: 4px; }
+    .executed { font-family: monospace; font-size: 16px; letter-spacing: 2px; color: #ffcc00; }
     .pri { font-size: 20px; color: #aaa; }
     .fec { font-family: monospace; font-size: 16px; }
     .dir { width: 22px; height: 22px; vertical-align: middle; }
@@ -93,6 +94,13 @@
                 var cards = document.createElement('td');
                 cards.className = 'cards';
                 cards.textContent = r.cards;
+                // Only when a Spam register ran a different card than was programmed.
+                if (r.executed && r.executed !== r.cards) {
+                    var executed = document.createElement('div');
+                    executed.className = 'executed';
+                    executed.textContent = 'ran ' + r.executed;
+                    cards.appendChild(executed);
+                }
                 tr.appendChild(cards);
 
                 tbody.appendChild(tr);

@@ -527,6 +527,7 @@ CREATE TABLE `HistoryRobotOptions` (
 --   ALTER TABLE HistoryRobotTurns ADD COLUMN Priority int(11) DEFAULT 0 AFTER RobotID;
 --   ALTER TABLE HistoryRobotTurns ADD COLUMN FlagEnergyCards varchar(20) DEFAULT NULL AFTER MoveCards,
 --     ADD COLUMN SavedAt datetime DEFAULT NULL AFTER FlagEnergyCards;
+--   ALTER TABLE HistoryRobotTurns ADD COLUMN ExecutedCards varchar(30) DEFAULT NULL AFTER MoveCards;
 -- Written by DataService.Players.cs's
 -- SaveToHistory(turn) -- a single bulk `INSERT ... SELECT ... FROM Robots`, called from
 -- GameController.CreateTurn() right after BuildTurnRequest() and before the planner
@@ -544,6 +545,7 @@ CREATE TABLE `HistoryRobotTurns` (
   `StartCol` int(11) DEFAULT 0,
   `StartDir` int(11) DEFAULT 0,
   `MoveCards` varchar(30) DEFAULT NULL,
+  `ExecutedCards` varchar(30) DEFAULT NULL,     -- MoveCards with each Spam register replaced by the card that ran instead (NULL on older rows)
   `FlagEnergyCards` varchar(20) DEFAULT NULL,  -- Robots.FlagEnergyCards (flag/energy/cards) at the start of the turn
   `SavedAt` datetime DEFAULT NULL,              -- when SaveToHistory wrote the row (server local time)
   PRIMARY KEY (`RobotID`,`Turn`)

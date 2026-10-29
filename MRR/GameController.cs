@@ -88,6 +88,7 @@ namespace MRR.Controller
                     // itself.
                     _dataService.PersistCommands(plan.Commands, _dataService.Turn);
                     _dataService.RetireSpamCards(plan.SpamConsumed);
+                    _dataService.SaveSpamReplacementsToHistory(plan.SpamReplacements);
                     _dataService.GameState = plan.NextGameState;
                 });
 

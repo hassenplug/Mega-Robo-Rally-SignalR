@@ -86,6 +86,9 @@ namespace MRR
         /// <summary>Spam cards consumed while planning, for the caller to retire.</summary>
         private readonly List<SpamCardUse> _spamConsumed = [];
 
+        /// <summary>The card each Spam-resolved register ran instead, for the caller to save.</summary>
+        private readonly List<SpamReplacement> _spamReplacements = [];
+
         /// <summary>
         /// Robots killed this phase, still owed their "Remove Robot" confirmation prompt.
         /// KillRobot() queues here instead of calling ShowMessageToPlayer() immediately -- see
@@ -748,6 +751,7 @@ namespace MRR
                 Summary       = "Added " + ListOfCommands.Count + " commands",
                 Warnings      = _warnings,
                 SpamConsumed  = _spamConsumed,
+                SpamReplacements = _spamReplacements,
             };
 
  
@@ -1148,6 +1152,7 @@ namespace MRR
 
 
                         MoveCard? newcard = thiscard;   // null once a draw pile runs dry
+                        bool againAsSpam = false;
                         if(thiscard.Type==MoveCard.tCardType.Again)
                         {
                             if(p_PhaseNumber>1)
@@ -1161,6 +1166,7 @@ namespace MRR
                                 // treat as spam
                                 ListOfCommands.AddCommand(thisplayer, SquareAction.Card, thiscard.ID);
                                 newcard = new MoveCard(thiscard,MoveCard.tCardType.Spam);
+                                againAsSpam = true;
                                 
                             }
                         }
@@ -1168,10 +1174,19 @@ namespace MRR
                         // and Spam can chain. Cards come from the pre-drawn pile in the request:
                         // drawing from the database here would mutate mid-plan and reshuffle the
                         // discard pile, so the same turn would not replan the same way.
+                        bool resolvedSpam = false;
                         while (newcard != null && newcard.Type == MoveCard.tCardType.Spam)
                         {
-                            ListOfCommands.AddCommand(thisplayer, SquareAction.Card, newcard.ID);
-                            _spamConsumed.Add(new SpamCardUse(thiscard.Owner, newcard.ID));
+                            resolvedSpam = true;
+                            // The Again stand-in isn't a real card (its ID is a placeholder): the
+                            // Again card's own Card command is already added above, and the Again
+                            // is discarded normally, not retired like Spam.
+                            if (!againAsSpam)
+                            {
+                                ListOfCommands.AddCommand(thisplayer, SquareAction.Card, newcard.ID);
+                                _spamConsumed.Add(new SpamCardUse(thiscard.Owner, newcard.ID));
+                            }
+                            againAsSpam = false;
                             newcard = DrawNext(thiscard.Owner);
                             if (newcard == null)
                             {
@@ -1179,6 +1194,8 @@ namespace MRR
                                 break;
                             }
                         }
+                        if (resolvedSpam)
+                            _spamReplacements.Add(new SpamReplacement(thiscard.Owner, p_PhaseNumber, newcard == null ? 0 : (int)newcard.Type));
                         ProcessMove(newcard);
                     }
                 }

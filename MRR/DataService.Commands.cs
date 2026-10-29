@@ -194,6 +194,23 @@ namespace MRR.Services
                     ExecuteSQL(
                         $"UPDATE CurrentGameData SET sValue = 'Played Card' WHERE iKey = 21");
 
+                    // A card drawn to replace Spam is still in the deck or discard pile
+                    // (CardLocation 0/3). Once it runs it takes over the register, so the
+                    // register shows the card that actually ran, and the card is discarded with
+                    // the rest of the program at the next deal instead of staying in the deck.
+                    // Whatever held the register leaves it, so only one card is left there: a
+                    // Spam (already retired, CardLocation 5, when the turn was planned), or an
+                    // Again in register 1, which counts as Spam and is discarded as usual.
+                    bool drawnForSpam = GetIntFromDB(
+                        $"SELECT COUNT(*) FROM MoveCards WHERE CardID = {cParameter} AND Owner = {cRobotID} AND CardLocation IN (0, 3)") > 0;
+                    if (drawnForSpam)
+                    {
+                        ExecuteSQL(
+                            $"UPDATE MoveCards SET PhasePlayed = 0 WHERE Owner = {cRobotID} AND PhasePlayed = {p_Command.Phase} AND CardID <> {cParameter}");
+                        ExecuteSQL(
+                            $"UPDATE MoveCards SET PhasePlayed = {p_Command.Phase}, CardLocation = 2 WHERE CardID = {cParameter} AND Owner = {cRobotID}");
+                    }
+
                     // Refresh Robots.CardsDealt/CardsPlayed/StatusToShow so the just-executed
                     // card's short description shows instead of 'X' -- GetRobotsFromTable()
                     // (DataService.Players.cs), what AllDataPayload actually sends to phones
@@ -208,7 +225,17 @@ namespace MRR.Services
                     // Sync in-memory GameCards too, matching the SquareAction.DealCard pattern
                     // above, since PlayerState.CardsPlayer/StatusToShow are computed off it.
                     var executedCard = GameCards.FirstOrDefault(c => c.ID == cParameter && c.Owner == cRobotID);
-                    if (executedCard != null) executedCard.Executed = true;
+                    if (executedCard != null)
+                    {
+                        executedCard.Executed = true;
+                        if (drawnForSpam)
+                        {
+                            foreach (var spam in GameCards.Where(c => c.Owner == cRobotID && c.PhasePlayed == p_Command.Phase && c.ID != cParameter))
+                                spam.PhasePlayed = 0;
+                            executedCard.PhasePlayed = p_Command.Phase;
+                            executedCard.CardLocation = 2;
+                        }
+                    }
                     break;
                 }
 

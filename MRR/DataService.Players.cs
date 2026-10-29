@@ -1014,9 +1014,37 @@ namespace MRR.Services
             // Priority is the turn's turn-order rank (1 acts first, same as the planner's
             // OrderBy(Priority)); MoveCardsShuffleAndDeal rotates it before CreateTurn runs, so
             // this is already the value this turn executes with.
-            ExecuteSQL($@"INSERT INTO HistoryRobotTurns (Turn, RobotID, Priority, StartRow, StartCol, StartDir, MoveCards, FlagEnergyCards, SavedAt)
-                    Select {Turn}, RobotID, Priority, CurrentPosRow, CurrentPosCol, CurrentPosDir, CardsPlayed, FlagEnergyCards, NOW() FROM Robots ");
+            // ExecutedCards starts as the programmed cards; SaveSpamReplacementsToHistory fixes
+            // up the Spam registers once the turn is planned.
+            ExecuteSQL($@"INSERT INTO HistoryRobotTurns (Turn, RobotID, Priority, StartRow, StartCol, StartDir, MoveCards, ExecutedCards, FlagEnergyCards, SavedAt)
+                    Select {Turn}, RobotID, Priority, CurrentPosRow, CurrentPosCol, CurrentPosDir, CardsPlayed, CardsPlayed, FlagEnergyCards, NOW() FROM Robots ");
 
+        }
+
+        /// <summary>
+        /// After planning: in this turn's HistoryRobotTurns.ExecutedCards, replaces each register
+        /// that resolved Spam with the card the planner drew and ran instead (TurnPlan.
+        /// SpamReplacements), so "Last Hand" shows what the robot actually did.
+        /// </summary>
+        public void SaveSpamReplacementsToHistory(IEnumerable<SpamReplacement> replacements)
+        {
+            foreach (var robot in replacements.GroupBy(r => r.RobotID))
+            {
+                var table = GetQueryResults(
+                    $"SELECT ExecutedCards FROM HistoryRobotTurns WHERE Turn = {Turn} AND RobotID = {robot.Key}");
+                if (table.Rows.Count == 0) continue;
+
+                var cards = (table.Rows[0]["ExecutedCards"] as string ?? "").Split(',').ToList();
+                foreach (var replacement in robot)
+                {
+                    while (cards.Count < replacement.Phase) cards.Add("0");
+                    cards[replacement.Phase - 1] = replacement.CardTypeID.ToString();
+                }
+
+                // Only digits and commas, so it is safe to inline.
+                ExecuteSQL($"UPDATE HistoryRobotTurns SET ExecutedCards = '{string.Join(",", cards)}' " +
+                           $"WHERE Turn = {Turn} AND RobotID = {robot.Key}");
+            }
         }
 
         /// <summary>
@@ -1025,7 +1053,8 @@ namespace MRR.Services
         /// (Turn - 1); the current turn's own row is only written at CreateTurn (state 6), so
         /// "previous" is the newest turn that is always complete. Cards are returned as the
         /// 5-character string the phone UI shows (MoveCardTypes.ShortDescription per register,
-        /// '-' = empty), converted from the CardTypeID CSV that SaveToHistory stored.
+        /// '-' = empty), converted from the CardTypeID CSV that SaveToHistory stored; executed
+        /// is the same for the cards that actually ran (ExecutedCards).
         /// </summary>
         public object GetTurnHistory(int? turn = null)
         {
@@ -1036,7 +1065,8 @@ namespace MRR.Services
                 cardLetters[Convert.ToInt32(row["CardTypeID"])] = row["ShortDescription"] as string ?? "?";
 
             var table = GetQueryResults(
-                "SELECT h.RobotID, h.Priority, h.StartRow, h.StartCol, h.StartDir, h.MoveCards, h.FlagEnergyCards, h.SavedAt, " +
+                "SELECT h.RobotID, h.Priority, h.StartRow, h.StartCol, h.StartDir, h.MoveCards, " +
+                "       COALESCE(h.ExecutedCards, h.MoveCards) AS ExecutedCards, h.FlagEnergyCards, h.SavedAt, " +
                 "       r.RobotName, r.RobotColor, r.RobotColorFG, d.ShortDirDesc " +
                 "FROM HistoryRobotTurns h " +
                 "LEFT JOIN Robots r ON r.RobotID = h.RobotID " +
@@ -1046,6 +1076,10 @@ namespace MRR.Services
 
             static int Int(object v) => v is DBNull ? 0 : Convert.ToInt32(v);
             static string Str(object v) => v is DBNull ? "" : (string)v;
+            string Letters(object csv) => string.Concat(Str(csv)
+                .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(id => int.TryParse(id, out int typeId) && typeId > 0
+                    ? cardLetters.GetValueOrDefault(typeId, "?") : "-"));
 
             var robots = table.Rows.Cast<DataRow>().Select(row => new
             {
@@ -1058,12 +1092,12 @@ namespace MRR.Services
                 startCol  = Int(row["StartCol"]),
                 startDir  = Str(row["ShortDirDesc"]),
                 startDirID = Int(row["StartDir"]), // 1-4 Up/Right/Down/Left; turnhistory.html draws the arrow from this
-                cards     = string.Concat(Str(row["MoveCards"])
-                                .Split(',', StringSplitOptions.RemoveEmptyEntries)
-                                .Select(id => int.TryParse(id, out int typeId) && typeId > 0
-                                    ? cardLetters.GetValueOrDefault(typeId, "?") : "-")),
-                // Same registers as CardTypeIDs (0 = empty), for pages that draw card images
-                cardTypes = Str(row["MoveCards"])
+                cards     = Letters(row["MoveCards"]),
+                // Same, but what each register actually ran: Spam replaced by the card drawn.
+                executed  = Letters(row["ExecutedCards"]),
+                // The cards each register actually ran, as CardTypeIDs (0 = empty): a Spam
+                // register shows the card drawn in its place. For pages that draw card images.
+                cardTypes = Str(row["ExecutedCards"])
                                 .Split(',', StringSplitOptions.RemoveEmptyEntries)
                                 .Select(id => int.TryParse(id, out int typeId) ? typeId : 0)
                                 .ToList(),
