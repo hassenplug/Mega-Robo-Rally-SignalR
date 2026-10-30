@@ -28,14 +28,15 @@ What to work on next, reordered by the user 2026-10-08.
   
 - [ ] **Robot grid alignment** (`GridAlignmentAgent.cs`; see
   [tools/ai_agent/grid_alignment_agent.md](../tools/ai_agent/grid_alignment_agent.md))
-  - Code complete; constants need tuning against real board + lighting:
-    `BlackLuminanceThreshold`, `TargetPlusHeightNorm`, `ArmHalfWidthPx`, `LateralScaleMm`/`ForwardScaleMm`
-    (two-plus method since 2026-10-28; see the doc)
-  - Confirm the `ws_img` wire format against a live robot:
-    - [ ] `GridAlignmentAgent.ExtractImageBytes()` succeeds and `FindPluses` returns `Found=true` on a real board; then set `TargetPlusHeightNorm` from that frame
-    - [ ] Does `ws_img` stream frames continuously once connected, or only after a trigger command?
+  - Detection works on real AIM-07 frames (2026-10-29); the correction loop has never moved a robot.
+    - [ ] Deploy, then run `/api/robot/alignthis/{RobotID}` on one robot and check turn/strafe directions
+    - [ ] Re-measure `TargetPlusHeightNorm` from a hand-centered robot (0.575 is from an uncentered one)
+    - [ ] Tune `LateralScaleMm`/`ForwardScaleMm`
+  - `ws_img` wire format, tested on AIM-07 2026-10-29:
+    - [x] `GridAlignmentAgent.ExtractImageBytes()` succeeds and `FindPluses` returns `Found=true` on a real board — raw JPEG, 640×480, one binary message per `0x01`
+    - [ ] Does `ws_img` stream frames continuously once connected, or only after a trigger command? (one `0x01` gave one frame; nothing read after that)
     - [ ] Is the frame rate controllable?
-    - [ ] Does `ws_img` require `program_init` first, the way `ws_cmd` does?
+    - [x] Does `ws_img` require `program_init` first, the way `ws_cmd` does? — No: a frame came back with no `ws_cmd` connection at all
     - See `tools/ai_agent/ws_img_format.md` for what to update if the format differs from raw JPEG.
       The same open questions are echoed in `tools/ai_agent/grid_alignment_agent.md` ("Known
       Unknowns") and `tools/ai_agent/image_processing.md` ("pending hardware validation") — one

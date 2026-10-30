@@ -365,11 +365,12 @@ Key points when integrating:
   `maxIterations` limits correction attempts.
 - Returns the final `PlusAnalysis`.  If `!result.Found`, the camera did not see
   both pluses — log and proceed rather than retrying indefinitely.
-- `TargetPlusHeightNorm` is a tunable public property (default 0.75); set it
+- `TargetPlusHeightNorm` is a tunable public property (default 0.575); set it
   from a real camera frame for the mount height.
-- Detection fails beyond about ±5° of rotation at the default `ArmHalfWidthPx`;
-  run IMU heading correction first.
-- Camera images are saved to `images/align/` for debugging.
+- Detection works up to about ±12° of rotation (`MaxTiltDeg` = 10 is searched);
+  beyond that it returns `!Found`, so run IMU heading correction first.
+- Camera images are saved to `GridAlignment:ImageDirectory` in appsettings.json
+  (`/home/mrr/images/align`) for debugging.
 - `FindPluses` is pure (bytes in, result out) and is unit-tested in
   `MRR.Tests/GridAlignmentTests.cs`.
 
@@ -398,10 +399,10 @@ reads one message.  No persistent `wsImage` connection is needed.
   360; normalize with `NormalizeHeading` before passing.
 - **Heading wraps at 360** — when computing deltas, use `HeadingDelta` to
   handle 359→1 wrap-around correctly.
-- **GridAlignmentAgent only looks at the bottom half of the image** — the top
-  half is masked as the camera typically faces upward or the grid line is in
-  the lower portion of the frame.  If this does not match your camera mount,
-  adjust `SearchTopNorm`.
+- **GridAlignmentAgent ignores the top 40% of the image** (`SearchTopNorm`).
+  The AIM camera looks nearly straight ahead, so the front grid line sits just
+  below the middle of the frame and the side lines slant with perspective —
+  see `tools/ai_agent/grid_alignment_agent.md` "What the Camera Sees".
 - **WaitForMotionCompleteAsync uses ListenStatusAsync** — the motion-complete
   signal comes from the background `ListenStatusAsync` task via
   `_motionComplete.TrySetResult`.  Do not call `GetStatusAsync` while waiting

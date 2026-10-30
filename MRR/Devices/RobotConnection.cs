@@ -829,7 +829,7 @@ namespace MRR.Devices
         {
             try
             {
-                var dir = Path.Combine("images", "align");
+                var dir = GridAlignmentAgent.ImageDirectory;
                 Directory.CreateDirectory(dir);
                 var safe = (Hostname ?? "unknown").Replace('.', '_');
                 var filename = $"align_{safe}_{DateTime.Now:yyyyMMdd_HHmmss_fff}.jpg";

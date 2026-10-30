@@ -39,6 +39,11 @@ builder.Services.AddSingleton<AdminAccess>();
 
 var app = builder.Build();
 
+// Where camera frames and grid-alignment debug images are saved. Relative paths resolve
+// against the working directory (/srv/mrr/game under systemd).
+GridAlignmentAgent.ImageDirectory =
+    app.Configuration["GridAlignment:ImageDirectory"] ?? GridAlignmentAgent.ImageDirectory;
+
 // Force GameController singleton construction at startup so LoadCurrentGame
 // runs immediately (connects to robots, reloads game data).
 app.Services.GetRequiredService<GameController>();

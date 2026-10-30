@@ -75,6 +75,8 @@ public class GridAlignmentTests
     [InlineData(-2)]
     [InlineData(5)]
     [InlineData(-5)]
+    [InlineData(10)]
+    [InlineData(-10)]
     public void Rotated_MeasuresTilt(double rotateDeg)
     {
         var result = GridAlignmentAgent.FindPluses(MakeFrame(360, 160, 480, rotateDeg: rotateDeg));
@@ -102,6 +104,53 @@ public class GridAlignmentTests
     public void NoLines_NotFound()
     {
         Assert.False(GridAlignmentAgent.FindPluses(MakeFrame(-100, -100, -100)).Found);
+    }
+
+    // First real frame from AIM-07's camera (2026-10-29), robot sitting on a board square.
+    // Expected positions were measured by hand from the frame's dark pixels: front line at
+    // row ~276, side lines crossing it at x ~168 and ~461, both slanting ~1 px/row outward
+    // going down. The bottom-right corner has a large dark area that is not a line.
+    [Fact]
+    public void RealFrame_Aim07_FindsFrontCornerPluses()
+    {
+        var frame = File.ReadAllBytes(FindTestData("grid_align_aim07_20261029.jpg"));
+
+        var result = GridAlignmentAgent.FindPluses(frame);
+
+        Assert.True(result.Found);
+        Assert.Equal(168.0 / Width, result.LeftPlusX, 0.015);
+        Assert.Equal(461.0 / Width, result.RightPlusX, 0.015);
+        Assert.Equal(276.0 / Height, result.LeftPlusY, 0.015);
+        Assert.Equal(276.0 / Height, result.RightPlusY, 0.015);
+        Assert.InRange(result.TiltDeg, -2, 2);
+    }
+
+    // Same robot, brighter exposure (2026-10-29 17:08, facing a lit desk): floor median ~161 and
+    // parts of the front line as bright as ~70, which a fixed "black below 60" cutoff missed.
+    // Hand-measured: front line at row ~285, side lines crossing it at x ~197 and ~506.
+    [Fact]
+    public void RealFrame_Aim07Bright_FindsFrontCornerPluses()
+    {
+        var frame = File.ReadAllBytes(FindTestData("grid_align_aim07_bright_20261029.jpg"));
+
+        var result = GridAlignmentAgent.FindPluses(frame);
+
+        Assert.True(result.Found);
+        Assert.Equal(197.0 / Width, result.LeftPlusX, 0.015);
+        Assert.Equal(506.0 / Width, result.RightPlusX, 0.015);
+        Assert.Equal(285.0 / Height, result.LeftPlusY, 0.015);
+        Assert.Equal(285.0 / Height, result.RightPlusY, 0.015);
+        Assert.InRange(result.TiltDeg, -2, 2);
+    }
+
+    private static string FindTestData(string fileName)
+    {
+        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null; dir = dir.Parent)
+        {
+            var candidate = Path.Combine(dir.FullName, "MRR.Tests", "TestData", fileName);
+            if (File.Exists(candidate)) return candidate;
+        }
+        throw new FileNotFoundException($"MRR.Tests/TestData/{fileName} not found above the test output directory.");
     }
 
     [Fact]
