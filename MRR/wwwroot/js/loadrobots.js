@@ -576,7 +576,7 @@ function showRow(id, show) {
     if (row) row.style.display = show ? '' : 'none';
 }
 
-// The Spam Cards / Last Hand lists are fetched, not broadcast. showplayerprogram runs on every
+// The Show My Deck / Last Hand lists are fetched, not broadcast. showplayerprogram runs on every
 // broadcast, so fetch again only when something that could change the list has changed: the
 // robot, the view, the game state, or the robot's dealt/played cards.
 var cardListKey = null;

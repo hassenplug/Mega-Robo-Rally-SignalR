@@ -63,7 +63,7 @@ a:visited {
     <div id="viewMenu" class="w3-card-4" style="display:none; position:absolute; top:100%; left:0; z-index:5; background:#ffffff; padding:6px; min-width:160px; font-size:16px;">
         <button class="button" id="viewMenu-program" style="margin-bottom:4px;" onclick="event.stopPropagation(); setRightPanelView('program');">Program Cards</button>
         <button class="button" id="viewMenu-shutdown" style="margin-bottom:4px;" onclick="event.stopPropagation(); setRightPanelView('shutdown');">Shut Down</button>
-        <button class="button" id="viewMenu-spam" style="margin-bottom:4px;" onclick="event.stopPropagation(); setRightPanelView('spam');">Spam Cards</button>
+        <button class="button" id="viewMenu-spam" style="margin-bottom:4px;" onclick="event.stopPropagation(); setRightPanelView('spam');">Show My Deck</button>
         <button class="button" id="viewMenu-lasthand" onclick="event.stopPropagation(); setRightPanelView('lasthand');">Last Hand</button>
     </div>
     <!-- GM-only game controls, shown on tap while logged in as GM. See toggleGmMenu()/
@@ -149,7 +149,7 @@ a:visited {
                 <button id="shutDownBtn" class="button" style="width:auto; height:auto; margin:6px 0; padding:6px 16px;" onclick="toggleShutDown();">Shut Down</button>
             </td>
         </tr>
-        <!-- The menu's "Spam Cards" and "Last Hand" views, in place of the rows above. Filled
+        <!-- The menu's "Show My Deck" and "Last Hand" views, in place of the rows above. Filled
              by renderCardList() in js/loadrobots.js. -->
         <tr id="cardListRow" style="display: none;">
             <td colspan="5" id="cardListCell" align="left"></td>
