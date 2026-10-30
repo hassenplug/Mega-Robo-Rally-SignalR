@@ -24,8 +24,13 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
 
 #topBar { display:flex; align-items:stretch; height:56px; flex:none; background:#d0d0d0; }
 #robotHeader { position:relative; width:64px; flex:none; display:flex; align-items:center; justify-content:center; font-size:30px; cursor:pointer; user-select:none; }
-#title { flex:1; display:flex; align-items:center; padding:0 10px; font-weight:bold; font-size:20px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
-#flagsHeader { width:130px; flex:none; display:flex; align-items:center; justify-content:center; font-weight:bold; cursor:pointer; user-select:none; border-left:1px solid #a0a0a0; }
+/* The game message doubles as the Turn History button. */
+#title { flex:1; min-width:0; display:flex; align-items:center; margin:4px 6px; padding:0 10px; font-weight:bold; font-size:20px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; background:#ececec; border:1px solid #909090; border-radius:4px; cursor:pointer; user-select:none; }
+#flagsHeader { width:110px; flex:none; display:flex; align-items:center; justify-content:center; font-weight:bold; cursor:pointer; user-select:none; border-left:1px solid #a0a0a0; }
+/* Robots / Display drop-downs, right of F/E/C. */
+.topMenuWrap { position:relative; width:110px; flex:none; display:flex; align-items:center; justify-content:center; font-weight:bold; cursor:pointer; user-select:none; border-left:1px solid #a0a0a0; }
+.topMenu { display:none; position:absolute; top:100%; right:0; z-index:5; background:#ffffff; padding:6px; width:180px; font-weight:normal; cursor:default; }
+.topMenu .button { display:block; width:100%; margin-bottom:6px; }
 
 #panes { display:flex; flex:1; min-height:0; }
 #robotPane { flex:none; width:490px; overflow-y:auto; }
@@ -46,7 +51,7 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
 
 #gmMenu { display:none; position:absolute; top:100%; left:0; z-index:5; background:#ffffff; padding:6px; width:200px; text-align:left; font-size:18px; }
 #gmMenu .button { display:block; width:100%; margin-bottom:6px; }
-#programScreenSubmenu, #allConnectionsSubmenu, #rightPanelSubmenu { display:none; position:absolute; top:0; left:100%; z-index:6; background:#ffffff; padding:6px; width:130px; }
+#programScreenSubmenu { display:none; position:absolute; top:0; left:100%; z-index:6; background:#ffffff; padding:6px; width:130px; }
 #playerButtons .button { display:block; width:100%; margin:0 0 6px 0; background-color:#ff0000; color:#ffffff; white-space:normal; }
 #programPanel img { width:50px; cursor:pointer; }
 /* The robot whose program is showing on the right (F/E/C view only). */
@@ -113,20 +118,7 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
     <!-- The header opens the GM menu (5 taps in 10s still logs out). -->
     <div id="robotHeader" onclick="handleRobotHeaderTap();">&#9776;
         <div id="gmMenu" class="w3-card-4">
-            <button class="button" onclick="event.stopPropagation(); window.open('turnhistory.html', '_blank');">Turn History</button>
             <button class="button" onclick="event.stopPropagation(); document.getElementById('qrCodes').style.display='block';">QR Codes</button>
-            <!-- What the right panel shows for the picked robot: the same views as index.html's
-                 menu (setRightPanelView in js/loadrobots.js), plus Off. -->
-            <div style="position:relative;">
-                <button class="button" id="rightPanelBtn" onclick="event.stopPropagation(); toggleRightPanelSubmenu();">Right Panel: Off</button>
-                <div id="rightPanelSubmenu" class="w3-card-4">
-                    <button class="button" id="viewMenu-off" onclick="event.stopPropagation(); gmSetRightPanel('off');">Off</button>
-                    <button class="button" id="viewMenu-program" onclick="event.stopPropagation(); gmSetRightPanel('program');">Program Cards</button>
-                    <button class="button" id="viewMenu-shutdown" onclick="event.stopPropagation(); gmSetRightPanel('shutdown');">Shut Down</button>
-                    <button class="button" id="viewMenu-spam" onclick="event.stopPropagation(); gmSetRightPanel('spam');">Spam Cards</button>
-                    <button class="button" id="viewMenu-lasthand" onclick="event.stopPropagation(); gmSetRightPanel('lasthand');">Last Hand</button>
-                </div>
-            </div>
             <button class="button" id="timingBtn" onclick="event.stopPropagation(); toggleTiming();">Timing: Off</button>
             <div style="position:relative;">
                 <button class="button" onclick="event.stopPropagation(); toggleProgramScreenSubmenu();">Program Screen</button>
@@ -135,20 +127,31 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
                     <button class="button" onclick="event.stopPropagation(); gmSetRobotScreen(false);">Disable</button>
                 </div>
             </div>
-            <div style="position:relative;">
-                <button class="button" onclick="event.stopPropagation(); toggleAllConnectionsSubmenu();">All Connections</button>
-                <div id="allConnectionsSubmenu" class="w3-card-4">
-                    <button class="button" style="margin-bottom:6px;" onclick="event.stopPropagation(); gmConnectAll(true);">Connect</button>
-                    <button class="button" onclick="event.stopPropagation(); gmConnectAll(false);">Disconnect</button>
-                </div>
-            </div>
             <button class="button" onclick="event.stopPropagation(); gmAction('nextstate');">Next State</button>
             <button class="button" style="background-color:#cc0000; color:#ffffff;" onclick="event.stopPropagation(); if(confirm('End the current game and disconnect from robots?')) gmAction('endgame');">End Game</button>
         </div>
     </div>
-    <!-- Game message (titlemsg), filled in by showall(). -->
-    <div id="title">---</div>
+    <!-- Game message (titlemsg), filled in by showall(); tapping it opens Turn History. -->
+    <div id="title" title="Turn History" onclick="window.open('turnhistory.html', '_blank');">---</div>
     <div id="flagsHeader" onclick="toggleFlagsHeader();">F/E/C</div>
+    <div class="topMenuWrap" onclick="toggleTopMenu('robotsMenu');">Robots &#9662;
+        <div id="robotsMenu" class="topMenu w3-card-4" onclick="event.stopPropagation();">
+            <button class="button" onclick="gmAlignSelected();">Align</button>
+            <button class="button" onclick="closeTopMenus(); gmConnectAll(true);">Connect</button>
+            <button class="button" onclick="closeTopMenus(); gmConnectAll(false);">Disconnect</button>
+        </div>
+    </div>
+    <!-- What the right panel shows for the picked robot: the same views as index.html's
+         menu (setRightPanelView in js/loadrobots.js), plus Off. -->
+    <div class="topMenuWrap" onclick="toggleTopMenu('displayMenu');">Display &#9662;
+        <div id="displayMenu" class="topMenu w3-card-4" onclick="event.stopPropagation();">
+            <button class="button" id="viewMenu-off" onclick="gmSetRightPanel('off');">Off</button>
+            <button class="button" id="viewMenu-program" onclick="gmSetRightPanel('program');">Program Cards</button>
+            <button class="button" id="viewMenu-shutdown" onclick="gmSetRightPanel('shutdown');">Shut Down</button>
+            <button class="button" id="viewMenu-spam" onclick="gmSetRightPanel('spam');">Spam Cards</button>
+            <button class="button" id="viewMenu-lasthand" onclick="gmSetRightPanel('lasthand');">Last Hand</button>
+        </div>
+    </div>
 </div>
 
 <div id="panes">
@@ -266,9 +269,8 @@ function buildPlayerRows(robots) {
     document.getElementById('playerRows').innerHTML = html;
 }
 
-// Menu "Right Panel": Off on every page load, so no cards show until the GM picks a view.
+// "Display" menu: Off on every page load, so no cards show until the GM picks a view.
 rightPanelView = 'off';
-var RIGHT_PANEL_LABELS = { off: 'Off', program: 'Program Cards', shutdown: 'Shut Down', spam: 'Spam Cards', lasthand: 'Last Hand' };
 
 // ── Timing panel ─────────────────────────────────────────────────────────────
 // Polls /api/timing every 2s while it is on. Ack/Poll are network + robot round trips
@@ -331,28 +333,43 @@ function resetTiming() {
     fetch('/api/timing/reset', { method: 'POST' }).then(loadTiming);
 }
 
-function toggleRightPanelSubmenu() {
-    var submenu = document.getElementById('rightPanelSubmenu');
-    var opening = submenu.style.display !== 'block';
-    submenu.style.display = opening ? 'block' : 'none';
-    if (opening) markViewMenu();
+// ── Robots / Display drop-downs (top bar) ────────────────────────────────────
+var TOP_MENUS = ['robotsMenu', 'displayMenu'];
+
+function toggleTopMenu(id) {
+    var menu = document.getElementById(id);
+    var opening = menu.style.display !== 'block';
+    closeTopMenus();
+    if (!opening) return;
+    menu.style.display = 'block';
+    if (id === 'displayMenu') markViewMenu(); // outline the view showing now
 }
+
+function closeTopMenus() {
+    TOP_MENUS.forEach(function (id) { document.getElementById(id).style.display = 'none'; });
+}
+
+// Close them on any tap outside their own header/menu (the GM menu has its own listener in
+// js/loadrobots.js).
+document.addEventListener('click', function (ev) {
+    if (!ev.target.closest('.topMenuWrap')) closeTopMenus();
+});
 
 function gmSetRightPanel(view) {
-    closeGmSubmenus();
-    document.getElementById('gmMenu').style.display = 'none';
+    closeTopMenus();
     setRightPanelView(view);
-    updateRightPanelLabel();
 }
 
-// Status tap: Program Cards <-> Shut Down, as on index.html, keeping the menu label in step.
-function gmToggleExtrasPanel() {
-    toggleExtrasPanel();
-    updateRightPanelLabel();
-}
-
-function updateRightPanelLabel() {
-    document.getElementById('rightPanelBtn').textContent = 'Right Panel: ' + RIGHT_PANEL_LABELS[rightPanelView];
+// Robots > Align: grid-aligns the robot whose program is showing (the outlined one), via
+// /api/robot/alignthis/{id} (Program.cs), which connects it first if needed. The robot moves.
+function gmAlignSelected() {
+    closeTopMenus();
+    var r = datapacket && datapacket.robots.find(function (x) { return x.RobotID === CurrentPlayer; });
+    if (!r) { alert('Pick a robot first.'); return; }
+    if (!confirm('Align ' + r.RobotName + '? It will move on the board.')) return;
+    fetch('/api/robot/alignthis/' + r.RobotID)
+        .then(function (resp) { if (!resp.ok) alert('Could not align ' + r.RobotName); })
+        .catch(function (err) { console.error(err.toString()); });
 }
 
 // F/E/C view: tapping a robot's button shows its program on the right.
@@ -433,7 +450,7 @@ function showall() {
             statusbox.style.backgroundColor = "#" + r.StatusColor;
             // Same as index.html: tapping a status swaps the dealt hand for the extras panel
             // (Shut Down) -- for the robot whose program is showing.
-            statusbox.onclick = gmToggleExtrasPanel;
+            statusbox.onclick = toggleExtrasPanel;
         }
 
         if (r.PlayerMsg && r.PlayerMsg !== 'undefined') msgRobots.push(r);
