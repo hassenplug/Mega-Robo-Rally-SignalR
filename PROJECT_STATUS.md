@@ -625,7 +625,7 @@ hostname. Keep it accurate — it is the first thing any assistant reads.
   Turn planning (`MRR.Rules`) works from a connection-free `PlayerState` snapshot instead
   (`GetPlayerStatesFromDB()`); it cannot reach a socket even by accident, since the project
   has no reference that could provide one. See
-  [documents/RobotConnections.md](documents/RobotConnections.md) for how programming,
+  [documents/Archive/RobotConnections.md](documents/Archive/RobotConnections.md) for how programming,
   simulation, and processing mode each use the right list.
 - **`TotalFlags` is per game, not per player.** It lives in `CurrentGameData` iKey 7, taken
   from the board at game start. A `Player.TotalFlags` hardcoded to 5 caused every non-5-flag

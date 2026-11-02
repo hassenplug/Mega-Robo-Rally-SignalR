@@ -7,7 +7,7 @@ namespace MRR.Tools.FirmwareCompare;
 /// <summary>
 /// Minimal, standalone AIM WebSocket client used only by this diagnostic tool.
 /// Deliberately independent of MRR.Devices.RobotConnection: that class is the game's
-/// single owner of a live robot socket (see documents/RobotConnections.md) and is wired
+/// single owner of a live robot socket (see documents/Archive/RobotConnections.md) and is wired
 /// to the rally DB, game state, and the full connect sequence (LCD arrow, name, etc).
 /// This tool exists to compare two robots' raw firmware responses byte-for-byte, outside
 /// any game context, so it talks ws_cmd/ws_status directly using the wire format documented

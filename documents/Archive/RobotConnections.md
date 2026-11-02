@@ -8,32 +8,32 @@ itself exactly once from its own constructor, and is replaced (never re-dialed i
 reconnect — which is also how a new game guarantees no robot carries a stale socket forward.
 **Date:** 2026-09-10
 **Related:** [ALLPLAYERS_REMOVAL_DESIGN.md](ALLPLAYERS_REMOVAL_DESIGN.md),
-[API_DECOMPOSITION_DESIGN.md](API_DECOMPOSITION_DESIGN.md) §5.5,
-[MRR/Devices/RobotConnections.cs](../MRR/Devices/RobotConnections.cs),
-[MRR/Devices/RobotConnection.cs](../MRR/Devices/RobotConnection.cs)
+[API_DECOMPOSITION_DESIGN.md](../API_DECOMPOSITION_DESIGN.md) §5.5,
+[MRR/Devices/RobotConnections.cs](../../MRR/Devices/RobotConnections.cs),
+[MRR/Devices/RobotConnection.cs](../../MRR/Devices/RobotConnection.cs)
 
 ## The rule
 
-`RobotConnections` ([MRR/Devices/RobotConnections.cs](../MRR/Devices/RobotConnections.cs)) is
+`RobotConnections` ([MRR/Devices/RobotConnections.cs](../../MRR/Devices/RobotConnections.cs)) is
 the **only** place a robot's live WebSocket transport is created or torn down. It is
-registered as a singleton ([Program.cs:17](../MRR/Program.cs#L17)) and holds one
+registered as a singleton ([Program.cs:17](../../MRR/Program.cs#L17)) and holds one
 `RobotConnection` per robot, keyed on `RobotID`. Nothing else opens a `ClientWebSocket` to
 an AIM robot — `Player` never owns a socket; it only forwards to whichever
 `RobotConnection` is attached to it (`Player.Connection`,
-[Players.cs:83](../MRR/Players.cs#L83)).
+[Players.cs:83](../../MRR/Players.cs#L83)).
 
 A `RobotConnection` connects itself: its constructor takes nothing but a `RobotID` and a
 connection string, polls `Robots` (joined to `RobotBodies`/`RobotBases`) for its own name,
 color, and hostname (`Robots.Hostname`), and then dials the robot by that name
-([RobotConnection.cs:24-57](../MRR/Devices/RobotConnection.cs#L24)). `ConnectAsync` is
+([RobotConnection.cs:24-57](../../MRR/Devices/RobotConnection.cs#L24)). `ConnectAsync` is
 private for exactly this reason — it is never called a second time on a live object. To
 reconnect a robot, `RobotConnections.Reconnect`/`ReconnectAll`
-([RobotConnections.cs:76-125](../MRR/Devices/RobotConnections.cs#L76)) dispose the old
+([RobotConnections.cs:76-125](../../MRR/Devices/RobotConnections.cs#L76)) dispose the old
 `RobotConnection` and construct a fresh one in its place.
 
 `RobotConnections.Refresh()`, called on every `GetAllPlayers()`, only prunes: a robot no
 longer in the `Robots` roster is disposed and dropped
-([RobotConnections.cs:35-56](../MRR/Devices/RobotConnections.cs#L35)). It never creates an
+([RobotConnections.cs:35-56](../../MRR/Devices/RobotConnections.cs#L35)). It never creates an
 entry for a robot it hasn't seen — a robot is only ever connected through an explicit
 `Reconnect`/`ReconnectAll` call, never as a side effect of rebuilding the player list on a
 broadcast. A robot already registered keeps its connection untouched, including a live
@@ -52,11 +52,11 @@ connection-backed roster:
 dataService.AllPlayers.GetPlayer(pid)?.UpdateStatusLEDs();
 ```
 
-`UpdateStatusLEDs()` → `SendColorStatus()` ([Players.cs:232](../MRR/Players.cs#L232),
-[:110](../MRR/Players.cs#L110)) calls `Connection.SetLedAsync(...)` directly — no queued
+`UpdateStatusLEDs()` → `SendColorStatus()` ([Players.cs:232](../../MRR/Players.cs#L232),
+[:110](../../MRR/Players.cs#L110)) calls `Connection.SetLedAsync(...)` directly — no queued
 command, no intermediate list. The same list is used again at the top of every turn (state
 2) to reset every robot's status LED: `foreach (var p in AllPlayers) p.UpdateStatusLEDs();`
-([GameController.cs:355](../MRR/GameController.cs#L355)).
+([GameController.cs:355](../../MRR/GameController.cs#L355)).
 
 ### 2. Simulation mode — a list with no connections
 
@@ -64,12 +64,12 @@ Turn planning (state 6, `CreateCommands.CreateTurn()` in `MRR.Rules`) runs entir
 `PlayerState` copies, not `Player` objects, so there is nothing to attach a socket to:
 
 - `DataService.BuildTurnRequest()` populates `TurnRequest.Players` from
-  `GetPlayerStatesFromDB()` ([DataService.Commands.cs:55](../MRR/DataService.Commands.cs#L55))
+  `GetPlayerStatesFromDB()` ([DataService.Commands.cs:55](../../MRR/DataService.Commands.cs#L55))
   — a direct `Robots` query into bare `PlayerState` rows
-  ([DataService.Players.cs:142-191](../MRR/DataService.Players.cs#L142)), independent of the
+  ([DataService.Players.cs:142-191](../../MRR/DataService.Players.cs#L142)), independent of the
   connection registry.
 - `CreateCommands` deep-copies that into `workingPlayers` for the physics/collision
-  simulation ([CreateCommands.cs:514](../MRR.Rules/CreateCommands.cs#L514)) and discards the
+  simulation ([CreateCommands.cs:514](../../MRR.Rules/CreateCommands.cs#L514)) and discards the
   copy once the turn's commands are built.
 - `MRR.Rules` cannot reference `MySqlConnector` or any WebSocket type — enforced by the
   project's own reference list — so this list is structurally incapable of holding a robot
@@ -88,7 +88,7 @@ var robot = _dataService.AllPlayers.GetPlayer(p => p.ID == onecommand.RobotID);
 if (!robot.isConnected) { /* mark unreachable, move on */ }
 ```
 
-`robot.SendRobotCommandAsync(...)` ([CommandProcess.cs:326](../MRR/CommandProcess.cs#L326))
+`robot.SendRobotCommandAsync(...)` ([CommandProcess.cs:326](../../MRR/CommandProcess.cs#L326))
 forwards through `Player` to the attached `RobotConnection`, the same object
 `RobotConnections` owns.
 
@@ -100,11 +100,11 @@ than opened per-phase and closed again:
 - `GameController.LoadCurrentGame()` calls `ConnectToAllRobots()` only when a game is
   actually running and the physical robots are wanted:
   `if (RobotsActive != 0 && _dataService.GameState != 25) ConnectToAllRobots();`
-  ([GameController.cs:453](../MRR/GameController.cs#L453)) -- `GameState==25` means "not
+  ([GameController.cs:453](../../MRR/GameController.cs#L453)) -- `GameState==25` means "not
   running" (folded in 2026-09-17 from a separate `IsRunning` flag). This runs both at process
   startup (so a Pi reboot mid-game reconnects automatically) and at the end of `StartGame()`.
 - **A new game closes every previous connection and opens fresh ones.**
-  `ConnectToAllRobots()` ([GameController.cs:471-497](../MRR/GameController.cs#L471)) calls
+  `ConnectToAllRobots()` ([GameController.cs:471-497](../../MRR/GameController.cs#L471)) calls
   `DataService.ReconnectAllRobots()` → `RobotConnections.ReconnectAll()`, which disposes
   every current `RobotConnection` and constructs a brand-new, self-connecting one for each
   robot in the roster — never reuses an old socket, LED state, or LCD screen across a game
@@ -115,7 +115,7 @@ than opened per-phase and closed again:
   disturbs a still-valid connection just because the caller rebuilt its own player list
   around it.
 - `EndGame()` sets `GameState=25` ("not running") and calls `DisconnectAllRobots()`
-  ([GameController.cs:657-671](../MRR/GameController.cs#L657)), so connections do not
+  ([GameController.cs:657-671](../../MRR/GameController.cs#L657)), so connections do not
   outlive the game they belong to.
 - The GM's manual "Connect"/"Disconnect" controls (the per-robot toggles in `gmindex.html`,
   `ConnectToRobot`/`DisconnectRobot`) use the same `Reconnect`/dispose mechanism for the case

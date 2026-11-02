@@ -3,7 +3,7 @@
 > ## 🔶 PARTIALLY MOOT — re-checked 2026-08-27
 >
 > Items 1, 2, 3, and 5 below are all instances of the `Robots` ↔ `AllPlayers` player-*data*
-> mirror going stale. [ALLPLAYERS_REMOVAL_DESIGN.md](ALLPLAYERS_REMOVAL_DESIGN.md) removes
+> mirror going stale. [ALLPLAYERS_REMOVAL_DESIGN.md](Archive/ALLPLAYERS_REMOVAL_DESIGN.md) removes
 > that mirror instead of syncing it — once implemented, those four items close by
 > construction (there is nothing left to drift). Marked individually below; left in place
 > since the removal is not yet implemented.

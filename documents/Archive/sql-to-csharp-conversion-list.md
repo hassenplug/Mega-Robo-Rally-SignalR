@@ -9,7 +9,7 @@
 >
 > The 41 rows marked "Not Started" are all either ported to C# or deliberately dropped. The
 > per-item breakdown of which is which lives in
-> **[install/todo.md](../../install/todo.md)** (Section 6) — use that, not this file.
+> **[install/todo.md](../../../install/todo.md)** (Section 6) — use that, not this file.
 >
 > Kept because the *descriptions* are a useful record of what each original SQL object did.
 
@@ -124,7 +124,7 @@ As of 2026-08-22 — verified against the live schema and `install/MRRDatabase.s
 | Base tables | 37 |
 
 Each original object was either ported to C# or deliberately dropped; see
-[install/todo.md](../../install/todo.md) Section 6 for the split. The table below is the
+[install/todo.md](../../../install/todo.md) Section 6 for the split. The table below is the
 2026-03-24 snapshot, retained for its descriptions only.
 
 <details><summary>Original 2026-03-24 counts (obsolete)</summary>

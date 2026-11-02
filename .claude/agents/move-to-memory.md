@@ -22,7 +22,7 @@ tools:
 > **The project moved the other way.** `GetRobotsFromTable()`
 > ([DataService.Players.cs](../../MRR/DataService.Players.cs)) already reads the `Robots`
 > table directly on every broadcast, making a synced in-memory mirror unnecessary rather than
-> incomplete. [documents/ALLPLAYERS_REMOVAL_DESIGN.md](../../documents/ALLPLAYERS_REMOVAL_DESIGN.md)
+> incomplete. [documents/Archive/ALLPLAYERS_REMOVAL_DESIGN.md](../../documents/Archive/ALLPLAYERS_REMOVAL_DESIGN.md)
 > is the live design doc: it removes the player-*data* fields this agent's Phases 2–3 and 5–7
 > would have kept synced (write-through setters, `SuppressDbWrites`, `ReloadPlayerRuntimeFields`,
 > per-command `SetFieldsDirect` sync), rather than finishing them.

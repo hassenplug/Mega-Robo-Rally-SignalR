@@ -13,7 +13,7 @@
 > *data* fields on those same objects (position, damage, status, score, cards) do not.
 >
 > Kept for history and for its inventory of the sync problems it was trying to solve, which
-> [DB_SYNC_ISSUES.md](DB_SYNC_ISSUES.md) catalogs in more detail.
+> [DB_SYNC_ISSUES.md](../DB_SYNC_ISSUES.md) catalogs in more detail.
 
 
 ## Goal

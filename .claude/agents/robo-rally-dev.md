@@ -157,7 +157,7 @@ There are no lives — a robot that reboots simply respawns at the reboot token 
   - Plays no registers and does not fire its own laser, but can still be pushed and is still moved by conveyors and other board elements
   - Discards all its cards (Spam and programmed cards) at lock-in
   - Announces shutdown during programming phase; it ends at the start of the next turn
-  - See [documents/SHUTDOWN_DESIGN.md](../../documents/SHUTDOWN_DESIGN.md)
+  - See [documents/Archive/SHUTDOWN_DESIGN.md](../../documents/Archive/SHUTDOWN_DESIGN.md)
 
 ### 1.14 Option / Upgrade Cards
 Players may gain upgrade cards during the game. Key examples:

@@ -1,7 +1,7 @@
 # Shutdown (power-down) — Design
 
 **Status: implemented 2026-10-06; build and `MRR.Tests/ShutDownTests.cs` pass; confirmed working by the project owner 2026-10-07.** Decided 2026-10-05. The sections below are the original plan and are kept as written. Covers the two open items in
-[install/todo.md](../install/todo.md): Section 1 "Shutdown mechanic" and Section 3 "Shutdown
+[install/todo.md](../../install/todo.md): Section 1 "Shutdown mechanic" and Section 3 "Shutdown
 toggle on phone UI".
 
 ## Rules as decided for this project
@@ -22,13 +22,13 @@ Verify against the Renegade rulebook before treating them as canonical.
 ## Simplified state model
 
 `Robots.ShutDown` uses only two values of the existing `tShutDown` enum
-([PlayerState.cs](../MRR.Contracts/PlayerState.cs)):
+([PlayerState.cs](../../MRR.Contracts/PlayerState.cs)):
 
 - `None (0)` — normal
 - `Currently (2)` — shut down this turn
 
 `NextTurn`, `WithoutReset` and `ClearDamage` are not used by this mechanic. They remain in the
-enum and in the `RobotShutDown` seed table (see [install/MRRDatabase.sql](../install/MRRDatabase.sql));
+enum and in the `RobotShutDown` seed table (see [install/MRRDatabase.sql](../../install/MRRDatabase.sql));
 the `NextState` column of that table is not used.
 
 `Robots.Status` becomes `tPlayerStatus.ShutDown (9)` at lock-in.
@@ -38,18 +38,18 @@ the `NextState` column of that table is not used.
 - `tPlayerStatus.ShutDown = 9` and `tShutDown` enum.
 - `Robots.ShutDown` column and `RobotShutDown` lookup table.
 - `PlayerState.IsShutDown` and `PlayerState.IsRunning` (= not Dead, not ShutDown, no pending
-  `RespawnID`) in [PlayerState.cs](../MRR.Contracts/PlayerState.cs).
+  `RespawnID`) in [PlayerState.cs](../../MRR.Contracts/PlayerState.cs).
 - `AllDataPayload.ShutDown` is already sent to the phones.
 - `SquareAction.SetShutDownMode` (82), handled in
-  [DataService.Commands.cs](../MRR/DataService.Commands.cs) (`UPDATE Robots SET ShutDown = ...`).
+  [DataService.Commands.cs](../../MRR/DataService.Commands.cs) (`UPDATE Robots SET ShutDown = ...`).
 - The **EMP** option card is the only current writer of `ShutDown`
-  ([CreateCommands.cs](../MRR.Rules/CreateCommands.cs), ~lines 975-1004).
+  ([CreateCommands.cs](../../MRR.Rules/CreateCommands.cs), ~lines 975-1004).
 
 ## What is missing
 
 - No player input to toggle shutdown.
 - Nothing discards cards for a shut-down robot.
-- `ResetPlayers()` ([DataService.Players.cs](../MRR/DataService.Players.cs)) no longer advances
+- `ResetPlayers()` ([DataService.Players.cs](../../MRR/DataService.Players.cs)) no longer advances
   or clears `ShutDown` (the old `procResetPlayers` logic was removed). Its blanket
   `UPDATE Robots SET Status = ReadyToProgram` clears the `ShutDown` *status* but not the column.
 - `IsRunning` conflates "doesn't act" with "isn't on the board" (see Execution below).
@@ -57,7 +57,7 @@ the `NextState` column of that table is not used.
 ## Implementation plan
 
 ### 1. Toggle endpoint
-Add a case to `/api/player/{command}/{playerId}/...` in [Program.cs](../MRR/Program.cs).
+Add a case to `/api/player/{command}/{playerId}/...` in [Program.cs](../../MRR/Program.cs).
 - Valid only when `GameState == 4` and the robot is alive; otherwise rejected.
 - Flips `Robots.ShutDown` between 0 and 2.
 - Logic lives in a `DataService` method; the REST handler stays thin. Follow how the existing
@@ -81,10 +81,10 @@ Do this at lock-in, not at toggle time, so toggling off loses nothing.
 **To verify before writing:** how Spam and programmed cards are stored (`MoveCards.Owner`,
 `PhasePlayed`, `Locked`) and how the damage stack is represented.
 
-### 3. Execution filters ([CreateCommands.cs](../MRR.Rules/CreateCommands.cs))
+### 3. Execution filters ([CreateCommands.cs](../../MRR.Rules/CreateCommands.cs))
 `IsRunning` is used at ~8 call sites (lines ~946, 1044, 1096, 1115, 1191, 1259, 1591-1592) plus
-`GetPlayerAtSquare` in [PlayerStates.cs](../MRR.Contracts/PlayerStates.cs) and
-[Players.cs](../MRR/Players.cs). Today it excludes shut-down robots from everything. Required:
+`GetPlayerAtSquare` in [PlayerStates.cs](../../MRR.Contracts/PlayerStates.cs) and
+[Players.cs](../../MRR/Players.cs). Today it excludes shut-down robots from everything. Required:
 
 | Behaviour | Shut-down robot |
 |---|---|
@@ -103,7 +103,7 @@ In `ResetPlayers()` add `UPDATE Robots SET ShutDown = 0`. The existing reset to 
 already clears the status, and the robot is dealt a normal hand at state 2.
 
 ### 5. Phone UI
-[index.html](../MRR/wwwroot/index.html) and [loadrobots.js](../MRR/wwwroot/js/loadrobots.js):
+[index.html](../../MRR/wwwroot/index.html) and [loadrobots.js](../../MRR/wwwroot/js/loadrobots.js):
 - Toggle shown only in state 4 and hidden once the program is locked.
 - State driven by `ShutDown` in the existing payload.
 - "Shut down" indicator during the run phases.

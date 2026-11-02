@@ -2,11 +2,11 @@
 
 **Status:** Implemented 2026-08-27 — all of §9's rollout steps done and build-verified.
 **Date:** 2026-08-27
-**Related:** [API_DECOMPOSITION_DESIGN.md](API_DECOMPOSITION_DESIGN.md) (§4, §5.5, step 6 — `Player`/`IRobotTransport` split), [ALLPLAYERS_REFACTOR_PLAN.md](ALLPLAYERS_REFACTOR_PLAN.md) (superseded, see §8), [DB_SYNC_ISSUES.md](DB_SYNC_ISSUES.md) (mostly moot, see §8), `.claude/agents/move-to-memory.md` (conflicts, see §8)
+**Related:** [API_DECOMPOSITION_DESIGN.md](../API_DECOMPOSITION_DESIGN.md) (§4, §5.5, step 6 — `Player`/`IRobotTransport` split), [ALLPLAYERS_REFACTOR_PLAN.md](ALLPLAYERS_REFACTOR_PLAN.md) (superseded, see §8), [DB_SYNC_ISSUES.md](../DB_SYNC_ISSUES.md) (mostly moot, see §8), `.claude/agents/move-to-memory.md` (conflicts, see §8)
 
 ## 1. Trigger
 
-[`GetRobotsFromTable()`](../MRR/DataService.Players.cs#L153) now builds `AllDataPayload.robots` — what every SignalR broadcast sends to the phones — by reading the `Robots` table directly, every time. Its own comment says so: "replacing the old path that built `RobotData` from the in-memory Players/GameCards collections." That was the one job `AllPlayers`, as an in-memory mirror of the `Robots` table, existed to do fast. It no longer does that job, so most of what still writes to it and reads from it is upkeep for a cache nothing consumes.
+[`GetRobotsFromTable()`](../../MRR/DataService.Players.cs#L153) now builds `AllDataPayload.robots` — what every SignalR broadcast sends to the phones — by reading the `Robots` table directly, every time. Its own comment says so: "replacing the old path that built `RobotData` from the in-memory Players/GameCards collections." That was the one job `AllPlayers`, as an in-memory mirror of the `Robots` table, existed to do fast. It no longer does that job, so most of what still writes to it and reads from it is upkeep for a cache nothing consumes.
 
 **Goal:** remove the in-memory robot-*data* mirror everywhere it isn't needed, and confirm the one place it should stay — the snapshot built while creating commands — is already correctly isolated from this cache.
 
@@ -23,22 +23,22 @@ This document's job is to strip row 2 out of row 1's collection, and confirm row
 ## 3. Evidence the mirrored data is dead weight
 
 - **`GetRobotsFromTable()` already bypasses it** for the one consumer (broadcast) that used to justify it.
-- **`ProcessDbCommand`** ([DataService.Commands.cs:104](../MRR/DataService.Commands.cs#L104)) does a dual write in nearly every `SquareAction` case: `robot.Damage = cParameter` (in-memory) *and* `db.Robots...ExecuteUpdate(...)` (DB). Nothing downstream reads the in-memory value before the next full reload discards it: `BuildTurnRequest()` calls `ReloadAllData()` → `GetAllPlayers(forceRefresh: true)` → a fresh `Robots` read, every turn. The in-memory writes execute, cost cycles, and are read by no one.
-- **`UpdateCardPlayed`** ([DataService.Cards.cs:307](../MRR/DataService.Cards.cs#L307)) does the same thing once, then its own comment admits it: *"Guarded rather than assumed... this is not reachable — but that is incidental protection, not a guard."* Nobody reads `player.PlayerStatus` after that line.
+- **`ProcessDbCommand`** ([DataService.Commands.cs:104](../../MRR/DataService.Commands.cs#L104)) does a dual write in nearly every `SquareAction` case: `robot.Damage = cParameter` (in-memory) *and* `db.Robots...ExecuteUpdate(...)` (DB). Nothing downstream reads the in-memory value before the next full reload discards it: `BuildTurnRequest()` calls `ReloadAllData()` → `GetAllPlayers(forceRefresh: true)` → a fresh `Robots` read, every turn. The in-memory writes execute, cost cycles, and are read by no one.
+- **`UpdateCardPlayed`** ([DataService.Cards.cs:307](../../MRR/DataService.Cards.cs#L307)) does the same thing once, then its own comment admits it: *"Guarded rather than assumed... this is not reachable — but that is incidental protection, not a guard."* Nobody reads `player.PlayerStatus` after that line.
 - **`CommandProcess.cs:347-350`** sets `robotPlayer.MessageCommandID = ...` then calls `_dataService.RefreshAllPlayers()` — a full re-sync purely to keep a cache current that has no reader.
 - **`DB_SYNC_ISSUES.md`'s 14 open items** are all instances of this same cache going stale relative to the DB. Once the cache is gone, the `AllPlayers`-related items are moot by construction, not "fixed."
 
 ## 4. The one legitimate exception (confirmed, unchanged)
 
-`MRR.Rules/CreateCommands.cs`'s `AllPlayers` ([CreateCommands.cs:59](../MRR.Rules/CreateCommands.cs#L59), type `PlayerStates`) is exactly "except during the process of creating commands":
+`MRR.Rules/CreateCommands.cs`'s `AllPlayers` ([CreateCommands.cs:59](../../MRR.Rules/CreateCommands.cs#L59), type `PlayerStates`) is exactly "except during the process of creating commands":
 
 - Sourced from `TurnRequest.Players`, built once per turn.
-- Deep-copied into `workingPlayers` for simulation ([CreateCommands.cs:490](../MRR.Rules/CreateCommands.cs#L490)); the working copy is explicitly never saved back ("Note: Don't refresh real AllPlayers; we're working on copy only").
+- Deep-copied into `workingPlayers` for simulation ([CreateCommands.cs:490](../../MRR.Rules/CreateCommands.cs#L490)); the working copy is explicitly never saved back ("Note: Don't refresh real AllPlayers; we're working on copy only").
 - `MRR.Rules` has no project reference to `MySqlConnector` or ASP.NET — it *cannot* reach the database, enforced by the build, per API_DECOMPOSITION_DESIGN.md §5.3.
 
 **Recommendation: leave this exactly as is.**
 
-One seam still ties this snapshot to the cache being removed: `BuildTurnRequest()` builds it via `Players = new PlayerStates(AllPlayers)` ([DataService.Commands.cs:54](../MRR/DataService.Commands.cs#L54)) — i.e. it copies out of the connection-registry collection. Once that collection stops being kept data-fresh (§6), this line would be reading whatever the registry happened to have cached, not a guaranteed-current value. Fix: add `DataService.GetPlayerStatesFromDB()` — a direct `Robots` query into bare `PlayerState` objects (no sockets, no registry dependency) — and use it here instead. This is the one behavior change this document requires outside of deleting dead writes.
+One seam still ties this snapshot to the cache being removed: `BuildTurnRequest()` builds it via `Players = new PlayerStates(AllPlayers)` ([DataService.Commands.cs:54](../../MRR/DataService.Commands.cs#L54)) — i.e. it copies out of the connection-registry collection. Once that collection stops being kept data-fresh (§6), this line would be reading whatever the registry happened to have cached, not a guaranteed-current value. Fix: add `DataService.GetPlayerStatesFromDB()` — a direct `Robots` query into bare `PlayerState` objects (no sockets, no registry dependency) — and use it here instead. This is the one behavior change this document requires outside of deleting dead writes.
 
 ## 5. Per-callsite audit
 
@@ -90,7 +90,7 @@ One seam still ties this snapshot to the cache being removed: `BuildTurnRequest(
 
 ## 9. Rollout order
 
-1. **Done.** Added `DataService.GetPlayerStatesFromDB()` ([DataService.Players.cs](../MRR/DataService.Players.cs)) — queries `Robots` directly into bare `PlayerState` objects, independent of `AllPlayers`. `BuildTurnRequest()` now calls it instead of wrapping `AllPlayers`. Field-for-field parity with what `GetAllPlayers()` + the old `RefreshAllPlayers()` used to populate, confirmed correct rather than merely preserved — see §11.
+1. **Done.** Added `DataService.GetPlayerStatesFromDB()` ([DataService.Players.cs](../../MRR/DataService.Players.cs)) — queries `Robots` directly into bare `PlayerState` objects, independent of `AllPlayers`. `BuildTurnRequest()` now calls it instead of wrapping `AllPlayers`. Field-for-field parity with what `GetAllPlayers()` + the old `RefreshAllPlayers()` used to populate, confirmed correct rather than merely preserved — see §11.
 2. **Done.** Stripped the field-mirroring writes from `ProcessDbCommand` (§6) — every `if (robot != null) robot.<field> = ...` line removed, including the status-5 position/score block; only the `db.Robots...ExecuteUpdate(...)` calls remain. `p_Command.Robot` is no longer referenced inside `ProcessDbCommand` at all (its attachment in `CommandProcess.cs`'s constructor still stands, for `Description` text — see §7).
 3. **Done.** Stripped the field-mirroring write from `UpdateCardPlayed` (§6) — the `AllPlayers.GetPlayer` lookup and the trailing `player.PlayerStatus = ...` write are gone. Flagged with an inline `<remarks>` on the method for a second look post-verification (requested explicitly — this is the one call site to double-check rather than assume safe outright, since its earlier comment already noted the guard was "incidental protection, not a guard").
 4. **Done.** Deleted `CommandProcess.cs`'s `robotPlayer.MessageCommandID = ...` in-memory write and the trailing `RefreshAllPlayers()` call; the `robotPlayer != null` check and the `Db.Robots...ExecuteUpdate(...)` write it guards both stay unchanged.
@@ -114,9 +114,9 @@ Build verified after every step: `dotnet build Mega-Robo-Rally-SignalR.sln` — 
 
 Discovered while implementing §9 step 1, before writing `GetPlayerStatesFromDB()`. Neither of
 `GetAllPlayers()`'s roster query nor `RefreshAllPlayers()`'s runtime-refresh query
-([DataService.Players.cs:81-89](../MRR/DataService.Players.cs#L81), [:203-209](../MRR/DataService.Players.cs#L203))
+([DataService.Players.cs:81-89](../../MRR/DataService.Players.cs#L81), [:203-209](../../MRR/DataService.Players.cs#L203))
 selects `Robots.Damage` or `Robots.Lives`. `Player.Damage`
-([PlayerState.cs:197](../MRR.Contracts/PlayerState.cs#L197)) is a plain in-memory field with no
+([PlayerState.cs:197](../../MRR.Contracts/PlayerState.cs#L197)) is a plain in-memory field with no
 other source.
 
 `BuildTurnRequest()` calls `ReloadAllData()` → `GetAllPlayers(forceRefresh: true)` at the start

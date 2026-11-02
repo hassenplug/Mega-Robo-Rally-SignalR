@@ -136,7 +136,7 @@ namespace MRR.Services
         /// <summary>
         /// Builds a fresh turn-planning snapshot straight from the database -- independent of
         /// the AllPlayers connection registry. Used by BuildTurnRequest() (DataService.Commands.cs)
-        /// to populate TurnRequest.Players. See documents/ALLPLAYERS_REMOVAL_DESIGN.md: the
+        /// to populate TurnRequest.Players. See documents/Archive/ALLPLAYERS_REMOVAL_DESIGN.md: the
         /// registry only needs to hold live robot connections now, not game-state data, and this
         /// is the one remaining place that needs a full player-state snapshot for planning.
         ///
@@ -721,7 +721,7 @@ namespace MRR.Services
             // not overwritten with something different.
             ExecuteSQL($"UPDATE Robots SET Status = {(int)tPlayerStatus.ReadyToProgram}");
 
-            // Shutdown lasts only the turn it was chosen in (documents/SHUTDOWN_DESIGN.md).
+            // Shutdown lasts only the turn it was chosen in (documents/Archive/SHUTDOWN_DESIGN.md).
             ExecuteSQL($"UPDATE Robots SET ShutDown = {(int)tShutDown.None}");
             // ...and the robots' screens/LEDs go back to normal (a no-op for any that weren't).
             foreach (var robotConnection in _robotConnections.ToList())
@@ -742,7 +742,7 @@ namespace MRR.Services
         }
 
         // =====================================================================
-        // Shutdown toggle (documents/SHUTDOWN_DESIGN.md): the phone's "Shut Down" switch, valid
+        // Shutdown toggle (documents/Archive/SHUTDOWN_DESIGN.md): the phone's "Shut Down" switch, valid
         // only while programming (GameState 4) and only for a robot that is on the board. It just
         // flips Robots.ShutDown between None and Currently -- nothing is discarded until
         // lock-in (ApplyShutDownAtLockIn), so switching it back off loses nothing.

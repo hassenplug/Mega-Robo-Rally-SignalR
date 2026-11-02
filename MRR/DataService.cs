@@ -49,7 +49,7 @@ namespace MRR.Services
         // not to mirror Robots table data. GetRobotsFromTable() reads Robots fresh for every
         // broadcast, and turn planning reads a fresh snapshot via GetPlayerStatesFromDB() --
         // neither depends on this collection's data fields being current. See
-        // documents/ALLPLAYERS_REMOVAL_DESIGN.md.
+        // documents/Archive/ALLPLAYERS_REMOVAL_DESIGN.md.
         private Players? _allPlayers;
         public Players AllPlayers
         {

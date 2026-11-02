@@ -2,7 +2,7 @@
 
 **Status:** Plan — not yet configured against hardware, **except** robot IPs: all 7 robots
 have fixed addresses `192.168.0.101`–`.107` as of 2026-10-01 (table in
-[RobotConnections.md](../documents/RobotConnections.md)). That is a `192.168.0.x` network, not
+[RobotConnections.md](../documents/Archive/RobotConnections.md)). That is a `192.168.0.x` network, not
 the subnets this plan proposes below, so §4 steps 3, 5 and 6 are done for the robots only;
 the Pi's reservation and the rest of the plan are still open.
 **Router:** Ubiquiti UniFi Travel Router, model `UTR` (confirmed from the unit's underside label:
@@ -16,7 +16,7 @@ adapter sold separately; ~5 W max), uplink from Ethernet, WiFi, or USB tethering
 WireGuard VPN, 1.14" status display.
 **Last updated:** 2026-10-25
 **Related:** [PROJECT_STATUS.md](../PROJECT_STATUS.md) §1 (Pi setup),
-[documents/RobotConnections.md](../documents/RobotConnections.md) (why robot IPs must be
+[documents/Archive/RobotConnections.md](../documents/Archive/RobotConnections.md) (why robot IPs must be
 stable)
 
 ## 1. Goal
@@ -64,7 +64,7 @@ that every robot and player device is contending for.
 5. **DHCP reservations (fixed IPs), by MAC address, for the Pi and every robot.** Not just
    tidiness — `RobotConnections`/`RobotConnection.cs` reads each robot's IP straight out of
    the `RobotBases`/`Robots` table and dials that address directly
-   ([RobotConnections.md](../documents/RobotConnections.md)). Without a reservation, a robot
+   ([RobotConnections.md](../documents/Archive/RobotConnections.md)). Without a reservation, a robot
    that gets a different DHCP lease after a reboot leaves the server dialing a stale IP until
    the DB is corrected.
 6. **Make sure the robots' hostnames resolve on the new network.** The server dials

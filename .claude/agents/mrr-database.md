@@ -342,7 +342,7 @@ chain line up: `RobotID N` → `RobotBaseID N` → `AIM-0N`.
 | 6 | AIM-06 | AIM-427D7018 |
 | 7 | AIM-07 | AIM-1A5E7918 |
 
-The router's MAC/IP reservations are in `documents/RobotConnections.md`. If a robot is ever unreachable, `Player.ConnectAsync()`
+The router's MAC/IP reservations are in `documents/Archive/RobotConnections.md`. If a robot is ever unreachable, `Player.ConnectAsync()`
 catches the failure and logs `Connection failed`, leaving `isConnected` false.
 
 `Hostname` is the address the game dials: `GameController.StartGame()` (via

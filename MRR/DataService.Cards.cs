@@ -199,7 +199,7 @@ namespace MRR.Services
         ///   7. Rebuilds Robots.CardsDealt and Robots.CardsPlayed CSV strings (procUpdateRobotCards).
         /// </summary>
         /// <remarks>
-        /// NEEDS RE-CHECK once documents/ALLPLAYERS_REMOVAL_DESIGN.md's removal is fully in:
+        /// NEEDS RE-CHECK once documents/Archive/ALLPLAYERS_REMOVAL_DESIGN.md's removal is fully in:
         /// this method used to look up the robot's cached Player object via AllPlayers and set
         /// its PlayerStatus after the DB write below. That write-through was confirmed dead
         /// (nothing reads it before the next full reload) and has been removed, but this was
@@ -427,7 +427,7 @@ namespace MRR.Services
         }
 
         /// <summary>
-        /// Lock-in for robots that chose to shut down (documents/SHUTDOWN_DESIGN.md). For each
+        /// Lock-in for robots that chose to shut down (documents/Archive/SHUTDOWN_DESIGN.md). For each
         /// robot with ShutDown = Currently:
         ///   - every damage card (Spam and Haywire) in its registers, hand and discard pile goes
         ///     to the damage discard pile (CardLocation 5, the same pile spent Spam goes to; the

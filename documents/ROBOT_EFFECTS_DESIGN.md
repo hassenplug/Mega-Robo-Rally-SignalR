@@ -11,7 +11,7 @@ shooter-facing LED. Sound names and LED geometry below come from
 tried on hardware** (only `play_sound` / `blinker` is already used in the repo,
 [RobotScreenUI.cs:328](../MRR/RobotScreenUI.cs#L328)).
 **Date:** 2026-10-02
-**Related:** [RobotConnections.md](RobotConnections.md),
+**Related:** [RobotConnections.md](Archive/RobotConnections.md),
 [MRR/Devices/RobotConnection.cs](../MRR/Devices/RobotConnection.cs),
 [MRR/Players.cs](../MRR/Players.cs), [MRR/CommandProcess.cs](../MRR/CommandProcess.cs),
 [MRR.Contracts/CommandList.cs](../MRR.Contracts/CommandList.cs)

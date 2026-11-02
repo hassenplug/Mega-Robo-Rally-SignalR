@@ -1,7 +1,7 @@
 namespace MRR.Tests;
 
 /// <summary>
-/// Spec test for the shutdown mechanic's turn-planning half (documents/SHUTDOWN_DESIGN.md
+/// Spec test for the shutdown mechanic's turn-planning half (documents/Archive/SHUTDOWN_DESIGN.md
 /// section 3): a shut-down robot plays no registers and fires no laser, but is still physically
 /// on the board, so another robot driving into it pushes it. The lock-in card moves and the
 /// toggle live in DataService (MySQL) and are checked manually on the table.
