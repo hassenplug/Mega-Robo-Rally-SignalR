@@ -222,6 +222,21 @@ Unreferenced image files: `wwwroot/images/Direction2.png`–`Direction4.png`,
   the GPIO header, so a HAT is now possible). Options: manual
   `sudo shutdown -h now`, a bank with a battery display, or a shutdown button on the GM menu
 
+- [ ] Design a printable case for the Pi, its screen, and the router, in OpenSCAD
+  (`cad/pi-case.scad`, currently an empty file). Requirements:
+  - Holds the Raspberry Pi and the screen, with a place to hold the router
+  - Protects the front of the screen and its edge
+  - The screen and Pi slide in through the bottom of the case
+  - The screen has four screw holes on its back; the case has matching holes so screws secure
+    the screen
+  - The bottom of the case is angled so the screen tilts at the same angle as the screen's
+    included legs
+  - A pocket in the back holds the router, sitting at the same angle as the screen
+  - Parts: Raspberry Pi 4 + Hosyond 5" DSI screen (`PROJECT_STATUS.md` §1.9) and the Ubiquiti
+    UniFi Travel Router (`install/NETWORK_SETUP.md`)
+  - Not recorded anywhere in the repo: the screen's physical outline and screw-hole spacing
+    and thread, the leg angle, the router's dimensions, and the Pi's port/cable clearances
+
 ---
 
 ## Section 6 — Infrastructure / Setup
