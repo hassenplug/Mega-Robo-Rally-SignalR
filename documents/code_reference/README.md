@@ -19,11 +19,11 @@ This is a regex and brace-depth scan, **not** a compiler. Treat it as a map to s
 
 | File | Covers | Members |
 |---|---|---|
-| [MRR.md](MRR.md) | C# methods and constructors in `MRR/` | 231 |
+| [MRR.md](MRR.md) | C# methods and constructors in `MRR/` | 232 |
 | [MRR.Config.md](MRR.Config.md) | C# methods and constructors in `MRR.Config/` | 31 |
 | [MRR.Contracts.md](MRR.Contracts.md) | C# methods and constructors in `MRR.Contracts/` | 114 |
 | [MRR.Rules.md](MRR.Rules.md) | C# methods and constructors in `MRR.Rules/` | 24 |
-| [MRR.Tests.md](MRR.Tests.md) | C# methods and constructors in `MRR.Tests/` | 62 |
+| [MRR.Tests.md](MRR.Tests.md) | C# methods and constructors in `MRR.Tests/` | 64 |
 | [MRR.Tools.CodeReference.md](MRR.Tools.CodeReference.md) | C# methods and constructors in `MRR.Tools.CodeReference/` | 5 |
 | [MRR.Tools.FirmwareCompare.md](MRR.Tools.FirmwareCompare.md) | C# methods and constructors in `MRR.Tools.FirmwareCompare/` | 14 |
 | [MRR.Tools.RobotSpriteDraw.md](MRR.Tools.RobotSpriteDraw.md) | C# methods and constructors in `MRR.Tools.RobotSpriteDraw/` | 10 |

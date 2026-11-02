@@ -54,7 +54,7 @@ Still-open features are expected here: Haywire and Option card effects are unfin
 | [startSignalR](../../MRR/wwwroot/databaseold.html#L124) | `function startSignalR()` | [database.html:114](../../MRR/wwwroot/database.html#L114); [database.html:130](../../MRR/wwwroot/database.html#L130); [databaseold.html:140](../../MRR/wwwroot/databaseold.html#L140) |
 | [gmToggleExtrasPanel](../../MRR/wwwroot/gmindex.html#L349) | `function gmToggleExtrasPanel()` | [gmindex.html:436](../../MRR/wwwroot/gmindex.html#L436) |
 
-## Framework / convention entry points (expected to have no explicit callers) (44)
+## Framework / convention entry points (expected to have no explicit callers) (45)
 
 | Function | Signature |
 |---|---|
@@ -68,11 +68,12 @@ Still-open features are expected here: Haywire and Option card effects are unfin
 | [CreateCommandsZeroSquareTests.MovingOntoSquareZeroZero_PlansTheRealDestination](../../MRR.Tests/CreateCommandsZeroSquareTests.cs#L13) | `public void MovingOntoSquareZeroZero_PlansTheRealDestination()` |
 | [GridAlignmentTests.Centered_FindsBothPlusesAtTheirCenters](../../MRR.Tests/GridAlignmentTests.cs#L49) | `public void Centered_FindsBothPlusesAtTheirCenters()` |
 | [GridAlignmentTests.Shifted_ReportsLateralAndHeightOffsets](../../MRR.Tests/GridAlignmentTests.cs#L63) | `public void Shifted_ReportsLateralAndHeightOffsets()` |
-| [GridAlignmentTests.Rotated_MeasuresTilt](../../MRR.Tests/GridAlignmentTests.cs#L78) | `public void Rotated_MeasuresTilt(double rotateDeg)` |
-| [GridAlignmentTests.Noisy_StillFindsPluses](../../MRR.Tests/GridAlignmentTests.cs#L87) | `public void Noisy_StillFindsPluses()` |
-| [GridAlignmentTests.TJunctions_AreNotPluses](../../MRR.Tests/GridAlignmentTests.cs#L96) | `public void TJunctions_AreNotPluses()` |
-| [GridAlignmentTests.NoLines_NotFound](../../MRR.Tests/GridAlignmentTests.cs#L102) | `public void NoLines_NotFound()` |
-| [GridAlignmentTests.NotAnImage_NotFound](../../MRR.Tests/GridAlignmentTests.cs#L108) | `public void NotAnImage_NotFound()` |
+| [GridAlignmentTests.Rotated_MeasuresTilt](../../MRR.Tests/GridAlignmentTests.cs#L80) | `public void Rotated_MeasuresTilt(double rotateDeg)` |
+| [GridAlignmentTests.Noisy_StillFindsPluses](../../MRR.Tests/GridAlignmentTests.cs#L89) | `public void Noisy_StillFindsPluses()` |
+| [GridAlignmentTests.TJunctions_AreNotPluses](../../MRR.Tests/GridAlignmentTests.cs#L98) | `public void TJunctions_AreNotPluses()` |
+| [GridAlignmentTests.NoLines_NotFound](../../MRR.Tests/GridAlignmentTests.cs#L104) | `public void NoLines_NotFound()` |
+| [GridAlignmentTests.RealFrame_Aim07_FindsFrontCornerPluses](../../MRR.Tests/GridAlignmentTests.cs#L114) | `public void RealFrame_Aim07_FindsFrontCornerPluses()` |
+| [GridAlignmentTests.NotAnImage_NotFound](../../MRR.Tests/GridAlignmentTests.cs#L139) | `public void NotAnImage_NotFound()` |
 | [LaserTests.Laser_HitsRobotInLine](../../MRR.Tests/LaserTests.cs#L62) | `public void Laser_HitsRobotInLine(int sx, int sy, Direction facing, int tx, int ty)` |
 | [LaserTests.Laser_FacingOffTheBoard_HitsNothing](../../MRR.Tests/LaserTests.cs#L68) | `public void Laser_FacingOffTheBoard_HitsNothing()` |
 | [LaserTests.ShutDownRobot_DoesNotFire](../../MRR.Tests/LaserTests.cs#L75) | `public void ShutDownRobot_DoesNotFire()` |

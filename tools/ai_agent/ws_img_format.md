@@ -1,16 +1,18 @@
-# AIM Robot — ws_img Format (UNKNOWN — Needs Empirical Testing)
+# AIM Robot — ws_img Format (frame format confirmed 2026-10-29)
 
 ## Endpoint
 
 ```
-ws://{ipAddress}:80/ws_img
+ws://{Hostname}:80/ws_img
 ```
 
 Documented in `robo-rally-dev.md §2.1` as "image channel (camera feed, optional)."
 
 ## Current Status
 
-The wire format has **never been tested against a live robot** (as of 2026-04-28). `GridAlignmentAgent.ExtractImageBytes()` handles two guesses:
+**Confirmed on AIM-07, 2026-10-29:** after connecting and sending one `0x01` byte, the robot sends **one binary WebSocket message containing a raw JPEG** (starts `FF D8 FF FE`, ~23 KB, 640×480). No `program_init` and no `ws_cmd` connection were needed. Still unknown: whether more frames follow (only the first was read) and whether the frame rate is controllable.
+
+`GridAlignmentAgent.ExtractImageBytes()` handles two formats:
 
 1. **Raw JPEG** — bytes starting with `0xFF 0xD8 0xFF`
 2. **JSON with base64 image** — a JSON object with one of these keys: `"image"`, `"data"`, `"frame"`, `"jpeg"`

@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grid Alignment</title>
+<style>
+    body { background: #222; color: #fff; font-family: Arial, sans-serif; margin: 0; padding: 12px; }
+    h1 { font-size: 20px; margin: 0 0 10px; }
+    .nav { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+    .nav select, .nav button { font-size: 18px; padding: 4px 10px; }
+    #status { color: #aaa; }
+    #status.error { color: #ff6666; }
+    #image { display: block; max-width: 100%; border: 1px solid #444; margin-bottom: 12px; }
+    #json { background: #111; border: 1px solid #444; padding: 10px; font-size: 14px; max-width: 640px; overflow-x: auto; }
+</style>
+</head>
+<body>
+<h1>Grid Alignment</h1>
+<div class="nav">
+    <select id="robot"></select>
+    <button id="align">Align</button>
+    <span id="status"></span>
+</div>
+<!-- Camera frame from the last alignment step: dark pixels red, found pluses green. -->
+<img id="image" alt="Alignment image" style="display:none;">
+<pre id="json" style="display:none;"></pre>
+<script>
+    var robotSelect = document.getElementById('robot');
+    var alignButton = document.getElementById('align');
+
+    function setStatus(text, isError) {
+        var status = document.getElementById('status');
+        status.textContent = text;
+        status.className = isError ? 'error' : '';
+    }
+
+    // Robots in the current game, from the same payload the GM screen uses.
+    function loadRobots() {
+        fetch('/api/state')
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                var selected = robotSelect.value;
+                robotSelect.innerHTML = '';
+                (data.robots || [])
+                    .sort(function (a, b) { return a.RobotID - b.RobotID; })
+                    .forEach(function (robot) {
+                        var option = document.createElement('option');
+                        option.value = robot.RobotID;
+                        option.textContent = robot.RobotID + ' - ' + robot.RobotName +
+                            ' (' + robot.Hostname + ') - ' + robot.ConnectStatusDesc;
+                        robotSelect.appendChild(option);
+                    });
+                if (selected) robotSelect.value = selected;
+                if (!robotSelect.options.length) setStatus('No robots in the current game.', true);
+            })
+            .catch(function (e) { setStatus('Could not load robots: ' + e, true); });
+    }
+
+    // Runs the full alignment loop (the robot moves), then shows the last image and the result.
+    alignButton.onclick = function () {
+        var robotId = robotSelect.value;
+        if (!robotId) return;
+        alignButton.disabled = true;
+        setStatus('Aligning robot ' + robotId + '... (the robot will move)');
+        fetch('/api/robot/alignthis/' + robotId)
+            .then(function (r) {
+                return r.text().then(function (text) {
+                    if (!r.ok) throw new Error('HTTP ' + r.status + ': ' + text);
+                    return JSON.parse(text);
+                });
+            })
+            .then(function (result) {
+                var json = document.getElementById('json');
+                json.textContent = JSON.stringify(result, null, 2);
+                json.style.display = 'block';
+
+                var image = document.getElementById('image');
+                if (result.imageFile) {
+                    image.src = '/api/robot/alignimage/' + encodeURIComponent(result.imageFile);
+                    image.style.display = 'block';
+                } else {
+                    image.style.display = 'none';
+                }
+                setStatus(result.found ? 'Done - pluses found.' : 'Done - pluses NOT found.', !result.found);
+            })
+            .catch(function (e) { setStatus(e.message, true); })
+            .finally(function () { alignButton.disabled = false; loadRobots(); });
+    };
+
+    loadRobots();
+</script>
+</body>
+</html>

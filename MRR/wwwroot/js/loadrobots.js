@@ -22,6 +22,7 @@ function toggleFlagsHeader() {
 // below to claim a seat the first time -- see showSetupScreen().
 var LOGIN_COOKIE = "mrr_seat";
 var GM_CODE = "0555";
+var GM_INDEX_CODE = "0556"; // opens gmindex.html (the GM status page) instead of logging in here
 var IsGM = false;
 var LoggedInRobotID = null; // set once the cookie's seat matches a robot in the current game
 
@@ -61,6 +62,12 @@ function setPageBackground(hexColor) {
 function attemptSeatLogin() {
     var value = document.getElementById('seatLoginInput').value.trim();
     var errorMsg = document.getElementById('loginError');
+
+    // gmindex.html sets its own GM cookie, so just go there.
+    if (value === GM_INDEX_CODE) {
+        window.location.href = 'gmindex.html';
+        return;
+    }
 
     if (value === GM_CODE) {
         errorMsg.style.display = 'none';
@@ -569,7 +576,7 @@ function showRow(id, show) {
     if (row) row.style.display = show ? '' : 'none';
 }
 
-// The Spam Cards / Last Hand lists are fetched, not broadcast. showplayerprogram runs on every
+// The Show My Deck / Last Hand lists are fetched, not broadcast. showplayerprogram runs on every
 // broadcast, so fetch again only when something that could change the list has changed: the
 // robot, the view, the game state, or the robot's dealt/played cards.
 var cardListKey = null;

@@ -50,7 +50,7 @@ The AIM robot's `ws_img` socket (`ws://{ip}:80/ws_img`) streams JPEG frames on d
 
 - First frame latency: ~300 ms
 - Subsequent frames: immediate
-- Format: **raw JPEG bytes** (per API documentation; pending hardware validation — see `ws_img_format.md`)
+- Format: **raw JPEG bytes**, 640×480 (confirmed on AIM-07 2026-10-29 — see `ws_img_format.md`)
 
 ### C# Receive + Decode Pattern
 
