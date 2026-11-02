@@ -27,14 +27,40 @@ public record PlusAnalysis(
 
     // Normalized Y of the plus midpoint.
     public double MidY => Found ? (LeftPlusY + RightPlusY) / 2.0 : 0;
+
+    // Vanishing point of the two side lines (normalized, -1 if they could not be fitted). The
+    // side lines are parallel on the board, so this point moves sideways only when the robot
+    // turns, not when it slides: it is the rotation measure, and positions are taken relative
+    // to it so they don't include rotation.
+    public double VanishingX { get; init; } = -1;
+    public double VanishingY { get; init; } = -1;
+    public bool HasVanishingPoint => Found && VanishingX >= 0;
+
+    // Rotation: vanishing point's offset from image center. Positive = robot turned left.
+    public double YawOffsetNorm => HasVanishingPoint ? VanishingX - 0.5 : 0;
+
+    // Sideways position: plus midpoint relative to the vanishing point, so turning (which moves
+    // both equally) doesn't change it. Positive = robot shifted left.
+    public double PositionOffsetNorm => HasVanishingPoint ? (LeftPlusX + RightPlusX) / 2.0 - VanishingX : 0;
+
+    // File name (in GridAlignmentAgent.ImageDirectory) of the marked-up image this result came
+    // from, or null if none was saved. Served by GET /api/robot/alignimage/{file}.
+    public string? ImageFile { get; init; }
+}
+
+// One correction step, planned from one camera frame: a single drive_for in any direction
+// (sideways and forward/back combined), then a turn_for. DriveMm 0 = no drive, TurnDeg 0 = no turn.
+public record AlignmentMove(int DriveMm, int DriveAngleDeg, double TurnDeg)
+{
+    public static readonly AlignmentMove None = new(0, 0, 0);
+    public bool IsNone => DriveMm == 0 && TurnDeg == 0;
 }
 
 // Captures a camera frame via ws_img, finds the two "plus" intersections of the black grid
 // lines at the front-left and front-right corners of the robot's square, and nudges the robot
-// until the pluses sit symmetrically about the image center:
-//   1. Rotate until the two pluses are level.
-//   2. Strafe until their midpoint is horizontally centered.
-//   3. Drive forward/back until they are at TargetPlusHeightNorm.
+// until the pluses sit symmetrically about the image center: level, midpoint horizontally
+// centered, and at TargetPlusHeightNorm. Each step corrects all three from one frame (see
+// PlanMove), so the robot never has to see the pluses between a move and a turn.
 public static class GridAlignmentAgent
 {
     // ── Tunable constants ─────────────────────────────────────────────────────
@@ -46,7 +72,7 @@ public static class GridAlignmentAgent
 
     // Only rows below this fraction of the height are searched (0 = whole frame). The AIM
     // camera looks nearly straight ahead, so the front line sits just below the middle.
-    private const double SearchTopNorm = 0.4;
+    private const double SearchTopNorm = 0.5;
 
     // The front line must have at least this many fully-dark rows' worth of dark pixels in
     // each third of the image width (summed over ±LineBandNorm). Requiring all three thirds
@@ -77,17 +103,44 @@ public static class GridAlignmentAgent
     private const int    TrackWindowPx  = 4;
     private const double MinArmFraction = 0.6;
 
-    // Correction thresholds — don't move if already within these limits.
-    private const double RotationThresholdDeg  = 1.0;   // degrees
-    private const double LateralThresholdNorm  = 0.04;  // fraction of image width
-    private const double ForwardThresholdNorm  = 0.04;  // fraction of image height
+    // Side lines are also followed down from each plus for SideLineFitNorm of the image height
+    // and fitted with a straight line, to find their vanishing point. Each row re-centers on
+    // the dark pixels within ±SideLineWindowPx; rows with more than SideLineMaxDarkPx of them
+    // (a blob) or none are skipped. At least MinSideLineFraction of the rows must be usable.
+    private const double SideLineFitNorm     = 0.23;
+    private const int    SideLineWindowPx    = 6;
+    private const int    SideLineMaxDarkPx   = 12;
+    private const double MinSideLineFraction = 0.3;
 
-    // Nudge distance per unit of normalized offset (mm).
-    private const double LateralScaleMm = 60.0;
-    private const double ForwardScaleMm = 60.0;
+    // Correction thresholds — don't move if already within these limits. In mm on AIM-04:
+    // lateral 0.02 ≈ 1.9 mm, forward 0.015 ≈ 2.6 mm (see the scales below). At 0.04 each, runs
+    // backing up from too close stopped at the near edge of the band, ~6 mm short of center.
+    private const double RotationThresholdDeg  = 1.0;   // degrees
+    private const double LateralThresholdNorm  = 0.02;  // fraction of image width
+    private const double ForwardThresholdNorm  = 0.015; // fraction of image height
+
+    // Nudge distance per unit of normalized offset (mm), measured on AIM-04 (2026-11-01).
+    // LateralScaleMm is per unit of PositionOffsetNorm: eight 2-4 mm sideways drives moved it
+    // 0.0105/mm (67-114 mm per unit, rotation removed), so 95. ForwardScaleMm is per unit of
+    // MidY: thirteen 3-7 mm backward drives moved it 0.0058/mm (52 mm, 0.303), so 172. Forward
+    // drives were not measured.
+    private const double LateralScaleMm = 95.0;
+    private const double ForwardScaleMm = 172.0;
 
     // Speed used for nudge corrections (percent).
     private const int NudgeSpeed = 50;
+
+    // How far the vanishing point moves per degree of turn_for, as a fraction of image width.
+    // Nine turn-only steps on AIM-07 (2026-11-01): 4-24.5 px per degree on a 640 px frame --
+    // small turns are imprecise -- median 18.6 px, so -0.029. Negative: turn_for +1° moves it left.
+    private const double VanishingShiftPerTurnDeg = -0.029;
+
+    // Fallback only (no vanishing point): LateralShiftPerTurnDeg is how far a turn slides the
+    // pluses sideways in the frame, per degree of turn_for: the camera
+    // looks straight ahead, so turning pans the view. Measured on AIM-07 (2026-11-01) from four
+    // rotate-only steps: -0.015 to -0.017 each (e.g. turn -6.94° -> lateral 0.003 -> 0.115).
+    // PlanMove adds this to the sideways correction so the pluses end up centered after the turn.
+    private const double LateralShiftPerTurnDeg = -0.016;
 
     // Where we want the two pluses to sit vertically in the frame (0=top, 1=bottom).
     // 0.575 is where they were in the first real AIM-07 frame (2026-10-29), with the robot
@@ -100,8 +153,8 @@ public static class GridAlignmentAgent
 
     // ── Main entry point ─────────────────────────────────────────────────────
 
-    // Capture image → find pluses → correct in order: rotation, lateral, forward/back.
-    // Loops until aligned or maxIterations exhausted.
+    // Capture image → find pluses → one combined drive + turn (PlanMove) → repeat.
+    // Loops until aligned, the pluses are lost, or maxIterations is used up.
     public static async Task<PlusAnalysis> AlignAsync(RobotConnection robot, int maxIterations = 10)
     {
         var last = PlusAnalysis.NotFound;
@@ -117,72 +170,46 @@ public static class GridAlignmentAgent
 
             var imageData = ExtractImageBytes(bytes);
             last = FindPluses(imageData);
-            SaveDebugImages(imageData, robot.Hostname ?? "unknown", last);
+            last = last with { ImageFile = SaveDebugImages(imageData, robot.Hostname ?? "unknown", last) };
             Console.WriteLine(
                 $"[GridAlign] iter={i} found={last.Found} " +
                 $"left=({last.LeftPlusX:F3},{last.LeftPlusY:F3}) " +
                 $"right=({last.RightPlusX:F3},{last.RightPlusY:F3}) " +
-                $"tilt={last.TiltDeg:F2}° lateral={last.LateralOffsetNorm:F3} midY={last.MidY:F3}");
+                $"tilt={last.TiltDeg:F2}° lateral={last.LateralOffsetNorm:F3} midY={last.MidY:F3} " +
+                $"yaw={last.YawOffsetNorm:F3} pos={last.PositionOffsetNorm:F3} vp={last.HasVanishingPoint}");
 
             if (!last.Found) break;
 
-            bool needsRotation = Math.Abs(last.TiltDeg) > RotationThresholdDeg;
-            bool needsLateral  = Math.Abs(last.LateralOffsetNorm) > LateralThresholdNorm;
-            bool needsForward  = Math.Abs(last.MidY - TargetPlusHeightNorm) > ForwardThresholdNorm;
+            var move = PlanMove(last);
+            if (move.IsNone) break;
+            Console.WriteLine($"[GridAlign] iter={i} move: drive {move.DriveMm} mm at {move.DriveAngleDeg}°, turn {move.TurnDeg:F2}°");
 
-            if (!needsRotation && !needsLateral && !needsForward) break;
+            // Drive first: when the robot is too close or off to one side, turning first can
+            // swing a plus out of view. The next frame is only taken after both.
+            if (move.DriveMm > 0)
+            {
+                await robot.SendCommandAsync(new
+                {
+                    cmd_id        = "drive_for",
+                    distance      = move.DriveMm,
+                    angle         = move.DriveAngleDeg,
+                    drive_speed   = NudgeSpeed,
+                    turn_speed    = 0,
+                    final_heading = 0,
+                    stacking_type = 0
+                });
+                await robot.WaitForStopAsync();
+            }
 
-            // Phase 1: resolve rotation before lateral/forward corrections are meaningful.
-            if (needsRotation)
+            if (move.TurnDeg != 0)
             {
                 // Turn by the tilt itself. Negating it turned the wrong way on AIM-07 (2026-10-29):
                 // tilt -8.2° -> turn_for +8.2 -> tilt -10.3°, then the pluses left the frame.
                 await robot.SendCommandAsync(new
                 {
                     cmd_id    = "turn_for",
-                    angle     = last.TiltDeg,
+                    angle     = move.TurnDeg,
                     turn_rate = 50,
-                    stacking_type = 0
-                });
-                await robot.WaitForStopAsync();
-                continue;
-            }
-
-            // Phase 2: strafe until the plus midpoint is centered.
-            if (needsLateral)
-            {
-                double nudgeMm = last.LateralOffsetNorm * LateralScaleMm;
-                // LateralOffsetNorm > 0 = midpoint right of center = robot shifted left = strafe right (+90).
-                // LateralOffsetNorm < 0 = midpoint left of center  = robot shifted right = strafe left (-90).
-                await robot.SendCommandAsync(new
-                {
-                    cmd_id        = "drive_for",
-                    distance      = (int)Math.Abs(nudgeMm),
-                    angle         = nudgeMm > 0 ? 90 : -90,
-                    drive_speed   = NudgeSpeed,
-                    turn_speed    = 0,
-                    final_heading = 0,
-                    stacking_type = 0
-                });
-                await robot.WaitForStopAsync();
-                continue;
-            }
-
-            // Phase 3: drive forward/back until the pluses are at target height.
-            if (needsForward)
-            {
-                double forwardOffset = last.MidY - TargetPlusHeightNorm;
-                // forwardOffset > 0 = pluses below target = robot is too far forward = move back (180°).
-                // forwardOffset < 0 = pluses above target = robot hasn't reached them = move forward (0°).
-                double nudgeMm = Math.Abs(forwardOffset) * ForwardScaleMm;
-                await robot.SendCommandAsync(new
-                {
-                    cmd_id        = "drive_for",
-                    distance      = (int)nudgeMm,
-                    angle         = forwardOffset > 0 ? 180 : 0,
-                    drive_speed   = NudgeSpeed,
-                    turn_speed    = 0,
-                    final_heading = 0,
                     stacking_type = 0
                 });
                 await robot.WaitForStopAsync();
@@ -190,6 +217,50 @@ public static class GridAlignmentAgent
         }
 
         return last;
+    }
+
+    // The correction for one frame. Each of the three errors is corrected only if it is outside
+    // its threshold. Sideways and forward/back combine into one drive: DriveAngleDeg is the
+    // direction to travel relative to the robot (0 = forward, 90 = right, 180 = back,
+    // -90 = left), the same convention as drive_for's angle.
+    //
+    // The turn also slides the view sideways (LateralShiftPerTurnDeg), so the sideways
+    // correction is planned against where the pluses will be after the turn. Without this, a
+    // robot that is close and needs a big turn can lose a plus off the edge of the frame.
+    //
+    // With a vanishing point (the normal case on the real camera), rotation and position are
+    // measured separately: turn until the vanishing point is centered, and drive sideways by the
+    // plus midpoint's offset from the vanishing point. The front line's tilt is not used: on
+    // AIM-07 it read level with the robot ~1.4° turned left (vanishing point +25 px), which left
+    // the robot turned left and shifted right. Without one, falls back to tilt and the predicted
+    // sideways slide.
+    public static AlignmentMove PlanMove(PlusAnalysis analysis)
+    {
+        if (!analysis.Found) return AlignmentMove.None;
+
+        double rotationDeg = analysis.HasVanishingPoint
+            ? -analysis.YawOffsetNorm / VanishingShiftPerTurnDeg
+            : analysis.TiltDeg;
+        double turnDeg = Math.Abs(rotationDeg) > RotationThresholdDeg ? rotationDeg : 0;
+        double lateralAfterTurn = analysis.HasVanishingPoint
+            ? analysis.PositionOffsetNorm
+            : analysis.LateralOffsetNorm + LateralShiftPerTurnDeg * turnDeg;
+        double forwardOffset = analysis.MidY - TargetPlusHeightNorm;
+
+        // Positive = right. Midpoint right of center = robot shifted left = move right.
+        double rightMm = Math.Abs(lateralAfterTurn) > LateralThresholdNorm
+            ? lateralAfterTurn * LateralScaleMm : 0;
+        // Positive = forward. forwardOffset > 0 = pluses below target = robot too far forward
+        // = move back.
+        double forwardMm = Math.Abs(forwardOffset) > ForwardThresholdNorm
+            ? -forwardOffset * ForwardScaleMm : 0;
+
+        // drive_for with distance 0 drives without stopping, so a drive that rounds to 0 mm is
+        // dropped rather than sent.
+        int driveMm = (int)Math.Round(Math.Sqrt(rightMm * rightMm + forwardMm * forwardMm));
+        int angleDeg = driveMm > 0 ? (int)Math.Round(Math.Atan2(rightMm, forwardMm) * 180.0 / Math.PI) : 0;
+
+        return new AlignmentMove(driveMm, angleDeg, turnDeg);
     }
 
     // ── Plus detection ────────────────────────────────────────────────────────
@@ -306,19 +377,63 @@ public static class GridAlignmentAgent
             double rx = rightX.Value, ry = LineY(rx);
             double tiltDeg = Math.Atan2(ry - ly, rx - lx) * 180.0 / Math.PI;
 
-            return new PlusAnalysis(
+            var result = new PlusAnalysis(
                 Found:      true,
                 LeftPlusX:  lx / w,
                 LeftPlusY:  ly / h,
                 RightPlusX: rx / w,
                 RightPlusY: ry / h,
                 TiltDeg:    tiltDeg);
+
+            // Vanishing point: where the two side lines, followed down from the pluses, meet.
+            var leftLine  = FitSideLine(dark, w, h, lx, ly, gap);
+            var rightLine = FitSideLine(dark, w, h, rx, ry, gap);
+            if (leftLine == null || rightLine == null) return result;
+            var (la, lb) = leftLine.Value;
+            var (ra, rb) = rightLine.Value;
+            if (Math.Abs(lb - rb) < 1e-3) return result;   // parallel in the image: no perspective
+            double vy = (ra - la) / (lb - rb);
+            double vx = la + lb * vy;
+            if (vx < 0 || vx >= w || vy >= Math.Min(ly, ry)) return result;   // not ahead of the pluses
+            return result with { VanishingX = vx / w, VanishingY = vy / h };
         }
         catch (Exception ex)
         {
             Console.WriteLine($"[GridAlign] Plus analysis error: {ex.Message}");
             return PlusAnalysis.NotFound;
         }
+    }
+
+    // Follow a side line down from its plus at (px, py) and fit x = a + b·y through the dark-run
+    // centers. Returns null if too few rows were usable.
+    private static (double A, double B)? FitSideLine(bool[] dark, int w, int h, double px, double py, int gap)
+    {
+        int y0 = (int)py + gap, y1 = Math.Min(h - 1, (int)py + (int)(h * SideLineFitNorm));
+        var ys = new List<double>();
+        var xs = new List<double>();
+        double cx = px;
+        for (int y = y0; y <= y1; y++)
+        {
+            int sum = 0, count = 0;
+            for (int x = (int)cx - SideLineWindowPx; x <= (int)cx + SideLineWindowPx; x++)
+                if (x >= 0 && x < w && dark[y * w + x]) { sum += x; count++; }
+            if (count == 0 || count > SideLineMaxDarkPx) continue;
+            cx = (double)sum / count;
+            xs.Add(cx);
+            ys.Add(y);
+        }
+        if (xs.Count < (y1 - y0 + 1) * MinSideLineFraction || xs.Count < 3) return null;
+
+        double meanY = ys.Average(), meanX = xs.Average();
+        double syy = 0, sxy = 0;
+        for (int i = 0; i < xs.Count; i++)
+        {
+            syy += (ys[i] - meanY) * (ys[i] - meanY);
+            sxy += (ys[i] - meanY) * (xs[i] - meanX);
+        }
+        if (syy < 1e-9) return null;
+        double b = sxy / syy;
+        return (meanX - b * meanY, b);
     }
 
     // Least-squares fit y = at0 + slope·x through the dark-pixel centroid of each of 16
@@ -397,7 +512,8 @@ public static class GridAlignmentAgent
 
     // Save original image and an annotated copy (black pixels → red, found pluses → green)
     // to ImageDirectory. Both files share the same timestamp so they pair up in the listing.
-    private static void SaveDebugImages(byte[] imageData, string hostname, PlusAnalysis analysis)
+    // Returns the annotated copy's file name, or null if saving failed.
+    private static string? SaveDebugImages(byte[] imageData, string hostname, PlusAnalysis analysis)
     {
         try
         {
@@ -433,6 +549,22 @@ public static class GridAlignmentAgent
                 }
 
                 if (!analysis.Found) return;
+                if (analysis.HasVanishingPoint)
+                {
+                    // Fitted side lines, drawn from each plus up to the vanishing point.
+                    double vx = analysis.VanishingX * w, vy = analysis.VanishingY * h;
+                    foreach (var (nx, ny) in new[] { (analysis.LeftPlusX, analysis.LeftPlusY), (analysis.RightPlusX, analysis.RightPlusY) })
+                    {
+                        double px = nx * w, py = ny * h;
+                        int steps = (int)Math.Max(Math.Abs(px - vx), Math.Abs(py - vy));
+                        for (int k = 0; k <= steps; k++)
+                        {
+                            int x = (int)Math.Round(px + (vx - px) * k / Math.Max(1, steps));
+                            int y = (int)Math.Round(py + (vy - py) * k / Math.Max(1, steps));
+                            if (x >= 0 && x < w && y >= 0 && y < h) accessor.GetRowSpan(y)[x] = new Rgb24(255, 255, 0);
+                        }
+                    }
+                }
                 int arm = Math.Max(4, (int)(w * ArmLengthNorm));
                 foreach (var (nx, ny) in new[] { (analysis.LeftPlusX, analysis.LeftPlusY), (analysis.RightPlusX, analysis.RightPlusY) })
                 {
@@ -447,11 +579,14 @@ public static class GridAlignmentAgent
                         }
                 }
             });
-            img.Save(Path.Combine(dir, $"align_{safe}_{ts}_pluses.jpg"));
+            var file = $"align_{safe}_{ts}_pluses.jpg";
+            img.Save(Path.Combine(dir, file));
+            return file;
         }
         catch (Exception ex)
         {
             Console.WriteLine($"[GridAlign] SaveDebugImages error: {ex.Message}");
+            return null;
         }
     }
 

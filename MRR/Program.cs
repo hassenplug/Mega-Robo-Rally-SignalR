@@ -305,6 +305,16 @@ app.MapGet("/api/robot/alignthis/{robotId:int}", async (int robotId, DataService
     return Results.Ok(result);
 });
 
+// The marked-up image named by an align result's imageFile, for align.html. Only bare
+// "*_pluses.jpg" names inside GridAlignmentAgent.ImageDirectory -- no paths.
+app.MapGet("/api/robot/alignimage/{file}", (string file) =>
+{
+    if (file != Path.GetFileName(file) || !file.EndsWith("_pluses.jpg"))
+        return Results.BadRequest(new { error = "not an alignment image name" });
+    var path = Path.GetFullPath(Path.Combine(GridAlignmentAgent.ImageDirectory, file));
+    return File.Exists(path) ? Results.File(path, "image/jpeg") : Results.NotFound();
+});
+
 app.MapGet("/api/robot/{function?}/{parameter1?}", async (string? function, string? parameter1, DataService dataService, IHubContext<DataHub> hubContext, GameController gameController) =>
 {
 

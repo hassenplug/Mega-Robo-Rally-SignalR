@@ -31,8 +31,14 @@ RobotConnection.GetCameraImageAsync()           ← ws://{Hostname}:80/ws_img, o
         ↓
 GridAlignmentAgent.FindPluses(byte[])           → PlusAnalysis
         ↓
-turn_for / drive_for nudge + WaitForStopAsync
+GridAlignmentAgent.PlanMove(PlusAnalysis)       → AlignmentMove (one drive + one turn)
+        ↓
+drive_for (any direction), then turn_for; WaitForStopAsync after each
 ```
+
+## Test Page
+
+`http://<server>:5000/align.html`: pick a robot, press **Align**. It calls `alignthis/{RobotID}` (the robot moves), then shows the last marked-up camera image and the JSON result. The result's `imageFile` names that image; `GET /api/robot/alignimage/{imageFile}` serves it from `ImageDirectory` (bare `*_pluses.jpg` names only).
 
 ## How Detection Works
 
@@ -47,13 +53,38 @@ Rows above `SearchTopNorm` (40% of the height) are ignored.
 
 No calibration. The robot is aligned when:
 
-| Correction (in this order) | Measured as | Target |
+| Error | Measured as | Target |
 |---|---|---|
-| 1. Rotate (`turn_for`) | `TiltDeg` = angle of the line from left plus to right plus | 0° |
-| 2. Strafe (`drive_for` ±90°) | `LateralOffsetNorm` = plus midpoint X − 0.5 | 0 |
-| 3. Forward/back (`drive_for` 0°/180°) | `MidY` = plus midpoint Y | `TargetPlusHeightNorm` (0.575) |
+| Rotation | `TiltDeg` = angle of the line from left plus to right plus | 0° |
+| Sideways | `LateralOffsetNorm` = plus midpoint X − 0.5 | 0 |
+| Forward/back | `MidY` = plus midpoint Y | `TargetPlusHeightNorm` (0.575) |
 
 This assumes the camera is mounted dead-center and straight. If it isn't, the robot will end up consistently off by the camera's offset.
+
+### Rotation and position from the vanishing point (since 2026-11-01)
+
+The two side lines are parallel on the board, so in the frame they meet at a **vanishing point** (≈ row 95–99 on AIM-04/07). It moves sideways when the robot **turns**, not when it slides. So:
+
+- **Rotation** = vanishing point's offset from image center (`YawOffsetNorm`). Turn = offset ÷ `VanishingShiftPerTurnDeg`.
+- **Sideways position** = plus midpoint minus vanishing point (`PositionOffsetNorm`). Turning moves both equally, so this is pure position.
+
+Why: with the front line's tilt as the rotation measure, AIM-04 runs (2026-11-01, 21:49–21:54) all finished "aligned" with tilt ≈ −0.5° but the vanishing point **+12 to +39 px** (typically ~25 px, ≈1.4° turned left) and the side lines unevenly steep (left ≈ −0.93, right ≈ +0.72 = shifted right). On the board the robot was turned left and near the right edge. Tilt reads level ~1.4° off straight (likely a slight camera roll), and the code then slid the robot sideways to center a view that was off only because of the rotation.
+
+Also measured in those runs: **every sideways drive rotated the robot** (3–4 mm right moved the vanishing point −4 to −24.5 px), and **small turns are imprecise** (4–24.5 px per commanded degree). The loop absorbs both, one frame at a time.
+
+If the side lines can't be fitted (3 of 83 frames that night; synthetic test frames have no perspective), `PlanMove` falls back to tilt plus `LateralShiftPerTurnDeg`.
+
+"Centered vanishing point = straight" assumes the camera faces exactly forward. Each robot's camera may differ; if one robot always ends slightly turned, it needs a per-robot offset.
+
+The marked-up image draws the fitted side lines in yellow, from each plus up to the vanishing point.
+
+### One correction step per frame (since 2026-11-01)
+
+`PlanMove` turns one frame into one `AlignmentMove`: a single `drive_for` that combines sideways and forward/back (angle = `atan2(right, forward)`, 0 = forward, 90 = right, 180 = back), then a `turn_for` by `TiltDeg`. The next frame is only taken after both, so the robot never needs to see the pluses between the drive and the turn. Each error is only corrected if outside its threshold; a drive that rounds to 0 mm is never sent, because `drive_for` with distance 0 doesn't stop.
+
+Before this, each step did only one of rotate / strafe / drive, rotating first. When the robot was close and off to one side, the rotation slid a plus out of view and alignment stopped.
+
+**Turning slides the view sideways.** The camera looks straight ahead, so a turn pans the image. Four rotate-only steps on AIM-07 (2026-11-01, 21:29–21:30) each moved `LateralOffsetNorm` by −0.015 to −0.017 per degree of `turn_for` (e.g. turn −6.94° → lateral 0.003 → 0.115). `PlanMove` plans the sideways drive against the predicted post-turn offset, `LateralOffsetNorm + LateralShiftPerTurnDeg × turn`, so the pluses end up centered after the turn. The same steps also show each turn fixed only ~50–60% of the measured tilt; turns are not scaled up for this yet.
 
 ## Tunable Constants
 
@@ -66,7 +97,12 @@ This assumes the camera is mounted dead-center and straight. If it isn't, the ro
 | `MaxTiltDeg` | 10 | Tilts up to ~12° are found in practice |
 | `ArmGapNorm` / `ArmLengthNorm` | 0.015 / 0.025 | Distance from the line where side lines are looked for, and how far they're followed |
 | `MaxSideLineWidthNorm` | 0.08 | Raise if a near, thick side line is dropped as a blob |
-| `LateralScaleMm` / `ForwardScaleMm` | 60 | mm moved per unit of normalized offset — not yet tuned |
+| `LateralScaleMm` | 95 | mm per unit of `PositionOffsetNorm`; measured on AIM-04 from eight sideways drives (67–114) |
+| `ForwardScaleMm` | 172 | mm per unit of `MidY` error; measured from thirteen backward drives (0.0058 per mm). Was 60, which made each step a third too short |
+| `LateralThresholdNorm` / `ForwardThresholdNorm` | 0.02 / 0.015 | ≈ 1.9 mm / 2.6 mm. Were 0.04 (≈ 3.8 / 6.9 mm): runs backing up from too close stopped ~6 mm short |
+| `VanishingShiftPerTurnDeg` | −0.029 | Vanishing-point move per degree of `turn_for` (18.6 px on 640); median of nine turns that ranged 4–24.5 px/° |
+| `SideLineFitNorm` | 0.23 | How far below the pluses the side lines are followed to fit the vanishing point |
+| `LateralShiftPerTurnDeg` | −0.016 | Sideways slide of the pluses per degree turned; measured, see above |
 
 ## Test Results
 
