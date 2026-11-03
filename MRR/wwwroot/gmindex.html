@@ -142,7 +142,7 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
         </div>
     </div>
     <!-- What the right panel shows for the picked robot: the same views as index.html's
-         menu (setRightPanelView in js/loadrobots.js), plus Off. -->
+         menu (setRightPanelView in js/loadrobots.js), plus Off and Game Control. -->
     <div class="topMenuWrap" onclick="toggleTopMenu('displayMenu');">Display &#9662;
         <div id="displayMenu" class="topMenu w3-card-4" onclick="event.stopPropagation();">
             <button class="button" id="viewMenu-off" onclick="gmSetRightPanel('off');">Off</button>
@@ -150,6 +150,7 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
             <button class="button" id="viewMenu-shutdown" onclick="gmSetRightPanel('shutdown');">Shut Down</button>
             <button class="button" id="viewMenu-spam" onclick="gmSetRightPanel('spam');">Show My Deck</button>
             <button class="button" id="viewMenu-lasthand" onclick="gmSetRightPanel('lasthand');">Last Hand</button>
+            <button class="button" id="viewMenu-gamecontrol" onclick="gmSetRightPanel('gamecontrol');">Game Control</button>
         </div>
     </div>
 </div>
@@ -159,7 +160,8 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
         <table id="mainTable" bgcolor="ffffff" border=0><tbody id="playerRows"></tbody></table>
     </div>
 
-    <!-- Right pane. The GM start-game picker while no game is running (gamestate 25), then:
+    <!-- Right pane. Display > Game Control: the start-game picker (shown automatically while no
+         game is running, gamestate 25). Otherwise:
          F/E/C view: the program panel (index.html's showProgramTemplate, minus its gmtable) for
          the robot picked by tapping its button -- js/loadrobots.js's showplayerprogram() fills it.
          Battery view: one button per robot with a pending PlayerMsg, and a direction row per
@@ -177,9 +179,12 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
             </div>
             <div id="timingSince" style="color:#808080; font-size:12px;"></div>
         </div>
-        <div id="gmtable" style="display:none; margin-bottom:6px;">
-            <button class="button" style="width:auto; padding:6px 20px; background-color:#008000; color:#ffffff;" onclick="startSelectedGame();">Start</button>
-            <select id="gameDataSelect" class="w3-input" style="display:inline-block; width:auto; font-size:18px; height:48px;"></select>
+        <div id="gameControlPanel" style="display:none;">
+            <div id="gmtable" style="display:none; margin-bottom:6px;">
+                <button class="button" style="width:auto; padding:6px 20px; background-color:#008000; color:#ffffff;" onclick="startSelectedGame();">Start</button>
+                <select id="gameDataSelect" class="w3-input" style="display:inline-block; width:auto; font-size:18px; height:48px;"></select>
+            </div>
+            <div id="gameRunningNote" style="display:none; color:#606060;">A game is running.</div>
         </div>
         <!-- Player message and direction buttons: shown in both views, above the program panel. -->
         <div id="batteryButtons">
@@ -270,7 +275,9 @@ function buildPlayerRows(robots) {
 }
 
 // "Display" menu: Off on every page load, so no cards show until the GM picks a view.
+// 'gamecontrol' (this page only) replaces the whole right panel with the start-game picker.
 rightPanelView = 'off';
+VIEW_MENU_ITEMS.push('gamecontrol');
 
 // ── Timing panel ─────────────────────────────────────────────────────────────
 // Polls /api/timing every 2s while it is on. Ack/Poll are network + robot round trips
@@ -358,6 +365,90 @@ document.addEventListener('click', function (ev) {
 function gmSetRightPanel(view) {
     closeTopMenus();
     setRightPanelView(view);
+    if (datapacket) showall(); // show/hide the Game Control panel now
+}
+
+// Switch to Game Control when the game stops (or the page loads with none running), and back
+// to the view showing before that once a game starts -- unless the GM has picked another view.
+var lastGameState = null;
+var viewBeforeGameControl = 'off';
+
+function followGameRunning(gamestate) {
+    var stopped = gamestate === 25;
+    if (stopped && lastGameState !== 25) {
+        if (rightPanelView !== 'gamecontrol') viewBeforeGameControl = rightPanelView;
+        setRightPanelView('gamecontrol');
+    } else if (!stopped && lastGameState === 25 && rightPanelView === 'gamecontrol') {
+        setRightPanelView(viewBeforeGameControl);
+    }
+    lastGameState = gamestate;
+}
+
+// ── Game Control: which way each player faces ────────────────────────────────
+// The arrow is the board direction the robot's seat calls "forward", seen from the GM's side
+// (no seat adjustment). No game running: SeatOrientation.Direction for the robot's PlayerSeat,
+// which the next game copies onto Robots at seat-claim time. During a game: that robot's own
+// Robots.DirectionAdjustment, which is in the broadcast. Tapping turns it 90 degrees clockwise
+// and saves it to whichever of the two it came from.
+// A seat direction is the adjustment the phone adds to a robot's facing, so it turns the other
+// way from a facing: 2 and 4 swap compared with DIRECTION_DEGREES (checked on the table).
+var SEAT_ARROW_DEGREES = { 1: 0, 2: 270, 3: 180, 4: 90 };
+var SEAT_CLOCKWISE_NEXT = { 1: 4, 4: 3, 3: 2, 2: 1 }; // the next value a quarter-turn clockwise on screen
+var seatDirections = null; // SeatID -> Direction, from /api/seatorientation (no game running)
+var seatDirectionTaps = {}; // RobotID -> {dir, time} of the GM's last arrow tap
+
+function loadSeatDirections() {
+    seatDirections = {}; // don't refetch on every broadcast while this one is in flight
+    fetch('/api/seatorientation')
+        .then(function (resp) { return resp.json(); })
+        .then(function (list) {
+            seatDirections = {};
+            list.forEach(function (s) { seatDirections[s.seatID] = s.direction; });
+            if (datapacket) showall();
+        })
+        .catch(function (err) { console.error(err.toString()); });
+}
+
+// Just after a tap, show the tapped value so a broadcast or reload landing between two quick
+// taps doesn't snap the arrow back (same hold as the direction picker, js/loadrobots.js).
+function seatDirectionFor(r) {
+    var tap = seatDirectionTaps[r.RobotID];
+    if (tap && Date.now() - tap.time < DIRECTION_TAP_HOLD_MS) return tap.dir;
+    if (datapacket.gamestate === 25) return seatDirections ? seatDirections[r.PlayerSeat] : undefined;
+    return r.DirectionAdjustment;
+}
+
+// The tap goes on the cell, not the arrow image, because the image is rebuilt on every broadcast.
+function renderSeatArrow(cell, r) {
+    var dir = seatDirectionFor(r);
+    cell.style.backgroundColor = '#e0e0e0';
+    if (SEAT_ARROW_DEGREES[dir] === undefined) {
+        cell.innerText = '--';
+        cell.onclick = null;
+        return;
+    }
+    var img = document.createElement('img');
+    img.src = 'images/Direction1.png';
+    img.style = 'width:48px; height:48px; vertical-align:middle; cursor:pointer; transform:rotate(' + SEAT_ARROW_DEGREES[dir] + 'deg);';
+    cell.innerHTML = '';
+    cell.appendChild(img);
+    cell.onclick = function () { rotateSeatDirection(r, dir); };
+}
+
+function rotateSeatDirection(r, dir) {
+    var next = SEAT_CLOCKWISE_NEXT[dir]; // 1->4->3->2->1
+    var running = datapacket.gamestate !== 25;
+    seatDirectionTaps[r.RobotID] = { dir: next, time: Date.now() };
+    showall();
+    var url = running
+        ? '/api/robot/seatdirection/' + r.RobotID + '/' + next
+        : '/api/seatorientation/' + r.PlayerSeat + '/' + next;
+    fetch(url)
+        .then(function (resp) {
+            if (!resp.ok) return resp.json().then(function (e) { alert(e.error || 'Could not change the direction'); });
+            if (!running) loadSeatDirections();
+        })
+        .catch(function (err) { console.error(err.toString()); });
 }
 
 // Robots > Align: grid-aligns the robot whose program is showing (the outlined one), via
@@ -384,11 +475,20 @@ function showall() {
 
     document.getElementById('title').innerText = datapacket.titlemsg;
 
+    followGameRunning(datapacket.gamestate);
+    var gameControl = rightPanelView === 'gamecontrol';
     var showGmStart = datapacket.gamestate === 25;
+    document.getElementById('gameControlPanel').style.display = gameControl ? '' : 'none';
     document.getElementById('gmtable').style.display = showGmStart ? '' : 'none';
+    document.getElementById('gameRunningNote').style.display = showGmStart ? 'none' : '';
     if (showGmStart && gameDataOptions === null) loadGameDataOptions();
 
-    document.getElementById('programPanel').style.display = batteryMode ? 'none' : '';
+    document.getElementById('batteryButtons').style.display = gameControl ? 'none' : '';
+    document.getElementById('flagsHeader').innerText = gameControl ? 'Facing' : batteryMode ? 'Battery' : 'F/E/C';
+    // Re-read SeatOrientation each time Game Control is opened while no game is running.
+    if (!gameControl) seatDirections = null;
+    else if (showGmStart && seatDirections === null) loadSeatDirections();
+    document.getElementById('programPanel').style.display = (batteryMode || gameControl) ? 'none' : '';
 
     // showplayerprogram() looks robots up by Priority (CurrentLine), which changes every turn:
     // follow the picked robot's new Priority so the panel stays on the same robot. Nothing
@@ -452,6 +552,9 @@ function showall() {
             // (Shut Down) -- for the robot whose program is showing.
             statusbox.onclick = toggleExtrasPanel;
         }
+        // Game Control: the F/E/C column shows which way this robot's player faces instead.
+        if (gameControl) renderSeatArrow(flagsCell, r);
+        else flagsCell.onclick = null;
 
         if (r.PlayerMsg && r.PlayerMsg !== 'undefined') msgRobots.push(r);
     }
@@ -494,7 +597,7 @@ function showall() {
     });
 
     document.getElementById('noPlayerButtons').style.display =
-        (!batteryMode || buttons.children.length || dirButtons.children.length || showGmStart) ? 'none' : '';
+        (!batteryMode || buttons.children.length || dirButtons.children.length) ? 'none' : '';
 }
 
 // ── Battery view ─────────────────────────────────────────────────────────────

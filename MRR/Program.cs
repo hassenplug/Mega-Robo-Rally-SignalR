@@ -406,6 +406,27 @@ app.MapGet("/api/robot/setbase/{robotId:int}/{robotBaseId:int}", (int robotId, i
     return Results.Ok(new { robotId, robotBaseId });
 });
 
+// GM screen's Game Control view: which way each player faces. No game running -> the
+// SeatOrientation table (used by the next game); during a game -> that robot's
+// Robots.DirectionAdjustment. See DataService.SetSeatOrientation/SetRobotDirectionAdjustment.
+app.MapGet("/api/seatorientation", (DataService dataService) =>
+    Results.Ok(dataService.GetSeatOrientations()));
+
+app.MapGet("/api/seatorientation/{seatId:int}/{direction:int}", (int seatId, int direction, DataService dataService) =>
+{
+    string? error = dataService.SetSeatOrientation(seatId, direction);
+    return error != null ? Results.BadRequest(new { error }) : Results.Ok(new { seatId, direction });
+});
+
+app.MapGet("/api/robot/seatdirection/{robotId:int}/{direction:int}", (int robotId, int direction, DataService dataService, GameController gameController) =>
+{
+    string? error = dataService.SetRobotDirectionAdjustment(robotId, direction);
+    if (error != null) return Results.BadRequest(new { error });
+
+    gameController.UpdateGameState();
+    return Results.Ok(new { robotId, direction });
+});
+
 // GM screen's battery view: battery + board position per robot (not part of AllDataUpdate).
 app.MapGet("/api/robot/info", (DataService dataService) =>
     Results.Ok(dataService.GetRobotInfo()));

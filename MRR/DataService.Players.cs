@@ -154,7 +154,7 @@ namespace MRR.Services
             var result = new PlayerStates();
 
             string strSQL = @"SELECT r.RobotID, rb.Name AS RobotName, rb.Color AS RobotColor, rb.ColorFG AS RobotColorFG,
-                   r.PlayerSeat, so.Direction AS DirectionAdjustment,
+                   r.PlayerSeat, r.DirectionAdjustment,
                    r.CurrentFlag, r.ShutDown, r.`Status` AS StatusID,
                    r.CurrentPosCol AS X, r.CurrentPosRow AS Y, r.CurrentPosDir AS Dir,
                    r.ArchivePosCol AS AX, r.ArchivePosRow AS AY,
@@ -617,6 +617,64 @@ namespace MRR.Services
                 col     = Int(row["CurrentPosCol"]),
                 dir     = Int(row["CurrentPosDir"])
             }).ToList();
+        }
+
+        /// <summary>
+        /// GM screen's Game Control view while no game is running: the board direction each seat
+        /// faces (SeatOrientation.Direction). SelectSeat/SetupPlayersFromOperatorData copy it onto
+        /// Robots.DirectionAdjustment when a seat is claimed, so a change here applies from the
+        /// next game on.
+        /// </summary>
+        public object GetSeatOrientations()
+        {
+            var table = GetQueryResults("SELECT SeatID, Direction FROM SeatOrientation ORDER BY SeatID");
+            return table.Rows.Cast<DataRow>().Select(row => new
+            {
+                seatID    = Convert.ToInt32(row["SeatID"]),
+                direction = row["Direction"] is DBNull ? 0 : Convert.ToInt32(row["Direction"])
+            }).ToList();
+        }
+
+        /// <summary>Sets one seat's SeatOrientation.Direction (1-4). Returns null on success,
+        /// otherwise the reason it was refused.</summary>
+        public string? SetSeatOrientation(int seatId, int direction)
+        {
+            if (direction < 1 || direction > 4) return "Direction must be 1-4";
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+            using var update = new MySqlCommand(
+                "UPDATE SeatOrientation SET Direction = @d WHERE SeatID = @s", connection);
+            update.Parameters.AddWithValue("@d", direction);
+            update.Parameters.AddWithValue("@s", seatId);
+            update.ExecuteNonQuery();
+
+            using var check = new MySqlCommand("SELECT COUNT(*) FROM SeatOrientation WHERE SeatID = @s", connection);
+            check.Parameters.AddWithValue("@s", seatId);
+            return Convert.ToInt32(check.ExecuteScalar()) == 0 ? $"Seat {seatId} not found" : null;
+        }
+
+        /// <summary>
+        /// GM screen's Game Control view during a game: changes the seat direction for one robot
+        /// (Robots.DirectionAdjustment, copied from SeatOrientation at seat-claim time) and
+        /// recomputes its SeatArrow from it. MySQL applies a single-table UPDATE's assignments left
+        /// to right, so SeatArrow sees the new DirectionAdjustment. SeatOrientation is untouched.
+        /// Returns null on success, otherwise the reason it was refused.
+        /// </summary>
+        public string? SetRobotDirectionAdjustment(int robotId, int direction)
+        {
+            if (direction < 1 || direction > 4) return "Direction must be 1-4";
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+            using var update = new MySqlCommand(
+                $"UPDATE Robots SET DirectionAdjustment = @d, SeatArrow = {SeatArrowSql()} WHERE RobotID = @r",
+                connection);
+            update.Parameters.AddWithValue("@d", direction);
+            update.Parameters.AddWithValue("@r", robotId);
+            update.ExecuteNonQuery();
+
+            using var check = new MySqlCommand("SELECT COUNT(*) FROM Robots WHERE RobotID = @r", connection);
+            check.Parameters.AddWithValue("@r", robotId);
+            return Convert.ToInt32(check.ExecuteScalar()) == 0 ? $"Robot {robotId} not found" : null;
         }
 
         /// <summary>
