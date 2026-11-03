@@ -224,7 +224,8 @@ Unreferenced image files: `wwwroot/images/Direction2.png`–`Direction4.png`,
   `sudo shutdown -h now`, a bank with a battery display, or a shutdown button on the GM menu
 
 - [ ] Design a printable case for the Pi, its screen, and the router, in OpenSCAD
-  (`cad/pi-case.scad`, currently an empty file). Requirements:
+  (`cad/Pi_Router_enclosure.scad`; first draft written 2026-11-03, never rendered — see
+  [documents/ENCLOSURE_KB.md](../documents/ENCLOSURE_KB.md) for what it does and doesn't cover). Requirements:
   - Holds the Raspberry Pi and the screen, with a place to hold the router
   - Protects the front of the screen and its edge
   - The screen and Pi slide in through the bottom of the case
