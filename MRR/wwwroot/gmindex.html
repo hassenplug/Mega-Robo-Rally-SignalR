@@ -129,6 +129,7 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
             </div>
             <button class="button" onclick="event.stopPropagation(); gmAction('nextstate');">Next State</button>
             <button class="button" style="background-color:#cc0000; color:#ffffff;" onclick="event.stopPropagation(); if(confirm('End the current game and disconnect from robots?')) gmAction('endgame');">End Game</button>
+            <button class="button" onclick="event.stopPropagation(); hardReload();">Reload Page</button>
         </div>
     </div>
     <!-- Game message (titlemsg), filled in by showall(); tapping it opens Turn History. -->
@@ -283,6 +284,20 @@ VIEW_MENU_ITEMS.push('gamecontrol');
 // Polls /api/timing every 2s while it is on. Ack/Poll are network + robot round trips
 // (a few ms on a healthy network); Move is a whole drive/turn; Server gap is time spent in
 // the server between robot commands. Averages over SLOW_MS are shown in red.
+// GM menu "Reload Page": reload without stale cached files. location.reload(true) is ignored
+// by Chrome, so first re-fetch the page and every script, stylesheet and image it loaded with
+// cache:'reload' (which refreshes the browser's HTTP cache), then reload.
+async function hardReload() {
+    var urls = [location.href];
+    document.querySelectorAll('script[src], link[rel="stylesheet"][href], img[src]').forEach(function (el) {
+        urls.push(el.src || el.href);
+    });
+    await Promise.all(urls.map(function (url) {
+        return fetch(url, { cache: 'reload' }).catch(function () { /* reload anyway */ });
+    }));
+    location.reload();
+}
+
 var timingOn = false;
 var timingTimer = null;
 var TIMING_SLOW_MS = { ack: 100, status: 100 };
