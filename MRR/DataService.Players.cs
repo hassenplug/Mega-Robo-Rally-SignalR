@@ -411,6 +411,25 @@ namespace MRR.Services
         }
 
         /// <summary>
+        /// GM "End Selection" (setup phase, GameState==1): deletes every placeholder Robots row
+        /// no player has claimed yet (Status &lt;&gt; 1), so the game goes ahead with only the
+        /// robots already picked. Does nothing, and returns -1, when no seat has been claimed --
+        /// deleting every row would leave an empty game that GameState==1 can never leave.
+        /// Otherwise returns the number of rows deleted. Nothing references Robots by FK, and
+        /// cards/options aren't dealt until GameState 1 ends, so no other table needs clearing.
+        /// The caller refreshes AllPlayers (which also drops the deleted robots' connections).
+        /// </summary>
+        public int DeleteUnclaimedRobots()
+        {
+            if (GetIntFromDB("Select Count(*) from Robots where Status = 1") == 0) return -1;
+
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+            using var delete = new MySqlCommand("DELETE FROM Robots WHERE Status <> 1", connection);
+            return delete.ExecuteNonQuery();
+        }
+
+        /// <summary>
         /// Called from GameController.StartGame() right after the placeholder Robots rows are
         /// created: if the current game's GameData.PlayerListID (copied into CurrentGameData by
         /// LoadGameData) matches an OperatorListID with active OperatorData rows, claims every

@@ -152,6 +152,23 @@ app.MapGet("/api/state/{newstate?}/{parameter1?}", async (string? newstate, stri
             gameController.NextState();
             //return Results.Ok(result);
             break;
+        case "endselection":
+            // GM "End Selection" (gmindex.html Game Control, GameState==1 only): drop every
+            // robot no player has picked, then let NextState() see that every remaining seat
+            // is claimed and move on to GameState 2.
+            if (gameController.GameState == 1)
+            {
+                int deleted = dataService.DeleteUnclaimedRobots();
+                Console.WriteLine(deleted < 0
+                    ? "End Selection ignored: no robot has been picked yet."
+                    : $"End Selection: deleted {deleted} unpicked robot(s).");
+                if (deleted >= 0)
+                {
+                    dataService.GetAllPlayers(true); // also closes the deleted robots' connections
+                    gameController.NextState();
+                }
+            }
+            break;
         case "resetgame":
             //dataService.ExecuteSQL("call procResetGameState();");
             break;

@@ -186,6 +186,11 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
                 <select id="gameDataSelect" class="w3-input" style="display:inline-block; width:auto; font-size:18px; height:48px;"></select>
             </div>
             <div id="gameRunningNote" style="display:none; color:#606060;">A game is running.</div>
+            <!-- Shown while players are picking robots (gamestate 1). -->
+            <div id="endSelectionRow" style="display:none; margin-top:6px;">
+                <button class="button" style="width:auto; padding:6px 20px; background-color:#b00000; color:#ffffff;" onclick="endSelection();">End Selection</button>
+                <div style="color:#606060;">Deletes every robot no player has picked and starts the game with the rest.</div>
+            </div>
         </div>
         <!-- Player message and direction buttons: shown in both views, above the program panel. -->
         <div id="batteryButtons">
@@ -399,6 +404,17 @@ function followGameRunning(gamestate) {
     lastGameState = gamestate;
 }
 
+// ── Game Control: End Selection (gamestate 1) ────────────────────────────────
+// Deletes every robot no player has picked yet and moves the game on (Program.cs "endselection").
+function endSelection() {
+    var total = (datapacket && datapacket.robots || []).length;
+    var config = datapacket && datapacket.GameConfig;
+    var unpicked = config ? config.AvailableStartPositions.length : 0;
+    if (total - unpicked <= 0) { alert('No robot has been picked yet.'); return; }
+    if (!confirm('End robot selection? ' + unpicked + ' unpicked robot(s) will be removed from this game.')) return;
+    fetch('/api/state/endselection').catch(function (err) { console.error(err.toString()); });
+}
+
 // ── Game Control: which way each player faces ────────────────────────────────
 // The arrow is the board direction the robot's seat calls "forward", seen from the GM's side
 // (no seat adjustment). No game running: SeatOrientation.Direction for the robot's PlayerSeat,
@@ -496,6 +512,7 @@ function showall() {
     document.getElementById('gameControlPanel').style.display = gameControl ? '' : 'none';
     document.getElementById('gmtable').style.display = showGmStart ? '' : 'none';
     document.getElementById('gameRunningNote').style.display = showGmStart ? 'none' : '';
+    document.getElementById('endSelectionRow').style.display = datapacket.gamestate === 1 ? '' : 'none';
     if (showGmStart && gameDataOptions === null) loadGameDataOptions();
 
     document.getElementById('batteryButtons').style.display = gameControl ? 'none' : '';
