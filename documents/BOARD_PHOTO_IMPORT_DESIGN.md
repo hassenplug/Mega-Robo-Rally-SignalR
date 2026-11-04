@@ -144,9 +144,10 @@ knows yet whether this works on the 3D-printed tiles. Do that before tuning anyt
 - The template supplies actions, as planned. Numbered tiles (flag, start, respawn) take
   their number from the matched image's file name. Tiles with no BoardID 0 row are imported
   with no actions and flagged for review. `element34` has no `SquareType` at all.
-- Walls (`element200`) are only a bar along one edge, about 4% of the tile. Cells are not
-  cropped for that reason, which means the gaps between physical tiles are included in the
-  comparison. Wall vs. Blank is the distinction most likely to fail on a real photo.
+- Walls (`element200`) are not matched (`TileTemplateCatalog.ExcludedFiles`, 2026-11-03): the
+  artwork is only a bar along one edge, about 4% of the tile, too easy to confuse with Blank.
+  The GM adds walls in the editor after import. Cells are still not cropped (the crop was
+  removed for walls), so the gaps between physical tiles are included in the comparison.
 - Review hand-off: the page runs `/validate` and shows the result. "Review in editor" opens
   `board-editor.html?board={id}` with the flagged squares outlined in orange (passed in
   `sessionStorage`). A square's mark clears when it is edited.
