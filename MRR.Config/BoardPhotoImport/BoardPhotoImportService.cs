@@ -39,16 +39,20 @@ namespace MRR.Config.BoardPhotoImport
         /// <summary>Corners are top-left, top-right, bottom-right, bottom-left (see PerspectiveRectifier.Rectify).</summary>
         public (BoardElementCollection Board, List<ImportedCell> Cells) Import(
             Image<Rgb24> photo, IReadOnlyList<PointF> corners, int cols, int rows,
-            MatchMode mode, float threshold, BoardElementCollection template)
+            MatchMode mode, float threshold, BoardElementCollection template, bool refineGrid = true)
         {
+            // Snap hand-placed corners onto the tile seams first (GridRefiner); they are usually
+            // a fraction of a cell off, which shifts every cell.
+            if (refineGrid) corners = GridRefiner.Refine(photo, corners, cols, rows);
             using var rectified = PerspectiveRectifier.Rectify(photo, corners, cols, rows, CellPx);
+            float blackMax = TileFeatures.AdaptiveBlackMax(rectified);
             var cells = PerspectiveRectifier.SliceCells(rectified, cols, rows);
             var matches = new TileMatch[rows, cols];
             try
             {
                 for (int r = 0; r < rows; r++)
                     for (int c = 0; c < cols; c++)
-                        matches[r, c] = _matcher.Match(cells[r, c], mode);
+                        matches[r, c] = _matcher.Match(cells[r, c], mode, blackMax);
             }
             finally
             {

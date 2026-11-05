@@ -17,9 +17,9 @@ namespace MRR.Config.BoardPhotoImport
         }
 
         /// <summary>Best match over every tile at every orientation.</summary>
-        public TileMatch Match(Image<Rgb24> cell, MatchMode mode)
+        public TileMatch Match(Image<Rgb24> cell, MatchMode mode, float blackMax = TileFeatures.DefaultBlackMax)
         {
-            var features = TileFeatures.Compute(cell, mode);
+            var features = TileFeatures.Compute(cell, mode, blackMax);
             TileTemplate? best = null;
             float bestScore = float.NegativeInfinity;
             foreach (var template in _catalog.GetTemplates(mode))

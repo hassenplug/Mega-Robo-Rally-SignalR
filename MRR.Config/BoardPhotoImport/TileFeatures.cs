@@ -16,6 +16,14 @@ namespace MRR.Config.BoardPhotoImport
         Color,
         Grayscale,
         Edges,
+        /// <summary>
+        /// Each pixel is reduced to a colour class (black, gray, white, red, orange, yellow, green,
+        /// blue, purple) and the classes are compared as coarse maps. The catalog art and the
+        /// printed tiles are the same designs in different palettes (dark vs bright green, a
+        /// dark-red vs black gear ring), and this ignores the palette while keeping the colours
+        /// that carry meaning (green/blue belt speed, green/red rotator direction).
+        /// </summary>
+        Semantic,
     }
 
     /// <summary>
@@ -34,11 +42,17 @@ namespace MRR.Config.BoardPhotoImport
         /// 0 = unrelated). That makes the score independent of overall brightness and
         /// contrast, which a phone photo under room lighting will not match.
         /// </summary>
-        public static float[] Compute(Image<Rgb24> tile, MatchMode mode)
+        public static float[] Compute(Image<Rgb24> tile, MatchMode mode, float blackMax = DefaultBlackMax)
         {
             // No crop of the cell edges, though in a photo they hold the gaps between tiles:
             // a wall (element200) is only a bar along one edge, about 4% of the tile, and a
             // crop of that size makes every wall match Blank.
+            if (mode == MatchMode.Semantic)
+            {
+                var v = SemanticVector(tile, blackMax);
+                Normalize(v);
+                return v;
+            }
             using var small = tile.Clone(ctx => ctx.Resize(Size, Size));
 
             float[] vector = mode switch
@@ -58,6 +72,84 @@ namespace MRR.Config.BoardPhotoImport
             float sum = 0;
             for (int i = 0; i < a.Length; i++) sum += a[i] * b[i];
             return sum;
+        }
+
+        /// <summary>Value (0-1) below which a pixel is "black", fine for the catalog art whose blacks are pure.</summary>
+        public const float DefaultBlackMax = 0.28f;
+
+        /// <summary>
+        /// Black/gray cutoff for a whole photographed board. The printed black is dark gray and
+        /// a phone's exposure moves it a lot (V 0.25-0.5), so the cutoff is found per photo:
+        /// Otsu's split of the brightness of the unsaturated pixels (tile surface vs black).
+        /// </summary>
+        public static float AdaptiveBlackMax(Image<Rgb24> board)
+        {
+            var hist = new double[256];
+            double total = 0;
+            for (int y = 0; y < board.Height; y++)
+                for (int x = 0; x < board.Width; x++)
+                {
+                    var p = board[x, y];
+                    int max = Math.Max(p.R, Math.Max(p.G, p.B)), min = Math.Min(p.R, Math.Min(p.G, p.B));
+                    if (max == 0 || (max - min) / (float)max >= 0.28f) continue;
+                    hist[max]++; total++;
+                }
+            if (total == 0) return DefaultBlackMax;
+            double sumAll = 0;
+            for (int i = 0; i < 256; i++) sumAll += i * hist[i];
+            double wB = 0, sumB = 0, bestVar = -1; int best = (int)(DefaultBlackMax * 255);
+            for (int t = 0; t < 256; t++)
+            {
+                wB += hist[t]; if (wB == 0) continue;
+                double wF = total - wB; if (wF == 0) break;
+                sumB += t * hist[t];
+                double mB = sumB / wB, mF = (sumAll - sumB) / wF;
+                double between = wB * wF * (mB - mF) * (mB - mF);
+                if (between > bestVar) { bestVar = between; best = t; }
+            }
+            return best / 255f;
+        }
+
+        private const int ClassCount = 9;
+        private const int Pool = 4;                       // 48 px classified, pooled to 12x12 per class
+        private const double Inset = 0.06;                // drop the seam/frame at the cell edge
+
+        private static float[] SemanticVector(Image<Rgb24> tile, float blackMax)
+        {
+            int ix = (int)(tile.Width * Inset), iy = (int)(tile.Height * Inset);
+            var area = new Rectangle(ix, iy, tile.Width - 2 * ix, tile.Height - 2 * iy);
+            using var small = tile.Clone(ctx => ctx.Crop(area).Resize(Size, Size));
+            int grid = Size / Pool;
+            var v = new float[ClassCount * grid * grid];
+            for (int y = 0; y < Size; y++)
+                for (int x = 0; x < Size; x++)
+                {
+                    int k = Classify(small[x, y], blackMax);
+                    v[k * grid * grid + (y / Pool) * grid + (x / Pool)] += 1f / (Pool * Pool);
+                }
+            return v;
+        }
+
+        /// <summary>0 black, 1 gray (white is folded in), 2 unused, 3 red, 4 orange, 5 yellow, 6 green, 7 blue, 8 purple.</summary>
+        private static int Classify(Rgb24 p, float blackMax)
+        {
+            float r = p.R / 255f, g = p.G / 255f, b = p.B / 255f;
+            float max = Math.Max(r, Math.Max(g, b)), min = Math.Min(r, Math.Min(g, b));
+            float delta = max - min;
+            float sat = max <= 0 ? 0 : delta / max;
+            if (max < blackMax) return 0;
+            if (sat < 0.28f) return 1;
+            float hue;
+            if (max == r) hue = 60 * (((g - b) / delta) % 6);
+            else if (max == g) hue = 60 * ((b - r) / delta + 2);
+            else hue = 60 * ((r - g) / delta + 4);
+            if (hue < 0) hue += 360;
+            if (hue < 18 || hue >= 340) return 3;
+            if (hue < 45) return 4;
+            if (hue < 72) return 5;
+            if (hue < 170) return 6;
+            if (hue < 262) return 7;
+            return 8;
         }
 
         private static float[] ColorVector(Image<Rgb24> image)

@@ -442,7 +442,7 @@ app.MapPost("/api/boardeditor/{boardId:int}/import-photo", async (
         return Results.BadRequest(new { error = $"Expected 4 corners (top-left, top-right, bottom-right, bottom-left), got {corners.Count}." });
 
     var modeText = form["mode"].ToString();
-    var mode = MatchMode.Grayscale;
+    var mode = MatchMode.Semantic; // ignores palette differences between the catalog art and the printed tiles
     if (modeText.Length > 0 && !Enum.TryParse(modeText, ignoreCase: true, out mode))
         return Results.BadRequest(new { error = $"Unknown mode '{modeText}'; use {string.Join(", ", Enum.GetNames<MatchMode>())}." });
 

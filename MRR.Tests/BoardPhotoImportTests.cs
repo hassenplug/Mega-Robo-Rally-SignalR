@@ -175,7 +175,8 @@ public class BoardPhotoImportTests
         using (photo)
         {
             var (board, cells) = new BoardPhotoImportService(Catalog).Import(
-                photo, corners, 3, 3, MatchMode.Grayscale, BoardPhotoImportService.DefaultThreshold, Template());
+                photo, corners, 3, 3, MatchMode.Grayscale, BoardPhotoImportService.DefaultThreshold, Template(),
+                refineGrid: false); // exact corners on a synthetic image; there are no seams to snap to
 
             SquareType TypeAt(int c, int r) => board.GetSquare(c, r)!.Type;
             BoardAction ActionAt(int c, int r, SquareAction sa) => board.GetSquare(c, r)!.ActionList.Single(a => a.SquareAction == sa);

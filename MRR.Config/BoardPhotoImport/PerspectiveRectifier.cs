@@ -107,7 +107,7 @@ namespace MRR.Config.BoardPhotoImport
         }
 
         /// <summary>Bilinear sample in pixel-index coordinates, clamped to the image edge.</summary>
-        private static Rgb24 SampleBilinear(Image<Rgb24> image, float x, float y)
+        internal static Rgb24 SampleBilinear(Image<Rgb24> image, float x, float y)
         {
             x = Math.Clamp(x, 0, image.Width - 1);
             y = Math.Clamp(y, 0, image.Height - 1);

@@ -162,6 +162,33 @@ knows yet whether this works on the 3D-printed tiles. Do that before tuning anyt
   --vulnerable`), and this endpoint decodes uploaded files with it. Upgrade both projects
   together once the fixed version is confirmed.
 
+## Real-photo check (2026-11-05)
+
+First test on real photos of the printed tiles, scored by hand-labelling the tile category
+(blank, flag n, start n, belt, express belt, rotator, hazard; rotation not scored) of two
+fully visible boards, 6x6 and 9x9. Covered cells and the orange start-arrow tile (no catalog
+image) are not scored. Top-1 correct, catalog images as templates:
+
+| Mode | 6x6 (35 cells) | 9x9 (74 cells) |
+|---|---|---|
+| Grayscale (old default) | 31% | 32% |
+| Edges | 23% | 45% |
+| Color | 43% | 47% |
+| **Semantic** (new default) | **77%** | **78%** |
+
+- The catalog art is the same designs in a different palette (dark green arrows, mid-gray
+  surface, green start ring, dark-red flag ring vs. bright arrows, light gray, black rings), so raw
+  color/grayscale correlation fails. `Semantic` reduces pixels to color classes first. The
+  black/gray cutoff is found per photo (`TileFeatures.AdaptiveBlackMax`) because the printed
+  black is dark gray (V 0.25-0.5 in the photos).
+- `GridRefiner` snaps hand-placed corners onto the tile seams; both test boards were
+  well aligned after it. Corners must still be within about a third of a cell.
+- Still failing: **numbers** (flag n, start n -- the digit is a few pixels at 48x48; flags
+  match as the wrong number or as Blank), start gears (catalog has a green ring, printed tiles a
+  black one), hazard vs `element34`, and anything with no catalog image (the orange
+  start-arrow tile) or under a robot. The large 12-wide boards were not scored.
+- Next: build templates from photos of the real tiles, and read digits in a second pass.
+
 ## Status and build plan (added 2026-09-30)
 
 **Status: design only, nothing built.** Input is confirmed as a photo of **physical tiles**
