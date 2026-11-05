@@ -127,9 +127,10 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
                     <button class="button" onclick="event.stopPropagation(); gmSetRobotScreen(false);">Disable</button>
                 </div>
             </div>
-            <button class="button" onclick="event.stopPropagation(); gmAction('nextstate');">Next State</button>
             <button class="button" style="background-color:#cc0000; color:#ffffff;" onclick="event.stopPropagation(); if(confirm('End the current game and disconnect from robots?')) gmAction('endgame');">End Game</button>
             <button class="button" onclick="event.stopPropagation(); hardReload();">Reload Page</button>
+            <!-- Shown only on the Pi's own screen; the server refuses it from anywhere else too. -->
+            <button class="button" id="shutDownPiBtn" style="display:none; background-color:#000000; color:#ffffff;" onclick="event.stopPropagation(); shutDownPi();">Shut Down Pi</button>
         </div>
     </div>
     <!-- Game message (titlemsg), filled in by showall(); tapping it opens Turn History. -->
@@ -301,6 +302,22 @@ async function hardReload() {
         return fetch(url, { cache: 'reload' }).catch(function () { /* reload anyway */ });
     }));
     location.reload();
+}
+
+// GM menu "Shut Down Pi": clean power-off of the game server (POST /api/system/poweroff).
+// Only offered on the Pi's own screen (the kiosk opens 127.0.0.1:5000); the server enforces
+// the same rule, so this only hides a button that would be refused anyway.
+if (['127.0.0.1', 'localhost', '[::1]'].indexOf(location.hostname) >= 0)
+    document.getElementById('shutDownPiBtn').style.display = '';
+
+function shutDownPi() {
+    if (!confirm('Shut down the Pi? The game stops and every screen loses its connection. Wait for the green light to stop blinking before unplugging.')) return;
+    fetch('/api/system/poweroff', { method: 'POST' })
+        .then(function (r) {
+            if (r.ok) { alert('Shutting down. Wait for the green light on the Pi to stop blinking, then unplug it.'); return; }
+            return r.text().then(function (t) { alert('Shut down failed (' + r.status + '): ' + t); });
+        })
+        .catch(function (err) { alert('Shut down request failed: ' + err); });
 }
 
 var timingOn = false;

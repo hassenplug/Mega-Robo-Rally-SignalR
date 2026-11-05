@@ -70,6 +70,36 @@ app.MapPost("/api/execution/abort", (GameController gameController) =>
         ? Results.Ok(new { aborted = true, note = "Dispatch stopped. Commands already sent are still moving their robots. Use Reload Position (state 16) or Create Program (state 15) to recover." })
         : Results.Ok(new { aborted = false, note = "No turn is running." }));
 
+// ── System power ────────────────────────────────────────────────────────────
+// GM menu "Shut Down Pi": a clean power-off, so the SD card isn't mid-write when the power
+// is pulled. Only from the Pi's own screen (loopback, the kiosk's 127.0.0.1:5000): the game
+// host listens on the whole game WiFi, and no player's phone should be able to turn it off.
+// Allowed by the polkit rule install/service/install.sh adds; without it systemctl fails
+// and the error comes back here.
+app.MapPost("/api/system/poweroff", (HttpContext context) =>
+{
+    if (!AdminAccess.IsLoopback(context.Connection.RemoteIpAddress))
+        return Results.StatusCode(StatusCodes.Status403Forbidden);
+
+    Console.WriteLine($"[system] power-off requested from {context.Connection.RemoteIpAddress}");
+    using var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+    {
+        FileName = "systemctl",
+        ArgumentList = { "poweroff" },
+        RedirectStandardError = true,
+    });
+    if (process == null)
+        return Results.Problem("Could not run systemctl.");
+    string error = process.StandardError.ReadToEnd();
+    process.WaitForExit();
+    if (process.ExitCode != 0)
+    {
+        Console.WriteLine($"[system] power-off failed ({process.ExitCode}): {error}");
+        return Results.Problem($"Power-off refused: {error.Trim()}");
+    }
+    return Results.Ok(new { poweringOff = true });
+});
+
 // ── Settings API ────────────────────────────────────────────────────────────
 
 app.MapGet("/api/settings/robot-screen", (bool enabled, GameController gameController) =>
