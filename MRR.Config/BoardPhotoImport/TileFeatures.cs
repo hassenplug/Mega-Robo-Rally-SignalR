@@ -52,18 +52,6 @@ namespace MRR.Config.BoardPhotoImport
         /// </summary>
         public static float[] Compute(Image<Rgb24> tile, MatchMode mode, float blackMax = DefaultBlackMax)
         {
-<<<<<<< HEAD
-            // No crop of the cell edges, though in a photo they hold the gaps between tiles:
-            // a wall (element200) is only a bar along one edge, about 4% of the tile, and a
-            // crop of that size makes every wall match Blank.
-            if (mode == MatchMode.Semantic)
-            {
-                var v = SemanticVector(tile, blackMax);
-                Normalize(v);
-                return v;
-            }
-            using var small = tile.Clone(ctx => ctx.Resize(Size, Size));
-=======
             using var small = tile.Clone(ctx =>
             {
                 int insetX = (int)(tile.Width * Inset);
@@ -71,13 +59,13 @@ namespace MRR.Config.BoardPhotoImport
                 ctx.Crop(new Rectangle(insetX, insetY, tile.Width - 2 * insetX, tile.Height - 2 * insetY))
                    .Resize(Size, Size);
             });
->>>>>>> 92c6fad4cbfcc79d8a12cf779139b93fc1e9c3ca
 
             float[] vector = mode switch
             {
                 MatchMode.Color => ColorVector(small),
                 MatchMode.Grayscale => GrayVector(small),
                 MatchMode.Edges => EdgeVector(GrayVector(small)),
+                MatchMode.Semantic => SemanticVector(small, blackMax),
                 _ => throw new ArgumentOutOfRangeException(nameof(mode)),
             };
             Normalize(vector);
@@ -130,13 +118,10 @@ namespace MRR.Config.BoardPhotoImport
 
         private const int ClassCount = 9;
         private const int Pool = 4;                       // 48 px classified, pooled to 12x12 per class
-        private const double Inset = 0.06;                // drop the seam/frame at the cell edge
 
-        private static float[] SemanticVector(Image<Rgb24> tile, float blackMax)
+        /// <summary>Takes the already cropped, <see cref="Size"/>-square tile.</summary>
+        private static float[] SemanticVector(Image<Rgb24> small, float blackMax)
         {
-            int ix = (int)(tile.Width * Inset), iy = (int)(tile.Height * Inset);
-            var area = new Rectangle(ix, iy, tile.Width - 2 * ix, tile.Height - 2 * iy);
-            using var small = tile.Clone(ctx => ctx.Crop(area).Resize(Size, Size));
             int grid = Size / Pool;
             var v = new float[ClassCount * grid * grid];
             for (int y = 0; y < Size; y++)
