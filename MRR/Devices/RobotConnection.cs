@@ -140,7 +140,7 @@ namespace MRR.Devices
         /// RefreshIdentityDisplayAsync, both right after connecting and whenever a placeholder's
         /// assigned body changes.
         /// </summary>
-        private bool ShouldLightsBeOn()
+        private bool ShouldLightsBeOn(bool onWhenNotProgramming = true)
         {
             using var connection = new MySqlConnection(_connectionString);
             connection.Open();
@@ -154,7 +154,7 @@ namespace MRR.Devices
             var statusResult = statusCmd.ExecuteScalar();
             bool inProgramming = statusResult != null && statusResult != DBNull.Value
                 && Convert.ToInt32(statusResult) == 1;
-            if (!inProgramming) return true;
+            if (!inProgramming) return onWhenNotProgramming;
 
             using var countCmd = new MySqlCommand(
                 "SELECT COUNT(*) FROM MoveCards WHERE Owner = @id AND CardLocation = 2", connection);
@@ -364,7 +364,9 @@ namespace MRR.Devices
         /// Puts the ring back the way the game wants it after an effect: on in the robot's
         /// colour, or off if it has finished programming (same rule as at connect time).
         /// </summary>
-        public Task RestoreLightsAsync() => SetLightsAsync(ShouldLightsBeOn());
+        // After a RobotEffects effect: back to the pre-effect state, which is off unless the
+        // player is still programming (unlike the connect-time default, which is on).
+        public Task RestoreLightsAsync() => SetLightsAsync(ShouldLightsBeOn(onWhenNotProgramming: false));
 
         private static readonly byte[] StatusPollRequest = [0x01];
 
