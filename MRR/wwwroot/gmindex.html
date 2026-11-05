@@ -127,10 +127,7 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
                     <button class="button" onclick="event.stopPropagation(); gmSetRobotScreen(false);">Disable</button>
                 </div>
             </div>
-            <button class="button" style="background-color:#cc0000; color:#ffffff;" onclick="event.stopPropagation(); if(confirm('End the current game and disconnect from robots?')) gmAction('endgame');">End Game</button>
             <button class="button" onclick="event.stopPropagation(); hardReload();">Reload Page</button>
-            <!-- Shown only on the Pi's own screen; the server refuses it from anywhere else too. -->
-            <button class="button" id="shutDownPiBtn" style="display:none; background-color:#000000; color:#ffffff;" onclick="event.stopPropagation(); shutDownPi();">Shut Down Pi</button>
         </div>
     </div>
     <!-- Game message (titlemsg), filled in by showall(); tapping it opens Turn History. -->
@@ -191,6 +188,11 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
             <div id="endSelectionRow" style="display:none; margin-top:6px;">
                 <button class="button" style="width:auto; padding:6px 20px; background-color:#b00000; color:#ffffff;" onclick="endSelection();">End Selection</button>
                 <div style="color:#606060;">Deletes every robot no player has picked and starts the game with the rest.</div>
+            </div>
+            <div style="margin-top:12px;">
+                <button class="button" style="width:auto; padding:6px 20px; background-color:#cc0000; color:#ffffff;" onclick="if(confirm('End the current game and disconnect from robots?')) gmAction('endgame');">End Game</button>
+                <!-- Shown only on the Pi's own screen; the server refuses it from anywhere else too. -->
+                <button class="button" id="shutDownPiBtn" style="display:none; width:auto; padding:6px 20px; background-color:#000000; color:#ffffff;" onclick="shutDownPi();">Shut Down Pi</button>
             </div>
         </div>
         <!-- Player message and direction buttons: shown in both views, above the program panel. -->
