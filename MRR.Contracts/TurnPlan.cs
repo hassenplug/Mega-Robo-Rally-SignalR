@@ -35,8 +35,9 @@ namespace MRR
         public List<SpamCardUse> SpamConsumed { get; set; } = [];
 
         /// <summary>
-        /// The card each Spam-resolved register actually ran: the first non-Spam card drawn
-        /// for it. Master saves these to HistoryRobotTurns.ExecutedCards.
+        /// The card each Spam-resolved register actually ran (the first non-Spam card drawn
+        /// for it), and the card each Again register repeated (whatever actually ran the
+        /// phase before). Master saves these to HistoryRobotTurns.ExecutedCards.
         /// </summary>
         public List<SpamReplacement> SpamReplacements { get; set; } = [];
 
@@ -47,8 +48,8 @@ namespace MRR
     public readonly record struct SpamCardUse(int RobotID, int CardID);
 
     /// <summary>
-    /// The card one robot ran in one phase in place of Spam. CardTypeID 0 = the draw pile ran
-    /// out, so nothing ran.
+    /// The card one robot ran in one phase in place of a Spam or Again card. CardTypeID 0 =
+    /// nothing ran (the draw pile ran out, or an Again had nothing to repeat).
     /// </summary>
     public readonly record struct SpamReplacement(int RobotID, int Phase, int CardTypeID);
 }

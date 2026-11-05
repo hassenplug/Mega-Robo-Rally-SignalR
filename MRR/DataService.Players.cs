@@ -1092,7 +1092,7 @@ namespace MRR.Services
             // OrderBy(Priority)); MoveCardsShuffleAndDeal rotates it before CreateTurn runs, so
             // this is already the value this turn executes with.
             // ExecutedCards starts as the programmed cards; SaveSpamReplacementsToHistory fixes
-            // up the Spam registers once the turn is planned.
+            // up the Spam and Again registers once the turn is planned.
             ExecuteSQL($@"INSERT INTO HistoryRobotTurns (Turn, RobotID, Priority, StartRow, StartCol, StartDir, MoveCards, ExecutedCards, FlagEnergyCards, SavedAt)
                     Select {Turn}, RobotID, Priority, CurrentPosRow, CurrentPosCol, CurrentPosDir, CardsPlayed, CardsPlayed, FlagEnergyCards, NOW() FROM Robots ");
 
@@ -1100,8 +1100,9 @@ namespace MRR.Services
 
         /// <summary>
         /// After planning: in this turn's HistoryRobotTurns.ExecutedCards, replaces each register
-        /// that resolved Spam with the card the planner drew and ran instead (TurnPlan.
-        /// SpamReplacements), so "Last Hand" shows what the robot actually did.
+        /// that resolved Spam with the card the planner drew and ran instead, and each Again
+        /// with the card it repeated (TurnPlan.SpamReplacements), so "Last Hand" shows what the
+        /// robot actually did.
         /// </summary>
         public void SaveSpamReplacementsToHistory(IEnumerable<SpamReplacement> replacements)
         {

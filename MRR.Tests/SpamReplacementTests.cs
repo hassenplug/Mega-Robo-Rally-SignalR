@@ -69,6 +69,84 @@ public class SpamReplacementTests
         Assert.Equal(new[] { 1, 11 }, cardIds);
     }
 
+    [Fact]
+    public void AgainAfterSpam_RepeatsTheCardDrawnForTheSpam()
+    {
+        // Turn 12, robot 6: Forward 1, Spam (drew Forward 2), Again -- the Again must move 2.
+        var plan = PlanRegisters(
+            [MoveCard.tCardType.Forward1, MoveCard.tCardType.Spam, MoveCard.tCardType.Again],
+            drawPile: [MoveCard.tCardType.Forward2]);
+
+        Assert.True(plan.Planned, plan.Summary);
+        Assert.Contains(new SpamReplacement(RobotId, 2, (int)MoveCard.tCardType.Forward2), plan.SpamReplacements);
+        Assert.Contains(new SpamReplacement(RobotId, 3, (int)MoveCard.tCardType.Forward2), plan.SpamReplacements);
+        Assert.Equal(2, MovesInPhase(plan, 3));
+        // The Again card itself (ID 3) is the card commanded in phase 3, not the Spam (ID 2).
+        Assert.Equal(new[] { 3 }, CardIdsInPhase(plan, 3));
+    }
+
+    [Fact]
+    public void AgainAfterAgain_RepeatsTheSameCardAgain()
+    {
+        var plan = PlanRegisters(
+            [MoveCard.tCardType.Spam, MoveCard.tCardType.Again, MoveCard.tCardType.Again],
+            drawPile: [MoveCard.tCardType.Forward1]);
+
+        Assert.True(plan.Planned, plan.Summary);
+        Assert.Contains(new SpamReplacement(RobotId, 3, (int)MoveCard.tCardType.Forward1), plan.SpamReplacements);
+        Assert.Equal(1, MovesInPhase(plan, 2));
+        Assert.Equal(1, MovesInPhase(plan, 3));
+    }
+
+    [Fact]
+    public void AgainAfterNormalCard_RepeatsIt_AndIsReportedForHistory()
+    {
+        var plan = PlanRegisters(
+            [MoveCard.tCardType.Forward1, MoveCard.tCardType.Again],
+            drawPile: []);
+
+        Assert.True(plan.Planned, plan.Summary);
+        Assert.Equal(new SpamReplacement(RobotId, 2, (int)MoveCard.tCardType.Forward1), Assert.Single(plan.SpamReplacements));
+        Assert.Equal(1, MovesInPhase(plan, 2));
+        Assert.Equal(new[] { 2 }, CardIdsInPhase(plan, 2));
+    }
+
+    private static int MovesInPhase(TurnPlan plan, int phase) =>
+        plan.Commands.Count(c => c.Phase == phase && c.RobotID == RobotId && c.CommandType == SquareAction.Move);
+
+    private static List<int> CardIdsInPhase(TurnPlan plan, int phase) =>
+        plan.Commands.Where(c => c.Phase == phase && c.RobotID == RobotId && c.CommandType == SquareAction.Card)
+                     .Select(c => c.Value).ToList();
+
+    /// <summary>Registers get card IDs 1, 2, 3...; draw-pile cards get 11, 12...</summary>
+    private static TurnPlan PlanRegisters(MoveCard.tCardType[] registers, MoveCard.tCardType[] drawPile)
+    {
+        var robot = new PlayerState
+        {
+            ID = RobotId,
+            PlayerStatus = tPlayerStatus.ReadyToRun,
+            Priority = 1,
+            CurrentPos = new RobotLocation(Direction.Right, 1, 1),
+        };
+        robot.NextPos = new RobotLocation(robot.CurrentPos);
+
+        var hand = new CardList();
+        for (int i = 0; i < registers.Length; i++)
+            hand.Add(new MoveCard(i + 1, registers[i]) { Owner = RobotId, PhasePlayed = i + 1 });
+
+        return new CreateCommands(new TurnRequest
+        {
+            Turn = 1,
+            Phase = 0,
+            PhaseCount = 5,
+            GameState = 6,
+            Board = new BoardElementCollection(10, 10),
+            Players = [robot],
+            GameCards = hand,
+            DrawPiles = { [RobotId] = drawPile.Select((t, i) => new MoveCard(11 + i, t) { Owner = RobotId }).ToList() },
+        }).CreateTurn();
+    }
+
     private static TurnPlan PlanWithFirstRegister(MoveCard.tCardType first, MoveCard.tCardType drawPile)
     {
         var robot = new PlayerState
