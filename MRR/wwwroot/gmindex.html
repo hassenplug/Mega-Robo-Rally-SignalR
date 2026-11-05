@@ -127,8 +127,7 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
                     <button class="button" onclick="event.stopPropagation(); gmSetRobotScreen(false);">Disable</button>
                 </div>
             </div>
-            <button class="button" onclick="event.stopPropagation(); gmAction('nextstate');">Next State</button>
-            <button class="button" style="background-color:#cc0000; color:#ffffff;" onclick="event.stopPropagation(); if(confirm('End the current game and disconnect from robots?')) gmAction('endgame');">End Game</button>
+            <button class="button" onclick="event.stopPropagation(); hardReload();">Reload Page</button>
         </div>
     </div>
     <!-- Game message (titlemsg), filled in by showall(); tapping it opens Turn History. -->
@@ -185,6 +184,16 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
                 <select id="gameDataSelect" class="w3-input" style="display:inline-block; width:auto; font-size:18px; height:48px;"></select>
             </div>
             <div id="gameRunningNote" style="display:none; color:#606060;">A game is running.</div>
+            <!-- Shown while players are picking robots (gamestate 1). -->
+            <div id="endSelectionRow" style="display:none; margin-top:6px;">
+                <button class="button" style="width:auto; padding:6px 20px; background-color:#b00000; color:#ffffff;" onclick="endSelection();">End Selection</button>
+                <div style="color:#606060;">Deletes every robot no player has picked and starts the game with the rest.</div>
+            </div>
+            <div style="margin-top:12px;">
+                <button class="button" style="width:auto; padding:6px 20px; background-color:#cc0000; color:#ffffff;" onclick="if(confirm('End the current game and disconnect from robots?')) gmAction('endgame');">End Game</button>
+                <!-- Shown only on the Pi's own screen; the server refuses it from anywhere else too. -->
+                <button class="button" id="shutDownPiBtn" style="display:none; width:auto; padding:6px 20px; background-color:#000000; color:#ffffff;" onclick="shutDownPi();">Shut Down Pi</button>
+            </div>
         </div>
         <!-- Player message and direction buttons: shown in both views, above the program panel. -->
         <div id="batteryButtons">
@@ -283,6 +292,36 @@ VIEW_MENU_ITEMS.push('gamecontrol');
 // Polls /api/timing every 2s while it is on. Ack/Poll are network + robot round trips
 // (a few ms on a healthy network); Move is a whole drive/turn; Server gap is time spent in
 // the server between robot commands. Averages over SLOW_MS are shown in red.
+// GM menu "Reload Page": reload without stale cached files. location.reload(true) is ignored
+// by Chrome, so first re-fetch the page and every script, stylesheet and image it loaded with
+// cache:'reload' (which refreshes the browser's HTTP cache), then reload.
+async function hardReload() {
+    var urls = [location.href];
+    document.querySelectorAll('script[src], link[rel="stylesheet"][href], img[src]').forEach(function (el) {
+        urls.push(el.src || el.href);
+    });
+    await Promise.all(urls.map(function (url) {
+        return fetch(url, { cache: 'reload' }).catch(function () { /* reload anyway */ });
+    }));
+    location.reload();
+}
+
+// GM menu "Shut Down Pi": clean power-off of the game server (POST /api/system/poweroff).
+// Only offered on the Pi's own screen (the kiosk opens 127.0.0.1:5000); the server enforces
+// the same rule, so this only hides a button that would be refused anyway.
+if (['127.0.0.1', 'localhost', '[::1]'].indexOf(location.hostname) >= 0)
+    document.getElementById('shutDownPiBtn').style.display = '';
+
+function shutDownPi() {
+    if (!confirm('Shut down the Pi? The game stops and every screen loses its connection. Wait for the green light to stop blinking before unplugging.')) return;
+    fetch('/api/system/poweroff', { method: 'POST' })
+        .then(function (r) {
+            if (r.ok) { alert('Shutting down. Wait for the green light on the Pi to stop blinking, then unplug it.'); return; }
+            return r.text().then(function (t) { alert('Shut down failed (' + r.status + '): ' + t); });
+        })
+        .catch(function (err) { alert('Shut down request failed: ' + err); });
+}
+
 var timingOn = false;
 var timingTimer = null;
 var TIMING_SLOW_MS = { ack: 100, status: 100 };
@@ -384,6 +423,17 @@ function followGameRunning(gamestate) {
     lastGameState = gamestate;
 }
 
+// ── Game Control: End Selection (gamestate 1) ────────────────────────────────
+// Deletes every robot no player has picked yet and moves the game on (Program.cs "endselection").
+function endSelection() {
+    var total = (datapacket && datapacket.robots || []).length;
+    var config = datapacket && datapacket.GameConfig;
+    var unpicked = config ? config.AvailableStartPositions.length : 0;
+    if (total - unpicked <= 0) { alert('No robot has been picked yet.'); return; }
+    if (!confirm('End robot selection? ' + unpicked + ' unpicked robot(s) will be removed from this game.')) return;
+    fetch('/api/state/endselection').catch(function (err) { console.error(err.toString()); });
+}
+
 // ── Game Control: which way each player faces ────────────────────────────────
 // The arrow is the board direction the robot's seat calls "forward", seen from the GM's side
 // (no seat adjustment). No game running: SeatOrientation.Direction for the robot's PlayerSeat,
@@ -481,6 +531,7 @@ function showall() {
     document.getElementById('gameControlPanel').style.display = gameControl ? '' : 'none';
     document.getElementById('gmtable').style.display = showGmStart ? '' : 'none';
     document.getElementById('gameRunningNote').style.display = showGmStart ? 'none' : '';
+    document.getElementById('endSelectionRow').style.display = datapacket.gamestate === 1 ? '' : 'none';
     if (showGmStart && gameDataOptions === null) loadGameDataOptions();
 
     document.getElementById('batteryButtons').style.display = gameControl ? 'none' : '';

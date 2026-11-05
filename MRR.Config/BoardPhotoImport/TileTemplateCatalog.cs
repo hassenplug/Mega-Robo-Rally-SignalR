@@ -32,6 +32,14 @@ namespace MRR.Config.BoardPhotoImport
         private static readonly Regex FileNamePattern =
             new(@"^element(?<type>\d+)(-(?<param>[0-9]+|[A-Z]))?_top\.png$", RegexOptions.IgnoreCase);
 
+        /// <summary>
+        /// Tile images left out of matching. Walls (element200) are only a thin bar along one
+        /// edge, so a wall tile is too easy to confuse with Blank; the GM adds walls in the
+        /// editor instead.
+        /// </summary>
+        public static readonly IReadOnlySet<string> ExcludedFiles =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "element200_top.png" };
+
         private readonly string _imageDirectory;
         private readonly ConcurrentDictionary<MatchMode, IReadOnlyList<TileTemplate>> _byMode = new();
 
@@ -67,6 +75,7 @@ namespace MRR.Config.BoardPhotoImport
             foreach (var path in Directory.EnumerateFiles(_imageDirectory, "element*_top.png").Order())
             {
                 var fileName = Path.GetFileName(path);
+                if (ExcludedFiles.Contains(fileName)) continue;
                 if (!TryParseFileName(fileName, out int typeId, out int parameter)) continue;
 
                 using var image = Image.Load<Rgb24>(path);

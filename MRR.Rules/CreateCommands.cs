@@ -86,8 +86,17 @@ namespace MRR
         /// <summary>Spam cards consumed while planning, for the caller to retire.</summary>
         private readonly List<SpamCardUse> _spamConsumed = [];
 
-        /// <summary>The card each Spam-resolved register ran instead, for the caller to save.</summary>
+        /// <summary>
+        /// The card each Spam-resolved or Again register ran instead, for the caller to save.
+        /// </summary>
         private readonly List<SpamReplacement> _spamReplacements = [];
+
+        /// <summary>
+        /// The card type each robot actually ran in each phase: the drawn card for a Spam
+        /// register, the repeated card for an Again. Again in the next phase repeats this,
+        /// not the programmed card. No entry means nothing ran (e.g. the draw pile ran dry).
+        /// </summary>
+        private readonly Dictionary<(int RobotID, int Phase), MoveCard.tCardType> _executedTypes = [];
 
         /// <summary>
         /// Robots killed this phase, still owed their "Remove Robot" confirmation prompt.
@@ -1157,8 +1166,22 @@ namespace MRR
                         {
                             if(p_PhaseNumber>1)
                             {
-                                // find previous card for this player
-                                ProcessMove( GameCards.FirstOrDefault(gc => gc.PhasePlayed == p_PhaseNumber - 1 && gc.Owner == thiscard.Owner ));
+                                // Repeat what actually ran last phase -- for a Spam register
+                                // that's the card drawn to replace it, not the Spam. The
+                                // stand-in carries the Again card's own ID, so the Card command
+                                // marks the Again as executed.
+                                if (_executedTypes.TryGetValue((thiscard.Owner, p_PhaseNumber - 1), out var repeatType))
+                                {
+                                    ProcessMove(new MoveCard(thiscard, repeatType) { ID = thiscard.ID });
+                                    _executedTypes[(thiscard.Owner, p_PhaseNumber)] = repeatType;
+                                    _spamReplacements.Add(new SpamReplacement(thiscard.Owner, p_PhaseNumber, (int)repeatType));
+                                }
+                                else
+                                {
+                                    // Nothing ran last phase, so there's nothing to repeat.
+                                    ListOfCommands.AddCommand(thisplayer, SquareAction.Card, thiscard.ID);
+                                    _spamReplacements.Add(new SpamReplacement(thiscard.Owner, p_PhaseNumber, 0));
+                                }
                                 continue;
                             }
                             else
@@ -1196,6 +1219,8 @@ namespace MRR
                         }
                         if (resolvedSpam)
                             _spamReplacements.Add(new SpamReplacement(thiscard.Owner, p_PhaseNumber, newcard == null ? 0 : (int)newcard.Type));
+                        if (newcard != null)
+                            _executedTypes[(thiscard.Owner, p_PhaseNumber)] = newcard.Type;
                         ProcessMove(newcard);
                     }
                 }

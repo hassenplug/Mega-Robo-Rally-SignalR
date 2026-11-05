@@ -90,5 +90,10 @@ size. The Pi's location is no longer designed (see below).
   (ground bars case→pocket); old white legs became `arms()` (pocket top→case back). `tilt_angle` is now the
   screen angle from horizontal; the whole-assembly tilt was dropped.
 - 2026-11-03 — Model file renamed to `cad/Pi_Router_enclosure.scad`.
+- 2026-11-03 — Router pocket's two side (left/right) ends opened, so the router can slide in or out
+  sideways as well as from the top; the white arms moved from the pocket's outer edge to just outside it
+  (`arm_x`, 1 mm into the pocket's side face). Legs unchanged. Not rendered.
+- 2026-11-03 — White arms now start at the pocket's back face (flush with the back lip) instead of its
+  front wall, so they run the full thickness of the pocket beside it on the way to the case.
 - 2026-11-03 — Router pocket re-tilted to match the screen (parallel to the case, behind it, bottom edge on the
   ground) instead of lying flat. `leg_len` is now derived; `arm_attach` removed.

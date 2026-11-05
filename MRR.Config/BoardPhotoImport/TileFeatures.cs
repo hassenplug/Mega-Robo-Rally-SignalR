@@ -37,13 +37,22 @@ namespace MRR.Config.BoardPhotoImport
         public const int Size = 48;
 
         /// <summary>
-        /// Resizes and converts an image to a zero-mean, unit-length vector, so the dot
+        /// Fraction trimmed from each side before resizing. In a photo the cell edges hold the
+        /// gaps between tiles and small corner-placement errors; trimming the same amount from
+        /// the reference artwork keeps the two comparable. (Walls, whose artwork is only an edge
+        /// bar, are not matched -- see TileTemplateCatalog.ExcludedFiles.)
+        /// </summary>
+        public const float Inset = 0.08f;
+
+        /// <summary>
+        /// Crops, resizes and converts an image to a zero-mean, unit-length vector, so the dot
         /// product of two vectors is their normalized cross-correlation (1 = identical,
         /// 0 = unrelated). That makes the score independent of overall brightness and
         /// contrast, which a phone photo under room lighting will not match.
         /// </summary>
         public static float[] Compute(Image<Rgb24> tile, MatchMode mode, float blackMax = DefaultBlackMax)
         {
+<<<<<<< HEAD
             // No crop of the cell edges, though in a photo they hold the gaps between tiles:
             // a wall (element200) is only a bar along one edge, about 4% of the tile, and a
             // crop of that size makes every wall match Blank.
@@ -54,6 +63,15 @@ namespace MRR.Config.BoardPhotoImport
                 return v;
             }
             using var small = tile.Clone(ctx => ctx.Resize(Size, Size));
+=======
+            using var small = tile.Clone(ctx =>
+            {
+                int insetX = (int)(tile.Width * Inset);
+                int insetY = (int)(tile.Height * Inset);
+                ctx.Crop(new Rectangle(insetX, insetY, tile.Width - 2 * insetX, tile.Height - 2 * insetY))
+                   .Resize(Size, Size);
+            });
+>>>>>>> 92c6fad4cbfcc79d8a12cf779139b93fc1e9c3ca
 
             float[] vector = mode switch
             {

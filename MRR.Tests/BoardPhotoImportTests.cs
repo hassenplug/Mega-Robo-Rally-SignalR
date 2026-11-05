@@ -122,6 +122,7 @@ public class BoardPhotoImportTests
         var failures = new List<string>();
         foreach (var path in Directory.EnumerateFiles(ImageDirectory, "element*_top.png"))
         {
+            if (TileTemplateCatalog.ExcludedFiles.Contains(Path.GetFileName(path))) continue;
             Assert.True(TileTemplateCatalog.TryParseFileName(Path.GetFileName(path), out int typeId, out int parameter));
             using var image = Image.Load<Rgb24>(path);
             foreach (var rotation in new[] { Direction.Up, Direction.Right, Direction.Down, Direction.Left })
@@ -158,7 +159,7 @@ public class BoardPhotoImportTests
         (string File, Direction Rotation)[] layout =
         [
             ("element0_top.png", Direction.Up),  ("element10_top.png", Direction.Right), ("element100-3_top.png", Direction.Up),
-            ("element110-2_top.png", Direction.Down), ("element31_top.png", Direction.Up), ("element200_top.png", Direction.Left),
+            ("element110-2_top.png", Direction.Down), ("element31_top.png", Direction.Up), ("element10_top.png", Direction.Down),
             ("element21_top.png", Direction.Up), ("element40_top.png", Direction.Up), ("element55_top.png", Direction.Up),
         ];
         const int cell = 100;
@@ -189,7 +190,7 @@ public class BoardPhotoImportTests
             Assert.Equal(Direction.Down, board.GetSquare(0, 1)!.Rotation);
             Assert.Equal(2, ActionAt(0, 1, SquareAction.PlayerStart).Parameter);
             Assert.Equal(SquareType.GearCW, TypeAt(1, 1));
-            Assert.Equal((int)Direction.Left, ActionAt(2, 1, SquareAction.BlockDirection).Parameter);
+            Assert.Equal((int)Direction.Down, ActionAt(2, 1, SquareAction.Move).Parameter);
             Assert.Equal(SquareType.FastTurnCW, TypeAt(0, 2));
             Assert.Equal(SquareType.Pit, TypeAt(1, 2));
             Assert.Equal(3, board.CalcTotalFlags());
@@ -200,6 +201,12 @@ public class BoardPhotoImportTests
             Assert.Empty(board.GetSquare(2, 2)!.ActionList);
             Assert.Equal(1, cells.Count(c => c.NeedsReview));
         }
+    }
+
+    [Fact]
+    public void Catalog_LeavesOutWalls()
+    {
+        Assert.DoesNotContain(Catalog.GetTemplates(MatchMode.Grayscale), t => t.TypeId == (int)SquareType.Walls);
     }
 
     [Fact]

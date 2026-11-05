@@ -66,6 +66,25 @@ visudo -cqf "$tmp" || { rm -f "$tmp"; echo "generated sudoers file is invalid - 
 install -m 0440 -o root -g root "$tmp" /etc/sudoers.d/mrr-process-manager
 rm -f "$tmp"
 
+# The GM menu's "Shut Down Pi" button (POST /api/system/poweroff) runs 'systemctl poweroff'
+# from mrr-server.service. NoNewPrivileges=yes there rules out sudo, so logind's polkit
+# check has to allow it instead. Power-off only -- not reboot, suspend, or ignoring
+# inhibitors.
+info "installing polkit rule so '$RUN_USER' can power off the Pi"
+install -d -m 0755 /etc/polkit-1/rules.d
+cat > /etc/polkit-1/rules.d/50-mrr-poweroff.rules <<EOF
+// Installed by Mega-Robo-Rally install/service/install.sh
+// Lets '$RUN_USER' (the game server) power off the Pi from the GM menu.
+polkit.addRule(function(action, subject) {
+    if ((action.id == "org.freedesktop.login1.power-off" ||
+         action.id == "org.freedesktop.login1.power-off-multiple-sessions") &&
+        subject.user == "$RUN_USER") {
+        return polkit.Result.YES;
+    }
+});
+EOF
+chmod 0644 /etc/polkit-1/rules.d/50-mrr-poweroff.rules
+
 info "reloading systemd"
 systemctl daemon-reload
 

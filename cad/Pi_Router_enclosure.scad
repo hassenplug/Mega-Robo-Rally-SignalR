@@ -11,7 +11,8 @@
 //   case          (blue)  - thin screen shell, bezel opening, vents
 //   legs          (gray)  - two bars on the ground: case base -> router pocket base
 //   arms          (white) - two struts: near the top of the router pocket -> back of case
-//   router_pocket (black) - sleeve that holds the UniFi Travel Router, same tilt as the case
+//   router_pocket (yellow) - sleeve that holds the UniFi Travel Router, same tilt as the case;
+//                            open at the top and at both side ends
 // ====================================================================
 
 $fn = 32; // Cylinder resolution
@@ -53,7 +54,8 @@ pocket_h      = router_t + 2 * wall_t;      // front wall + router + back lip
 // Ground distance from the case's bottom edge to the pocket's bottom-back edge,
 // chosen so the two parallel parts are pocket_gap apart.
 leg_len       = (pocket_h + pocket_gap) / sin(tilt_angle);
-bar_x         = pocket_w/2 - bar_t/2;       // legs and arms sit at the pocket's outer sides
+bar_x         = pocket_w/2 - bar_t/2;       // legs sit at the pocket's outer sides
+arm_x         = pocket_w/2 + bar_t/2 - 1;   // arms sit outside the pocket, 1 mm into its side face
 
 // World (Y, Z) of a point given in the pocket's tilted frame
 function pocket_pt(y, z) = [leg_len + y * cos(tilt_angle) - z * sin(tilt_angle),
@@ -119,9 +121,9 @@ module router_pocket() {
                 difference() {
                     cube([pocket_w, pocket_l, pocket_h]);
 
-                    // Router cavity, open at the top end
-                    translate([(pocket_w - router_w)/2, wall_t, wall_t])
-                        cube([router_w, router_h + 1.0, router_t]);
+                    // Router cavity, open at the top end and through both side ends
+                    translate([-1, wall_t, wall_t])
+                        cube([pocket_w + 2, router_h + 1.0, router_t]);
 
                     // Window in the back lip so the router's screen/ports show
                     translate([(pocket_w - (router_w - 20))/2, wall_t + router_h/4, -1])
@@ -136,14 +138,14 @@ module legs() {
             [x, leg_len - 1, bar_t/2]);      // ends 1 mm inside the pocket's bottom end wall
 }
 
-// --- ARMS: struts from near the top of the router pocket to the back of the case ---
+// --- ARMS: struts from the back face of the router pocket (beside it) to the back of the case ---
 module arms() {
     // Position along the screen (u, measured up the case back from its bottom edge),
     // kept inside the case's height
     yt = min(pocket_l - 8, case_h - bar_t - leg_len * cos(tilt_angle));
     u  = leg_len * cos(tilt_angle) + yt;
-    p  = pocket_pt(yt, pocket_h - wall_t + bar_t/2);   // inside the pocket's front wall
-    for (x = [-bar_x, bar_x])
+    p  = pocket_pt(yt, bar_t/2);   // flush with the pocket's back face
+    for (x = [-arm_x, arm_x])
         bar([x, p[0], p[1]],
             [x,
              u * cos(tilt_angle) - 2 * sin(tilt_angle),   // 2 mm into the case wall
