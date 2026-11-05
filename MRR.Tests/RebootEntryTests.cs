@@ -80,6 +80,10 @@ public class RebootEntryTests
             GameCards = cards,
         };
 
+        // Worked out before planning: placing the robot clears its RespawnID.
+        var expectedPrompt = $"{entering.Name} on {entering.RespawnLetter} dir: " +
+            entering.CurrentPos.DirectionArrow(entering.DirectionAdjustment);
+
         var plan = new CreateCommands(request).CreateTurn();
 
         Assert.True(plan.Planned, plan.Summary);
@@ -91,14 +95,13 @@ public class RebootEntryTests
         Assert.Equal(3, pushedMove.EndPos.X);
         Assert.Equal(2, pushedMove.EndPos.Y);
 
-        // The entering robot is prompted to physically place the real robot, with the facing
-        // direction actually filled in (this used to be a hardcoded, unfinished "facing..."
-        // string -- see install/todo.md Section 1). The direction shown is the robot's own
-        // CurrentPos.Direction (what the player picked via the direction picker), not the
-        // respawn square's printed Rotation -- both happen to be Right in this test.
+        // The entering robot is prompted to physically place the real robot: its name, the
+        // respawn letter and an arrow for the robot's own CurrentPos.Direction (what the player
+        // picked via the direction picker, turned by its seat), not the respawn square's
+        // printed Rotation.
         Assert.Contains(plan.Commands, c =>
             c.RobotID == EnteringId && c.CommandType == SquareAction.SetButtonText &&
-            c.text == $"Place: {entering.Name} on {RespawnTokenId} facing {Direction.Right}");
+            c.text == expectedPrompt);
 
         // RespawnID is cleared in the DB too (not just in-memory), via a persisted command --
         // otherwise a reload before the next confirm would see it still pending.
@@ -142,13 +145,16 @@ public class RebootEntryTests
             GameCards = cards,
         };
 
+        var expectedPrompt = $"{entering.Name} on {entering.RespawnLetter} dir: " +
+            entering.CurrentPos.DirectionArrow(entering.DirectionAdjustment);
+
         var plan = new CreateCommands(request).CreateTurn();
 
         Assert.True(plan.Planned, plan.Summary);
 
         Assert.Contains(plan.Commands, c =>
             c.RobotID == EnteringId && c.CommandType == SquareAction.SetButtonText &&
-            c.text == $"Place: {entering.Name} on {RespawnTokenId} facing {Direction.Right}");
+            c.text == expectedPrompt);
         Assert.DoesNotContain(plan.Commands, c => c.CommandType == SquareAction.PushedMove);
     }
 

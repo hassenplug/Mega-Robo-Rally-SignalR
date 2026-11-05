@@ -129,25 +129,32 @@ Add `SixLabors.ImageSharp` (same version as `MRR/MRR.csproj:15`, `3.1.12`) to
   in matcher tuning.
 - Confirm `dotnet build` succeeds for `MRR.Config` after adding ImageSharp.
 
-## Implementation status (2026-10-26)
+## Implementation status (2026-10-26, updated 2026-11-05)
 
-**Steps 2–7 built; step 1 (the real-photo feasibility check) has not been done**, so nobody
-knows yet whether this works on the 3D-printed tiles. Do that before tuning anything.
+**Steps 2–7 built. Step 1 (the real-photo check) was done 2026-11-05** on two photos — see
+"Real-photo check" below. It works on the printed tiles at about 70–75% of cells with the
+catalog images as templates, not good enough to skip the review step; the remaining failures
+are listed there.
 
 - Code: `MRR.Config/BoardPhotoImport/` (`TileFeatures`, `TileTemplateCatalog`,
-  `PerspectiveRectifier`, `TileMatcher`, `BoardPhotoImportService`), endpoint
+  `PerspectiveRectifier`, `GridRefiner`, `TileMatcher`, `BoardPhotoImportService`), endpoint
   `POST /api/boardeditor/{id}/import-photo` in `MRR.Config/Program.cs`, page
   `MRR.Config/wwwroot/board-import.html` (linked from the editor's top bar).
-- Matching modes `Color`, `Grayscale` (default) and `Edges`, chosen per import on the page,
-  so step 1 can compare them without a rebuild. All three use normalized cross-correlation of
-  48×48 vectors. Threshold `DefaultThreshold = 0.5` is a guess.
+- Matching modes `Semantic` (default since 2026-11-05), `Color`, `Grayscale` and `Edges`,
+  chosen per import on the page. All use normalized cross-correlation of 48×48 vectors
+  (`Semantic`: color-class maps pooled to 12×12). Threshold `DefaultThreshold = 0.5` is still
+  a guess and was not tuned on the real photos.
+- Before matching, `BoardPhotoImportService.Import` snaps the corners onto the tile seams
+  (`GridRefiner`, on by default, `refineGrid: false` to skip) and finds the black/gray cutoff for
+  the photo (`TileFeatures.AdaptiveBlackMax`).
 - The template supplies actions, as planned. Numbered tiles (flag, start, respawn) take
   their number from the matched image's file name. Tiles with no BoardID 0 row are imported
   with no actions and flagged for review. `element34` has no `SquareType` at all.
 - Walls (`element200`) are not matched (`TileTemplateCatalog.ExcludedFiles`, 2026-11-03): the
   artwork is only a bar along one edge, about 4% of the tile, too easy to confuse with Blank.
-  The GM adds walls in the editor after import. Cells are still not cropped (the crop was
-  removed for walls), so the gaps between physical tiles are included in the comparison.
+  The GM adds walls in the editor after import. Cells are trimmed `TileFeatures.Inset` (8%) per
+  side for every mode, which keeps the seams and corner-placement error out of the comparison.
+  On the real boards walls are separate red bars standing on the seams, not part of any tile.
 - Review hand-off: the page runs `/validate` and shows the result. "Review in editor" opens
   `board-editor.html?board={id}` with the flagged squares outlined in orange (passed in
   `sessionStorage`). A square's mark clears when it is edited.
@@ -157,8 +164,10 @@ knows yet whether this works on the 3D-printed tiles. Do that before tuning anyt
   photos to 2000 px before upload. There is no login on the config host, so this endpoint is
   as open as the existing PUT.
 - Tests: `MRR.Tests/BoardPhotoImportTests.cs`: homography recovery, rectify round-trip,
-  every catalog tile matches itself at every rotation in all three modes, and a synthetic
-  3×3 warped "photo" that imports correctly end to end. All synthetic.
+  every catalog tile matches itself at every rotation in every mode, and a synthetic
+  3×3 warped "photo" that imports correctly end to end (with `refineGrid: false`: the
+  synthetic image has no seams, and the refiner moved its corners). All synthetic; the real-photo
+  numbers below come from a throwaway script and are not in the test suite.
 - **ImageSharp 3.1.12 has published high-severity advisories** (`dotnet list package
   --vulnerable`), and this endpoint decodes uploaded files with it. Upgrade both projects
   together once the fixed version is confirmed.
@@ -167,28 +176,39 @@ knows yet whether this works on the 3D-printed tiles. Do that before tuning anyt
 
 First test on real photos of the printed tiles, scored by hand-labelling the tile category
 (blank, flag n, start n, belt, express belt, rotator, hazard; rotation not scored) of two
-fully visible boards, 6x6 and 9x9. Covered cells and the orange start-arrow tile (no catalog
-image) are not scored. Top-1 correct, catalog images as templates:
+fully visible boards, 6×6 and 9×9. Cells under robots and the orange start-arrow tile (no
+catalog image) are not scored. Top-1 correct, catalog images as templates, grid refined,
+current code (8% edge trim, walls excluded from the catalog):
 
-| Mode | 6x6 (35 cells) | 9x9 (74 cells) |
+| Mode | 6×6 (35 cells) | 9×9 (74 cells) |
 |---|---|---|
-| Grayscale (old default) | 31% | 32% |
+| Grayscale (old default) | 34% | 35% |
 | Edges | 23% | 45% |
-| Color | 43% | 47% |
-| **Semantic** (new default) | **77%** | **78%** |
+| Color | 37% | 47% |
+| **Semantic** (new default) | **69%** | **74%** |
 
-- The catalog art is the same designs in a different palette (dark green arrows, mid-gray
-  surface, green start ring, dark-red flag ring vs. bright arrows, light gray, black rings), so raw
-  color/grayscale correlation fails. `Semantic` reduces pixels to color classes first. The
-  black/gray cutoff is found per photo (`TileFeatures.AdaptiveBlackMax`) because the printed
-  black is dark gray (V 0.25-0.5 in the photos).
-- `GridRefiner` snaps hand-placed corners onto the tile seams; both test boards were
-  well aligned after it. Corners must still be within about a third of a cell.
-- Still failing: **numbers** (flag n, start n -- the digit is a few pixels at 48x48; flags
-  match as the wrong number or as Blank), start gears (catalog has a green ring, printed tiles a
-  black one), hazard vs `element34`, and anything with no catalog image (the orange
-  start-arrow tile) or under a robot. The large 12-wide boards were not scored.
-- Next: build templates from photos of the real tiles, and read digits in a second pass.
+Before the edge trim and the wall exclusion were merged in, Semantic scored 77% / 78%, so the
+numbers move by several points with small changes: two photos, 109 cells, one labeller.
+
+- **Why the catalog fails raw.** The catalog art is the same designs in a different palette
+  (dark-green arrows, mid-gray surface, green start ring, dark-red flag ring vs. bright
+  arrows, light gray, black rings), so color/grayscale correlation fails. `Semantic` reduces
+  pixels to color classes first (black, gray, red, orange, yellow, green, blue, purple). The
+  black/gray cutoff is found per photo because the printed black is dark gray (V 0.25–0.5 in
+  these photos); a fixed cutoff called most belts gray and scored 31%.
+- **`GridRefiner`.** Snaps hand-placed corners onto the tile seams by sliding and stretching a
+  regular grid over a seam-darkness profile. Both test boards were well aligned after it. The
+  corners must already be within about a third of a cell. It keeps the corners if the best grid
+  is not clearly better than the same grid shifted half a cell.
+- **Still failing:** numbers (flag n, start n: the digit is a few pixels at 48×48, so flags match
+  as the wrong number or as Blank); start gears (catalog ring is green, printed ring black);
+  a hazard tile matching `element34`; anything with no catalog image (the orange start-arrow
+  tile) or under a robot.
+- **Not scored:** the large 12-wide boards. Photos of them are cropped or need hand-placed
+  corners, and there is no ground truth for ~200 cells. A saved board in the DB or a `.srx`
+  would serve as ground truth.
+- **Next:** build templates from photos of the real tiles (one of each type), and read digits
+  in a second pass at higher resolution. A separate detector for the red wall bars.
 
 ## Status and build plan (added 2026-09-30)
 
