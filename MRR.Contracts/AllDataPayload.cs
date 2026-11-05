@@ -6,6 +6,9 @@ namespace MRR
         // 25 means "no game running" (was a separate IsRunning bool, folded in here
         // 2026-09-17); every other value is a real state-machine position (see CLAUDE.md).
         public int gamestate { get; set; }
+        // Highest flag number on the board (CurrentGameData TotalFlags); with each robot's
+        // CurrentFlag it drives the progress shading of the F/E/C cell (js/loadrobots.js).
+        public int totalflags { get; set; }
         public List<RobotData> robots { get; set; } = new();
         // Only set while gamestate==1 (operator/seat setup); DataService serializes with
         // NullValueHandling.Ignore so this key is genuinely absent from the json the rest of

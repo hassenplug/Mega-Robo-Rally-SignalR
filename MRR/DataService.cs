@@ -132,6 +132,7 @@ namespace MRR.Services
             {
                 titlemsg   = titlemessage,
                 gamestate  = GameState,
+                totalflags = TotalFlags,
                 robots     = GetRobotsFromTable(),
                 GameConfig = GameState == 1 ? BuildGameConfig() : null,
             };
