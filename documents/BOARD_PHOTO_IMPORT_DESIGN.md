@@ -204,11 +204,110 @@ numbers move by several points with small changes: two photos, 109 cells, one la
   as the wrong number or as Blank); start gears (catalog ring is green, printed ring black);
   a hazard tile matching `element34`; anything with no catalog image (the orange start-arrow
   tile) or under a robot.
-- **Not scored:** the large 12-wide boards. Photos of them are cropped or need hand-placed
-  corners, and there is no ground truth for ~200 cells. A saved board in the DB or a `.srx`
-  would serve as ground truth.
+- **Large boards:** scored separately against a saved board, see the next section.
 - **Next:** build templates from photos of the real tiles (one of each type), and read digits
   in a second pass at higher resolution. A separate detector for the red wall bars.
+
+## Large-board check: board 6 "HomeyTough46" (2026-11-05)
+
+A 12×18 board (216 cells) with full ground truth: it is saved in the DB as BoardID 6, and
+exported as a file so the comparison can be rerun offline without the DB.
+
+### Files
+
+| File | What it is |
+|---|---|
+| `install/Boards/HomeyTough46.srx` | Board 6 exported from the DB (`BoardData.BoardLoadFromDB` → `XmlSerializer`, the format `.srx` import reads). Read back with `BoardData.LoadBoardFile`: all 216 cells match the DB on type, rotation and action count |
+| `install/Boards/photos/HomeyTough46-1.jpg` | Photo 1, the whole board from above, no robots |
+| `install/Boards/photos/HomeyTough46-2.jpg` | Photo 2, the same board, a second shot from a slightly different position |
+
+The photos are 1500×2000 and upright. The phone originals are 3000×4000 with EXIF
+orientation 6 (stored sideways). The copies here have the rotation applied and are shrunk to
+2000 px, which is what `board-import.html` sends (it redraws through a canvas, which applies
+EXIF, and shrinks to 2000 px). ImageSharp's `Image.Load` does **not** apply EXIF orientation,
+so an original loaded straight into the importer comes out sideways.
+
+Corners, hand-placed on the outer corners of the tile grid (inside the white border), in the
+order the importer takes them (TL, TR, BR, BL), in pixels of the files above:
+
+| Photo | TL | TR | BR | BL |
+|---|---|---|---|---|
+| 1 | (258, 125) | (1295, 146) | (1454, 1892) | (8, 1844) |
+| 2 | (250, 78) | (1277, 110) | (1407, 1800) | (35, 1775) |
+
+`GridRefiner` moves them to: photo 1 (264,128) (1288,149) (1442,1873) (20,1826); photo 2
+(255,82) (1270,114) (1397,1789) (43,1765).
+
+### The physical board differs from the DB in one cell
+
+Start 6 is at (6,0) on the table (top row, right after starts 4 and 5), but at (1,16) in the
+DB and so in the `.srx`. (1,16) is an empty tile in the photos. Score against the photos:
+treat (6,0) as start 6 and (1,16) as blank. Otherwise the DB matches the photos cell for cell.
+Walls (type 200, at (5,4) and (4,5)) are red bars on the seams of plain tiles in the photos,
+so score them as Blank: the importer does not match walls.
+
+### How it was scored
+
+A throwaway console project referencing `MRR.Config` ran the same steps as
+`BoardPhotoImportService.Import` (`GridRefiner.Refine` → `PerspectiveRectifier.Rectify` →
+`TileFeatures.AdaptiveBlackMax` → `SliceCells` → `TileMatcher.Match`) in every mode, with both
+the hand-placed and the refined corners, and wrote each cell's best match. A script compared
+that with the ground truth. Neither the harness nor the script is in the repo.
+
+- **Category:** blank / normal belt (10–16) / express belt (20–26) / gear / hazard (pit,
+  block) / flag / start / reboot.
+- **Exact:** same `SquareType`, and the same number for flags, starts and reboot tokens.
+- **Belt rotation:** same type and same rotation, out of 126 belt cells.
+
+### Results
+
+| Corners | Mode | Photo 1 category | Photo 1 exact | Photo 2 category | Photo 2 exact |
+|---|---|---|---|---|---|
+| Hand-placed | Grayscale | 35% | 23% | 39% | 25% |
+| Hand-placed | Edges | 50% | 32% | 55% | 38% |
+| Hand-placed | Color | 43% | 30% | 48% | 34% |
+| Hand-placed | **Semantic** | 73% | 59% | 74% | 60% |
+| Refined | Grayscale | 57% | 52% | 51% | 44% |
+| Refined | Edges | 80% | 66% | 72% | 60% |
+| Refined | Color | 68% | 62% | 72% | 65% |
+| Refined | **Semantic** (what the importer does) | **81%** | **75%** | **85%** | **78%** |
+
+Belt rotation, Semantic: 46 and 47 of 126 with hand-placed corners; 80 and 84 with refined
+corners.
+
+Per category, Semantic, refined corners (photo 1 / photo 2):
+
+| Category | Cells | Correct |
+|---|---|---|
+| Blank | 52 | 52 / 52 |
+| Gear | 15 | 15 / 15 |
+| Hazard | 8 | 8 / 8 |
+| Flag (category) | 6 | 6 / 6. Number right only 1–2 of 6 |
+| Normal belt | 59 | 55 / 55 |
+| Express belt | 67 | 39 / 48. Most read as normal belt, the rest as Blank |
+| Start | 6 | 0 / 0, all read as Blank |
+| Reboot token | 3 | 0 / 0, all read as Blank |
+
+### What it showed
+
+- **Glare breaks the single black cutoff.** `AdaptiveBlackMax` gives one cutoff for the whole
+  photo (0.52–0.53 here). Under the glare in the lower middle of the board (rows 11–13), only
+  9–30% of a belt cell's pixels fall under it, against about 55% everywhere else, so those
+  belts look like plain tiles with arrows on them. This is most of the express-belt misses. A
+  cutoff found per region or per cell, from the brightness of the nearby tile surface, should
+  fix it.
+- **One homography does not fit the whole board.** With the hand-placed corners, the grid
+  is on the seams at the corners but about 1/6 cell up and left of them in the middle of the
+  board: lens distortion, or the board is not flat. `GridRefiner` fits the middle better but
+  moves the bottom corners about 20 px (a quarter cell): the bottom row is cut (the flag 6
+  tile is half out of its cell) and row 17 drops to 5 of 12. It wins on balance. Snapping
+  each cell or region to its own nearby seams would fix both ends.
+- **The express belt art does not match the print.** The catalog's express arrows are pale
+  gray-blue, the printed ones saturated blue.
+- **Start and reboot tiles do not look like the catalog.** The start tile is printed as a black
+  gear ring with a green number (catalog: green ring). The reboot token is printed as a pale
+  lavender outline that the classifier sees as gray (catalog: solid purple). Both always
+  read as Blank.
 
 ## Status and build plan (added 2026-09-30)
 
