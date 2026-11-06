@@ -544,8 +544,9 @@ order**, then click the tiles in number order (1, 2, 3 ..., or A, B, C for reboo
 
 Tested in headless Edge against a stubbed API (26 checks: pending state and labels, clicking out of
 order, refusing the wrong kind or an already-numbered tile, Backspace, finishing by itself, Esc,
-reboot letters, review marks, that selecting a cell still works with the mode off). That test is not
-in the repo: it needs a browser, and `dotnet test` does not run one.
+reboot letters, review marks, that selecting a cell still works with the mode off). The test is in
+[`tools/board_editor_test/`](../tools/board_editor_test/README.md) (generator script plus run instructions). It is
+not part of `dotnet test` because it needs a browser; run it by hand after changing the editor's numbering code.
 
 ## Status and build plan (added 2026-09-30)
 
