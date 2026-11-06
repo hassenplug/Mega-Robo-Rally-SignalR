@@ -1197,17 +1197,24 @@ namespace MRR
                         // and Spam can chain. Cards come from the pre-drawn pile in the request:
                         // drawing from the database here would mutate mid-plan and reshuffle the
                         // discard pile, so the same turn would not replan the same way.
+                        // An Again drawn in register 1 has nothing to repeat, so like a programmed
+                        // Again there it counts as Spam and the robot keeps drawing. (A programmed
+                        // Again never reaches here as an Again: phase 1 turns it into the Spam
+                        // stand-in, later phases `continue` above.)
                         bool resolvedSpam = false;
-                        while (newcard != null && newcard.Type == MoveCard.tCardType.Spam)
+                        while (newcard != null && (newcard.Type == MoveCard.tCardType.Spam ||
+                               (newcard.Type == MoveCard.tCardType.Again && p_PhaseNumber == 1)))
                         {
                             resolvedSpam = true;
                             // The Again stand-in isn't a real card (its ID is a placeholder): the
                             // Again card's own Card command is already added above, and the Again
-                            // is discarded normally, not retired like Spam.
+                            // is discarded normally, not retired like Spam. A drawn Again is a real
+                            // card, so it is commanded, but it too is discarded, not retired.
                             if (!againAsSpam)
                             {
                                 ListOfCommands.AddCommand(thisplayer, SquareAction.Card, newcard.ID);
-                                _spamConsumed.Add(new SpamCardUse(thiscard.Owner, newcard.ID));
+                                if (newcard.Type == MoveCard.tCardType.Spam)
+                                    _spamConsumed.Add(new SpamCardUse(thiscard.Owner, newcard.ID));
                             }
                             againAsSpam = false;
                             newcard = DrawNext(thiscard.Owner);
@@ -1215,6 +1222,22 @@ namespace MRR
                             {
                                 _warnings.Add($"Robot {thiscard.Owner} ran out of cards resolving Spam in phase {p_PhaseNumber}.");
                                 break;
+                            }
+                        }
+                        // An Again drawn for Spam (register 2+) repeats what actually ran last
+                        // phase, exactly like a programmed Again. The stand-in carries the drawn
+                        // Again's ID so its Card command moves that card into the register.
+                        if (newcard != null && newcard.Type == MoveCard.tCardType.Again)
+                        {
+                            if (_executedTypes.TryGetValue((thiscard.Owner, p_PhaseNumber - 1), out var drawnRepeatType))
+                            {
+                                newcard = new MoveCard(newcard, drawnRepeatType) { ID = newcard.ID };
+                            }
+                            else
+                            {
+                                // Nothing ran last phase, so there's nothing to repeat.
+                                ListOfCommands.AddCommand(thisplayer, SquareAction.Card, newcard.ID);
+                                newcard = null;
                             }
                         }
                         if (resolvedSpam)

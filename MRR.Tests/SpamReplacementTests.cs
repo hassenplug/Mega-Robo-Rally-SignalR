@@ -111,6 +111,38 @@ public class SpamReplacementTests
         Assert.Equal(new[] { 2 }, CardIdsInPhase(plan, 2));
     }
 
+    [Fact]
+    public void SpamThatDrawsAgain_RepeatsThePreviousRegister()
+    {
+        // Turn 20, robot 4: Back 1, Forward 3, Left, Forward 1, Spam (drew Again) -- the
+        // drawn Again must repeat the Forward 1, not do nothing.
+        var plan = PlanRegisters(
+            [MoveCard.tCardType.Back1, MoveCard.tCardType.Forward3, MoveCard.tCardType.LTurn,
+             MoveCard.tCardType.Forward1, MoveCard.tCardType.Spam],
+            drawPile: [MoveCard.tCardType.Again]);
+
+        Assert.True(plan.Planned, plan.Summary);
+        Assert.Contains(new SpamReplacement(RobotId, 5, (int)MoveCard.tCardType.Forward1), plan.SpamReplacements);
+        Assert.Equal(1, MovesInPhase(plan, 5));
+        // The Spam (ID 5) is retired; the drawn Again (ID 11) is commanded but not retired.
+        Assert.Equal(new[] { 5 }, plan.SpamConsumed.Select(s => s.CardID));
+        Assert.Equal(new[] { 5, 11 }, CardIdsInPhase(plan, 5));
+    }
+
+    [Fact]
+    public void SpamInRegisterOne_ThatDrawsAgain_KeepsDrawing()
+    {
+        var plan = PlanRegisters(
+            [MoveCard.tCardType.Spam],
+            drawPile: [MoveCard.tCardType.Again, MoveCard.tCardType.Forward2]);
+
+        Assert.True(plan.Planned, plan.Summary);
+        Assert.Equal(new SpamReplacement(RobotId, 1, (int)MoveCard.tCardType.Forward2), Assert.Single(plan.SpamReplacements));
+        Assert.Equal(2, MovesInPhase(plan, 1));
+        Assert.Equal(new[] { 1 }, plan.SpamConsumed.Select(s => s.CardID));
+        Assert.Equal(new[] { 1, 11, 12 }, CardIdsInPhase(plan, 1));
+    }
+
     private static int MovesInPhase(TurnPlan plan, int phase) =>
         plan.Commands.Count(c => c.Phase == phase && c.RobotID == RobotId && c.CommandType == SquareAction.Move);
 
