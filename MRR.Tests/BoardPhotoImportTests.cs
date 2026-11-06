@@ -199,7 +199,13 @@ public class BoardPhotoImportTests
             Assert.Equal((int)SquareType.Water, water.SquareType);
             Assert.True(water.NeedsReview);
             Assert.Empty(board.GetSquare(2, 2)!.ActionList);
-            Assert.Equal(1, cells.Count(c => c.NeedsReview));
+            // Flagged: the water tile (no template square), the flag and start (their numbers are not
+            // read reliably), and the two belts, which are a close call against the water-belt tile
+            // that looks almost the same. Everything else, including every other kind of tile, is not.
+            var flagged = cells.Where(c => c.NeedsReview).Select(c => (c.X, c.Y)).ToHashSet();
+            Assert.Equal(new HashSet<(int, int)> { (1, 0), (2, 0), (0, 1), (2, 1), (2, 2) }, flagged);
+            Assert.Contains("number or letter", cells.Single(c => c.X == 2 && c.Y == 0).Reason);
+            Assert.Contains("Close call", cells.Single(c => c.X == 1 && c.Y == 0).Reason);
         }
     }
 

@@ -465,5 +465,28 @@
         </BoardAction>
       </ActionList>
     </BoardElement>
+    <BoardElement>
+      <BoardCol>6</BoardCol>
+      <BoardRow>0</BoardRow>
+      <Type>RebootToken</Type>
+      <TotalCount>3</TotalCount>
+      <Rotation>Up</Rotation>
+      <ActionList>
+        <BoardAction>
+          <SquareAction>Respawn</SquareAction>
+          <ActionSequence>1</ActionSequence>
+          <Phase>31</Phase>
+          <Parameter>1</Parameter>
+        </BoardAction>
+      </ActionList>
+    </BoardElement>
+    <BoardElement>
+      <BoardCol>7</BoardCol>
+      <BoardRow>0</BoardRow>
+      <Type>Block</Type>
+      <TotalCount>0</TotalCount>
+      <Rotation>None</Rotation>
+      <ActionList />
+    </BoardElement>
   </BoardElements>
 </BoardElementCollection>

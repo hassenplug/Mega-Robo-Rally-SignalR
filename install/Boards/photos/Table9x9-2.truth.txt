@@ -1,0 +1,11 @@
+# Hand-labelled from the photo, category level (no rotation). Tokens as in Table6x6-1.truth.txt.
+# U cells here: the orange start-arrow tile at (4,2) and the six robots on the bottom row.
+G F3 G G G G BX BX BX
+G G G BX BX BX BX F5 BX
+BN BN BN BX U . H BX BX
+BN H BN BX BX BX BX BX G
+BX F6 BN . F1 . BX BN S7
+BX H BN BN BN BN BX BX BX
+BN BN BN BN BN BN BN BN BN
+. . . . S8 . . . .
+U U U F4 H F2 U U U

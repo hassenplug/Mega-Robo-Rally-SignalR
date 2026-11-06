@@ -145,8 +145,17 @@ are listed there.
   (`Semantic`: color-class maps pooled to 12×12). Threshold `DefaultThreshold = 0.5` is still
   a guess and was not tuned on the real photos.
 - Before matching, `BoardPhotoImportService.Import` snaps the corners onto the tile seams
-  (`GridRefiner`, on by default, `refineGrid: false` to skip) and finds the black/gray cutoff for
-  the photo (`TileFeatures.AdaptiveBlackMax`).
+  (`GridRefiner`, on by default, `refineGrid: false` to skip) and finds a black/gray cutoff for
+  each cell (`TileFeatures.LocalBlackMax`, 2026-11-06; it starts from the photo-wide
+  `AdaptiveBlackMax`). Once a belt's type is known, `TileMatcher` picks its rotation again with
+  a Grayscale comparison (`BeltRotationMode`).
+- **Real tiles (2026-11-06).** `MRR.Config/wwwroot/images/real/` holds 134 PNGs cut from the two
+  Homey photos by `MRR.Tools.RealTiles` (`RealTiles.cs`: cell labelled from the `.srx`, turned to
+  the catalog's Up, darkened so its black sits under the default black cutoff, at most 8 per type
+  and number, chosen to differ most). `Program.cs` loads them into the catalog; each type and number
+  they cover is matched against them instead of the catalog art (32 types/numbers; the rest, such
+  as merge 14, start 7 and 8, water and block, keep the catalog art). `new TileTemplateCatalog(dir)`
+  with no second argument is still catalog-art only, which is what the unit tests use.
 - The template supplies actions, as planned. Numbered tiles (flag, start, respawn) take
   their number from the matched image's file name. Tiles with no BoardID 0 row are imported
   with no actions and flagged for review. `element34` has no `SquareType` at all.
@@ -248,11 +257,11 @@ so score them as Blank: the importer does not match walls.
 
 ### How it was scored
 
-A throwaway console project referencing `MRR.Config` ran the same steps as
+(The 2026-11-05 numbers below came from a throwaway project; the harness described in "Evaluation harness" now reproduces them within a point.) A console project referencing `MRR.Config` ran the same steps as
 `BoardPhotoImportService.Import` (`GridRefiner.Refine` → `PerspectiveRectifier.Rectify` →
 `TileFeatures.AdaptiveBlackMax` → `SliceCells` → `TileMatcher.Match`) in every mode, with both
 the hand-placed and the refined corners, and wrote each cell's best match. A script compared
-that with the ground truth. Neither the harness nor the script is in the repo.
+that with the ground truth.
 
 - **Category:** blank / normal belt (10–16) / express belt (20–26) / gear / hazard (pit,
   block) / flag / start / reboot.
@@ -308,6 +317,235 @@ Per category, Semantic, refined corners (photo 1 / photo 2):
   gear ring with a green number (catalog: green ring). The reboot token is printed as a pale
   lavender outline that the classifier sees as gray (catalog: solid purple). Both always
   read as Blank.
+
+## Evaluation harness (2026-11-06)
+
+Every tuning step so far was measured by a throwaway script, and the numbers move several
+points with small changes, so the scoring is now a test: `MRR.Tests/BoardImportEvalTests.cs`
+(logic in `BoardImportEval.cs`). It calls `BoardPhotoImportService.Import`, the same call the
+endpoint makes (Semantic mode, default threshold, grid refinement on, the real
+`install/BoardTemplate.srx`), and compares the board it builds with the truth.
+
+```
+dotnet test MRR.Tests --filter BoardImportEvalTests --logger "console;verbosity=detailed"
+```
+
+prints each case's scores and a per-cell grid (`*` wrong, `~` not scored); the grids are also
+written to `eval-out/` beside the test binaries.
+
+**Cases** are in `install/Boards/photos/eval-cases.json`: photo, row/column count, hand-placed
+corners, truth, and a `floor` per metric. A case fails if a score drops below its floor
+(measured minus 2 points on 2026-11-06). **Raise the floors when the importer improves.**
+`heldOut: true` marks cases never used to tune the importer.
+
+| Case | Truth | Held out |
+|---|---|---|
+| HomeyTough46-1, -2 (12×18) | `install/Boards/HomeyTough46.srx`, with the two overrides from "The physical board differs from the DB" | no |
+| Table6x6-1 (6×6, wood table) | `Table6x6-1.truth.txt`, hand-labelled | yes |
+| Table9x9-2 (9×9, blue table) | `Table9x9-2.truth.txt`, hand-labelled | yes |
+
+The two `Table` photos are the 2026-11-05 test photos, shrunk to 1500×2000 upright like the
+Homey ones. Their truth files are category-level (no rotation, no exact type); `U` marks cells
+not scored (a robot on the cell, or the orange start-arrow tile, which has no catalog image).
+The older `install/Boards/6x6x6R4F.jpg`, `6x6x6R4Fb.jpg` and `tiny3x3.jpg` are screenshots of
+the board editor, not photos of printed tiles, so they are not used.
+
+**Metrics:** *category* (blank / normal belt / express belt / gear / hazard / flag / start /
+reboot; walls count as blank); *class+number* (category, plus the number for flags, starts and
+reboot tokens); *exact* (same `SquareType` and number; `.srx` truth only); *belt rotation*
+(same type and rotation, over the belt cells; `.srx` truth only); and *review-flag recall*:
+how many of the wrong cells the importer marked `NeedsReview`.
+
+**Baseline, 2026-11-06, before step 2** (Semantic, refined corners; current scores are under "Step 2 results"):
+
+| Case | Category | Class+number | Exact | Belt rotation | Wrong cells flagged for review |
+|---|---|---|---|---|---|
+| HomeyTough46-1 | 81% | 80% | 75% | 81/126 | 16 of 44 |
+| HomeyTough46-2 | 85% | 83% | 78% | 85/126 | 10 of 37 |
+| Table6x6-1 (held out) | 71% | 69% | n/a | n/a | 1 of 11 |
+| Table9x9-2 (held out) | 80% | 77% | n/a | n/a | 6 of 17 |
+
+- The held-out photos, with a different table, lighting and board, score within a few points of
+  the Homey board, so the Homey numbers are not just overfitting to one set of photos.
+- **The review flag is weak.** It catches 27–36% of the wrong cells on the Homey board and 9–35% on the held-out
+  photos. Most wrong cells look confident (flags read as the wrong number, start tiles and
+  reboot tokens read as Blank), so a GM still has to check every cell. Better recognition
+  helps, and so does a better flag: add a best-vs-second-best margin test and tune the
+  threshold with this harness.
+- Class+number is the metric to watch for flags, starts and reboot tokens. Flags: 2 of 6 right
+  on the Homey board, 1 of 4 and 1 of 6 on the held-out ones; starts 0 of 6, 0 of 4 and 0 of 2;
+  reboot tokens 0 of 3.
+
+## Step 2 results (2026-11-06)
+
+Three changes from the recommendations after the large-board check, each measured with the
+harness. Scores are Semantic, refined corners, class+number (belt rotation: correct / 126).
+
+| Case | Before | After | Belt rotation before → after |
+|---|---|---|---|
+| HomeyTough46-1 | 80% | **84%** | 81 → 90 |
+| HomeyTough46-2 | 83% | **87%** | 85 → 93 |
+| Table6x6-1 (held out) | 69% | 66% | |
+| Table9x9-2 (held out) | 77% | **82%** | |
+
+- **Local black cutoff: kept.** The glare finding was right, but the first fix (scaling one
+  cutoff by the brightness of the tile surface around each cell) gained only 1–2 points,
+  because a belt's own brightened pixels were counted as tile surface. The cutoff is now halfway
+  between each cell's own dark and bright unsaturated pixels (`LocalBlackMax`): under the glare
+  the black print reads V 0.5–0.65 against 0.25 elsewhere, so the cutoff there is about 0.7. A
+  cell with one tone only keeps it (a blank tile stays gray, a hazard's black square stays black;
+  the first version turned hazards into Blank). Normal belts went to 59 of 59 and 20 of 20.
+  Cost: one cell of the 6×6 case (an express belt now reads as a normal belt).
+- **Belt rotation second pass: kept, small.** Choosing the rotation again with Grayscale, once
+  the type is known, gained 4 cells on each photo (Edges: 0, Color: 3). Where the belts are
+  still wrong (photo 1 / photo 2): 21 / 15 express belts read as normal belts, 4 / 5 are the
+  right type turned 180°, and 11 / 13 are the wrong subtype (turn direction or merge).
+- **Number reading: tried, removed.** A second pass to read flag/start/reboot numbers (the
+  rotation from the whole tile, then the number from only the pixels where the numbers differ)
+  changed nothing: the whole-tile grayscale score between a photographed flag and the catalog
+  flag is only about 0.1 even at the right rotation, so there is nothing to read the digit from.
+  The printed flags also sit a half turn from the catalog art (flag lower left, digit upside
+  down). Flags are still 2–3 of 6 right, starts 0–1 of 6, reboot tokens 0 of 3.
+- **What is left is the catalog art.** All the express-belt misses and every start, reboot and
+  flag-number miss come from the catalog images not looking like the printed tiles (pale
+  gray-blue vs saturated blue express arrows, green vs black start ring, solid purple vs pale
+  lavender reboot token, flag artwork turned). More processing on the catalog art does not
+  fix that; templates made from photos of the real tiles do (step 3 of the recommendations).
+  Use the Homey photos plus `HomeyTough46.srx` to extract them, and score on the held-out
+  `Table` cases, not on the Homey photos the templates came from.
+
+## Step 3 results: templates from real tiles (2026-11-06)
+
+Tiles cut from the two Homey photos (`dotnet run --project MRR.Tools.RealTiles` regenerates them
+from `eval-cases.json`; held-out cases are never used) replace the catalog art for the types they
+cover. Semantic matching, class+number (exact and belt rotation for the Homey board):
+
+| Case | Step 2 (catalog art) | Step 3 (real tiles) |
+|---|---|---|
+| Table6x6-1 (held out) | 66% | **69%** (category 83%) |
+| Table9x9-2 (held out) | 82% | **86%** (category 92%) |
+| HomeyTough46-1 * | 84%, exact 78%, rotation 90/126 | 94%, exact 90%, rotation 113/126 |
+| HomeyTough46-2 * | 87%, exact 80%, rotation 93/126 | 96%, exact 94%, rotation 105/126 |
+
+\* Each Homey photo is scored with tiles from the *other* Homey photo only, but it is the same
+physical board, so these numbers are easier than a new board. **The held-out rows are the honest
+ones.**
+
+- **Express belts, normal belts, gears, hazards and blanks are solved or nearly so.** Express belts
+  are 22 of 22 on the 9×9 board and 67 of 67 on Homey photo 2 (catalog art: 18 of 22 and 52 of
+  67). Belt rotation on Homey photo 1 went from 71% to 90%. Held-out category accuracy is 83%
+  and 92%.
+- **Which match mode.** With real tiles Semantic is still best (held out: 69% / 86%, against Color
+  60% / 65%, Grayscale 60% / 55%, Edges 34% / 47%), so it stays the default. Run the comparison
+  with `MRR_EVAL_MODES=1 dotnet test MRR.Tests --filter ModesCompared --logger "console;verbosity=detailed"`.
+- **Numbers are still unread.** The gap between category and class+number on the held-out boards
+  (83% vs 69%, 92% vs 86%) is almost all flag, start and reboot numbers: flags 0 of 4 and 0 of 6
+  right, starts 0 of 4 and 0 of 2. Whole-tile comparison in Color, Grayscale and Edges, over every
+  number at every turn, changed nothing (tried and removed), and an earlier masked-digit
+  attempt on the catalog art did not either. The digit is about 8 pixels tall at the 48×48
+  comparison size. Reading it needs its own step: a higher-resolution crop of the digit, found
+  once the tile's turn is known, compared with digit exemplars.
+- **The review flag got worse.** The importer flagged only 1 of 14 and 1 of 9 wrong cells on the
+  Homey photos and 3 of 11 and 2 of 10 on the held-out ones: the wrong cells now match a real tile
+  with a high score (a flag of the wrong number is still a good match for a flag). The 0.5 threshold
+  cannot catch these. Flag cells whose type is a numbered tile (flag, start, reboot) for review
+  until the digit is read, and add a best-versus-second-best margin test.
+- **`BoardTemplate.srx` had no reboot token (type 120) and no block (type 44)** (fixed later the
+  same day, see "Step 6" below). A reboot tile that was recognised correctly still imported with no
+  actions, because `template.GetSquare(RebootToken)` found nothing.
+- **Limits of the exemplars.** Only the Homey board's tiles, one table and one lighting. Types it
+  does not contain (merge 14, start 7 and 8, water, block, the orange start tile) fall back to the
+  catalog art and will keep failing. Cutting more tiles needs a photo of a board that has them and
+  a saved layout to label it with; add it as a case with a `.srx` and rerun the tool.
+
+## Step 5 results: the review flag (2026-11-06)
+
+After step 3 the importer flagged almost none of its wrong cells (1 of 14, 1 of 9, 3 of 11, 2 of 10)
+because a wrong cell now matches a real tile strongly. Cells are now marked for review (`NeedsReview`,
+outlined orange in the editor) for three reasons, besides the two that already existed (score below
+the 0.5 threshold; no template square for the type):
+
+1. **Every flag, start and reboot tile**, because their numbers are not read reliably yet.
+2. **A close call**: the best match leads the best tile of a different type or number by less than
+   `DefaultMarginThreshold` (0.05). `TileMatch.Margin` and `RunnerUp` carry this; turned copies of
+   the same tile do not count as a different tile.
+3. The reason text says which, with both file names and scores.
+
+**Choosing 0.05.** Share of wrong cells caught / cells flagged, numbered tiles always flagged
+(`BoardImportEval` prints this sweep for every case):
+
+| Margin below | Homey 1 | Homey 2 | 6×6 (held out) | 9×9 (held out) |
+|---|---|---|---|---|
+| 0 (numbered tiles only) | 12 of 14 / 15 | 8 of 10 / 15 | 5 of 10 / 5 | 6 of 10 / 6 |
+| 0.03 | 14 of 14 / 34 | 10 of 10 / 37 | 8 of 10 / 15 | 8 of 10 / 19 |
+| **0.05** | **14 of 14 / 53** | **10 of 10 / 62** | **10 of 10 / 24** | **9 of 10 / 28** |
+| 0.07 | 14 of 14 / 120 | 10 of 10 / 134 | 10 of 10 / 31 | 10 of 10 / 45 |
+
+Past 0.05 the flagged count jumps (0.07 flags more than half of the 12×18 board) for one more
+catch. At 0.05 the review list is 29% and 33% of the Homey board, 71% of the 6×6 (about a quarter of it is
+numbered tiles on a 35-cell board) and 47% of the 9×9, and it holds 43 of the 44 wrong cells.
+
+**A finding that made this work: a reboot token looked exactly like a blank tile.** The printed
+token is a pale lavender outline (saturation about 0.2), which the classifier read as gray, so
+every blank tile tied with the reboot token (margin exactly 0) and the tie made a quarter of the
+correct cells look like close calls. `TileFeatures.Classify` now reads a faint purple tint (hue 255–335,
+saturation at least 0.15) as purple. That also lifted category accuracy (6×6: 83% to 86%; 9×9: 92% to
+93%). Reboot tokens still import without their Respawn action, since `BoardTemplate.srx` has no
+reboot token (step 3 findings).
+
+**Regression floors** now include `reviewRecall` (share of wrong cells flagged, at least 88%) and
+`maxFlaggedShare` (ceiling on the share of all cells flagged), so flagging everything cannot pass.
+
+What the review list cannot do: it is a list of cells to look at, not a correction. The numbers on
+flags, starts and reboot tokens are still wrong about half the time and still have to be fixed by
+hand; the editor's validate catches duplicate or missing flag numbers.
+
+## Step 6: reboot tokens and the template, digit reading retried (2026-11-06)
+
+- **Template.** `install/BoardTemplate.srx` now has a reboot token (a Respawn action, parameter 1,
+  turned Up) at (6,0) and a block (type 44, no actions; the game only tests its type) at (7,0).
+  Reboot tokens are now read correctly on both Homey photos, letters included (3 of 3, was 0 of 3):
+  their import failure was this missing template entry, not recognition. Homey class+number:
+  94% to 95% and 95% to 97%; exact 90% to 92% and 94% to 95%.
+  **The live database still has the old BoardID 0 until the template is re-seeded** (`POST
+  /api/boardeditor/template/seed` on the config host); the editor's palette gains the two tiles then.
+- **Digit reading, retried with real tiles, still fails.** With templates in the printed palette the
+  rotation of a numbered tile can be read from the whole tile, and the number from only the pixels
+  where the numbers differ (Color and Grayscale, mask sizes 5%, 12% and 25% of the pixels). Flags
+  stayed at 0 to 3 of 6 right and starts at 0 to 2, no better than before, and the code was removed. At
+  64 pixels per cell with two exemplars per number the digit is about 10 pixels tall and the
+  alignment error is as large as the digit. What is left is a separate pipeline, not a tweak:
+  re-cut the numbered cells from the photo at about 128 pixels per cell, find the digit as a blob
+  (white inside the red flag, green inside the start ring), scale its bounding box to a fixed size,
+  and compare that with the same blob from each number's exemplars. Without that, the review flag
+  already marks every numbered tile, and the editor's validate catches duplicates.
+- **A cheaper way to get the numbers right** is to stop reading them: after import, a "number in
+  order" mode in the editor, where the GM taps the flags (and starts) in number order. It would be
+  exact, quick (6 flags, 6 to 8 starts), and needs no recognition at all.
+
+## Step 7: "Number in order" in the editor (2026-11-06)
+
+Flag, start and reboot numbers are not read from the photo (every attempt failed, see steps 3 and 6),
+so the editor now lets the GM set them by clicking, which is exact and takes seconds.
+
+In `board-editor.html`'s top bar: pick **Flags**, **Starts** or **Reboot tokens**, press **Number in
+order**, then click the tiles in number order (1, 2, 3 ..., or A, B, C for reboot tokens).
+
+- Every tile of that kind shows `?` (outlined yellow, tile art dimmed) until clicked. A click sets
+  its number, shows the right tile art, clears its orange review mark and marks the board unsaved.
+- Backspace undoes the last click, Esc stops. It stops by itself when the last tile is numbered. If
+  stopped early, tiles not clicked keep their old number.
+- Clicking a different kind of tile, or one already numbered in this pass, is refused with a message.
+  Numbers are only written when a tile is clicked, so the board never holds half-renumbered duplicates
+  that the GM did not set.
+- After "Review in editor" from an import that flagged numbered tiles, the top bar says to use it.
+  The import's review reason for those tiles points to it too.
+- Nothing is saved until **Save Board**, as before.
+
+Tested in headless Edge against a stubbed API (26 checks: pending state and labels, clicking out of
+order, refusing the wrong kind or an already-numbered tile, Backspace, finishing by itself, Esc,
+reboot letters, review marks, that selecting a cell still works with the mode off). That test is not
+in the repo: it needs a browser, and `dotnet test` does not run one.
 
 ## Status and build plan (added 2026-09-30)
 

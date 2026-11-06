@@ -43,9 +43,17 @@ namespace MRR.Config.BoardPhotoImport
         private readonly string _imageDirectory;
         private readonly ConcurrentDictionary<MatchMode, IReadOnlyList<TileTemplate>> _byMode = new();
 
-        public TileTemplateCatalog(string imageDirectory)
+        private readonly IReadOnlyList<RealTile> _realTiles;
+
+        /// <param name="realTiles">
+        /// Tiles cut from photos of the printed board (<see cref="RealTiles"/>). Each type and
+        /// number they cover is matched against them instead of the catalog art. Null or empty
+        /// means catalog art only, which is what the unit tests use.
+        /// </param>
+        public TileTemplateCatalog(string imageDirectory, IReadOnlyList<RealTile>? realTiles = null)
         {
             _imageDirectory = imageDirectory;
+            _realTiles = realTiles ?? [];
         }
 
         /// <summary>The templates for a match mode, built on first use and then cached.</summary>
@@ -88,6 +96,18 @@ namespace MRR.Config.BoardPhotoImport
                     templates.Add(new TileTemplate(typeId, parameter, rotation, fileName,
                         TileFeatures.Compute(rotated, mode)));
                 }
+            }
+            if (_realTiles.Count > 0)
+            {
+                var covered = _realTiles.Select(t => (t.TypeId, t.Parameter)).ToHashSet();
+                templates.RemoveAll(t => covered.Contains((t.TypeId, t.Parameter)));
+                foreach (var tile in _realTiles)
+                    foreach (var rotation in new[] { Direction.Up, Direction.Right, Direction.Down, Direction.Left })
+                    {
+                        using var rotated = tile.Image.Clone(ctx => ctx.Rotate((RotateMode)(((int)rotation - 1) * 90)));
+                        templates.Add(new TileTemplate(tile.TypeId, tile.Parameter, rotation, "real:" + tile.Source,
+                            TileFeatures.Compute(rotated, mode)));
+                    }
             }
             if (templates.Count == 0)
                 throw new InvalidOperationException($"No element*_top.png tile images found in {_imageDirectory}");

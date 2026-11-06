@@ -1,0 +1,36 @@
+{
+  "_comment": "Cases for MRR.Tests/BoardImportEvalTests. Corners are in pixels of the photo file, in importer order TL,TR,BR,BL (hand-placed; the importer refines them). 'truthBoard' = a .srx saved from the DB, 'truthGrid' = a hand-labelled token file (category only). 'overrides' = cells where the physical board differs from its truth, as 'col,row': token. 'floor' = the lowest score the test accepts (measured minus 2 points, 2026-11-06; reviewRecall = share of wrong cells flagged for review, maxFlaggedShare = ceiling on the share of all cells flagged, so flagging everything does not pass); raise it when the importer improves. heldOut=true means the case was never used to tune the importer.",
+  "template": "../../BoardTemplate.srx",
+  "cases": [
+    {
+      "name": "HomeyTough46-1", "photo": "HomeyTough46-1.jpg", "cols": 12, "rows": 18,
+      "corners": [[258,125],[1295,146],[1454,1892],[8,1844]],
+      "truthBoard": "../HomeyTough46.srx",
+      "overrides": { "6,0": "S6", "1,16": "." },
+      "heldOut": false,
+      "floor": { "category": 0.97, "classNumber": 0.93, "exact": 0.90, "rotation": 0.88, "reviewRecall": 0.88, "maxFlaggedShare": 0.34 }
+    },
+    {
+      "name": "HomeyTough46-2", "photo": "HomeyTough46-2.jpg", "cols": 12, "rows": 18,
+      "corners": [[250,78],[1277,110],[1407,1800],[35,1775]],
+      "truthBoard": "../HomeyTough46.srx",
+      "overrides": { "6,0": "S6", "1,16": "." },
+      "heldOut": false,
+      "floor": { "category": 0.97, "classNumber": 0.95, "exact": 0.93, "rotation": 0.81, "reviewRecall": 0.88, "maxFlaggedShare": 0.38 }
+    },
+    {
+      "name": "Table6x6-1", "photo": "Table6x6-1.jpg", "cols": 6, "rows": 6,
+      "corners": [[60,368],[1342,345],[1445,1695],[-5,1695]],
+      "truthGrid": "Table6x6-1.truth.txt",
+      "heldOut": true,
+      "floor": { "category": 0.84, "classNumber": 0.69, "reviewRecall": 0.88, "maxFlaggedShare": 0.76 }
+    },
+    {
+      "name": "Table9x9-2", "photo": "Table9x9-2.jpg", "cols": 9, "rows": 9,
+      "corners": [[175,200],[1315,200],[1375,1370],[-5,1370]],
+      "truthGrid": "Table9x9-2.truth.txt",
+      "heldOut": true,
+      "floor": { "category": 0.91, "classNumber": 0.84, "reviewRecall": 0.88, "maxFlaggedShare": 0.52 }
+    }
+  ]
+}

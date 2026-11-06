@@ -167,6 +167,14 @@
             outline: 3px dashed #f80;
             outline-offset: -3px;
         }
+        /* "Number in order" mode: tiles still waiting for their number. */
+        .cell.numbering-pending {
+            outline: 3px solid #ff0;
+            outline-offset: -3px;
+        }
+        .cell.numbering-pending img { opacity: 0.45; }
+        #numberingTools { display: inline-flex; align-items: center; gap: 4px; }
+        #numberingMsg { font-size: 13px; color: #ff0; }
         .cell.selected {
             outline: 2px solid #0ff;
             outline-offset: -2px;
@@ -330,6 +338,15 @@
     </select>
     <span id="statusMsg">Ready</span>
     <a href="board-import.html" class="btn" style="text-decoration:none">Import from photo</a>
+    <span id="numberingTools" title="Flags, starts and reboot tokens read from a photo can have the wrong number. Press the button, then click the tiles in number order.">
+        <select id="numberKind">
+            <option value="flag">Flags</option>
+            <option value="start">Starts</option>
+            <option value="respawn">Reboot tokens</option>
+        </select>
+        <button class="btn" id="btnNumber" onclick="toggleNumbering()">Number in order</button>
+        <span id="numberingMsg"></span>
+    </span>
 </div>
 
 <div id="main">
@@ -446,6 +463,16 @@ let selectedGameDataId = null;
 // sessionStorage; a square's mark goes when it is edited, and what is left is kept on save.
 const REVIEW_KEY_PREFIX = 'boardImport.review.';
 let reviewCells = new Map();
+
+// "Number in order": the GM clicks flags (or starts, or reboot tokens) in number order and each click
+// sets that tile's number, so nothing has to be read from a photo. null when the mode is off.
+//   { kind, pending: Set of "x,y" still to number, history: [{x, y, old}], next }
+let numbering = null;
+const NUMBER_KINDS = {
+    flag:    { action: SA.Flag,        label: 'flag',         prefix: 'F', name: n => String(n) },
+    start:   { action: SA.PlayerStart, label: 'start',        prefix: 'S', name: n => String(n) },
+    respawn: { action: SA.Respawn,     label: 'reboot token', prefix: 'R', name: n => respawnLetter(n) },
+};
 
 // ── Phase helpers ──────────────────────────────────────────────────────────
 function phaseToBitmask(phases) { return phases.reduce((m, p) => m | (1 << (p - 1)), 0); }
@@ -638,6 +665,11 @@ async function loadBoard(boardId) {
         isDirty = false;
         renderGameDataDetails();  // re-enable Apply Board button if a GameData row is selected
         showStatus('Loaded', 'saved');
+        numbering = null;
+        document.getElementById('numberingMsg').textContent =
+            [...reviewCells.values()].some(r => r.includes('number or letter'))
+                ? 'Flags, starts and reboot tokens read from a photo may have the wrong number: choose one and press "Number in order".'
+                : '';
     } catch(e) {
         showStatus('Error loading board', 'error');
         console.error(e);
@@ -736,6 +768,8 @@ function fillCell(div, x, y) {
     const reviewReason = reviewCells.get(`${x},${y}`);
     div.classList.toggle('review', reviewReason !== undefined);
     div.title = reviewReason !== undefined ? `(${x}, ${y}) ${reviewReason}` : `(${x}, ${y})`;
+    const waitingForNumber = numbering !== null && numbering.pending.has(`${x},${y}`);
+    div.classList.toggle('numbering-pending', waitingForNumber);
 
     const img = document.createElement('img');
     img.src = imageSrcForType(cell.squareType, cell.actions);
@@ -749,18 +783,18 @@ function fillCell(div, x, y) {
         if (act.squareAction === SA.Flag) {
             const lbl = document.createElement('div');
             lbl.className = 'cell-label';
-            lbl.textContent = 'F' + act.parameter;
+            lbl.textContent = waitingForNumber && numbering.kind === 'flag' ? 'F?' : 'F' + act.parameter;
             div.appendChild(lbl);
         } else if (act.squareAction === SA.PlayerStart) {
             const lbl = document.createElement('div');
             lbl.className = 'cell-icon';
-            lbl.textContent = 'S' + act.parameter;
+            lbl.textContent = waitingForNumber && numbering.kind === 'start' ? 'S?' : 'S' + act.parameter;
             lbl.style.transform = `rotate(${deg}deg)`;
             div.appendChild(lbl);
         } else if (act.squareAction === SA.Respawn) {
             const lbl = document.createElement('div');
             lbl.className = 'cell-icon';
-            lbl.textContent = 'R' + respawnLetter(act.parameter);
+            lbl.textContent = waitingForNumber && numbering.kind === 'respawn' ? 'R?' : 'R' + respawnLetter(act.parameter);
             lbl.style.transform = `rotate(${deg}deg)`;
             div.appendChild(lbl);
         }
@@ -771,6 +805,7 @@ function fillCell(div, x, y) {
 function onCellDown(e, x, y) {
     if (e.button !== 0) return;
     e.preventDefault();
+    if (numbering) { numberingClick(x, y); return; }
     isDragging = true;
     didDragMove = false;
     justPlaced = false;
@@ -786,7 +821,7 @@ function onCellDown(e, x, y) {
 }
 
 function onCellEnter(x, y) {
-    if (!isDragging) return;
+    if (numbering || !isDragging) return;
     didDragMove = true;
     if (activeTypeId !== null) {
         placeSquare(x, y);  // always replace when dragging
@@ -796,6 +831,7 @@ function onCellEnter(x, y) {
 function onCellUp(e, x, y) {
     if (e.button !== 0) return;
     isDragging = false;
+    if (numbering) return;
 
     if (activeTypeId === null && !didDragMove) {
         selectCell(x, y);
@@ -847,6 +883,11 @@ function selectPaletteType(typeId, defaultRotation) {
 }
 
 document.addEventListener('keydown', e => {
+    if (numbering) {
+        if (e.key === 'Escape') { stopNumbering(); return; }
+        const typing = e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
+        if (e.key === 'Backspace' && !typing) { e.preventDefault(); undoNumbering(); return; }
+    }
     if (e.key === 'Escape') {
         activeTypeId = null;
         paletteCell = null;
@@ -925,6 +966,99 @@ function getNextRespawnNumber() {
         }
     }
     return max + 1;
+}
+
+// ── Number in order ────────────────────────────────────────────────────────
+function refreshCell(x, y) {
+    const div = document.getElementById(`cell-${x}-${y}`);
+    if (!div) return;
+    fillCell(div, x, y);
+    if (selectedCell && selectedCell.x === x && selectedCell.y === y) div.classList.add('selected');
+}
+
+function tilesOfKind(kind) {
+    const found = [];
+    for (let y = 0; y < grid.length; y++)
+        for (let x = 0; x < grid[y].length; x++)
+            if (grid[y][x].actions.some(a => a.squareAction === NUMBER_KINDS[kind].action)) found.push({ x, y });
+    return found;
+}
+
+function numberingPrompt() {
+    const k = NUMBER_KINDS[numbering.kind];
+    return `Click ${k.label} ${k.name(numbering.next)} (${numbering.pending.size} left) - Backspace undoes, Esc stops`;
+}
+
+function toggleNumbering() {
+    if (numbering) { stopNumbering(); return; }
+    const kind = document.getElementById('numberKind').value;
+    const tiles = tilesOfKind(kind);
+    const k = NUMBER_KINDS[kind];
+    if (tiles.length === 0) { showStatus(`There are no ${k.label}s on this board.`, 'error'); return; }
+
+    // Leave whatever was being placed or selected.
+    activeTypeId = null;
+    paletteCell = null;
+    document.querySelectorAll('.palette-item').forEach(el => el.classList.remove('active'));
+    document.getElementById('boardGrid').style.cursor = 'pointer';
+    if (selectedCell) {
+        const prev = document.getElementById(`cell-${selectedCell.x}-${selectedCell.y}`);
+        if (prev) prev.classList.remove('selected');
+        selectedCell = null;
+        showNoSelection();
+    }
+
+    numbering = { kind, pending: new Set(tiles.map(t => `${t.x},${t.y}`)), history: [], next: 1 };
+    document.getElementById('btnNumber').textContent = 'Stop numbering';
+    document.getElementById('numberKind').disabled = true;
+    document.getElementById('numberingMsg').textContent = numberingPrompt();
+    for (const t of tiles) refreshCell(t.x, t.y);
+}
+
+function stopNumbering() {
+    if (!numbering) return;
+    const left = [...numbering.pending];
+    const k = NUMBER_KINDS[numbering.kind];
+    const numbered = numbering.history.length;
+    numbering = null;
+    document.getElementById('boardGrid').style.cursor = 'default';
+    document.getElementById('btnNumber').textContent = 'Number in order';
+    document.getElementById('numberKind').disabled = false;
+    for (const key of left) { const [x, y] = key.split(',').map(Number); refreshCell(x, y); }
+    document.getElementById('numberingMsg').textContent = left.length === 0
+        ? `All ${k.label}s numbered.`
+        : `Stopped: ${numbered} numbered, ${left.length} left with their old number.`;
+}
+
+function numberingClick(x, y) {
+    const k = NUMBER_KINDS[numbering.kind];
+    const act = grid[y][x].actions.find(a => a.squareAction === k.action);
+    const msg = document.getElementById('numberingMsg');
+    if (!act) { msg.textContent = `(${x}, ${y}) is not a ${k.label}. ` + numberingPrompt(); return; }
+    const key = `${x},${y}`;
+    if (!numbering.pending.has(key)) {
+        msg.textContent = `(${x}, ${y}) is already ${k.label} ${k.name(act.parameter)}. ` + numberingPrompt();
+        return;
+    }
+    numbering.history.push({ x, y, old: act.parameter });
+    act.parameter = numbering.next++;
+    numbering.pending.delete(key);
+    reviewCells.delete(key);   // the GM has now set this number
+    refreshCell(x, y);
+    setDirty();
+    if (numbering.pending.size === 0) stopNumbering();
+    else msg.textContent = numberingPrompt();
+}
+
+function undoNumbering() {
+    if (!numbering || numbering.history.length === 0) return;
+    const { x, y, old } = numbering.history.pop();
+    const k = NUMBER_KINDS[numbering.kind];
+    grid[y][x].actions.find(a => a.squareAction === k.action).parameter = old;
+    numbering.pending.add(`${x},${y}`);
+    numbering.next--;
+    refreshCell(x, y);
+    document.getElementById('numberingMsg').textContent = numberingPrompt();
 }
 
 // ── Select and show props ──────────────────────────────────────────────────

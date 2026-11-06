@@ -116,6 +116,58 @@ namespace MRR.Config.BoardPhotoImport
             return best / 255f;
         }
 
+        /// <summary>
+        /// Black/gray cutoff for each cell of a rectified board. <see cref="AdaptiveBlackMax"/> gives
+        /// one cutoff for the whole photo, but glare lifts the black print as well as the tile
+        /// surface in part of the board (black reads V 0.5-0.65 there, against about 0.25 elsewhere),
+        /// so most of a belt's black falls above the one cutoff and the belt reads as a plain tile
+        /// (BOARD_PHOTO_IMPORT_DESIGN.md, board 6 check). Each cell's cutoff is halfway between its
+        /// own dark and bright unsaturated pixels. A cell with only one tone in it has nothing to
+        /// split (a blank tile is all gray, a hazard's center all black) and keeps it that way.
+        /// </summary>
+        public static float[,] LocalBlackMax(Image<Rgb24> board, int cols, int rows)
+        {
+            float global = AdaptiveBlackMax(board);
+            int cw = board.Width / cols, ch = board.Height / rows;
+            int ix = (int)(cw * Inset), iy = (int)(ch * Inset);
+            var result = new float[rows, cols];
+            var v = new List<float>();
+            for (int r = 0; r < rows; r++)
+                for (int c = 0; c < cols; c++)
+                {
+                    v.Clear();
+                    for (int y = r * ch + iy; y < (r + 1) * ch - iy; y++)
+                        for (int x = c * cw + ix; x < (c + 1) * cw - ix; x++)
+                        {
+                            var p = board[x, y];
+                            int max = Math.Max(p.R, Math.Max(p.G, p.B)), min = Math.Min(p.R, Math.Min(p.G, p.B));
+                            if (max == 0 || (max - min) / (float)max >= 0.28f) continue;
+                            v.Add(max / 255f);
+                        }
+                    // Mostly colored (a robot, a gear's ring and number): no basis for a local value.
+                    if (v.Count < (cw - 2 * ix) * (ch - 2 * iy) * 0.25) { result[r, c] = global; continue; }
+                    v.Sort();
+                    float lo = v[v.Count / 10], hi = v[v.Count * 9 / 10];
+                    if (hi - lo < 0.22f)
+                    {
+                        // One tone only. A dark one (a hazard's black square) must stay black and a
+                        // light one (a blank tile) must stay gray, so keep the cutoff clear of it.
+                        float median = v[v.Count / 2];
+                        result[r, c] = median < global ? Math.Max(global, hi + 0.02f) : Math.Min(global, lo - 0.02f);
+                    }
+                    else
+                        result[r, c] = Math.Clamp((lo + hi) / 2, global * 0.8f, global * 1.6f);
+                }
+            return result;
+        }
+
+        private static float[,] Fill(int rows, int cols, float value)
+        {
+            var a = new float[rows, cols];
+            for (int r = 0; r < rows; r++) for (int c = 0; c < cols; c++) a[r, c] = value;
+            return a;
+        }
+
         private const int ClassCount = 9;
         private const int Pool = 4;                       // 48 px classified, pooled to 12x12 per class
 
@@ -141,12 +193,16 @@ namespace MRR.Config.BoardPhotoImport
             float delta = max - min;
             float sat = max <= 0 ? 0 : delta / max;
             if (max < blackMax) return 0;
-            if (sat < 0.28f) return 1;
+            if (sat < 0.15f) return 1;
             float hue;
             if (max == r) hue = 60 * (((g - b) / delta) % 6);
             else if (max == g) hue = 60 * ((b - r) / delta + 2);
             else hue = 60 * ((r - g) / delta + 4);
             if (hue < 0) hue += 360;
+            // The printed reboot token is a pale lavender outline (saturation about 0.2). Left to the
+            // gray test below it reads as a blank tile, identical to one, so a faint purple tint counts.
+            // The tile surface itself is warm or cool gray and never reaches purple hues at 0.15.
+            if (sat < 0.28f) return hue is >= 255 and < 335 ? 8 : 1;
             if (hue < 18 || hue >= 340) return 3;
             if (hue < 45) return 4;
             if (hue < 72) return 5;

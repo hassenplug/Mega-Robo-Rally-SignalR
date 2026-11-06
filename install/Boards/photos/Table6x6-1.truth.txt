@@ -1,0 +1,9 @@
+# Hand-labelled from the photo, category level (no rotation). One row per line, one token per cell.
+# . blank   BN normal belt   BX express belt   G gear   H hazard   F<n> flag n   S<n> start n   P<n> reboot n
+# U = not scored (covered by a robot, or a tile the catalog has no image for: the orange start-arrow tile)
+U F4 BN F1 BN G
+BN BN BN . BN F3
+BN . . . BX BX
+BX BX BX BX BX BX
+S1 S2 BN BN . .
+. F2 BN BN S3 S4

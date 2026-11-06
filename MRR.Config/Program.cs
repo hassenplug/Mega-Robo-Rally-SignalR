@@ -16,8 +16,13 @@ using SixLabors.ImageSharp.Processing;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSingleton<BoardData>();
-builder.Services.AddSingleton(sp => new BoardPhotoImportService(new TileTemplateCatalog(
-    Path.Combine(sp.GetRequiredService<IWebHostEnvironment>().WebRootPath, "images"))));
+builder.Services.AddSingleton(sp =>
+{
+    var images = Path.Combine(sp.GetRequiredService<IWebHostEnvironment>().WebRootPath, "images");
+    // images/real holds tiles cut from photos of the printed board (RealTiles); they replace the
+    // catalog art for the types they cover. Regenerate with MRR.Tools.RealTiles.
+    return new BoardPhotoImportService(new TileTemplateCatalog(images, RealTiles.Load(images)));
+});
 var app = builder.Build();
 
 // UseDefaultFiles before UseStaticFiles, so "/" serves board-editor.html. The game host has

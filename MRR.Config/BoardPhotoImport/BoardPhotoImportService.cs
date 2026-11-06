@@ -10,7 +10,7 @@ namespace MRR.Config.BoardPhotoImport
     /// </summary>
     public record ImportedCell(
         int X, int Y, int SquareType, int Rotation, float Score, bool NeedsReview,
-        int GuessTypeId, int GuessParameter, string? Reason);
+        int GuessTypeId, int GuessParameter, string? Reason, float Margin = float.PositiveInfinity);
 
     /// <summary>
     /// Photo → BoardElementCollection: rectify, slice, match each cell, then give each cell the
@@ -29,6 +29,13 @@ namespace MRR.Config.BoardPhotoImport
         /// </summary>
         public const float DefaultThreshold = 0.5f;
 
+        /// <summary>
+        /// A cell whose best match leads the best tile of another type or number by less than this
+        /// is marked for review. Chosen from the sweep in BOARD_PHOTO_IMPORT_DESIGN.md
+        /// ("Step 5 results").
+        /// </summary>
+        public const float DefaultMarginThreshold = 0.05f;
+
         private readonly TileMatcher _matcher;
 
         public BoardPhotoImportService(TileTemplateCatalog catalog)
@@ -45,14 +52,14 @@ namespace MRR.Config.BoardPhotoImport
             // a fraction of a cell off, which shifts every cell.
             if (refineGrid) corners = GridRefiner.Refine(photo, corners, cols, rows);
             using var rectified = PerspectiveRectifier.Rectify(photo, corners, cols, rows, CellPx);
-            float blackMax = TileFeatures.AdaptiveBlackMax(rectified);
+            var blackMax = TileFeatures.LocalBlackMax(rectified, cols, rows);
             var cells = PerspectiveRectifier.SliceCells(rectified, cols, rows);
             var matches = new TileMatch[rows, cols];
             try
             {
                 for (int r = 0; r < rows; r++)
                     for (int c = 0; c < cols; c++)
-                        matches[r, c] = _matcher.Match(cells[r, c], mode, blackMax);
+                        matches[r, c] = _matcher.Match(cells[r, c], mode, blackMax[r, c]);
             }
             finally
             {
@@ -66,7 +73,8 @@ namespace MRR.Config.BoardPhotoImport
         /// can be tested without a photo.
         /// </summary>
         public static (BoardElementCollection Board, List<ImportedCell> Cells) BuildBoard(
-            TileMatch[,] matches, float threshold, BoardElementCollection template)
+            TileMatch[,] matches, float threshold, BoardElementCollection template,
+            float marginThreshold = DefaultMarginThreshold)
         {
             int rows = matches.GetLength(0), cols = matches.GetLength(1);
             var board = new BoardElementCollection(cols, rows);
@@ -86,6 +94,18 @@ namespace MRR.Config.BoardPhotoImport
                         reason = $"Best match {guess.FileName} scored {match.Score:0.00}, below {threshold:0.00}; set to Blank.";
                         typeId = (int)SquareType.Blank;
                         parameter = 0;
+                    }
+                    else if (typeId is (int)SquareType.Flag or (int)SquareType.StartSquare or (int)SquareType.RebootToken)
+                    {
+                        // The digit or letter is a few pixels in the comparison and is not reliably
+                        // read yet (flags of the wrong number still match a flag strongly), so every
+                        // numbered tile needs a look. The editor's validate also catches duplicates.
+                        reason = $"Matched {guess.FileName}: the number or letter is not read reliably from a photo; check it, or use \"Number in order\" in the editor.";
+                    }
+                    else if (match.Margin < marginThreshold)
+                    {
+                        reason = $"Close call: {guess.FileName} ({match.Score:0.00}) vs {match.RunnerUp} " +
+                                 $"({match.Score - match.Margin:0.00}).";
                     }
 
                     var templateSquare = template.GetSquare((SquareType)typeId);
@@ -114,7 +134,7 @@ namespace MRR.Config.BoardPhotoImport
                     // and walls (ActionIncludesRotation) to the new rotation.
                     board.SetSquare(c, r, (SquareType)typeId, rotation, actions);
                     report.Add(new ImportedCell(c, r, typeId, (int)rotation, match.Score, reason != null,
-                        guess.TypeId, guess.Parameter, reason));
+                        guess.TypeId, guess.Parameter, reason, match.Margin));
                 }
 
             board.TotalFlags = board.CalcTotalFlags();
