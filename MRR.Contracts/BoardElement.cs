@@ -152,6 +152,7 @@ namespace MRR
                 onelement.BoardRow = newrow;
                 onelement.BoardCol = newcol;
                 onelement.Rotate(1);
+                onelement.RotateWalls(1);
 
             }
         }
@@ -492,7 +493,9 @@ namespace MRR
             {
                 case SquareAction.Move:
                 case SquareAction.OptionalRotate:
-                case SquareAction.BlockDirection:
+                    // BlockDirection is deliberately NOT here: a wall's Parameter is its own edge
+                    // (a tile can have several, each different), so it must not be overwritten with
+                    // the tile's Rotation on load. Board rotation turns walls via RotateWalls().
                     //case SquareAction.PlayerStart:
                     //case SquareAction.Flag:
                     return true;
