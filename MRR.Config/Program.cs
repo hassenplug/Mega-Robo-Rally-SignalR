@@ -23,7 +23,15 @@ builder.Services.AddSingleton(sp =>
     // catalog art for the types they cover. Regenerate with MRR.Tools.RealTiles.
     return new BoardPhotoImportService(new TileTemplateCatalog(images, RealTiles.Load(images)));
 });
+// The GM panel (game host, :5000 by default) calls this host cross-origin -- see
+// API_DECOMPOSITION_DESIGN.md section 5.6. Allow only origins on the game host's port.
+var gameHostPort = builder.Configuration.GetValue("GameHostPort", 5000);
+builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy
+    .SetIsOriginAllowed(origin => Uri.TryCreate(origin, UriKind.Absolute, out var uri) && uri.Port == gameHostPort)
+    .AllowAnyHeader()
+    .AllowAnyMethod()));
 var app = builder.Build();
+app.UseCors();
 
 // UseDefaultFiles before UseStaticFiles, so "/" serves board-editor.html. The game host has
 // these the other way round, which is why "/" returns 404 there and the phones have to be
@@ -366,6 +374,51 @@ app.MapGet("/api/boardeditor/{boardId:int}/validate", (int boardId, BoardData da
         playerStarts = starts.Distinct().Count(),
         errors,
         warnings
+    });
+});
+
+// ── Randomize flags ─────────────────────────────────────────────────────────
+// GM panel "Flag Positions". Shuffles the flag numbers among the board's existing flag
+// squares: every flag stays where it is and only its number (the Flag action's Parameter)
+// changes. The set of numbers is unchanged, so Boards.TotalFlags stays correct. Rows are Y
+// and columns X, 0-based.
+
+app.MapPost("/api/boardeditor/{boardId:int}/randomize-flags", (int boardId, BoardData data) =>
+{
+    if (boardId <= 0 || data.GetIntFromDB("SELECT COUNT(*) FROM Boards WHERE BoardID=@id;", ("@id", boardId)) == 0)
+        return Results.NotFound(new { error = $"Board {boardId} not found" });
+
+    var flags = new List<(int X, int Y, int Number)>();
+    foreach (DataRow row in data.GetQueryResults(
+        "SELECT X, Y, Parameter FROM BoardItemActions WHERE BoardID=@id AND SquareAction=@flag;",
+        ("@id", boardId), ("@flag", (int)SquareAction.Flag)).Rows)
+        flags.Add((Convert.ToInt32(row["X"]), Convert.ToInt32(row["Y"]), Convert.ToInt32(row["Parameter"])));
+    if (flags.Count == 0)
+        return Results.BadRequest(new { error = "Board has no flags." });
+
+    var numbers = flags.Select(f => f.Number).OrderBy(_ => Random.Shared.Next()).ToList();
+
+    using var connection = data.OpenConnection();
+    using var transaction = connection.BeginTransaction();
+    for (int i = 0; i < flags.Count; i++)
+    {
+        using var command = new MySqlCommand(
+            "UPDATE BoardItemActions SET Parameter=@num WHERE BoardID=@id AND X=@x AND Y=@y AND SquareAction=@flag;",
+            connection, transaction);
+        command.Parameters.AddWithValue("@num", numbers[i]);
+        command.Parameters.AddWithValue("@id", boardId);
+        command.Parameters.AddWithValue("@x", flags[i].X);
+        command.Parameters.AddWithValue("@y", flags[i].Y);
+        command.Parameters.AddWithValue("@flag", (int)SquareAction.Flag);
+        command.ExecuteNonQuery();
+    }
+    transaction.Commit();
+
+    return Results.Ok(new
+    {
+        boardId,
+        flags = flags.Select((f, i) => new { flag = numbers[i], oldFlag = f.Number, row = f.Y, col = f.X })
+            .OrderBy(f => f.flag).ThenBy(f => f.row).ThenBy(f => f.col)
     });
 });
 
