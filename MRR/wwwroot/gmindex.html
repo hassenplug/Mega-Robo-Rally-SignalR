@@ -65,6 +65,16 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
 #timingPanel .slow { color:#cc0000; font-weight:bold; }
 #timingPanel .tFoot { display:flex; justify-content:space-between; align-items:center; margin-top:4px; color:#606060; font-size:13px; }
 #timingPanel .tFoot .button { min-height:36px; width:auto; font-size:14px; }
+/* Flag Positions panel (Display > Flag Positions). */
+#flagPanel .fBoard { background:#ffffff; padding:6px; margin-bottom:6px; }
+#flagPanel .fHead { display:flex; align-items:center; gap:8px; }
+#flagPanel .fName { flex:1; min-width:0; font-weight:bold; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#flagPanel .fHead .button { width:auto; padding:4px 14px; background-color:#0050a0; color:#ffffff; }
+#flagPanel table { border-collapse:collapse; margin-top:4px; }
+#flagPanel th, #flagPanel td { padding:2px 10px 2px 0; text-align:left; white-space:nowrap; }
+#flagPanel th { font-weight:normal; color:#606060; }
+#flagPanel .fOld { color:#808080; font-weight:normal; }
+#flagPanel .fError { color:#cc0000; margin-top:4px; }
 </style>
 
 </head>
@@ -150,6 +160,8 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
             <button class="button" id="viewMenu-spam" onclick="gmSetRightPanel('spam');">Show My Deck</button>
             <button class="button" id="viewMenu-lasthand" onclick="gmSetRightPanel('lasthand');">Last Hand</button>
             <button class="button" id="viewMenu-gamecontrol" onclick="gmSetRightPanel('gamecontrol');">Game Control</button>
+            <button class="button" id="viewMenu-flags" onclick="gmSetRightPanel('flags');">Flag Positions</button>
+            <button class="button" id="viewMenu-robotselect" style="display:none;" onclick="gmSetRightPanel('robotselect');">Robot Selection</button>
         </div>
     </div>
 </div>
@@ -184,16 +196,35 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
                 <select id="gameDataSelect" class="w3-input" style="display:inline-block; width:auto; font-size:18px; height:48px;"></select>
             </div>
             <div id="gameRunningNote" style="display:none; color:#606060;">A game is running.</div>
-            <!-- Shown while players are picking robots (gamestate 1). -->
-            <div id="endSelectionRow" style="display:none; margin-top:6px;">
-                <button class="button" style="width:auto; padding:6px 20px; background-color:#b00000; color:#ffffff;" onclick="endSelection();">End Selection</button>
-                <div style="color:#606060;">Deletes every robot no player has picked and starts the game with the rest.</div>
+            <!-- Shown only while a game is running and players are not picking robots. -->
+            <div id="nextStateRow" style="display:none; margin-top:12px;">
+                <button class="button" style="width:auto; padding:6px 20px; background-color:#ffd700; color:#000000;" onclick="gmAction('nextstate');">Next State</button>
+            </div>
+            <!-- Shown only while a game is running. -->
+            <div id="endGameRow" style="display:none; margin-top:12px;">
+                <button class="button" style="width:auto; padding:6px 20px; background-color:#cc0000; color:#ffffff;" onclick="if(confirm('End the current game and disconnect from robots?')) gmAction('endgame');">End Game</button>
             </div>
             <div style="margin-top:12px;">
-                <button class="button" style="width:auto; padding:6px 20px; background-color:#cc0000; color:#ffffff;" onclick="if(confirm('End the current game and disconnect from robots?')) gmAction('endgame');">End Game</button>
                 <!-- Shown only on the Pi's own screen; the server refuses it from anywhere else too. -->
                 <button class="button" id="shutDownPiBtn" style="display:none; width:auto; padding:6px 20px; background-color:#000000; color:#ffffff;" onclick="shutDownPi();">Shut Down Pi</button>
             </div>
+        </div>
+        <!-- Display > Robot Selection (gamestate 1 only): the GM picks for the seat whose turn it
+             is -- tap a robot here, then a still-open "Start N" row in the robot list on the left
+             (renderRobotSelect below; same /api/setup/select call the phone's setup screen makes). -->
+        <div id="robotSelectPanel" style="display:none;">
+            <div style="margin-bottom:12px;">
+                <button class="button" style="width:auto; padding:6px 20px; background-color:#b00000; color:#ffffff;" onclick="endSelection();">End Selection</button>
+                <div style="color:#606060;">Deletes every robot no player has picked and starts the game with the rest.</div>
+            </div>
+            <div id="robotSelectActive" style="font-weight:bold; font-size:20px; margin-bottom:6px;"></div>
+            <div id="robotSelectBodies"></div>
+            <div id="robotSelectHint" style="color:#606060; margin-top:6px;"></div>
+        </div>
+        <!-- Display > Flag Positions: every board with a Randomize button that shuffles the
+             numbers of that board's flags; the flags stay put (Config host, randomizeFlags below). -->
+        <div id="flagPanel" style="display:none;">
+            <div id="flagBoards" style="color:#606060;">Loading boards...</div>
         </div>
         <!-- Player message and direction buttons: shown in both views, above the program panel. -->
         <div id="batteryButtons">
@@ -286,7 +317,7 @@ function buildPlayerRows(robots) {
 // "Display" menu: Off on every page load, so no cards show until the GM picks a view.
 // 'gamecontrol' (this page only) replaces the whole right panel with the start-game picker.
 rightPanelView = 'off';
-VIEW_MENU_ITEMS.push('gamecontrol');
+VIEW_MENU_ITEMS.push('gamecontrol', 'flags', 'robotselect');
 
 // ── Timing panel ─────────────────────────────────────────────────────────────
 // Polls /api/timing every 2s while it is on. Ack/Poll are network + robot round trips
@@ -412,15 +443,135 @@ function gmSetRightPanel(view) {
 var lastGameState = null;
 var viewBeforeGameControl = 'off';
 
+// Robot Selection opens by itself when players start picking (gamestate 1) and closes when
+// they finish; Flag Positions is only offered while no game is running.
 function followGameRunning(gamestate) {
     var stopped = gamestate === 25;
+    var selecting = gamestate === 1;
+    if (!selecting && rightPanelView === 'robotselect') setRightPanelView(viewBeforeGameControl);
+    if (!stopped && rightPanelView === 'flags') setRightPanelView('off');
+    document.getElementById('viewMenu-robotselect').style.display = selecting ? '' : 'none';
+    document.getElementById('viewMenu-flags').style.display = stopped ? '' : 'none';
     if (stopped && lastGameState !== 25) {
         if (rightPanelView !== 'gamecontrol') viewBeforeGameControl = rightPanelView;
         setRightPanelView('gamecontrol');
     } else if (!stopped && lastGameState === 25 && rightPanelView === 'gamecontrol') {
         setRightPanelView(viewBeforeGameControl);
     }
+    if (selecting && lastGameState !== 1) setRightPanelView('robotselect');
     lastGameState = gamestate;
+}
+
+// ── Robot Selection (gamestate 1) ────────────────────────────────────────────
+// The GM picks on behalf of the seat whose turn it is (GameConfig.PlayerToSelect): a robot body
+// from the right panel, then a start position -- one of the still-open "Start N" rows in the
+// robot list on the left (GameConfig.AvailableStartPositions holds their RobotIDs).
+var gmSelectBody = null;  // RobotBodyID tapped, until a start position commits it
+var gmSelectSeat = null;  // the seat gmSelectBody was picked for
+
+function renderRobotSelect() {
+    var config = datapacket.GameConfig || { PlayerToSelect: 0, AvailableRobots: [], AvailableStartPositions: [] };
+    if (gmSelectSeat !== config.PlayerToSelect) { gmSelectBody = null; gmSelectSeat = config.PlayerToSelect; }
+    if (!config.AvailableRobots.some(function (b) { return b.RobotBodyID === gmSelectBody; })) gmSelectBody = null;
+
+    document.getElementById('robotSelectActive').textContent = 'Seat ' + config.PlayerToSelect + ' is picking';
+
+    // Rebuild only when something changed, so a tap isn't lost to a rebuild mid-click.
+    var key = JSON.stringify([config.AvailableRobots, gmSelectBody]);
+    var bodies = document.getElementById('robotSelectBodies');
+    if (bodies.dataset.key !== key) {
+        bodies.dataset.key = key;
+        bodies.innerHTML = '';
+        config.AvailableRobots.forEach(function (b) {
+            var btn = document.createElement('button');
+            btn.className = 'button';
+            btn.style = 'margin:2px; background-color:#' + b.Color + '; color:#' + b.ColorFG +
+                (b.RobotBodyID === gmSelectBody ? '; outline:4px solid #000000; outline-offset:-4px;' : '');
+            btn.textContent = b.Name;
+            btn.onclick = function () { gmSelectBody = b.RobotBodyID; showall(); };
+            bodies.appendChild(btn);
+        });
+    }
+    document.getElementById('robotSelectHint').textContent = gmSelectBody
+        ? 'Now tap a start position in the robot list.'
+        : 'Tap a robot, then a start position in the robot list.';
+}
+
+function makeStartPositionHandler(startPosition) {
+    return function () {
+        if (!gmSelectBody || !gmSelectSeat) { alert('Pick a robot first.'); return; }
+        fetch('/api/setup/select/' + gmSelectSeat + '/' + startPosition + '/' + gmSelectBody)
+            .catch(function (err) { console.error(err.toString()); });
+        gmSelectBody = null;
+    };
+}
+
+// ── Flag Positions ───────────────────────────────────────────────────────────
+// Boards live on the Configuration host (:5001), which owns the board tables; it allows this
+// page's origin via CORS. Randomize shuffles the flag numbers among the board's flag squares
+// (the squares don't move) and writes the board -- permanent, so the old numbers are shown too.
+// Row/Col are 0-based, the same R/C as Turn History.
+var CONFIG_HOST = location.protocol + '//' + location.hostname + ':5001';
+var flagBoards = null;      // board list, loaded the first time the panel is opened
+var flagResults = {};       // BoardID -> last randomize result (or error) shown under it
+
+function loadFlagBoards() {
+    flagBoards = [];
+    fetch(CONFIG_HOST + '/api/boardeditor/boards')
+        .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(function (data) {
+            flagBoards = (data.boards || []).filter(function (b) { return b.BoardID > 0; });
+            renderFlagBoards();
+        })
+        .catch(function (err) {
+            flagBoards = null; // try again next time the panel is shown
+            document.getElementById('flagBoards').innerText = 'Could not load boards from the configuration host: ' + err.message;
+        });
+}
+
+function escapeHtml(text) {
+    return String(text).replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+}
+
+function renderFlagBoards() {
+    var box = document.getElementById('flagBoards');
+    if (!flagBoards.length) { box.innerText = 'No boards.'; return; }
+    box.style.color = '';
+    box.innerHTML = flagBoards.map(function (b) {
+        var html = "<div class='fBoard'><div class='fHead'>" +
+            "<span class='fName'>" + escapeHtml(b.BoardName) + " <span class='fOld'>" + b.X + "&times;" + b.Y + "</span></span>" +
+            "<button class='button' onclick='randomizeFlags(" + b.BoardID + ");'>Randomize</button></div>";
+        var res = flagResults[b.BoardID];
+        if (res && res.error) {
+            html += "<div class='fError'>" + escapeHtml(res.error) + "</div>";
+        } else if (res) {
+            html += "<table><tr><th>Flag</th><th>Row</th><th>Col</th><th>was</th></tr>" +
+                res.flags.map(function (f) {
+                    return "<tr><td><b>" + f.flag + "</b></td><td><b>" + f.row + "</b></td><td><b>" + f.col + "</b></td>" +
+                        "<td class='fOld'>flag " + f.oldFlag + "</td></tr>";
+                }).join('') + "</table>";
+        }
+        return html + "</div>";
+    }).join('');
+}
+
+function randomizeFlags(boardId) {
+    var board = flagBoards.find(function (b) { return b.BoardID === boardId; });
+    var msg = 'Shuffle the flag numbers on "' + (board ? board.BoardName : boardId) + '"? The flags stay where they are. This changes the saved board.';
+    if (datapacket && datapacket.gamestate !== 25) msg += '\n\nA game is running -- if it uses this board, the flags will move mid-game.';
+    if (!confirm(msg)) return;
+    fetch(CONFIG_HOST + '/api/boardeditor/' + boardId + '/randomize-flags', { method: 'POST' })
+        .then(function (r) {
+            return r.json().catch(function () { return {}; }).then(function (body) {
+                if (!r.ok) throw new Error(body.error || ('HTTP ' + r.status));
+                return body;
+            });
+        })
+        .then(function (body) { flagResults[boardId] = body; })
+        .catch(function (err) { flagResults[boardId] = { error: 'Randomize failed: ' + err.message }; })
+        .then(renderFlagBoards);
 }
 
 // ── Game Control: End Selection (gamestate 1) ────────────────────────────────
@@ -527,19 +678,28 @@ function showall() {
 
     followGameRunning(datapacket.gamestate);
     var gameControl = rightPanelView === 'gamecontrol';
+    var flagView = rightPanelView === 'flags';
+    document.getElementById('flagPanel').style.display = flagView ? '' : 'none';
+    if (flagView && flagBoards === null) loadFlagBoards();
     var showGmStart = datapacket.gamestate === 25;
     document.getElementById('gameControlPanel').style.display = gameControl ? '' : 'none';
     document.getElementById('gmtable').style.display = showGmStart ? '' : 'none';
     document.getElementById('gameRunningNote').style.display = showGmStart ? 'none' : '';
-    document.getElementById('endSelectionRow').style.display = datapacket.gamestate === 1 ? '' : 'none';
+    document.getElementById('nextStateRow').style.display = (!showGmStart && datapacket.gamestate !== 1) ? '' : 'none';
+    document.getElementById('endGameRow').style.display = showGmStart ? 'none' : '';
     if (showGmStart && gameDataOptions === null) loadGameDataOptions();
 
-    document.getElementById('batteryButtons').style.display = gameControl ? 'none' : '';
+    var robotSelect = rightPanelView === 'robotselect';
+    var openStarts = (robotSelect && datapacket.GameConfig) ? datapacket.GameConfig.AvailableStartPositions : [];
+    document.getElementById('robotSelectPanel').style.display = robotSelect ? '' : 'none';
+    if (robotSelect) renderRobotSelect();
+
+    document.getElementById('batteryButtons').style.display = (gameControl || flagView || robotSelect) ? 'none' : '';
     document.getElementById('flagsHeader').innerText = gameControl ? 'Facing' : batteryMode ? 'Battery' : 'F/E/C';
     // Re-read SeatOrientation each time Game Control is opened while no game is running.
     if (!gameControl) seatDirections = null;
     else if (showGmStart && seatDirections === null) loadSeatDirections();
-    document.getElementById('programPanel').style.display = (batteryMode || gameControl) ? 'none' : '';
+    document.getElementById('programPanel').style.display = (batteryMode || gameControl || flagView || robotSelect) ? 'none' : '';
 
     // showplayerprogram() looks robots up by Priority (CurrentLine), which changes every turn:
     // follow the picked robot's new Priority so the panel stays on the same robot. Nothing
@@ -564,8 +724,15 @@ function showall() {
         var btn = document.getElementById('button' + rid);
         btn.style = "background-color:#" + r.RobotColor + "; color:#" + r.RobotColorFG;
         btn.textContent = r.RobotName;
-        btn.classList.toggle('selectedRobot', !batteryMode && r.RobotID === CurrentPlayer);
+        btn.classList.toggle('selectedRobot', !batteryMode && !robotSelect && r.RobotID === CurrentPlayer);
         btn.onclick = batteryMode ? makeBasePickerHandler(r) : makeSelectRobotHandler(r.Priority);
+        if (robotSelect) {
+            // Robot Selection: the still-open rows are the start positions to pick from;
+            // rows already taken are greyed out and do nothing.
+            var open = openStarts.indexOf(r.RobotID) >= 0;
+            btn.onclick = open ? makeStartPositionHandler(r.RobotID) : null;
+            if (!open) btn.style.opacity = '0.4';
+        }
 
         var flagsCell = document.getElementById('flags' + rid);
         var statusbox = document.getElementById('playerstatus' + rid);
