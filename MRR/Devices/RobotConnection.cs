@@ -257,13 +257,27 @@ namespace MRR.Devices
             await SendCommandAsync(new { cmd_id = "lcd_set_pen_color", r = fgR, g = fgG, b = fgB });
             await SendCommandAsync(new { cmd_id = "lcd_set_fill_color", r = bgR, g = bgG, b = bgB, transparent = false });
 
-            // Draw forward-pointing arrow in robot color on forecolor background
-            for (int y = 30; y <= 99; y++)
+            if (_shutDown)
             {
-                int halfWidth = (y - 30) * 60 / 70;
-                await SendCommandAsync(new { cmd_id = "lcd_draw_line", x1 = 120 - halfWidth, y1 = y, x2 = 120 + halfWidth, y2 = y });
+                // Shut down: only the outline of the same arrow (head 61..179 wide at y=99, shaft 95..145 down to y=209).
+                int[] xs = { 120, 179, 145, 145, 95, 95, 61 };
+                int[] ys = { 30, 99, 99, 209, 209, 99, 99 };
+                for (int i = 0; i < xs.Length; i++)
+                {
+                    int j = (i + 1) % xs.Length;
+                    await SendCommandAsync(new { cmd_id = "lcd_draw_line", x1 = xs[i], y1 = ys[i], x2 = xs[j], y2 = ys[j] });
+                }
             }
-            await SendCommandAsync(new { cmd_id = "lcd_draw_rectangle", x = 95, y = 100, width = 50, height = 110, r = fgR, g = fgG, b = fgB, transparent = false });
+            else
+            {
+                // Draw forward-pointing arrow in robot color on forecolor background
+                for (int y = 30; y <= 99; y++)
+                {
+                    int halfWidth = (y - 30) * 60 / 70;
+                    await SendCommandAsync(new { cmd_id = "lcd_draw_line", x1 = 120 - halfWidth, y1 = y, x2 = 120 + halfWidth, y2 = y });
+                }
+                await SendCommandAsync(new { cmd_id = "lcd_draw_rectangle", x = 95, y = 100, width = 50, height = 110, r = fgR, g = fgG, b = fgB, transparent = false });
+            }
 
             await ShowTextAsync(name);
 
