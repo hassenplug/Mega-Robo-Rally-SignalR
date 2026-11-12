@@ -224,20 +224,32 @@ Unreferenced image files: `wwwroot/images/Direction2.png`–`Direction4.png`,
   `sudo shutdown -h now`, a bank with a battery display, or a shutdown button on the GM menu
 
 - [ ] Design a printable case for the Pi, its screen, and the router, in OpenSCAD
-  (`cad/Pi_Router_enclosure.scad`; first draft written 2026-11-03, never rendered — see
+  (`cad/Pi_Router_enclosure.scad`; revised 2026-11-12 and rendered in OpenSCAD for the first time,
+  never printed, several sizes still estimates — see
   [documents/ENCLOSURE_KB.md](../documents/ENCLOSURE_KB.md) for what it does and doesn't cover). Requirements:
   - Holds the Raspberry Pi and the screen, with a place to hold the router
   - Protects the front of the screen and its edge
-  - The screen and Pi slide in through the bottom of the case
+  - The screen and Pi slide in from the top of the case (changed 2026-11-12; was "through the
+    bottom") — modelled
+  - The wire from the screen to the Pi is protected by a side of the case (added 2026-11-12) —
+    modelled, on a guessed side (`ribbon_side`)
+  - The arm and leg supports stay clear of the screen and the Pi (added 2026-11-12) — modelled
+    and checked in OpenSCAD
+  - The router holder has a ledge on both ends so the router cannot fall out, without blocking
+    its power or network plugs (added 2026-11-12) — modelled
+  - Below and above the opening for the router's Ethernet door, a lip keeps the router in place
+    (added 2026-11-12) — modelled
   - The screen has four screw holes on its back; the case has matching holes so screws secure
-    the screen
+    the screen — **not modelled**, hole positions unknown
   - The bottom of the case is angled so the screen tilts at the same angle as the screen's
-    included legs
-  - A pocket in the back holds the router, sitting at the same angle as the screen
+    included legs — **not confirmed**, the leg angle is unknown (model uses 60°)
+  - A pocket in the back holds the router, sitting at the same angle as the screen — modelled
   - Parts: Raspberry Pi 4 + Hosyond 5" DSI screen (`PROJECT_STATUS.md` §1.9) and the Ubiquiti
     UniFi Travel Router (`install/NETWORK_SETUP.md`)
-  - Not recorded anywhere in the repo: the screen's physical outline and screw-hole spacing
-    and thread, the leg angle, the router's dimensions, and the Pi's port/cable clearances
+  - Measure before printing (the KB's "Estimates and unknowns"): the screen's thickness, how far
+    the Pi sticks out behind it, which side the ribbon is on, the router's flip-up Ethernet
+    cover, the screw-hole positions and thread, and the leg angle. The KB's "Open points" has
+    one to settle first: at 60° the Pi's lower rear corner may touch the table
 
 ---
 
