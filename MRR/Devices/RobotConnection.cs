@@ -720,7 +720,9 @@ namespace MRR.Devices
                 await SendCommandAsync(new { cmd_id = "lcd_set_pen_color", r = bgR, g = bgG, b = bgB });
                 await SendCommandAsync(new { cmd_id = "lcd_draw_rectangle", x = 0, y = NameBandY, width = 240, height = NameHeight, r = bgR, g = bgG, b = bgB, transparent = false });
                 await SendCommandAsync(new { cmd_id = "lcd_set_pen_color", r = fgR, g = fgG, b = fgB });
-                await SendCommandAsync(new { cmd_id = "lcd_draw_rectangle", x = 95, y = NameBandY, width = 50, height = NameHeight, r = fgR, g = fgG, b = fgB, transparent = false });
+                // The filled arrow's shaft behind the name; shut down, the arrow is only an outline.
+                if (!_shutDown)
+                    await SendCommandAsync(new { cmd_id = "lcd_draw_rectangle", x = 95, y = NameBandY, width = 50, height = NameHeight, r = fgR, g = fgG, b = fgB, transparent = false });
                 await SendCommandAsync(new { cmd_id = "lcd_set_fill_color", r = bgR, g = bgG, b = bgB, transparent = false });
                 await SendCommandAsync(new { cmd_id = "lcd_set_font", fontname = "mono40" });
                 await SendCommandAsync(new { cmd_id = "lcd_print_at", @string = text, x = Math.Max(0, (240 - text.Length * NameCharWidth) / 2), y = NameY, b_opaque = true });
