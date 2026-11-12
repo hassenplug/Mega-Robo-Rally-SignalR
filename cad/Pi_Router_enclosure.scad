@@ -12,9 +12,9 @@
 //
 // Four parts, each one solid item:
 //   case          (blue)  - screen shell: bezel opening, vents, open top, back rails that
-//                           hold the screen in, one side carried back over the Pi's ribbon
-//   legs          (gray)  - ground frame: two bars from the case base to a cross bar at the
-//                           router pocket's base
+//                           hold the screen in (thin along the sides, clear of the corner posts), one side carried back over the Pi's ribbon
+//   legs          (gray)  - ground frame: two bars angled from the case base to the pocket's
+//                           sides, joined by a cross bar at the router pocket's base
 //   arms          (white) - two struts: top corners of the router pocket -> back of case, square-ended
 //   router_pocket (yellow) - sleeve that holds the UniFi Travel Router, same tilt as the case;
 //                            open at the top and, above a ledge, at both side ends
@@ -61,13 +61,23 @@ case_w        = pcb_w + (wall_t * 2);
 case_h        = pcb_h + (wall_t * 2);
 
 slot_clr      = 0.40;    // Front-to-back clearance for the screen in its slot
-rail_w        = 3.50;    // How far the back rails reach in over the back of the screen's PCB
+rail_w        = 3.50;    // How far the bottom back rail reaches in over the back of the screen's PCB
+side_rail_w   = 1.50;    // ESTIMATE: how far the side rails reach in over the PCB. The screen has a mounting post at
+                         // each corner whose outer edge is about 1.5 mm from the PCB's edge (read off a photo),
+                         // and the top ones slide down the sides, so the rails must stay outside them
+pi_open_w     = 100;     // ESTIMATE: width of the opening in the case back for the Pi (a Pi 4 board is 85 mm long);
+                         // the side rails take up the rest of the screen's width. Keep it under twice
+                         // arm_x - bar_t/2 (about 101.6), or the Pi cutout cuts into the arms and legs
 rail_t        = case_depth - wall_t - screen_t - slot_clr;   // Back rail thickness: what case_depth leaves
 pi_rear       = pi_back - rail_t;                            // How far the Pi reaches behind the case back
+pcb_back_z    = case_depth - wall_t - screen_t;              // Back face of the screen's PCB, from the case's back plane
+mount_h       = 6;       // ESTIMATE: height of the screen's corner mounting posts behind its PCB (not readable from
+                         // the photo)
 assert(rail_t >= 1.2, "screen_t leaves less than 1.2 mm for the back rails; raise case_depth");
 
 // --- 4. ROUTER POCKET, LEGS AND ARMS ---
-bar_t         = 5;       // Square section of the legs and arms
+bar_t         = 5;       // Square section of the legs
+arm_t         = 3;       // Square section of the arms: thin enough to stay clear of the screen's corner posts
 pocket_gap    = pi_rear + 3;   // Clear space between the case back and the pocket's front face: the Pi plus 3 mm
 ledge_h       = 6;       // Ledge across the bottom of each open end of the pocket; keeps the router in
 
@@ -124,8 +134,18 @@ module screen_slot() {
 // Room for the Pi on the screen's back, in the case's frame: the opening between the back
 // rails and the space behind it, tall enough to cover the Pi's path in from the top
 module pi_room() {
-    translate([-pcb_w/2 + rail_w, wall_t + rail_w, -pi_rear])
-        cube([pcb_w - 2 * rail_w, 3 * case_h, pi_rear + rail_t + 1]);
+    translate([-pi_open_w/2, wall_t + rail_w, -pi_rear])
+        cube([pi_open_w, 3 * case_h, pi_rear + rail_t + 1]);
+}
+
+// Opening in the case back: the Pi's room, plus a channel along each side for the screen's corner
+// mounting posts (they stand on the back of the PCB, about 7 mm across, ~5 mm in from each corner),
+// which leaves only the bottom rail between the posts and a thin lip along each side
+module back_opening() {
+    pi_room();
+    for (s = [-1, 1])
+        translate([s > 0 ? pi_open_w/2 - 0.5 : -(pcb_w/2 - side_rail_w), wall_t, -pi_rear])
+            cube([pcb_w/2 - side_rail_w - pi_open_w/2 + 0.5, 3 * case_h, pi_rear + rail_t + 1]);
 }
 
 // Space the router takes, in the pocket's frame
@@ -158,7 +178,7 @@ module case() {
             screen_slot();
 
             // Back opening between the rails, open at the top
-            pi_room();
+            back_opening();
 
             // Front Screen Cutout (Bezel)
             translate([-(active_w + 1.0)/2, (case_h - active_h - 1.0)/2, case_depth - wall_t * 1.5])
@@ -216,17 +236,17 @@ module router_pocket() {
 }
 
 // --- LEGS: ground-level frame from the case base to the router pocket base ---
-// Two side bars in line with the case's side walls, joined by a cross bar along the
-// pocket's bottom edge (the pocket is narrower than the case).
+// Two bars angle in from the case's side walls to the pocket's sides (the pocket is narrower
+// than the case), joined by a cross bar along the pocket's bottom edge, between the sides.
 module legs() {
     yc = leg_len - 1;                        // 1 mm inside the pocket's bottom end wall
     difference() {
         union() {
-            for (x = [-side_x, side_x])
-                bar([x, -bar_t/2, bar_t/2],
-                    [x, yc, bar_t/2]);
-            bar([-side_x, yc, bar_t/2],
-                [side_x, yc, bar_t/2]);
+            for (s = [-1, 1])
+                bar([s * side_x, -bar_t/2, bar_t/2],
+                    [s * arm_x, yc, bar_t/2]);
+            bar([-arm_x, yc, bar_t/2],
+                [arm_x, yc, bar_t/2]);
         }
         keep_clear();
     }
@@ -235,21 +255,26 @@ module legs() {
 // --- ARMS: struts from the top corners of the router pocket to the back of the case ---
 // Drawn in the case's tilted frame, so every bar's end faces are square to the case and the
 // pocket (parallel to the case's back face, not cut at a slant). Each arm runs beside the
-// pocket's open end from its back face to its front face, steps out to the line of the case's
-// side wall, then slopes up the screen to the top of the case's back. The sloping bar crosses
-// the pocket's end at the top corner, above the router's sockets.
+// pocket's open end from its back face to its front face, then angles in toward the line of
+// the case's side wall as it slopes up the screen, and goes straight forward the last few mm
+// into the case's back. It stays above the router's sockets. The arm is thinner than the legs
+// so its last run stays outside the screen's corner posts (they stand on the PCB's back and the
+// top ones slide down the case's side as the screen goes in).
 module arms() {
     gap = pocket_gap;
-    ya  = leg_len * cos(tilt_angle) + pocket_l - bar_t;   // along the screen, near the pocket's top end
-    zb  = -(pocket_h + gap) + bar_t/2;                   // flush with the pocket's back face
-    zf  = -gap - bar_t/2;                                // flush with the pocket's front face
+    ya  = leg_len * cos(tilt_angle) + pocket_l - arm_t;   // along the screen, near the pocket's top end
+    zb  = -(pocket_h + gap) + arm_t/2;                   // flush with the pocket's back face
+    zf  = -gap - arm_t/2;                                // flush with the pocket's front face
     u   = case_h - bar_t;                                // up the case back from its bottom edge
+    xp  = pocket_w/2 + arm_t/2 - 1.5;                    // beside the pocket, 1.5 mm into its side face
+    xc  = case_w/2 - arm_t/2 - 0.5;                      // in the case's side wall, 0.5 mm in from its outer face
+    zs  = pcb_back_z - mount_h - 1;                      // behind the corner posts, which end at mount_h
     difference() {
         case_frame()
             for (s = [-1, 1]) {
-                bar([s * arm_x,  ya, zb], [s * arm_x,  ya, zf]);
-                bar([s * arm_x,  ya, zf], [s * side_x, ya, zf]);
-                bar([s * side_x, ya, zf], [s * side_x, u,  2]);   // 2 mm into the case wall
+                bar([s * xp, ya, zb], [s * xp, ya, zf], arm_t);
+                bar([s * xp, ya, zf], [s * xc, u,  zs], arm_t);
+                bar([s * xc, u,  zs], [s * xc, u,  arm_t/2], arm_t);   // flush with the case's back face
             }
         keep_clear();
     }
