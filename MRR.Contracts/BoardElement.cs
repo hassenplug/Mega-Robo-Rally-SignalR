@@ -299,6 +299,23 @@ namespace MRR
             AddAction(newwall);
         }
 
+        /// <summary>
+        /// The direction a BlockDirection action on this square blocks: a robot moving that way
+        /// can't enter this square through the edge opposite it (Up = the bottom edge), and
+        /// can't leave this square going the other way. Parameter &gt; 0 is that direction.
+        /// Parameter 0 takes it from the square's Rotation instead: the wall image (element200)
+        /// draws its bar on the top edge at Rotation Up, so the edge it shows blocks
+        /// Rotate(2, Rotation). Rotation None with Parameter 0 blocks nothing.
+        /// </summary>
+        public Direction WallDirection(BoardAction wall) =>
+            wall.Parameter > 0 ? (Direction)wall.Parameter : RotationFunctions.Rotate(2, Rotation);
+
+        /// <summary>True if this square has a wall blocking <paramref name="direction"/> (see WallDirection).</summary>
+        public bool HasWall(Direction direction) =>
+            ActionList.Any(al => al.SquareAction == SquareAction.BlockDirection && WallDirection(al) == direction);
+
+        // Turns walls with a set Parameter. Parameter 0 walls are left at 0 (Rotate of None is
+        // None): they follow the square's Rotation, which RotateRight turns separately.
         public void RotateWalls(int direction = 1)
         {
             ActionList.Where(al => al.SquareAction == SquareAction.BlockDirection).Select(al => al.Parameter = (int)RotationFunctions.Rotate(direction, (Direction)al.Parameter)).ToList();
@@ -493,9 +510,11 @@ namespace MRR
             {
                 case SquareAction.Move:
                 case SquareAction.OptionalRotate:
-                    // BlockDirection is deliberately NOT here: a wall's Parameter is its own edge
-                    // (a tile can have several, each different), so it must not be overwritten with
-                    // the tile's Rotation on load. Board rotation turns walls via RotateWalls().
+                    // BlockDirection is deliberately NOT here: a wall's Parameter, when > 0, is its
+                    // own edge (a tile can have several, each different), so it must not be
+                    // overwritten with the tile's Rotation on load. Parameter 0 walls follow the
+                    // Rotation where they are checked (BoardElement.WallDirection). Board rotation
+                    // turns the set ones via RotateWalls().
                     //case SquareAction.PlayerStart:
                     //case SquareAction.Flag:
                     return true;

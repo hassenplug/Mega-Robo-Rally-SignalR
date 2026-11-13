@@ -25,13 +25,13 @@
       <BoardCol>0</BoardCol>
       <BoardRow>1</BoardRow>
       <Type>Walls</Type>
-      <Rotation>Left</Rotation>
+      <Rotation>Right</Rotation>
       <ActionList>
         <BoardAction>
           <SquareAction>BlockDirection</SquareAction>
           <ActionSequence>0</ActionSequence>
           <Phase>31</Phase>
-          <Parameter>4</Parameter>
+          <Parameter>0</Parameter>
         </BoardAction>
       </ActionList>
     </BoardElement>
@@ -39,13 +39,13 @@
       <BoardCol>0</BoardCol>
       <BoardRow>2</BoardRow>
       <Type>Walls</Type>
-      <Rotation>Left</Rotation>
+      <Rotation>Right</Rotation>
       <ActionList>
         <BoardAction>
           <SquareAction>BlockDirection</SquareAction>
           <ActionSequence>0</ActionSequence>
           <Phase>31</Phase>
-          <Parameter>4</Parameter>
+          <Parameter>0</Parameter>
         </BoardAction>
       </ActionList>
     </BoardElement>
@@ -53,13 +53,13 @@
       <BoardCol>0</BoardCol>
       <BoardRow>3</BoardRow>
       <Type>Walls</Type>
-      <Rotation>Left</Rotation>
+      <Rotation>Right</Rotation>
       <ActionList>
         <BoardAction>
           <SquareAction>BlockDirection</SquareAction>
           <ActionSequence>0</ActionSequence>
           <Phase>31</Phase>
-          <Parameter>4</Parameter>
+          <Parameter>0</Parameter>
         </BoardAction>
       </ActionList>
     </BoardElement>
@@ -81,13 +81,13 @@
       <BoardCol>1</BoardCol>
       <BoardRow>0</BoardRow>
       <Type>Walls</Type>
-      <Rotation>Up</Rotation>
+      <Rotation>Down</Rotation>
       <ActionList>
         <BoardAction>
           <SquareAction>BlockDirection</SquareAction>
           <ActionSequence>0</ActionSequence>
           <Phase>31</Phase>
-          <Parameter>1</Parameter>
+          <Parameter>0</Parameter>
         </BoardAction>
       </ActionList>
     </BoardElement>
@@ -141,13 +141,13 @@
       <BoardCol>1</BoardCol>
       <BoardRow>4</BoardRow>
       <Type>Walls</Type>
-      <Rotation>Down</Rotation>
+      <Rotation>Up</Rotation>
       <ActionList>
         <BoardAction>
           <SquareAction>BlockDirection</SquareAction>
           <ActionSequence>0</ActionSequence>
           <Phase>31</Phase>
-          <Parameter>3</Parameter>
+          <Parameter>0</Parameter>
         </BoardAction>
       </ActionList>
     </BoardElement>
@@ -155,13 +155,13 @@
       <BoardCol>2</BoardCol>
       <BoardRow>0</BoardRow>
       <Type>Walls</Type>
-      <Rotation>Up</Rotation>
+      <Rotation>Down</Rotation>
       <ActionList>
         <BoardAction>
           <SquareAction>BlockDirection</SquareAction>
           <ActionSequence>0</ActionSequence>
           <Phase>31</Phase>
-          <Parameter>1</Parameter>
+          <Parameter>0</Parameter>
         </BoardAction>
       </ActionList>
     </BoardElement>
@@ -216,13 +216,13 @@
       <BoardCol>2</BoardCol>
       <BoardRow>4</BoardRow>
       <Type>Walls</Type>
-      <Rotation>Down</Rotation>
+      <Rotation>Up</Rotation>
       <ActionList>
         <BoardAction>
           <SquareAction>BlockDirection</SquareAction>
           <ActionSequence>0</ActionSequence>
           <Phase>31</Phase>
-          <Parameter>3</Parameter>
+          <Parameter>0</Parameter>
         </BoardAction>
       </ActionList>
     </BoardElement>
@@ -230,13 +230,13 @@
       <BoardCol>3</BoardCol>
       <BoardRow>0</BoardRow>
       <Type>Walls</Type>
-      <Rotation>Up</Rotation>
+      <Rotation>Down</Rotation>
       <ActionList>
         <BoardAction>
           <SquareAction>BlockDirection</SquareAction>
           <ActionSequence>0</ActionSequence>
           <Phase>31</Phase>
-          <Parameter>1</Parameter>
+          <Parameter>0</Parameter>
         </BoardAction>
       </ActionList>
     </BoardElement>
@@ -310,13 +310,13 @@
       <BoardCol>3</BoardCol>
       <BoardRow>4</BoardRow>
       <Type>Walls</Type>
-      <Rotation>Down</Rotation>
+      <Rotation>Up</Rotation>
       <ActionList>
         <BoardAction>
           <SquareAction>BlockDirection</SquareAction>
           <ActionSequence>0</ActionSequence>
           <Phase>31</Phase>
-          <Parameter>3</Parameter>
+          <Parameter>0</Parameter>
         </BoardAction>
       </ActionList>
     </BoardElement>
@@ -338,13 +338,13 @@
       <BoardCol>4</BoardCol>
       <BoardRow>1</BoardRow>
       <Type>Walls</Type>
-      <Rotation>Right</Rotation>
+      <Rotation>Left</Rotation>
       <ActionList>
         <BoardAction>
           <SquareAction>BlockDirection</SquareAction>
           <ActionSequence>0</ActionSequence>
           <Phase>31</Phase>
-          <Parameter>2</Parameter>
+          <Parameter>0</Parameter>
         </BoardAction>
       </ActionList>
     </BoardElement>
@@ -352,13 +352,13 @@
       <BoardCol>4</BoardCol>
       <BoardRow>2</BoardRow>
       <Type>Walls</Type>
-      <Rotation>Right</Rotation>
+      <Rotation>Left</Rotation>
       <ActionList>
         <BoardAction>
           <SquareAction>BlockDirection</SquareAction>
           <ActionSequence>0</ActionSequence>
           <Phase>31</Phase>
-          <Parameter>2</Parameter>
+          <Parameter>0</Parameter>
         </BoardAction>
       </ActionList>
     </BoardElement>
@@ -366,13 +366,13 @@
       <BoardCol>4</BoardCol>
       <BoardRow>3</BoardRow>
       <Type>Walls</Type>
-      <Rotation>Right</Rotation>
+      <Rotation>Left</Rotation>
       <ActionList>
         <BoardAction>
           <SquareAction>BlockDirection</SquareAction>
           <ActionSequence>0</ActionSequence>
           <Phase>31</Phase>
-          <Parameter>2</Parameter>
+          <Parameter>0</Parameter>
         </BoardAction>
       </ActionList>
     </BoardElement>

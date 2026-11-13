@@ -1301,13 +1301,13 @@
       <BoardCol>4</BoardCol>
       <BoardRow>5</BoardRow>
       <Type>Walls</Type>
-      <Rotation>Right</Rotation>
+      <Rotation>Left</Rotation>
       <ActionList>
         <BoardAction>
           <SquareAction>BlockDirection</SquareAction>
           <ActionSequence>0</ActionSequence>
           <Phase>31</Phase>
-          <Parameter>2</Parameter>
+          <Parameter>0</Parameter>
         </BoardAction>
       </ActionList>
       <ActionCount>1</ActionCount>
@@ -1585,13 +1585,13 @@
       <BoardCol>5</BoardCol>
       <BoardRow>4</BoardRow>
       <Type>Walls</Type>
-      <Rotation>Down</Rotation>
+      <Rotation>Up</Rotation>
       <ActionList>
         <BoardAction>
           <SquareAction>BlockDirection</SquareAction>
           <ActionSequence>0</ActionSequence>
           <Phase>31</Phase>
-          <Parameter>3</Parameter>
+          <Parameter>0</Parameter>
         </BoardAction>
       </ActionList>
       <ActionCount>1</ActionCount>

@@ -253,11 +253,11 @@ namespace MRR
             // reverse direction to check for walls if moving backwards
             Direction l_ActualMoveDirection = (p_Distance > 0 ? p_Direction : RotationFunctions.Rotate(2, p_Direction));
 
-            int l_CheckDirection = (int)RotationFunctions.Rotate(2, l_ActualMoveDirection); // calc 180 degrees out...
+            Direction l_CheckDirection = RotationFunctions.Rotate(2, l_ActualMoveDirection); // calc 180 degrees out...
 
             int l_MoveDistance = Math.Sign(p_Distance); // could be +1 or -1 depending on forward/backward
 
-            if (l_CurrentSquare?.ActionList.Count(al => ((al.SquareAction == SquareAction.BlockDirection) && (al.Parameter == l_CheckDirection))) > 0)
+            if (l_CurrentSquare?.HasWall(l_CheckDirection) == true)
             {
                 // path blocked by a wall
                 ListOfCommands.AddCommand(thisplayer, SquareAction.BlockDirection);
@@ -289,7 +289,7 @@ namespace MRR
                 return 0; // do not move
             }
 
-            if (l_TargetActions.Count(al => ((al.SquareAction == SquareAction.BlockDirection) && (al.Parameter == (int)l_ActualMoveDirection))) > 0)
+            if (l_TargetSquare?.HasWall(l_ActualMoveDirection) == true)
             {
                 ListOfCommands.AddCommand(thisplayer, SquareAction.BlockDirection);
                 // path blocked by a wall
@@ -1413,7 +1413,7 @@ namespace MRR
                         while (true)
                         {
                             /// check wall in same square
-                            if (g_BoardElements.GetSquare(CheckX, CheckY)?.ActionList.Count(al => ((al.SquareAction == SquareAction.BlockDirection) && (al.Parameter == (int)canndir2))) > 0)
+                            if (g_BoardElements.GetSquare(CheckX, CheckY)?.HasWall(canndir2) == true)
                             {
                                 RemainingPower--;
                                 if (RemainingPower == 0)
@@ -1438,7 +1438,7 @@ namespace MRR
                             //BoardElement currentsquare = g_BoardElements.GetSquare(CheckX, CheckY);
 
                             /// check wall in close edge of next square
-                            if (g_BoardElements.GetSquare(CheckX, CheckY)?.ActionList.Count(al => ((al.SquareAction == SquareAction.BlockDirection) && (al.Parameter == (int)canndir))) > 0)
+                            if (g_BoardElements.GetSquare(CheckX, CheckY)?.HasWall(canndir) == true)
                             {
                                 RemainingPower--;
                                 if (RemainingPower == 0)

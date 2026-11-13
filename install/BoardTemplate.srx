@@ -365,13 +365,13 @@
       <BoardRow>2</BoardRow>
       <Type>Walls</Type>
       <TotalCount>16</TotalCount>
-      <Rotation>Up</Rotation>
+      <Rotation>Down</Rotation>
       <ActionList>
         <BoardAction>
           <SquareAction>BlockDirection</SquareAction>
           <ActionSequence>0</ActionSequence>
           <Phase>31</Phase>
-          <Parameter>1</Parameter>
+          <Parameter>0</Parameter>
         </BoardAction>
       </ActionList>
     </BoardElement>
