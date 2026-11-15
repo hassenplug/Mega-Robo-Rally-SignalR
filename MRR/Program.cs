@@ -478,6 +478,25 @@ app.MapGet("/api/robot/seatdirection/{robotId:int}/{direction:int}", (int robotI
 app.MapGet("/api/robot/info", (DataService dataService) =>
     Results.Ok(dataService.GetRobotInfo()));
 
+// GM page's Flag Positions panel: the current board (CurrentGameData BoardID, the board of the
+// game last started) with its flag squares. Read from the DB, not dataService.BoardID, which is
+// only a cache and reads 0 after a restart until something reloads it.
+app.MapGet("/api/board/current", (DataService dataService) =>
+{
+    int boardId = dataService.GetIntFromDB("SELECT iValue FROM CurrentGameData WHERE iKey=20;");
+    var name = dataService.GetQueryResults($"SELECT BoardName FROM Boards WHERE BoardID={boardId};");
+    var flags = dataService.GetQueryResults(
+        $"SELECT X, Y, Parameter FROM BoardItemActions WHERE BoardID={boardId} AND SquareAction={(int)SquareAction.Flag};");
+    return Results.Ok(new
+    {
+        boardId,
+        boardName = name.Rows.Count > 0 ? name.Rows[0]["BoardName"]?.ToString() : null,
+        flags = flags.Rows.Cast<System.Data.DataRow>()
+            .Select(r => new { flag = Convert.ToInt32(r["Parameter"]), row = Convert.ToInt32(r["Y"]), col = Convert.ToInt32(r["X"]) })
+            .OrderBy(f => f.flag).ThenBy(f => f.row).ThenBy(f => f.col),
+    });
+});
+
 app.MapGet("/api/board/{boardID?}",(int? boardID, DataService dataService, IHubContext<DataHub> hubContext, GameController gameController) =>
 {
     if (boardID == null) boardID = dataService.BoardID;
