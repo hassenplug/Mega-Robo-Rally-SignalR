@@ -221,10 +221,11 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
             <div id="robotSelectBodies"></div>
             <div id="robotSelectHint" style="color:#606060; margin-top:6px;"></div>
         </div>
-        <!-- Display > Flag Positions: every board with a Randomize button that shuffles the
-             numbers of that board's flags; the flags stay put (Config host, randomizeFlags below). -->
+        <!-- Display > Flag Positions: the current board's name and flag positions, with a
+             Randomize button that shuffles the numbers of its flags; the flags stay put
+             (Config host, randomizeFlags below). -->
         <div id="flagPanel" style="display:none;">
-            <div id="flagBoards" style="color:#606060;">Loading boards...</div>
+            <div id="flagBoard" style="color:#606060;">Loading board...</div>
         </div>
         <!-- Player message and direction buttons: shown in both views, above the program panel. -->
         <div id="batteryButtons">
@@ -444,7 +445,10 @@ var lastGameState = null;
 var viewBeforeGameControl = 'off';
 
 // Robot Selection opens by itself when players start picking (gamestate 1) and closes when
-// they finish; Flag Positions is only offered while no game is running.
+// they finish; Flag Positions is only offered while no game is running, and the robot views
+// in GAME_ONLY_VIEWS only while one is.
+var GAME_ONLY_VIEWS = ['program', 'shutdown', 'spam', 'lasthand'];
+
 function followGameRunning(gamestate) {
     var stopped = gamestate === 25;
     var selecting = gamestate === 1;
@@ -452,12 +456,17 @@ function followGameRunning(gamestate) {
     if (!stopped && rightPanelView === 'flags') setRightPanelView('off');
     document.getElementById('viewMenu-robotselect').style.display = selecting ? '' : 'none';
     document.getElementById('viewMenu-flags').style.display = stopped ? '' : 'none';
+    GAME_ONLY_VIEWS.forEach(function (view) {
+        document.getElementById('viewMenu-' + view).style.display = stopped ? 'none' : '';
+    });
     if (stopped && lastGameState !== 25) {
         if (rightPanelView !== 'gamecontrol') viewBeforeGameControl = rightPanelView;
         setRightPanelView('gamecontrol');
     } else if (!stopped && lastGameState === 25 && rightPanelView === 'gamecontrol') {
         setRightPanelView(viewBeforeGameControl);
     }
+    // Never leave a robot view showing with no game running, however it was picked.
+    if (stopped && GAME_ONLY_VIEWS.indexOf(rightPanelView) >= 0) setRightPanelView('gamecontrol');
     if (selecting && lastGameState !== 1) setRightPanelView('robotselect');
     lastGameState = gamestate;
 }
@@ -507,26 +516,21 @@ function makeStartPositionHandler(startPosition) {
 }
 
 // ── Flag Positions ───────────────────────────────────────────────────────────
-// Boards live on the Configuration host (:5001), which owns the board tables; it allows this
-// page's origin via CORS. Randomize shuffles the flag numbers among the board's flag squares
-// (the squares don't move) and writes the board -- permanent, so the old numbers are shown too.
-// Row/Col are 0-based, the same R/C as Turn History.
+// The current board (the one the last game was started on) and its flags come from this host
+// (/api/board/current). Randomize goes to the Configuration host (:5001), which owns the board
+// tables and allows this page's origin via CORS: it shuffles the flag numbers among the board's
+// flag squares (the squares don't move) and writes the board -- permanent, so the old numbers
+// are shown too. Row/Col are 0-based, the same R/C as Turn History.
 var CONFIG_HOST = location.protocol + '//' + location.hostname + ':5001';
-var flagBoards = null;      // board list, loaded the first time the panel is opened
-var flagResults = {};       // BoardID -> last randomize result (or error) shown under it
+var flagBoard = null;       // {boardId, boardName, flags, error?}; reloaded each time the panel opens
 
-function loadFlagBoards() {
-    flagBoards = [];
-    fetch(CONFIG_HOST + '/api/boardeditor/boards')
+function loadFlagBoard() {
+    flagBoard = { loading: true };
+    fetch('/api/board/current')
         .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-        .then(function (data) {
-            flagBoards = (data.boards || []).filter(function (b) { return b.BoardID > 0; });
-            renderFlagBoards();
-        })
-        .catch(function (err) {
-            flagBoards = null; // try again next time the panel is shown
-            document.getElementById('flagBoards').innerText = 'Could not load boards from the configuration host: ' + err.message;
-        });
+        .then(function (data) { flagBoard = data; })
+        .catch(function (err) { flagBoard = { error: 'Could not load the current board: ' + err.message }; })
+        .then(renderFlagBoard);
 }
 
 function escapeHtml(text) {
@@ -535,43 +539,47 @@ function escapeHtml(text) {
     });
 }
 
-function renderFlagBoards() {
-    var box = document.getElementById('flagBoards');
-    if (!flagBoards.length) { box.innerText = 'No boards.'; return; }
+function renderFlagBoard() {
+    var box = document.getElementById('flagBoard');
+    var b = flagBoard;
+    if (!b || b.loading) { box.style.color = '#606060'; box.innerText = 'Loading board...'; return; }
+    if (b.boardId === undefined) { box.style.color = ''; box.innerHTML = "<div class='fError'>" + escapeHtml(b.error) + "</div>"; return; }
     box.style.color = '';
-    box.innerHTML = flagBoards.map(function (b) {
-        var html = "<div class='fBoard'><div class='fHead'>" +
-            "<span class='fName'>" + escapeHtml(b.BoardName) + " <span class='fOld'>" + b.X + "&times;" + b.Y + "</span></span>" +
-            "<button class='button' onclick='randomizeFlags(" + b.BoardID + ");'>Randomize</button></div>";
-        var res = flagResults[b.BoardID];
-        if (res && res.error) {
-            html += "<div class='fError'>" + escapeHtml(res.error) + "</div>";
-        } else if (res) {
-            html += "<table><tr><th>Flag</th><th>Row</th><th>Col</th><th>was</th></tr>" +
-                res.flags.map(function (f) {
-                    return "<tr><td><b>" + f.flag + "</b></td><td><b>" + f.row + "</b></td><td><b>" + f.col + "</b></td>" +
-                        "<td class='fOld'>flag " + f.oldFlag + "</td></tr>";
-                }).join('') + "</table>";
-        }
-        return html + "</div>";
-    }).join('');
+    var name = b.boardName || ('Board ' + b.boardId);
+    var html = "<div class='fBoard'><div class='fHead'>" +
+        "<span class='fName'>" + escapeHtml(name) + "</span>" +
+        (b.flags.length ? "<button class='button' onclick='randomizeFlags();'>Randomize</button>" : "") + "</div>";
+    if (b.error) html += "<div class='fError'>" + escapeHtml(b.error) + "</div>";
+    if (!b.flags.length) {
+        html += "<div class='fOld'>This board has no flags.</div>";
+    } else {
+        // "was" only after a Randomize: the number each flag square had before.
+        var shuffled = b.flags.some(function (f) { return f.oldFlag !== undefined; });
+        html += "<table><tr><th>Flag</th><th>Row</th><th>Col</th>" + (shuffled ? "<th>was</th>" : "") + "</tr>" +
+            b.flags.map(function (f) {
+                return "<tr><td><b>" + f.flag + "</b></td><td><b>" + f.row + "</b></td><td><b>" + f.col + "</b></td>" +
+                    (shuffled ? "<td class='fOld'>flag " + f.oldFlag + "</td>" : "") + "</tr>";
+            }).join('') + "</table>";
+    }
+    box.innerHTML = html + "</div>";
 }
 
-function randomizeFlags(boardId) {
-    var board = flagBoards.find(function (b) { return b.BoardID === boardId; });
-    var msg = 'Shuffle the flag numbers on "' + (board ? board.BoardName : boardId) + '"? The flags stay where they are. This changes the saved board.';
-    if (datapacket && datapacket.gamestate !== 25) msg += '\n\nA game is running -- if it uses this board, the flags will move mid-game.';
+function randomizeFlags() {
+    var b = flagBoard;
+    if (!b || b.boardId === undefined) return;
+    var msg = 'Shuffle the flag numbers on "' + (b.boardName || ('Board ' + b.boardId)) + '"? The flags stay where they are. This changes the saved board.';
+    if (datapacket && datapacket.gamestate !== 25) msg += '\n\nA game is running -- the flags will move mid-game.';
     if (!confirm(msg)) return;
-    fetch(CONFIG_HOST + '/api/boardeditor/' + boardId + '/randomize-flags', { method: 'POST' })
+    fetch(CONFIG_HOST + '/api/boardeditor/' + b.boardId + '/randomize-flags', { method: 'POST' })
         .then(function (r) {
             return r.json().catch(function () { return {}; }).then(function (body) {
                 if (!r.ok) throw new Error(body.error || ('HTTP ' + r.status));
                 return body;
             });
         })
-        .then(function (body) { flagResults[boardId] = body; })
-        .catch(function (err) { flagResults[boardId] = { error: 'Randomize failed: ' + err.message }; })
-        .then(renderFlagBoards);
+        .then(function (body) { b.flags = body.flags; b.error = null; })
+        .catch(function (err) { b.error = 'Randomize failed: ' + err.message; })
+        .then(renderFlagBoard);
 }
 
 // ── Game Control: End Selection (gamestate 1) ────────────────────────────────
@@ -680,7 +688,9 @@ function showall() {
     var gameControl = rightPanelView === 'gamecontrol';
     var flagView = rightPanelView === 'flags';
     document.getElementById('flagPanel').style.display = flagView ? '' : 'none';
-    if (flagView && flagBoards === null) loadFlagBoards();
+    // Reload whenever the panel is opened: the current board changes when a game is started.
+    if (!flagView) flagBoard = null;
+    else if (flagBoard === null) loadFlagBoard();
     var showGmStart = datapacket.gamestate === 25;
     document.getElementById('gameControlPanel').style.display = gameControl ? '' : 'none';
     document.getElementById('gmtable').style.display = showGmStart ? '' : 'none';
@@ -767,8 +777,9 @@ function showall() {
             statusbox.innerText = r.StatusToShow;
             statusbox.style.backgroundColor = "#" + r.StatusColor;
             // Same as index.html: tapping a status swaps the dealt hand for the extras panel
-            // (Shut Down) -- for the robot whose program is showing.
-            statusbox.onclick = toggleExtrasPanel;
+            // (Shut Down) -- for the robot whose program is showing. Only while a game is
+            // running (GAME_ONLY_VIEWS).
+            statusbox.onclick = datapacket.gamestate === 25 ? null : toggleExtrasPanel;
         }
         // Game Control: the F/E/C column shows which way this robot's player faces instead.
         if (gameControl) renderSeatArrow(flagsCell, r);
