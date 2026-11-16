@@ -80,7 +80,9 @@ areas: name, centre, towns). Run it with the PowerShell tool:
    - `enrich`: `-Mode Stale -Incomplete` prints the rows whose Events / play or Contact is still empty;
      workers fill them (enrich variant below). Rows from a normal run already carry both.
    - `add <store or URL>`: no workers. Read the store's site, write one line in the worker format to a
-     file, and Merge it.
+     file, and Merge it (the coverage table is not touched: only areas a worker lists in `# hubs:` count as
+     searched). Rainer's TCG Shop (a Square Online site) was added this way: WebFetch returned an empty
+     page for it, but the HTML held the text, so `curl` the page and read the text out of it.
 2. **Pilot (only when the coverage table is empty).** Run one worker on the two nearest areas, Merge it with
    `-DryRun`, and check the format and one row before launching the rest.
 3. **Research.** Split the areas into batches of about 8 neighbouring areas, at most 6 workers at once (more

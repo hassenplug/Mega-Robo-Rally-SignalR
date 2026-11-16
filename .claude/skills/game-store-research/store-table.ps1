@@ -290,7 +290,7 @@ switch ($Mode) {
             $notes = (@($notes -split ';\s*' | Where-Object { $_ } | Select-Object -Unique) -join '; ')      # never repeat a segment
             $rounded = [math]::Round($mi)
             $table[$key] = [pscustomobject]@{
-                Key = $key; Store = $row.Store; Address = $address
+                Key = $key; Store = $row.Store; Address = $address; Addr = $row     # Addr: Add-Drive geocodes from it
                 Miles = $(if ($rounded -lt 1) { '<1' } else { "$rounded" }); MilesNum = $(if ($rounded -lt 1) { 0.5 } else { $rounded })
                 Drive = $(if ($old -and $old.Address -ceq $address) { $old.Drive } else { '' })      # recomputed when the address changed
                 Website = $row.Website; Type = $row.Type
@@ -307,7 +307,10 @@ switch ($Mode) {
         $hubOrder = @(Read-Hubs | ForEach-Object { $_.name })
         $cov = [ordered]@{}
         foreach ($c in @(Read-Coverage)) { $cov[$c[0]] = $c }
-        foreach ($h in (@($in.Hubs) + @($in.Rows | Where-Object Hub | ForEach-Object Hub) | Select-Object -Unique)) {
+        # An area counts as searched only when a worker declares it in a "# hubs:" line. An area that merely appears in a
+        # row's Hub field (an `add`, an enrich pass) keeps its coverage line, unless it has none yet.
+        $searched = @($in.Hubs) + @($in.Rows | Where-Object Hub | ForEach-Object Hub | Where-Object { -not $cov.Contains($_) })
+        foreach ($h in ($searched | Select-Object -Unique)) {
             $note = @()
             if ($in.Capped -contains $h) { $note += 'cap reached, more stores likely' }
             $cov[$h] = @($h, $Today, "$([int]$kept[$h])", ($note -join '; '))
