@@ -6,8 +6,9 @@ description: >
   "what's coming up / what deadlines are close", "what do we know about Gen Con",
   "events in Wisconsin", "what went wrong at MadCon", "what's our travel limit", or any
   lookup of events, dates, costs, status, lessons learned, or the user's decisions on
-  conventions. Does not research the web or edit the file; hand that to the
-  convention-tracker agent.
+  conventions, or of the game stores list ("game stores near Indianapolis", "which stores are
+  miniatures shops"). Does not research the web or edit the file; hand that to the
+  convention-tracker agent (events) or the game-store-research skill (stores).
 argument-hint: "[question, e.g. 'GM badge events within driving range']"
 allowed-tools: Read, Grep
 ---
@@ -22,9 +23,12 @@ they want to find; don't dump the whole file.)
 
 ## Steps
 
-1. **Read the whole file.** It is short, and a question usually needs more than one section
-   (the pipeline row *plus* the Event notes, Lessons log, or Open questions). Use Grep only if the
-   user names one event and nothing else.
+1. **Read the file.** A question usually needs more than one section (the pipeline row *plus* the
+   Event notes, Lessons log, or Open questions), so read it all, **except the Game stores section
+   unless the question is about stores**: that section is a long table (up to hundreds of rows) just
+   before Revision history. Grep `^## ` to get the heading line numbers, then Read around it with
+   offset/limit. For a store question, Grep the table for the city, state, or type instead of reading
+   it whole.
 2. **Find the matching rows/sections.** Where the data lives:
 
    | Question is about | Look in |
@@ -35,6 +39,7 @@ they want to find; don't dump the whole file.)
    | What has to travel, what is unproven | **Demo kit** table (it only points at other docs; name the doc, don't read it unless asked) |
    | What to do before/after an event | **Per-event checklist** |
    | Who to contact, what it costs | **Contacts**, **Budget** (usually empty; say so) |
+   | A game store, stores near a place, stores of a type, how far a store is | **Game stores** table (11 columns: Store, Address, Miles = straight-line, Drive = driving miles and time, Website, Type, Events / play, Contact, Outreach = the user's own status, Checked, Notes), and the coverage table under it, which says which areas have been searched |
    | When the file was last touched | **Revision history** |
 
 3. **Filter using the file's own criteria.** For "which events fit", use the Open questions' current
@@ -64,9 +69,11 @@ This file feeds real travel and money decisions, so:
 
 1. **Only report what the file says.** Do not fill gaps from memory or the web: no guessed dates,
    prices, deadlines, or "usually in June" claims. If the file doesn't have it, say "not in the KB".
-2. **Distances are not recorded** in the file. If the user asks about distance, say so. You may give a
-   rough general-knowledge figure only if you label it "approximate, not from the KB" and suggest
-   checking a map.
+2. **Distances.** The Game stores table has a **Miles** column: straight-line from West Lafayette,
+   computed from the geocoded address, not driving distance. Events have no distance column (some notes
+   carry an earlier run's straight-line estimate, labeled as an estimate). For anything not in the file,
+   say so; you may give a rough general-knowledge figure only if you label it "approximate, not from the
+   KB" and suggest checking a map.
 3. **Flag staleness.** Using today's date from the conversation context, call out any row whose Checked
    date is more than 60 days old, and any deadline within 60 days of today or already passed. Say
    "stale" or "closing soon" explicitly; don't leave the user to compute it.
@@ -85,6 +92,10 @@ Keep it short and lead with the answer.
 - **Matches:** a compact table, one row per event, with only the columns the question needs (usually
   Event, Place, Status, Dates, Deadline, Cost, Checked). For a single-event lookup, use a short list
   instead, and include any Event notes and Lessons log entries about that event.
+- **Store questions:** show about 15 rows at most, nearest first unless asked otherwise, with Store,
+  Address, Miles, Type and Website. Say how many rows matched in total, and that the list is a sample:
+  name the areas the coverage table shows as not yet searched. Stores older than 180 days since
+  Checked are stale (stores open, close and move).
 - **Not confirmed:** which fields are `verify` or blank for the matches, and any source/rule pages the
   notes say were unread.
 - **Heads-up:** stale rows (>60 days since Checked), deadlines inside 60 days or already passed, and

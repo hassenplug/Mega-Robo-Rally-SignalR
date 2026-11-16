@@ -119,6 +119,179 @@ _(One subsection per committed event: dates, contact, booking refs, final cost, 
 |---|---|---|---|---|---|---|
 | | | | | | | |
 
+## Game stores
+Tabletop and board game stores within about 400 miles of West Lafayette, IN (the outer end of the travel range in Open question 4). **Not exhaustive:** each row is a store found by web search and read on its own site, and the coverage table below shows which areas have been searched. Built and updated by the `/game-store-research` skill ([.claude/skills/game-store-research/](../.claude/skills/game-store-research/SKILL.md)), which rewrites both tables between their marker comments, so change them through the skill. Anything you type in a row's Notes or Outreach cell is kept when the skill updates that row.
+
+- **Miles** is straight-line distance from West Lafayette, computed from the store's geocoded address (US Census geocoder); the 400-mile limit is measured this way. **Drive** is the estimated driving distance and time by road, without traffic (OSRM, a public routing service built on OpenStreetMap data).
+- **Events / play** is what the store's own site says: `Events + play space`, `Events`, `Play space` or `Not listed`. `Events` means the site has an events page, calendar or listing (the schedule itself was often unreadable, so read it as "hosts events", not as a confirmed date). `Play space` means the site says customers can play in the store (tables, a play area, open gaming). `Not listed` means the site mentions neither, not that the store has none; blank means not checked yet. **Contact** is the store's phone and/or general email as printed on its site (`Form only` or `Not listed` otherwise).
+- **Outreach** is yours: the skill never writes it and keeps whatever you type (for example `contacted 11/20` or `hosting`).
+- **Not included:** stores that only sell video games, online-only sellers, big-box and general retailers, closed stores, and stores with no website of their own that could be read (a Facebook page or directory listing can't be checked). Only US addresses can be geocoded, so nothing in Canada (Ontario is inside the radius).
+- **Type** is one of `Game store` (general mix), `Board game store`, `Card/TCG store`, `Miniatures/wargaming`, `Comics + games`, `Hobby shop`, `Game cafe` (only if it also retails games).
+- **Checked** is the date the row was last read from the store's own site. Stores open, close and move: confirm the address and hours before a trip.
+
+<!-- game-stores:begin -->
+| Store | Address | Miles | Drive | Website | Type | Events / play | Contact | Outreach | Checked | Notes |
+|---|---|---:|---:|---|---|---|---|---|---|---|
+| Top Level Trades | 525 Wabash Ave, Lafayette, IN 47905 | 1 | 1 mi, 4m | https://www.topleveltrades.com | Card/TCG store | Events | Not listed |  | 2026-11-16 | Also sells video games |
+| Castle Comics & Cards | 2133 S 4th St, Lafayette, IN 47905 | 2 | 3 mi, 7m | https://castlecomicscards.com | Comics + games | Events | 765-474-1110 |  | 2026-11-16 |  |
+| The Sage's Shoppe | 1009 Sagamore Parkway West, West Lafayette, IN 47906 | 2 | 2 mi, 6m | https://www.thesagesshoppe.com | Game store | Events | 765-463-4841; info@thesagesshoppe.com |  | 2026-11-16 |  |
+| Tier 1 Games | 2200 Elmwood Ave, Lafayette, IN 47904 | 2 | 2 mi, 6m | https://www.tier-1.games | Game store | Events | 765-269-9146; tier1employees@gmail.com |  | 2026-11-16 | Ste D7; ZIP from Census geocoder |
+| Tier 1 Games | 2208 E Markland Ave, Kokomo, IN 46901 | 43 | 47 mi, 1h13m | https://www.tier-1.games | Game store | Events | 765-450-8330; tier1gameskokomo@gmail.com |  | 2026-11-16 | ZIP from Census geocoder |
+| Moonshot Games - Noblesville | 50 N 9th St, Noblesville, IN 46060 | 54 | 63 mi, 1h27m | https://moonshotgamestore.com | Game store | Events | 317-219-5916; shop@moonshotgamestore.com |  | 2026-11-16 |  |
+| The Game Preserve - Fashion Mall Commons | 8487 Union Chapel Rd, Indianapolis, IN 46240 | 55 | 62 mi, 1h16m | https://www.gamepreserve.com | Game store | Not listed | 317-257-9110; fmstore@gamepreserve.com |  | 2026-11-16 | Ste 660; products not named on site |
+| Moonshot Games - Plainfield | 1620 E Main St, Plainfield, IN 46168 | 57 | 69 mi, 1h26m | https://moonshotgamestore.com | Game store | Events | 317-742-7401; shop@moonshotgamestore.com |  | 2026-11-16 | Ste 151 |
+| Saltire Toys & Games | 11135 Pendleton Pike, Indianapolis, IN 46236 | 63 | 72 mi, 1h31m | https://www.saltiregames.com | Game store | Events | 317-823-1645 |  | 2026-11-16 | Ste 1200 |
+| By The Board Games & Entertainment | 410 E. Commercial Ave., Lowell, IN 46356 | 66 | 75 mi, 1h30m | https://bytheboardgames.com | Game store | Events | Form only |  | 2026-11-16 |  |
+| The Game Preserve - Greenwood | 1551 E. Stop 12 Rd, Indianapolis, IN 46227 | 68 | 76 mi, 1h34m | https://www.gamepreserve.com | Game store | Not listed | 317-881-4263; gwstore@gamepreserve.com |  | 2026-11-16 | Ste B; products not named on site |
+| Gopher Games | 1206 North Cunningham Avenue, Urbana, IL 61802 | 71 | 90 mi, 1h50m | https://gophermafia.com | Game store | Play space | 217-954-0029; Gophermafia@gmail.com |  | 2026-11-16 | Suite A |
+| Full Moon Games | 248 South 7th Street, Terre Haute, IN 47807 | 72 | 96 mi, 2h09m | https://www.fullmoongames.com | Game store | Not listed | 812-235-6666 |  | 2026-11-16 | Site prints the phone as 812-235-MOON |
+| Alt Art TCG | 1605 N Granville Ave, Muncie, IN 47303 | 82 | 91 mi, 2h18m | https://altarttcg.com | Card/TCG store | Events | 765-717-1373 |  | 2026-11-16 |  |
+| Common Room Games | 223 S. Pete Ellis Drive, Bloomington, IN 47408 | 90 | 114 mi, 2h17m | https://www.commonroomgames.com | Game store | Events + play space | 812-333-4263; store@commonroomgames.com |  | 2026-11-16 | State from directories, not site |
+| The Game Preserve - Bloomington | 2652 E 3rd St., Bloomington, IN 47401 | 90 | 114 mi, 2h17m | https://www.gamepreserve.com | Game store | Not listed | 812-332-6602; btstore@gamepreserve.com |  | 2026-11-16 | products not named on site |
+| Griffon Games and Bookstore | 121 W. Colfax Ave., South Bend, IN 46601 | 93 | 108 mi, 2h32m | https://griffonb.precision-guesswork.com | Game store | Play space | 574-287-5533 |  | 2026-11-16 | Site is on a third-party subdomain |
+| Card Pop (Jefferson) | 1114 W Jefferson St, Joliet, IL 60435 | 98 | 132 mi, 2h41m | https://www.cardpopusa.com | Card/TCG store | Events | 779-707-5872 |  | 2026-11-16 | Phone from a site-wide link, not tied to this store |
+| Card Pop (Route 30) | 2543 Plainfield Rd, Joliet, IL 60435 | 102 | 136 mi, 2h47m | https://www.cardpopusa.com | Card/TCG store | Events | 815-641-8251; team@cardpopusa.com |  | 2026-11-16 |  |
+| Goblin Games & Hobby | 299 S Schmidt Rd, Bolingbrook, IL 60440 | 107 | 139 mi, 2h47m | https://goblingameshobby.myshopify.com | Game store | Events | 331-757-5899; goblinboardgames@gmail.com |  | 2026-11-16 |  |
+| Red Raccoon Games | 309 N. Main Street, Bloomington, IL 61701 | 110 | 141 mi, 2h48m | https://redraccoongames.com | Game store | Events + play space | 309-828-9196 |  | 2026-11-16 | Site shows 309; some listings say 301; ZIP not on site |
+| Hot Sauce Games | 605 Ogden Ave, Downers Grove, IL 60515 | 111 | 134 mi, 2h46m | https://www.hotsaucegames.com | Card/TCG store | Events | 630-324-6365; sales@hotsaucegames.com |  | 2026-11-16 |  |
+| Prism Games Chicago | 2874 North Milwaukee Avenue, Chicago, IL 60618 | 112 | 127 mi, 2h37m | https://www.prismgameschicago.com | Game store | Events + play space | 773-644-3722; prismgameschicago@gmail.com |  | 2026-11-16 |  |
+| Treasures Naperville | 121 S. Washington Street, Naperville, IL 60540 | 113 | 145 mi, 2h57m | https://treasuresnaperville.com | Game store | Events | 630-935-1298 |  | 2026-11-16 | Toy and game store |
+| Chicagoland Games: Dice Dojo | 5550 N. Broadway, Chicago, IL 60640 | 114 | 129 mi, 2h43m | https://www.chicagolandgames.com | Game store | Events | 773-728-3656; staff@chicagolandgames.com |  | 2026-11-16 |  |
+| Ninjacat Card Shop | 710 East Ogden Avenue, Naperville, IL 60563 | 114 | 146 mi, 2h58m | https://www.ninjacatcardshop.com | Card/TCG store | Events | 708-796-5445; NinjaCatCardshop@gmail.com |  | 2026-11-16 | Site under development; confirm hours |
+| Evanston Games & Cafe | 1707 Maple Avenue, Evanston, IL 60201 | 119 | 134 mi, 2h51m | https://www.evanstongames.com | Game cafe | Events | 224-999-7615; evanstongamer@gmail.com |  | 2026-11-16 |  |
+| Games Plus | 101 West Prospect Ave, Mount Prospect, IL 60056 | 125 | 144 mi, 3h02m | https://games-plus.com | Game store | Events + play space | 847-577-9656 |  | 2026-11-16 | Mount Prospect, next to Arlington Heights |
+| Cabbages and Kings Games | 4450 N. Prospect Road, Peoria Heights, IL 61616 | 142 | 184 mi, 3h36m | https://www.cabbagesandkings.games | Board game store | Events + play space | 309-981-5376; cabbagesandkingsgames@gmail.com |  | 2026-11-16 | Peoria Heights, next to Peoria |
+| One For All Games | 3915 N Sheridan Rd, Peoria, IL 61614 | 143 | 183 mi, 3h34m | https://www.oneforallgames.win | Card/TCG store | Events + play space | 309-307-4508 |  | 2026-11-16 |  |
+| JustForFun | 3010 N Sterling Ave, Peoria, IL 61604 | 144 | 184 mi, 3h34m | https://justforfungames.net | Game store | Play space | 309-686-7720 |  | 2026-11-16 |  |
+| Gift of Games | 82 Center St, Grayslake, IL 60030 | 145 | 166 mi, 3h29m | https://thegiftofgames.com | Game store | Play space | 847-752-8812; Staff@thegiftofgames.com |  | 2026-11-16 | Unit W; Grayslake, near Libertyville |
+| Tabletop Cincy | 4876 Union Centre Pavilion, West Chester Township, OH 45069 | 150 | 181 mi, 3h30m | https://www.tabletopcincy.com | Game store | Events + play space | 513-682-2587; info@tabletopcincy.com |  | 2026-11-16 |  |
+| Die Hard Games | 2761 S 6th St, Springfield, IL 62703 | 152 | 181 mi, 3h33m | https://www.diehardgames.shop | Game store | Events | 217-698-4343 |  | 2026-11-16 | ZIP not on site; taken from a listing |
+| Rockin' Rooster Comics & Games | 5000 Glenway Avenue, Cincinnati, OH 45238 | 152 | 172 mi, 3h23m | https://www.rockinroostercomics.com | Comics + games | Events + play space | 513-661-7625; Rockinroostercomics@gmail.com |  | 2026-11-16 |  |
+| Yottaquest | 10693 Reading Road, Cincinnati, OH 45241 | 155 | 182 mi, 3h31m | https://www.yottaquest.com | Game store | Events | 513-923-1985; Sales@yottaquest.com |  | 2026-11-16 |  |
+| Comics 2 Games | 8470 US Hwy 42, Florence, KY 41042 | 156 | 187 mi, 3h39m | https://www.comics2games.com | Comics + games | Not listed | 859-647-7568 |  | 2026-11-16 | Ste D |
+| Epic Loot Games & Comics | 9130 Dayton-Lebanon Pike, Centerville, OH 45458 | 156 | 186 mi, 3h49m | https://www.epiclootgames.com | Game store | Events | 937-436-7305; store@epiclootgames.com |  | 2026-11-16 |  |
+| Empire Comics and Games | 1636 Slate Run Rd, New Albany, IN 47150 | 157 | 176 mi, 3h25m | https://www.empirecomicsandgames.com | Comics + games | Events + play space | 812-948-9290 |  | 2026-11-16 |  |
+| Mindsight Gaming | 3214 60th St, Kenosha, WI 53144 | 157 | 181 mi, 3h46m | https://mindsightgaming.com | Card/TCG store | Events | 262-748-1219 |  | 2026-11-16 |  |
+| Golden Keep Game Co. | 1201 Herr Ln, Louisville, KY 40222 | 164 | 187 mi, 3h38m | https://www.goldenkeepgameco.com | Game store | Events | 502-398-5291; goldenkeepgameco@gmail.com |  | 2026-11-16 | Ste 180C |
+| The Sanctum Tabletop Gaming Emporium | 4615 Washington Avenue, Racine, WI 53405 | 165 | 191 mi, 3h57m | https://thesanctum.games | Game store | Events + play space | 262-664-4025; info@thesanctum.games |  | 2026-11-16 |  |
+| Comic Quest | 8401 N Kentucky Ave, Evansville, IN 47726 | 167 | 222 mi, 4h14m | https://comicquest.com | Comics + games | Events + play space | 812-474-1133 |  | 2026-11-16 |  |
+| Card N All Gaming (Middletown) | 12911 Shelbyville Rd, Louisville, KY 40243 | 168 | 191 mi, 3h41m | https://www.cnagames.com | Card/TCG store | Events | 502-795-2469; support@cardnallgaming.com |  | 2026-11-16 | Ste 103; second location; Phone and email are chain-wide |
+| Miso's Game Room & Collectibles | 8603 Citadel Way, Louisville, KY 40220 | 168 | 189 mi, 3h42m | https://www.misosgameroom.com | Game store | Events + play space | 502-317-2755; misosgameroom@gmail.com |  | 2026-11-16 | Unit 108 |
+| Card N All Gaming (New Cut) | 5534 New Cut Rd, Louisville, KY 40214 | 169 | 188 mi, 3h43m | https://www.cnagames.com | Card/TCG store | Events | 502-795-2469; support@cardnallgaming.com |  | 2026-11-16 | Also sells video games; Phone and email are chain-wide |
+| The Gaming Guild | 1460 N Green River Road, Evansville, IN 47715 | 171 | 224 mi, 4h13m | https://www.evvgamingguild.com | Game store | Events | 812-401-0324 |  | 2026-11-16 |  |
+| Top Cut Comics - Loves Park | 5600 N 2nd St, Loves Park, IL 61111 | 171 | 210 mi, 4h11m | https://www.topcutcomics.com | Comics + games | Events | 815-633-0330; lovespark@topcutcomics.com |  | 2026-11-16 |  |
+| Blast Off Gaming | 7513 Outer Loop, Louisville, KY 40228 | 172 | 192 mi, 3h48m | https://www.blastoffgaming.com | Game store | Not listed | 502-963-5186; blastofflouisville@gmail.com |  | 2026-11-16 |  |
+| The Gamer's Wharf | 2250 28th St SW, Wyoming, MI 49519 | 182 | 228 mi, 4h13m | https://www.thegamerswharf.com | Game store | Play space | 616-551-3881 |  | 2026-11-16 |  |
+| Galactic Toys & Games | 3120 28th St SE, Kentwood, MI 49512 | 185 | 234 mi, 4h25m | https://galactictoys.com | Game store | Not listed | 616-265-5773; support@galactictoys.com |  | 2026-11-16 | Kentwood, next to Grand Rapids; also toys and collectibles |
+| House Rules Lounge | 404 Ionia Ave SW, Grand Rapids, MI 49503 | 186 | 232 mi, 4h19m | https://houseruleslounge.com | Game cafe | Events + play space | 616-214-7913; play@houseruleslounge.com |  | 2026-11-16 |  |
+| Vault of Midnight | 95 Monroe Center Street Northwest, Grand Rapids, MI 49503 | 187 | 233 mi, 4h20m | https://www.vaultofmidnight.com | Comics + games | Not listed | 616-776-9013; contact@vaultofmidnight.com |  | 2026-11-16 | Also Ann Arbor and Detroit stores; Site may be stale (2019 copyright) |
+| Checkmate Games and Hobbies | 6725 W Central Ave, Toledo, OH 43617 | 188 | 214 mi, 4h28m | https://sites.google.com/view/checkmategamesandhobbies/about | Game store | Events | 419-720-6901; checkmategames@yahoo.com |  | 2026-11-16 | Ste L; site footer dated 2024 |
+| Toledo Game Room | 3001 W Sylvania Ave, Toledo, OH 43613 | 193 | 218 mi, 4h34m | https://www.toledogameroom.com | Game store | Events | 419-475-3775; tgrtoledo@gmail.com |  | 2026-11-16 |  |
+| AFK Games | 2495 Cedar Street, Holt, MI 48842 | 197 | 245 mi, 4h53m | https://afk.games | Game store | Events | 517-694-7328 |  | 2026-11-16 | Ste 14-B; Holt, just south of Lansing |
+| The Griffin's Rest | 1121 3rd Street, Muskegon, MI 49441 | 197 | 242 mi, 4h38m | https://www.thegriffinsrest.com | Game store | Events + play space | 231-747-7502 |  | 2026-11-16 |  |
+| Card Castle Games | 803 Bethel Road, Columbus, OH 43214 | 205 | 245 mi, 4h43m | https://www.cardcastlegames.com | Game store | Events | 614-664-3423; cardcastlegames@gmail.com |  | 2026-11-16 |  |
+| Sylvan Factory | 2459 W Stadium Blvd, Ann Arbor, MI 48103 | 207 | 257 mi, 5h13m | https://www.sylvanfactory.com | Game store | Events | 734-929-5877; general@sylvanfactory.com |  | 2026-11-16 |  |
+| The Soldiery Games & Cards | 4256 N High Street, Columbus, OH 43214 | 207 | 244 mi, 4h42m | https://www.thesoldiery.com | Game store | Not listed | 614-447-9569; mail@thesoldiery.com |  | 2026-11-16 |  |
+| Vault of Midnight | 219 S Main St, Ann Arbor, MI 48104 | 208 | 259 mi, 5h17m | https://www.vaultofmidnight.com | Comics + games | Events | 734-998-1413; contact@vaultofmidnight.com |  | 2026-11-16 | Also Grand Rapids and Detroit stores; Site may be stale (2019 copyright) |
+| The Rusty Scabbard | 820 Lane Allen Rd, Lexington, KY 40504 | 209 | 252 mi, 4h51m | https://therustyscabbard.com | Game store | Not listed | 859-278-6634 |  | 2026-11-16 | Ste 196; board games per a site review only |
+| Golden Rhino Games | 2092 Whittaker Rd, Ypsilanti, MI 48197 | 211 | 253 mi, 5h14m | https://www.goldenrhinogames.com | Miniatures/wargaming | Events | 734-544-1515; goldenrhinogames@gmail.com |  | 2026-11-16 |  |
+| The Guardtower East | 5939 E Main St, Columbus, OH 43232 | 217 | 249 mi, 4h49m | https://www.theguardtower.com | Game store | Events | 614-604-6996; customerservice@theguardtower.com |  | 2026-11-16 |  |
+| Fortuna Games | 2632 S. Kingshighway Blvd, St. Louis, MO 63139 | 219 | 276 mi, 5h16m | https://fortunagames.net | Game store | Events | fortuna@fortunagames.net |  | 2026-11-16 |  |
+| Bodach's Games | 7201 South Broadway, St. Louis, MO 63111 | 221 | 277 mi, 5h19m | https://bodachsgames.com | Game store | Events + play space | 314-296-3218 |  | 2026-11-16 | Also video games |
+| Misty Mountain Games | 4672 Cottage Grove Road, Madison, WI 53716 | 221 | 271 mi, 5h23m | https://www.mistymountaingames.com | Game store | Events | 608-441-0312; onlinestore@mistymountaingames.com |  | 2026-11-16 |  |
+| Noble Knight Games | 2835 Commerce Park Dr, Fitchburg, WI 53719 | 222 | 277 mi, 5h33m | https://play.nobleknight.com/location-hours | Game store | Events + play space | 608-758-9901; Contact@NobleKnight.com |  | 2026-11-16 |  |
+| Miniature Market (Rock Hill) | 9755 Manchester Rd, St. Louis, MO 63119 | 223 | 282 mi, 5h24m | https://www.miniaturemarket.com/retail-stl | Game store | Events | 314-833-3792; support@miniaturemarket.com |  | 2026-11-16 | Rock Hill location; Phone and email shared by both stores |
+| Game Nite | 8380 Watson Road, St. Louis, MO 63119 | 224 | 282 mi, 5h26m | https://www.gameniteshop.com | Game store | Events | 314-270-8440; info@gameniteshop.com |  | 2026-11-16 |  |
+| Miniature Market (Cave Springs) | 1077 Cave Springs Blvd, St. Peters, MO 63376 | 225 | 289 mi, 5h32m | https://www.miniaturemarket.com/retail-stl | Game store | Events | 314-833-3792; support@miniaturemarket.com |  | 2026-11-16 | Cave Springs location; Phone and email shared by both stores |
+| Pegasus Games | 6640 Odana Rd, Madison, WI 53719 | 225 | 278 mi, 5h31m | https://www.pegasusgames.com | Game store | Events | 608-833-4263 |  | 2026-11-16 |  |
+| Mox Mania | 410 D'Onofrio Dr, Madison, WI 53719 | 226 | 279 mi, 5h33m | https://www.moxmania.com | Game store | Events | 608-572-1718; info@moxmania.com |  | 2026-11-16 |  |
+| I'm Board! Games & Family Fun | 6917 University Ave, Middleton, WI 53562 | 228 | 282 mi, 5h38m | https://imboardgames.com | Board game store | Events + play space | 608-831-6631 |  | 2026-11-16 | City and state from directories, not site |
+| RIW Hobbies & Games | 29571 Five Mile Rd, Livonia, MI 48154 | 230 | 280 mi, 5h40m | https://www.riwhobbies.com | Game store | Events | 734-261-7233; riwhobbies@gmail.com |  | 2026-11-16 |  |
+| Manticore Game Shop | 258 Fort Zumwalt Square, O'Fallon, MO 63366 | 231 | 297 mi, 5h42m | https://manticoregameshop.com | Card/TCG store | Events + play space | 636-294-7529 |  | 2026-11-16 |  |
+| Opal Grove Games | 880 W McNichols Road, Detroit, MI 48203 | 240 | 278 mi, 5h47m | https://www.opalgrovegames.com | Board game store | Events | 313-230-4542 |  | 2026-11-16 | Site says the store recently moved here |
+| Time Travelers | 3116 Twelve Mile Rd, Berkley, MI 48072 | 240 | 283 mi, 5h57m | https://timetravelersonline.com | Comics + games | Events | 248-548-7213; thetraveler@timetravelersonline.com |  | 2026-11-16 | Berkley, next to Royal Oak |
+| Vault of Midnight | 2857 East Grand Boulevard, Detroit, MI 48202 | 240 | 275 mi, 5h41m | https://www.vaultofmidnight.com | Comics + games | Events | 313-481-2165; contact@vaultofmidnight.com |  | 2026-11-16 | Also Ann Arbor and Grand Rapids stores; Site may be stale (2019 copyright) |
+| Adventure Games and Hobby | 408 N Main St, Oshkosh, WI 54901 | 262 | 292 mi, 5h51m | https://www.adventuregamesandhobby.com | Game store | Not listed | 920-231-3473; cs@aghwi.com |  | 2026-11-16 | Site names no products; second store opening soon |
+| First Turn Games | 3645 1st Ave SE, Cedar Rapids, IA 52402 | 269 | 354 mi, 6h44m | https://www.firstturngames.com | Card/TCG store | Events | 319-826-1289 |  | 2026-11-16 |  |
+| Recess Games | 26636 Brookpark Road Extension, North Olmsted, OH 44070 | 269 | 305 mi, 6h10m | https://www.recessgames.com | Game store | Events + play space | 440-779-7008 |  | 2026-11-16 |  |
+| Gnome Games Appleton East | W3169 Van Roy Rd, Appleton, WI 54915 | 275 | 314 mi, 6h13m | https://gnomegames.com/pages/appleton-east | Game store | Events | 920-884-7504 |  | 2026-11-16 | chain; Ste 14 |
+| Gnome Games Appleton North | 2701 N Oneida St, Appleton, WI 54911 | 277 | 314 mi, 6h14m | https://gnomegames.com/pages/appleton-north | Game store | Events + play space | 920-441-1078 |  | 2026-11-16 | chain; Ste B, Northgate Shopping Center |
+| The Next Level Games | 2066 Gallatin Pike N, Madison, TN 37115 | 285 | 341 mi, 6h25m | https://tnlgnashville.com | Card/TCG store | Events | 615-420-6662; orders@tnlg.net |  | 2026-11-16 |  |
+| Full Grip Games | 121 E Market St, Akron, OH 44308 | 286 | 326 mi, 6h25m | https://www.fullgripgames.com | Game store | Events | 234-312-9806 |  | 2026-11-16 |  |
+| Gnome Games Green Bay East | 1683 E Mason St, Green Bay, WI 54302 | 286 | 319 mi, 6h20m | https://gnomegames.com/pages/green-bay-east | Game store | Events + play space | 920-965-1380 |  | 2026-11-16 | chain |
+| Gnome Games Green Bay West | 2160 S Ridge Rd, Green Bay, WI 54304 | 287 | 323 mi, 6h26m | https://gnomegames.com/pages/green-bay-west | Game store | Events | 920-499-4263 |  | 2026-11-16 | chain |
+| Comix City Too | 1574 Gallatin Pike N, Madison, TN 37115 | 289 | 345 mi, 6h31m | https://comixcitytoo.com | Comics + games | Play space | 615-868-3339; comixcitytoo@gmail.com |  | 2026-11-16 |  |
+| The Game Keep | 3952 Lebanon Pike, Hermitage, TN 37076 | 293 | 351 mi, 6h40m | https://thegamekeep.net | Game store | Events | 615-883-4800; info@thegamekeep.net |  | 2026-11-16 |  |
+| Game Point Retail | 1804 21st Ave S, Nashville, TN 37212 | 296 | 355 mi, 6h41m | https://www.bongojava.com/pages/game-point-retail | Board game store | Not listed | Not listed |  | 2026-11-16 | Page is on parent coffee roaster's site |
+| Battlegrounds Game Center | 228 South Sycamore St, Ravenna, OH 44266 | 300 | 344 mi, 6h48m | https://battlegroundsgamecenter.squarespace.com | Game store | Events + play space | 330-814-3194; store@battlegroundsgamecenter.com |  | 2026-11-16 | Ste 100; Ravenna, near Kent |
+| Middle Tennessee Gaming | 7648 US Highway 70 S, Nashville, TN 37221 | 300 | 364 mi, 6h51m | https://middletennesseegaming.com | Game store | Not listed | 629-292-1046 |  | 2026-11-16 | Suite 20; site calls the road Memphis-Bristol Highway |
+| Magelings Games | 1906 N. Providence Road, Columbia, MO 65203 | 305 | 376 mi, 7h12m | https://magelingsgames.crystalcommerce.com | Game store | Not listed | 573-639-8031 |  | 2026-11-16 |  |
+| Hexagon Alley | 111 S. 9th Street, Columbia, MO 65201 | 306 | 377 mi, 7h15m | https://hexagonalley.com | Game cafe | Events + play space | 573-227-2213; contact@hexagonalley.com |  | 2026-11-16 | Ste 10; cafe with a retail games section |
+| The Dragon's Hoard | 1720 Old Fort Parkway, Murfreesboro, TN 37129 | 317 | 382 mi, 7h12m | https://www.dragonshoardboro.com | Game store | Events | 615-999-0808; dragonshoardboro@gmail.com |  | 2026-11-16 | Unit F105; site says it is being updated |
+| Play2Win Games | 3903 Western Avenue, Knoxville, TN 37921 | 346 | 421 mi, 7h56m | https://play2wingames.com | Game store | Events | 865-910-8357; inquiries@play2wingames.com |  | 2026-11-16 | Also retro video games |
+| Jay's CD and Hobby Ankeny | 613 S Ankeny Blvd, Ankeny, IA 50023 | 360 | 437 mi, 8h13m | https://www.jaystoysandgames.com/pages/ankeny-sports-cards-tcg-collectibles | Hobby shop | Events | 515-513-0739 |  | 2026-11-16 | chain; mostly sports cards and TCG |
+| Rodman Comics | 318 Ankeny Blvd, Ankeny, IA 50023 | 360 | 438 mi, 8h13m | https://www.rodmancomics.com | Comics + games | Not listed | 515-965-4592 |  | 2026-11-16 | Site shows 2016 copyright; confirm still open |
+| The Golden Age 1942 | 316 Court St, Maryville, TN 37804 | 360 | 439 mi, 8h27m | https://thegoldenage1942.com | Comics + games | Events | 865-980-8330 |  | 2026-11-16 |  |
+| Game Masters | 398 Perry Highway, Pittsburgh, PA 15229 | 361 | 430 mi, 8h20m | https://www.gamemasterspgh.com | Game store | Events + play space | 412-367-4414 |  | 2026-11-16 |  |
+| Mayhem Collectibles | 7500 University Ave, Des Moines, IA 50325 | 364 | 442 mi, 8h18m | https://www.mayhemcomics.com | Game store | Events + play space | 515-271-8104 |  | 2026-11-16 |  |
+| Jay's CD and Hobby West Des Moines | 1421 22nd St, West Des Moines, IA 50266 | 365 | 443 mi, 8h18m | https://www.jaystoysandgames.com/pages/west-des-moines-store | Hobby shop | Not listed | 515-457-3881 |  | 2026-11-16 | chain; LEGO, vinyl and TCG |
+| Mimic's Market Cards & Games | 4707 Liberty Avenue, Pittsburgh, PA 15224 | 366 | 427 mi, 8h16m | https://mimicsmarket.com | Game store | Events | 412-228-0306 |  | 2026-11-16 |  |
+<!-- game-stores:end -->
+
+### Game store search coverage
+Areas come from [hubs.csv](../.claude/skills/game-store-research/hubs.csv). An area that is not listed here has not been searched, and towns that are not on that list are not covered. **A low count, or 0, means few store websites could be read in that area, not that it has few stores:** the first run listed at most 6 stores per area, used a small search budget, and skipped stores whose own site could not be read.
+
+<!-- game-store-coverage:begin -->
+| Area | Last searched | Stores listed (last search) | Notes |
+|---|---|---:|---|
+| Lafayette-West Lafayette, IN | 2026-11-16 | 4 |  |
+| Kokomo, IN | 2026-11-16 | 1 |  |
+| Indianapolis, IN | 2026-11-16 | 5 |  |
+| Terre Haute, IN | 2026-11-16 | 1 |  |
+| Champaign-Danville, IL | 2026-11-16 | 1 |  |
+| Northwest Indiana | 2026-11-16 | 1 |  |
+| Muncie-Anderson, IN | 2026-11-16 | 1 |  |
+| Bloomington, IN | 2026-11-16 | 2 |  |
+| South Bend-Elkhart, IN | 2026-11-16 | 1 |  |
+| Joliet-Kankakee, IL | 2026-11-16 | 3 |  |
+| Fort Wayne, IN | 2026-11-16 | 0 |  |
+| Chicago, IL | 2026-11-16 | 2 |  |
+| Bloomington-Normal, IL | 2026-11-16 | 1 |  |
+| Chicago West Suburbs, IL | 2026-11-16 | 3 |  |
+| Chicago North Suburbs, IL | 2026-11-16 | 3 |  |
+| Peoria, IL | 2026-11-16 | 3 |  |
+| Kalamazoo-Battle Creek, MI | 2026-11-16 | 0 |  |
+| Dayton-Springfield, OH | 2026-11-16 | 1 |  |
+| Springfield-Decatur, IL | 2026-11-16 | 1 |  |
+| Cincinnati, OH | 2026-11-16 | 4 |  |
+| Louisville, KY | 2026-11-16 | 6 | cap reached, more stores likely |
+| Rockford, IL | 2026-11-16 | 1 |  |
+| Evansville, IN | 2026-11-16 | 2 |  |
+| Grand Rapids, MI | 2026-11-16 | 5 |  |
+| Milwaukee, WI | 2026-11-16 | 2 |  |
+| Toledo, OH | 2026-11-16 | 2 |  |
+| Lansing, MI | 2026-11-16 | 1 |  |
+| Quad Cities, IA-IL | 2026-11-16 | 0 |  |
+| Ann Arbor, MI | 2026-11-16 | 3 |  |
+| Columbus, OH | 2026-11-16 | 3 |  |
+| Lexington, KY | 2026-11-16 | 1 |  |
+| St. Louis, MO | 2026-11-16 | 6 | cap reached, more stores likely |
+| Madison, WI | 2026-11-16 | 5 |  |
+| Detroit, MI | 2026-11-16 | 4 |  |
+| Bowling Green, KY | 2026-11-16 | 0 |  |
+| Flint-Saginaw, MI | 2026-11-16 | 0 |  |
+| Cedar Rapids-Iowa City, IA | 2026-11-16 | 1 |  |
+| Green Bay-Appleton, WI | 2026-11-16 | 5 |  |
+| Cleveland, OH | 2026-11-16 | 1 |  |
+| Akron-Canton, OH | 2026-11-16 | 2 |  |
+| Nashville, TN | 2026-11-16 | 6 | cap reached, more stores likely |
+| Huntington-Charleston, WV | 2026-11-16 | 0 |  |
+| Columbia-Jefferson City, MO | 2026-11-16 | 2 |  |
+| Knoxville, TN | 2026-11-16 | 2 |  |
+| Des Moines, IA | 2026-11-16 | 4 |  |
+| Pittsburgh, PA | 2026-11-16 | 2 |  |
+<!-- game-store-coverage:end -->
+
 ## Revision history
 - 2026-11-04 — Created. Event list is unverified general knowledge; no dates or prices researched.
 - 2026-11-04 — Answered open questions 1-4 and 6 (rights, goal, role, travel, helpers). Question 5 (budget) is still open; the user said they'd prefer events that provide badges to people running games.
@@ -126,3 +299,5 @@ _(One subsection per committed event: dates, contact, booking refs, final cost, 
 - 2026-11-04 — Added MadCon 26 (Ft Wayne) as attended, per the user: router problems, players loved the game. No other details recorded.
 - 2026-11-04 — Automated research run: Origins and Gen Con moved to `researching` with 2027 dates from official sites; added GrandCon, Evercon, Strong Tower, Gamehole (all `idea`). Prices and most deadlines left as verify. No user-owned sections edited.
 - 2026-11-13 — Automated research run (default task: open-gaming events within about 400 miles of West Lafayette, Nov 2026 - Nov 2027; badge-for-GMs noted). Refreshed every `idea`/`researching` row with dates, deadlines, costs and sources; moved Protospiel, GrandCon, Evercon and Strong Tower from `idea` to `researching`. Added 8 `idea` rows: MadCon 2027, Midwinter, RiverCityCon, CincyCon, LexiCon, Gary Con XIX, Geekway, Farmageddon. Filled Origins GM-perk terms and deadlines. Unconfirmed values left as `verify` (Gamehole 2027, Gen Con 2027 deadlines/prices, most prices). The Gen Con Event Host Policy PDF and the Gamehole site could not be read. No user-owned sections (Open questions, Event notes, Lessons log, Contacts, Budget) or the MadCon 26 row were edited.
+- 2026-11-16 — Added the "Game stores" section and the `/game-store-research` skill. Initial fill: 46 search areas, 104 stores (IN 19, IL 18, MI 13, OH 12, WI 12, MO 8, TN 8, KY 7, IA 5, PA 2, WV 0), 1-366 mi straight-line. A store was listed only if its own site was read and printed its address, so the list is a sample: 6 areas returned nothing, and many small stores (Facebook-only shops, sites that would not load) are missing. Spot-check: 5 random rows plus 7 flagged ones were re-fetched, and every address I could check matched (The Game Preserve's home page prints none, but its Fashion Mall address matches third-party listings). Five rows are flagged in Notes (products not named on the site, or board games mentioned only in a site review). Canada not covered. No other section was edited.
+- 2026-11-16 — Added four columns to the Game stores table: Drive (driving miles and time, OSRM), Events / play, Contact, and Outreach (yours, left empty). All 104 rows filled: Events 57, Events + play space 25, Play space 6, Not listed 16; Contact is phone and email for 58, phone only 42, email only 1, form only 1, none printed 2. `Events` means the site has an events page, calendar or listing; the schedule itself was often unreadable, and one definition was applied to all rows (five `Not listed` rows became `Events`). Emails of named people were left out. Spot-check: 8 stores' phone and email were re-read from their sites and matched; Card Pop's phone is a site-wide number (noted in Notes), and Card Pop Route 30's phone and email were not rechecked. No other section was edited.
