@@ -251,35 +251,47 @@ namespace MRR.Devices
             var (fgR, fgG, fgB) = ColorHelper.ParseHex(DisplayForeColor, 255, 255, 255);
             Console.WriteLine($"[{RobotID}] RefreshIdentityDisplayAsync: name={name}, color={_color} ({bgR},{bgG},{bgB}), foreColor={_foreColor} ({fgR},{fgG},{fgB})");
 
-            await SendCommandAsync(new { cmd_id = "lcd_clear_screen", r = bgR, g = bgG, b = bgB });
-            await SetLightsAsync(ShouldLightsBeOn());
-
-            await SendCommandAsync(new { cmd_id = "lcd_set_pen_color", r = fgR, g = fgG, b = fgB });
-            await SendCommandAsync(new { cmd_id = "lcd_set_fill_color", r = bgR, g = bgG, b = bgB, transparent = false });
-
-            if (_shutDown)
+            // The LCD's pen/fill colors are state on the robot, shared by every drawing command.
+            // Hold the text lock for the whole redraw (the arrow is ~70 awaited commands) so a
+            // prompt's ShowTextAsync can't change the pen to the background color in the middle of
+            // the arrow loop and leave stray background-colored rows in it.
+            await _textLock.WaitAsync();
+            try
             {
-                // Shut down: only the outline of the same arrow (head 61..179 wide at y=99, shaft 95..145 down to y=209).
-                int[] xs = { 120, 179, 145, 145, 95, 95, 61 };
-                int[] ys = { 30, 99, 99, 209, 209, 99, 99 };
-                for (int i = 0; i < xs.Length; i++)
-                {
-                    int j = (i + 1) % xs.Length;
-                    await SendCommandAsync(new { cmd_id = "lcd_draw_line", x1 = xs[i], y1 = ys[i], x2 = xs[j], y2 = ys[j] });
-                }
-            }
-            else
-            {
-                // Draw forward-pointing arrow in robot color on forecolor background
-                for (int y = 30; y <= 99; y++)
-                {
-                    int halfWidth = (y - 30) * 60 / 70;
-                    await SendCommandAsync(new { cmd_id = "lcd_draw_line", x1 = 120 - halfWidth, y1 = y, x2 = 120 + halfWidth, y2 = y });
-                }
-                await SendCommandAsync(new { cmd_id = "lcd_draw_rectangle", x = 95, y = 100, width = 50, height = 110, r = fgR, g = fgG, b = fgB, transparent = false });
-            }
+                await SendCommandAsync(new { cmd_id = "lcd_clear_screen", r = bgR, g = bgG, b = bgB });
+                await SetLightsAsync(ShouldLightsBeOn());
 
-            await ShowTextAsync(name);
+                await SendCommandAsync(new { cmd_id = "lcd_set_pen_color", r = fgR, g = fgG, b = fgB });
+                await SendCommandAsync(new { cmd_id = "lcd_set_fill_color", r = bgR, g = bgG, b = bgB, transparent = false });
+
+                if (_shutDown)
+                {
+                    // Shut down: only the outline of the same arrow (head 61..179 wide at y=99, shaft 95..145 down to y=209).
+                    int[] xs = { 120, 179, 145, 145, 95, 95, 61 };
+                    int[] ys = { 30, 99, 99, 209, 209, 99, 99 };
+                    for (int i = 0; i < xs.Length; i++)
+                    {
+                        int j = (i + 1) % xs.Length;
+                        await SendCommandAsync(new { cmd_id = "lcd_draw_line", x1 = xs[i], y1 = ys[i], x2 = xs[j], y2 = ys[j] });
+                    }
+                }
+                else
+                {
+                    // Draw forward-pointing arrow in robot color on forecolor background
+                    for (int y = 30; y <= 99; y++)
+                    {
+                        int halfWidth = (y - 30) * 60 / 70;
+                        await SendCommandAsync(new { cmd_id = "lcd_draw_line", x1 = 120 - halfWidth, y1 = y, x2 = 120 + halfWidth, y2 = y });
+                    }
+                    await SendCommandAsync(new { cmd_id = "lcd_draw_rectangle", x = 95, y = 100, width = 50, height = 110, r = fgR, g = fgG, b = fgB, transparent = false });
+                }
+
+                await DrawTextAsync(name);
+            }
+            finally
+            {
+                _textLock.Release();
+            }
 
             //await ShowSeatArrowAsync(_seatArrow);
         }
@@ -712,25 +724,32 @@ namespace MRR.Devices
             await _textLock.WaitAsync();
             try
             {
-                var (bgR, bgG, bgB) = ColorHelper.ParseHex(DisplayColor);
-                var (fgR, fgG, fgB) = ColorHelper.ParseHex(DisplayForeColor, 255, 255, 255);
-
-                // lcd_draw_rectangle outlines in the pen color, so match the pen to each fill or a
-                // 1px border shows as lines across the screen.
-                await SendCommandAsync(new { cmd_id = "lcd_set_pen_color", r = bgR, g = bgG, b = bgB });
-                await SendCommandAsync(new { cmd_id = "lcd_draw_rectangle", x = 0, y = NameBandY, width = 240, height = NameHeight, r = bgR, g = bgG, b = bgB, transparent = false });
-                await SendCommandAsync(new { cmd_id = "lcd_set_pen_color", r = fgR, g = fgG, b = fgB });
-                // The filled arrow's shaft behind the name; shut down, the arrow is only an outline.
-                if (!_shutDown)
-                    await SendCommandAsync(new { cmd_id = "lcd_draw_rectangle", x = 95, y = NameBandY, width = 50, height = NameHeight, r = fgR, g = fgG, b = fgB, transparent = false });
-                await SendCommandAsync(new { cmd_id = "lcd_set_fill_color", r = bgR, g = bgG, b = bgB, transparent = false });
-                await SendCommandAsync(new { cmd_id = "lcd_set_font", fontname = "mono40" });
-                await SendCommandAsync(new { cmd_id = "lcd_print_at", @string = text, x = Math.Max(0, (240 - text.Length * NameCharWidth) / 2), y = NameY, b_opaque = true });
+                await DrawTextAsync(text);
             }
             finally
             {
                 _textLock.Release();
             }
+        }
+
+        // The drawing itself; the caller must hold _textLock (RefreshIdentityDisplayAsync holds
+        // it for its whole redraw, ShowTextAsync for just this).
+        private async Task DrawTextAsync(string text)
+        {
+            var (bgR, bgG, bgB) = ColorHelper.ParseHex(DisplayColor);
+            var (fgR, fgG, fgB) = ColorHelper.ParseHex(DisplayForeColor, 255, 255, 255);
+
+            // lcd_draw_rectangle outlines in the pen color, so match the pen to each fill or a
+            // 1px border shows as lines across the screen.
+            await SendCommandAsync(new { cmd_id = "lcd_set_pen_color", r = bgR, g = bgG, b = bgB });
+            await SendCommandAsync(new { cmd_id = "lcd_draw_rectangle", x = 0, y = NameBandY, width = 240, height = NameHeight, r = bgR, g = bgG, b = bgB, transparent = false });
+            await SendCommandAsync(new { cmd_id = "lcd_set_pen_color", r = fgR, g = fgG, b = fgB });
+            // The filled arrow's shaft behind the name; shut down, the arrow is only an outline.
+            if (!_shutDown)
+                await SendCommandAsync(new { cmd_id = "lcd_draw_rectangle", x = 95, y = NameBandY, width = 50, height = NameHeight, r = fgR, g = fgG, b = fgB, transparent = false });
+            await SendCommandAsync(new { cmd_id = "lcd_set_fill_color", r = bgR, g = bgG, b = bgB, transparent = false });
+            await SendCommandAsync(new { cmd_id = "lcd_set_font", fontname = "mono40" });
+            await SendCommandAsync(new { cmd_id = "lcd_print_at", @string = text, x = Math.Max(0, (240 - text.Length * NameCharWidth) / 2), y = NameY, b_opaque = true });
         }
 
         // Waits for the flash loop (so it can't relight an LED after the redraw) and the prompt
