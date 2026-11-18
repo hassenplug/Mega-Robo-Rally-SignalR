@@ -511,6 +511,9 @@ where the turn started, or **Create Program (state 15)** to reprogram.
 
 ## 4. Known issues
 
+Problems with the Pi itself (for example git errors after a power loss) are covered in
+[TROUBLESHOOTING.md](TROUBLESHOOTING.md).
+
 ### 4.1 Exercised since the rework, bugs found and fixed
 
 The planner (`MRR.Rules`), the pre-drawn Spam deck, the debounced SignalR publishing and the
