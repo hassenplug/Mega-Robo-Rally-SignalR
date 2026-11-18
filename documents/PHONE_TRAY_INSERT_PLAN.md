@@ -186,6 +186,43 @@ assertion `row_width <= rib_tip_span` so the file refuses to render a design tha
 - 8-phone version: assertion passes in the CAD **and** a real fit test passes, or the doc records that it
   does not fit and why.
 
+## 9a. Related: one-phone holder for the field border
+
+A separate part, not the tray insert: [cad/phone_border_holder.scad](../cad/phone_border_holder.scad) (2026-11-17).
+One TCL phone, landscape. **Latest (2026-11-17, 4th revision): tilt 75° (was 60°) and no ribs below the top of
+the wall.** With the plate pinned at the tab's back plane, the only way to bring the phone closer to the wall is
+a steeper tilt; 76° is the most the plate can take before its back face would be inside the border (assert).
+At 75° the shelf front is 26 mm out from the border's face (was 42 mm), the phone top is 70 mm above the table,
+the part prints about 155 × 71 × 34 mm and uses ~46 cm³. The plate now leans straight from the skirt down to the
+table; only small triangular ribs remain, above the wall. Slicer supports are needed under the plate's back face.
+**Then (2026-11-18):** the user set `tilt = 50` in the file (shelf front 51 mm out from the border's face, phone top
+56 mm above the table); I filled the space above the tab up to the cradle with a solid block as wide as the tab and
+cut the ribs to one at each end of the cradle (the ribs between the middle and the ends were removed). Prints
+about 155 × 58 × 58 mm, ~48 cm³. Collision checks still empty; never printed.
+**Then:** the skirt (the "outside tab") was joined to the cradle's lowest edge by a 3 mm strip along the table,
+tab-width wide, closing the skirt / table / back-plate triangle (~53 cm³ total). The strip was then trimmed to end
+exactly at the cradle's lowest edge (it had stuck out 2 mm below the shelf). The thin top of the triangular opening
+was filled solid down to where the opening is 6 mm wide (`gap_min_w`), leaving a trapezoid; the user said that
+was not what they wanted, and it was removed again. Instead the back plate's one large window became **two
+windows with a solid rib between them, as wide as the tab** (`mid_rib_w = tab_w`, ~57 cm³ total). The user had
+set `tilt = 70` in the file by then.
+**Then (2026-11-18, 5th revision) — reverted at the user's request:** the link strip had been raised to the
+height of the tab's bottom, the cradle's lowest edge raised with it, and the skirt shortened to the tab's depth,
+so the holder hung from the border instead of standing on the table. Back to the previous state: skirt, link and
+cradle on the table (`cradle_z = -border_h`), phone top 68 mm above the table, about 155 × 39 × 69 mm printed,
+~57 cm³. Collision checks empty; never printed.
+(The text below describes the earlier revisions, with its numbers at 60°.) Revised the same day, several times. The user's photos showed the slot is in
+the **top** of the border (not the side wall): a tab drops down into the slot (2" × ¼" × ¾", the user's figures),
+a base rests on the top face, and a skirt runs down the border's outer face to the table. Then the user's
+measurements: border 1 7/16" tall, wall about 1/16" each side of the slot, nothing may reach past the tab's
+back (field-side) face, the holder stands on the table, and it prints on its back with the tab flat on the bed.
+The cradle is therefore pushed out until its leaning back plate meets the tab's back plane at the top (shelf
+front 42 mm out from the border's face), carried to the table by rib frames. The cradle was then lowered
+straight down until the shelf's back edge stands on the table (`cradle_z = -border_h`): phone top 63 mm above
+the table, 26 mm above the border's top. Prints lying on its back (about 155 × 64 × 50 mm, ~59 cm³ of plastic);
+needs slicer supports (build plate only) under the skirt and lower ribs. Rendered as one solid; the collision checks (phone, border, table,
+behind the tab) are all empty; never printed. Assumptions to confirm are listed at the top of the file.
+
 ## 10. Changelog
 
 - 2026-11-16 — Plan written from three photos and the user's note (1⅛" spare with 6 phones). No CAD yet.
