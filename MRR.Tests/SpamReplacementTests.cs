@@ -3,7 +3,7 @@ namespace MRR.Tests;
 /// <summary>
 /// A Spam register runs the next card drawn instead, chaining past further Spam. The planner
 /// reports that card in TurnPlan.SpamReplacements so Master can save what actually ran
-/// (HistoryRobotTurns.ExecutedCards, index.html's "Last Hand").
+/// (HistoryRobotTurns.ExecutedCards, the "Last Hand" rows of "Show My Deck").
 /// </summary>
 public class SpamReplacementTests
 {

@@ -1101,7 +1101,7 @@ namespace MRR.Services
         /// <summary>
         /// After planning: in this turn's HistoryRobotTurns.ExecutedCards, replaces each register
         /// that resolved Spam with the card the planner drew and ran instead, and each Again
-        /// with the card it repeated (TurnPlan.SpamReplacements), so "Last Hand" shows what the
+        /// with the card it repeated (TurnPlan.SpamReplacements), so "Show My Deck"'s last hand shows what the
         /// robot actually did.
         /// </summary>
         public void SaveSpamReplacementsToHistory(IEnumerable<SpamReplacement> replacements)

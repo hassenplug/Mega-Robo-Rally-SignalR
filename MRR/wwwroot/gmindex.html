@@ -158,7 +158,6 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
             <button class="button" id="viewMenu-program" onclick="gmSetRightPanel('program');">Program Cards</button>
             <button class="button" id="viewMenu-shutdown" onclick="gmSetRightPanel('shutdown');">Shut Down</button>
             <button class="button" id="viewMenu-spam" onclick="gmSetRightPanel('spam');">Show My Deck</button>
-            <button class="button" id="viewMenu-lasthand" onclick="gmSetRightPanel('lasthand');">Last Hand</button>
             <button class="button" id="viewMenu-gamecontrol" onclick="gmSetRightPanel('gamecontrol');">Game Control</button>
             <button class="button" id="viewMenu-flags" onclick="gmSetRightPanel('flags');">Flag Positions</button>
             <button class="button" id="viewMenu-robotselect" style="display:none;" onclick="gmSetRightPanel('robotselect');">Robot Selection</button>
@@ -247,9 +246,9 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
                     </td>
                 </tr>
                 <tr id="messagetablespace" style="display: none;"><td colspan="5"></td></tr>
-                <!-- Played and dealt cards, the Shut Down panel and the Show My Deck / Last Hand
-                     list: which of them show is set by the menu's "Right Panel" (rightPanelView,
-                     applied by showplayerprogram() in js/loadrobots.js). -->
+                <!-- Played and dealt cards, the Shut Down panel and the Show My Deck rows: which
+                     of them show is set by the menu's "Right Panel" (rightPanelView, applied by
+                     showplayerprogram() in js/loadrobots.js). -->
                 <tr id="PlayedRow" bgcolor="#d0d0d0" style="display: none;">
                     <td align=center bgcolor=ffffff id='CardCell0'><img id='Played0' src='images/type0.png' onclick='PlayCard(this);'></td>
                     <td align=center bgcolor=ffffff id='CardCell1'><img id='Played1' src='images/type0.png' onclick='PlayCard(this);'></td>
@@ -278,9 +277,14 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
                         <button id="shutDownBtn" class="button" style="width:auto; margin:6px 0;" onclick="toggleShutDown();">Shut Down</button>
                     </td>
                 </tr>
-                <tr id="cardListRow" style="display: none;">
-                    <td colspan="5" id="cardListCell" align="left"></td>
+                <tr id="shutDownNotNowRow" style="display: none;">
+                    <td colspan="5" align="left">Shut Down can only be chosen while programming.</td>
                 </tr>
+                </tbody>
+                <!-- Show My Deck: the card/Spam count, deck, discard pile and last hand, under
+                     the program cards (renderDeckView() in js/loadrobots.js). -->
+                <tbody id="deckBody" style="display: none;"></tbody>
+                <tbody>
                 <tr id="shutDownRow" style="display: none;">
                     <td colspan="5" align="center">
                         <button id="shutDownCancelBtn" class="button" style="width:auto; background-color:#ffff00; color:#000000;" onclick="toggleShutDown();">Shutting Down &mdash; Cancel</button>
@@ -447,7 +451,7 @@ var viewBeforeGameControl = 'off';
 // Robot Selection opens by itself when players start picking (gamestate 1) and closes when
 // they finish; Flag Positions is only offered while no game is running, and the robot views
 // in GAME_ONLY_VIEWS only while one is.
-var GAME_ONLY_VIEWS = ['program', 'shutdown', 'spam', 'lasthand'];
+var GAME_ONLY_VIEWS = ['program', 'shutdown', 'spam'];
 
 function followGameRunning(gamestate) {
     var stopped = gamestate === 25;

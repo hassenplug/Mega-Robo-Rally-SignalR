@@ -481,21 +481,18 @@ function showplayerprogram(pl) // show program for this line
     }
 
     var active = canProgram();
-    var cardsView = rightPanelView === 'program' || rightPanelView === 'shutdown';
-    var listView = rightPanelView === 'spam' || rightPanelView === 'lasthand';
+    // Show My Deck ('spam') is the Program Cards view with the deck rows (deckBody) under it.
+    var deckView = rightPanelView === 'spam';
+    var handView = rightPanelView === 'program' || deckView;
+    var cardsView = handView || rightPanelView === 'shutdown';
     showRow("PlayedRow", cardsView);
     showRow("PlayedSpacer", cardsView);
-    showRow("DealtRow1", active && rightPanelView === 'program');
-    showRow("DealtRow2", active && rightPanelView === 'program');
+    showRow("DealtRow1", active && handView);
+    showRow("DealtRow2", active && handView);
     showRow("extrasRow", active && rightPanelView === 'shutdown');
-    showRow("cardListRow", listView || (!active && rightPanelView === 'shutdown'));
-    var listCell = document.getElementById("cardListCell");
-    if (listCell && listView) {
-        updateCardList(rbt);
-    } else if (listCell && !active && rightPanelView === 'shutdown') {
-        listCell.textContent = 'Shut Down can only be chosen while programming.';
-        cardListKey = null; // the list was overwritten, so fetch it again next time
-    }
+    showRow("shutDownNotNowRow", !active && rightPanelView === 'shutdown');
+    showRow("deckBody", deckView);
+    if (deckView) updateDeckView(rbt);
 
     var showmessage = "display: none;";
     //console.log("Message:", message);
@@ -536,12 +533,12 @@ function toggleShutDown() {
 // 'program'  -- the program registers + dealt hand (index.html's default)
 // 'shutdown' -- the program registers + the "extras" panel: the Shut Down toggle now; Haywire
 //               and option cards are meant to be added here later
-// 'spam'     -- every card the robot owns, by location (/api/cards/{robotId})
-// 'lasthand' -- the robot's program from the previous turn (/api/history/turn)
+// 'spam'     -- "Show My Deck": the 'program' view, then the card/Spam count, the deck, the
+//               discard pile (/api/cards/{robotId}) and the last hand (/api/history/turn)
 // Only a view setting for this device -- nothing is sent to the server. Each page's menu items
 // are id'd viewMenu-<view>; rows or items a page lacks are skipped (showRow, markViewMenu).
 var rightPanelView = 'program';
-var VIEW_MENU_ITEMS = ['off', 'program', 'shutdown', 'spam', 'lasthand'];
+var VIEW_MENU_ITEMS = ['off', 'program', 'shutdown', 'spam'];
 
 function setRightPanelView(view) {
     rightPanelView = view;
@@ -576,85 +573,87 @@ function showRow(id, show) {
     if (row) row.style.display = show ? '' : 'none';
 }
 
-// The Show My Deck / Last Hand lists are fetched, not broadcast. showplayerprogram runs on every
-// broadcast, so fetch again only when something that could change the list has changed: the
-// robot, the view, the game state, or the robot's dealt/played cards.
-var cardListKey = null;
+// ── Show My Deck rows ──
+// Fetched, not broadcast. showplayerprogram runs on every broadcast, so fetch again only when
+// something that could change the rows has changed: the robot, the game state, or the robot's
+// dealt/played cards.
+var deckViewKey = null;
 
-function updateCardList(rbt) {
-    var key = [rightPanelView, rbt.RobotID, datapacket.gamestate, rbt.CardsDealt, rbt.CardsPlayed].join('|');
-    if (key === cardListKey) return;
-    cardListKey = key;
+function updateDeckView(rbt) {
+    var key = [rbt.RobotID, datapacket.gamestate, rbt.CardsDealt, rbt.CardsPlayed].join('|');
+    if (key === deckViewKey) return;
+    deckViewKey = key;
 
-    var cell = document.getElementById('cardListCell');
-    cell.textContent = 'Loading...';
     var robotId = rbt.RobotID;
-    var url = rightPanelView === 'spam' ? '/api/cards/' + robotId : '/api/history/turn';
-    fetch(url)
-        .then(function (resp) { return resp.json(); })
-        .then(function (data) {
-            if (key !== cardListKey) return; // a newer view/robot has been asked for since
-            if (rightPanelView === 'spam') renderSpamCards(cell, data);
-            else renderLastHand(cell, data, robotId);
+    var getJson = function (url) { return fetch(url).then(function (resp) { return resp.json(); }); };
+    var body = document.getElementById('deckBody');
+    // Refetches happen on every card played, so keep the old rows up until the new ones
+    // arrive instead of flashing "Loading..." -- show it only when there's nothing yet.
+    if (!body.rows.length) addTextRow(body, 'Loading...');
+    Promise.all([getJson('/api/cards/' + robotId), getJson('/api/history/turn')])
+        .then(function (results) {
+            if (key !== deckViewKey) return; // a newer robot/state has been asked for since
+            renderDeckView(body, results[0], results[1], robotId);
         })
         .catch(function (err) {
-            if (key === cardListKey) { cell.textContent = 'Could not load the cards.'; cardListKey = null; }
+            if (key === deckViewKey) {
+                body.innerHTML = '';
+                addTextRow(body, 'Could not load the cards.');
+                deckViewKey = null;
+            }
             console.error(err.toString());
         });
 }
 
-function cardImage(cardTypeID, title) {
-    var img = document.createElement('img');
-    img.src = 'images/type' + cardTypeID + '.png';
-    img.width = 50;
-    img.style.margin = '2px';
-    if (title) img.title = title;
-    return img;
+// Drawn straight into the program table's deckBody <tbody>, so the cards line up in the same
+// 5 columns as the program registers and dealt hand above -- but without their white cells.
+var CARD_LOCATION_DECK = 0;        // MoveCardLocations
+var CARD_LOCATION_DISCARD = 3;
+var CARD_LOCATION_PLAYED_SPAM = 5; // spent Spam: the damage discard pile, no longer the robot's
+var CARD_TYPE_SPAM = 10;           // MoveCardTypes
+
+function addTextRow(body, text, bold) {
+    var td = body.insertRow().insertCell();
+    td.colSpan = 5;
+    td.style.paddingTop = '6px';
+    if (bold) td.style.fontWeight = 'bold';
+    td.textContent = text;
 }
 
-// cards: [{location, locationName, cardTypeID, cardName}], already sorted by location.
-function renderSpamCards(cell, cards) {
-    cell.innerHTML = '';
-    if (!cards.length) { cell.textContent = 'No cards.'; return; }
-    var spam = cards.filter(function (c) { return c.cardTypeID === 10; }).length;
-    var summary = document.createElement('div');
-    summary.style.fontWeight = 'bold';
-    summary.textContent = cards.length + ' cards, ' + spam + ' Spam';
-    cell.appendChild(summary);
-
-    var group = null;
-    var lastLocation = null;
-    cards.forEach(function (c) {
-        if (c.location !== lastLocation) {
-            lastLocation = c.location;
-            var count = cards.filter(function (x) { return x.location === c.location; }).length;
-            var heading = document.createElement('div');
-            heading.style.marginTop = '6px';
-            heading.textContent = (c.locationName || 'Location ' + c.location) + ' (' + count + ')';
-            cell.appendChild(heading);
-            group = document.createElement('div');
-            cell.appendChild(group);
-        }
-        group.appendChild(cardImage(c.cardTypeID, c.cardName));
+// cards: [{cardTypeID, cardName}] -- five to a row.
+function addCardRows(body, cards) {
+    var tr = null;
+    cards.forEach(function (c, i) {
+        if (i % 5 === 0) tr = body.insertRow();
+        var td = tr.insertCell();
+        td.align = 'center';
+        var img = document.createElement('img');
+        img.src = 'images/type' + c.cardTypeID + '.png';
+        img.width = 50;
+        if (c.cardName) img.title = c.cardName;
+        img.style.cursor = 'default'; // gmindex.html's #programPanel img makes it a pointer
+        td.appendChild(img);
     });
 }
 
-// history: GetTurnHistory's {turn, currentTurn, robots: [{robotID, cardTypes, ...}]}.
-function renderLastHand(cell, history, robotId) {
-    cell.innerHTML = '';
+// cards: /api/cards' [{location, locationName, cardTypeID, cardName}], sorted by location and
+// type (never draw order). history: GetTurnHistory's {turn, robots: [{robotID, cardTypes}]}.
+function renderDeckView(body, cards, history, robotId) {
+    body.innerHTML = '';
+    var owned = cards.filter(function (c) { return c.location !== CARD_LOCATION_PLAYED_SPAM; });
+    var spam = owned.filter(function (c) { return c.cardTypeID === CARD_TYPE_SPAM; }).length;
+    addTextRow(body, owned.length + ' cards, ' + spam + ' Spam', true);
+
+    [[CARD_LOCATION_DECK, 'Deck'], [CARD_LOCATION_DISCARD, 'Discard']].forEach(function (pile) {
+        var inPile = owned.filter(function (c) { return c.location === pile[0]; });
+        addTextRow(body, pile[1] + ' (' + inPile.length + ')');
+        addCardRows(body, inPile);
+    });
+
     var robot = history.robots.find(function (r) { return r.robotID === robotId; });
-    if (!robot) { cell.textContent = 'No last hand yet.'; return; }
-
-    var heading = document.createElement('div');
-    heading.style.fontWeight = 'bold';
-    heading.textContent = 'Turn ' + history.turn;
-    cell.appendChild(heading);
-
-    var row = document.createElement('div');
-    for (var i = 0; i < 5; i++) {
-        row.appendChild(cardImage(robot.cardTypes[i] || 0));
-    }
-    cell.appendChild(row);
+    if (!robot) { addTextRow(body, 'Last Hand: none yet'); return; }
+    addTextRow(body, 'Last Hand (Turn ' + history.turn + ')');
+    addCardRows(body, robot.cardTypes.slice(0, 5).map(function (t) { return { cardTypeID: t || 0 }; }));
 }
 
 // The Shut Down button (extras panel) always toggles, as before; the server only accepts it
