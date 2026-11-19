@@ -49,10 +49,10 @@
 //                    tab's back plane; must come out EMPTY
 // ====================================================================
 
-part = "assembly";  // "assembly", "print", "check"
+part = "print";  // "assembly", "print", "check"
 
 // --- 1. SLOT IN THE TOP OF THE BORDER ---
-slot_w     = 50.8;       // 2"   : along the border
+slot_w     = 38.1;       // 2"   : along the border
 slot_t     = 6.35;       // 1/4" : across the border
 slot_depth = 19.05;      // 3/4" : down into the border
 
@@ -98,7 +98,7 @@ end_h       = 30.0;      // End post height above the shelf
 back_window = true;      // Cut two windows in the back plate (saves plastic, frees the camera)
 window_margin = 14.0;    // Solid plate left around the windows
                          // A solid rib, as wide as the tab, is left between the two windows (see mid_rib_w)
-lip_notch_w = 50.0;      // Finger notch cut in the middle of the front lip (0 = none)
+lip_notch_w = 125.0;      // Finger notch cut in the middle of the front lip (0 = none)
 
 // --- 8. RIBS ---
 gusset_t    = 2.4;       // Thickness of the rib at each end of the cradle (they sit under the end posts)

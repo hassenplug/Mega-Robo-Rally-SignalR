@@ -46,7 +46,7 @@ pocket's open ends.
 | Module | Colour | What it is |
 |---|---|---|
 | `case()` | blue | Shell `case_depth` = 12.7 mm (½") thick: front wall with the bezel opening, bottom wall, two side walls, **no top wall**. Behind the screen slot are the back rails; between them the back is open, up to the top. 3×2 side vent holes. On `ribbon_side` the side wall is carried back `pi_rear` (23 mm) behind the case to shield the screen-to-Pi ribbon, with its lower rear corner cut off along the ground |
-| `legs()` | gray | Ground-level frame: two bars angled in plan from the case's side walls (at the bottom edge) to the pocket's sides, joined by a cross bar along the pocket's bottom edge between them (no extensions beyond the pocket's width). *(Colour not specified by the user; gray chosen)* |
+| `legs()` | gray | Ground-level frame: two straight, parallel bars (`leg_x` = ±48.8, flush with the pocket's sides, so within its width) from the pocket's bottom edge to the bottom of the screen case — they do not widen — joined by a cross bar along the pocket's bottom edge. *(Colour not specified by the user; gray chosen)* |
 | `arms()` | white | One per side, three bars each (3 × 3 mm section, `arm_t`): one beside the pocket's open end at its top corner (back face to front face), then a strut angled in from the pocket's side up the screen to a point behind the screen's corner posts, then a short straight run forward into the case's side wall at the top of the case back (drawn in the case frame, so the ends are square to the case) |
 | `router_pocket()` | yellow | Sleeve parallel to the case, bottom edge on the ground. Solid wall faces the case; the back lip has a window showing the router's face. Top end open (router goes in there). Both side ends open above a `ledge_h` ledge. On `eth_end` the back lip is cut away for `eth_cover_len` so the router's Ethernet cover (its "door") can lift; a `door_lip_h` strip of the lip is left below and above that opening to keep the router in place |
 
@@ -80,7 +80,9 @@ export gives one solid.
 |---|---|---|---|
 | Display | `pcb_w × pcb_h × pcb_t` | 121.10 × 77.90 × 1.60 | Screen PCB |
 | | `glass_w × glass_h × glass_t` | 110.00 × 66.80 × 1.80 | Glass (declared, unused) |
-| | `active_w × active_h` | 108.00 × 64.80 | Visible area (bezel opening is +1.0 each way) |
+| | `active_w × active_h` | 108.00 × 64.80 | Visible area (bezel opening is +1.0 each way, then moved up — see `window_up_bottom` / `window_up_top`) |
+| | `window_up_bottom` / `window_up_top` | 1/16" / 1/8" (1.59 / 3.18 mm) | Screen window in the front wall: its bottom edge is moved up 1/16" and its top edge 1/8" from centred on the active area. Window now spans 10.44–77.83 mm up the case (was 8.85–74.65), so it is 67.4 mm tall (was 65.8) |
+| | `window_bevel` | 2.80 | 45° slope around the screen window, across the whole front wall (2.8 mm): the opening is 109.3 × 67.4 mm at the wall's back face and about 114.6 × 73.0 mm at the front face (leaves a 6.05 mm border at the sides, 2.87 mm at the top, 7.68 mm at the bottom) |
 | | `screen_t` | 7.50 **estimate** | Glass face to the back of the PCB, at the PCB's edges. Sets the slot depth |
 | Pi | `pi_back` | 25 **estimate** | Back of the screen's PCB to the rear-most point of the Pi (standoffs + board + jacks, or the ribbon's loop) |
 | | `ribbon_side` | −1 **guess** | Side the ribbon is on, seen from the front: −1 left, 1 right |
@@ -95,7 +97,7 @@ export gives one solid.
 | | `slot_clr` | 0.40 | Front-to-back clearance for the screen |
 | | `rail_w` | 3.50 | How far the bottom back rail reaches in over the back of the PCB |
 | | `side_rail_w` | 1.50 | **ESTIMATE (photo).** How far the side rails reach in over the PCB. The screen's four corner mounting posts (~6.6 mm across, outer edge ≈1.5 mm from the PCB edge, centre ≈5 mm in) must pass beside them, so the rails are only a thin lip. Channels (`back_opening()`) run down both sides to the bottom edge, leaving the bottom rail only between the posts |
-| | `pi_open_w` | 100 | **ESTIMATE.** Width of the Pi's room (Pi 4 board is 85 mm long; in the photo it sits about 1 mm off-centre, ribbon side). Used by `keep_clear()`; must stay under 2·`arm_x` − `bar_t` (about 101.6), or the Pi's room cuts into the arms and legs |
+| | `pi_open_w` | 92 | **ESTIMATE.** Width of the Pi's room and of the middle of the case back's opening (Pi 4 board is 85 mm long; in the photo it sits about 1 mm off-centre, ribbon side, and its USB jacks overhang a little). Used by `keep_clear()`; must stay under 2·(`leg_x` − `bar_t`/2) (about 92.6), or the Pi's room cuts into the legs. Slack for the Pi is only about 3 mm each side |
 | | `rail_t` | derived (2.0) | Rail thickness = `case_depth − wall_t − screen_t − slot_clr`. An `assert` stops the build below 1.2 |
 | | `pi_rear` | derived (23) | How far the Pi reaches behind the case's back plane = `pi_back − rail_t` |
 | Stand | `pocket_gap` | derived (26) | Clear space between the case back and the pocket's front face = `pi_rear + 3` |
@@ -105,7 +107,7 @@ export gives one solid.
 | | `mount_h` | 6 | **ESTIMATE.** Height of the screen's corner mounting posts behind its PCB (not readable from the photo). The arms' angled bar ends 1 mm behind this, then they run straight into the case |
 | | `ledge_h` | 6 | Height of the ledge across the bottom of each open end of the pocket |
 | | `pocket_w / _l / _h` | derived | 102.6 × 68.8 × 19.1 (width × along the screen × thickness) |
-| | `side_x` / `arm_x` | derived | Centre lines of the bars at the case end (60.85, in line with the case's side walls) / at the pocket end (52.8, just outside the pocket); legs and arms angle between the two |
+| | `leg_x` | derived (48.8) | Centre line of each leg: flush with the pocket's sides. (`side_x`/`arm_x` were removed; the arms now use local `xp` = 51.8 at the pocket and `xc` = 61.35 at the case) |
 
 Overall size with these values: 126.7 wide × 97.5 deep × 78.7 tall, about 63 cm³ of plastic.
 
@@ -225,3 +227,19 @@ Not verified: anything that depends on the estimates above, fit of the real part
   alone was not enough (an angled bar all the way to the case crosses the post column however thin), hence the
   straight last run. The arms now meet the pocket 1.5 mm in (was 1). Corner-post path vs arms: 155 → 0 mm³;
   vs legs: still 37 mm³ at the default (17–59 mm³ on the other variants). All checks pass on five variants.
+- 2026-11-12 — **Straight legs:** the two legs no longer angle outward to the case's side walls. Each now runs
+  straight along the ground at `leg_x` (= ±48.8, flush with the pocket's sides) from the pocket's bottom edge to
+  the bottom of the screen case, so they stay within the pocket's width. The cross bar stays, now between
+  ±`leg_x`. `pi_open_w` went 100 → 92 so the Pi's room (which dips to the table at 60°) stays clear of legs
+  that sit this far in. Corner-post path vs legs: 37 → 0 mm³ (legs are now inside the posts' columns).
+  `side_x` and `arm_x` removed (unused). All checks pass on five variants; the Pi's room cuts none of the
+  legs or arms.
+- 2026-11-12 — **Screen window moved up:** the opening in the case's front wall had its bottom edge raised 1/16"
+  (1.59 mm) and its top edge 1/8" (3.18 mm), so it is 1.59 mm taller (65.8 → 67.4 mm). Measured by cutting a
+  slab through the front wall: 8.85–74.65 → 10.44–77.83 mm up the case. Width unchanged (109 mm). Nothing else
+  changed; the standard checks still pass.
+- 2026-11-12 — **Sloped window edge:** a 45° bevel (`window_bevel` = 2.8 mm) now runs around the screen window,
+  from the wall's back face out to the front face. Measured: the opening grows 1.3 mm per side for each 1.3 mm
+  of depth. The request said "for 1/2 the width of the case"; half the case's thickness (6.35 mm) does not fit in
+  the 2.8 mm front wall at 45° without opening the wall up beyond the glass, so the bevel covers the whole wall.
+  Standard checks still pass.

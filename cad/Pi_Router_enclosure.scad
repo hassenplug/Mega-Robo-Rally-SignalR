@@ -53,6 +53,10 @@ door_lip_h    = 6;       // Strip of the pocket's back lip left below and above 
                          // (about 10 mm, read off photos)
 
 // --- 3. ENCLOSURE PARAMETERS ---
+window_up_bottom = 25.4 / 16;   // Screen window: bottom edge moved up 1/16" from centred on the active area
+window_up_top    = 25.4 / 8;    // Screen window: top edge moved up 1/8" from centred on the active area
+window_bevel     = 2.80;        // Screen window: its edge slopes out at 45 degrees across the front wall, so the opening
+                                // at the front face is this much larger on every side (2.8 = the whole wall)
 tilt_angle    = 60;      // Angle of the screen from horizontal (90 = upright)
 wall_t        = 2.80;    // Shell wall thickness
 case_depth    = 12.70;   // Case thickness, 1/2 inch
@@ -65,9 +69,10 @@ rail_w        = 3.50;    // How far the bottom back rail reaches in over the bac
 side_rail_w   = 1.50;    // ESTIMATE: how far the side rails reach in over the PCB. The screen has a mounting post at
                          // each corner whose outer edge is about 1.5 mm from the PCB's edge (read off a photo),
                          // and the top ones slide down the sides, so the rails must stay outside them
-pi_open_w     = 100;     // ESTIMATE: width of the opening in the case back for the Pi (a Pi 4 board is 85 mm long);
+pi_open_w     = 92;      // ESTIMATE: width of the Pi's room and of the case back's middle opening (a Pi 4 board is
+                         // 85 mm long; in the photo it sits about 1 mm off-centre);
                          // the side rails take up the rest of the screen's width. Keep it under twice
-                         // arm_x - bar_t/2 (about 101.6), or the Pi cutout cuts into the arms and legs
+                         // 2 * (leg_x - bar_t/2) (about 92.6), or the Pi's room cuts into the legs
 rail_t        = case_depth - wall_t - screen_t - slot_clr;   // Back rail thickness: what case_depth leaves
 pi_rear       = pi_back - rail_t;                            // How far the Pi reaches behind the case back
 pcb_back_z    = case_depth - wall_t - screen_t;              // Back face of the screen's PCB, from the case's back plane
@@ -90,9 +95,7 @@ pocket_h      = router_t + 2 * wall_t;      // front wall + router + back lip
 // Ground distance from the case's bottom edge to the pocket's bottom-back edge,
 // chosen so the two parallel parts are pocket_gap apart.
 leg_len       = (pocket_h + pocket_gap) / sin(tilt_angle);
-side_x        = case_w/2 - bar_t/2;         // legs and arm struts run in line with the case's side walls,
-                                            // outside the back opening that the Pi uses
-arm_x         = pocket_w/2 + bar_t/2 - 1;   // arms sit outside the pocket, 1 mm into its side face
+leg_x         = pocket_w/2 - bar_t/2;       // legs run straight, flush with the pocket's sides (so within its width)
 
 // --- ASSEMBLY ---
 color("blue")  case();
@@ -180,9 +183,19 @@ module case() {
             // Back opening between the rails, open at the top
             back_opening();
 
-            // Front Screen Cutout (Bezel)
-            translate([-(active_w + 1.0)/2, (case_h - active_h - 1.0)/2, case_depth - wall_t * 1.5])
-                cube([active_w + 1.0, active_h + 1.0, wall_t * 2]);
+            // Front Screen Cutout (Bezel): centred, then its bottom edge moved up window_up_bottom
+            // and its top edge up window_up_top
+            translate([-(active_w + 1.0)/2, (case_h - active_h - 1.0)/2 + window_up_bottom, case_depth - wall_t * 1.5])
+                cube([active_w + 1.0, active_h + 1.0 + window_up_top - window_up_bottom, wall_t * 2]);
+
+            // 45 degree slope around the window, from the wall's back face out to the front face (and 1 mm
+            // beyond it, on the same slope, so the cut is clean)
+            hull() {
+                translate([-(active_w + 1.0)/2, (case_h - active_h - 1.0)/2 + window_up_bottom, case_depth - window_bevel - 0.01])
+                    cube([active_w + 1.0, active_h + 1.0 + window_up_top - window_up_bottom, 0.01]);
+                translate([-(active_w + 1.0)/2 - window_bevel - 1, (case_h - active_h - 1.0)/2 + window_up_bottom - window_bevel - 1, case_depth + 1])
+                    cube([active_w + 1.0 + 2 * (window_bevel + 1), active_h + 1.0 + window_up_top - window_up_bottom + 2 * (window_bevel + 1), 0.01]);
+            }
 
             // Side Ventilation Slots
             for (y = [-15, 0, 15]) {
@@ -236,17 +249,18 @@ module router_pocket() {
 }
 
 // --- LEGS: ground-level frame from the case base to the router pocket base ---
-// Two bars angle in from the case's side walls to the pocket's sides (the pocket is narrower
-// than the case), joined by a cross bar along the pocket's bottom edge, between the sides.
+// Two straight bars, parallel to each other, flush with the pocket's sides (so within its width),
+// from the pocket's bottom edge to the bottom of the screen case; they do not widen. A cross bar
+// joins them along the pocket's bottom edge.
 module legs() {
     yc = leg_len - 1;                        // 1 mm inside the pocket's bottom end wall
     difference() {
         union() {
             for (s = [-1, 1])
-                bar([s * side_x, -bar_t/2, bar_t/2],
-                    [s * arm_x, yc, bar_t/2]);
-            bar([-arm_x, yc, bar_t/2],
-                [arm_x, yc, bar_t/2]);
+                bar([s * leg_x, -bar_t/2, bar_t/2],
+                    [s * leg_x, yc, bar_t/2]);
+            bar([-leg_x, yc, bar_t/2],
+                [leg_x, yc, bar_t/2]);
         }
         keep_clear();
     }
