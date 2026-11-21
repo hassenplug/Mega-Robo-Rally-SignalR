@@ -21,7 +21,8 @@
 //              front lip and an end post at each end of the phone
 //   fill     - a solid block, as wide as the tab, filling the space above the tab (above the border's top
 //              face) between the back plane and the cradle's back plate
-//   ribs     - one small triangular rib at each end of the cradle, above the border's top face only
+//   ribs     - one small triangular rib on each side, standing against the outer edge of the back window
+//              (at the cradle's ends if there are no windows), above the border's top face only
 //              (there are no ribs below the top of the wall)
 //
 // The plate leans from the skirt: the steeper the tilt, the closer the phone sits to the wall. The
@@ -38,7 +39,8 @@
 // bed: turn on slicer supports, "build plate only", for the plate's back face and the skirt's inner face.
 // Cutting the support interface off those two faces is the only cleanup.
 //
-// MEASURED by the user: border 1 7/16" tall; wall around the slot about 1/16" each side; slot 2" x 1/4" x 3/4".
+// MEASURED by the user: border 1 3/8" tall (first 1 7/16", corrected 2026-11-20); wall around the slot about 1/16"
+// each side; slot 2" x 1/4" x 3/4".
 // ASSUMED: the outer face is flat and vertical right down to the table; the slot is centred (the wall
 // is 1/16" on both sides); the table under the holder is level with the table under the border.
 // ESTIMATE: the phone's size (retailer spec page).
@@ -58,7 +60,8 @@ slot_depth = 19.05;      // 3/4" : down into the border
 
 // --- 2. BORDER (measured) ---
 slot_to_outer = 1.5875;  // 1/16": wall between the slot and the border's outer face (same on the field side)
-border_h      = 36.5125; // 1 7/16": border height = how far down the table is
+border_h      = 34.925;  // 1 3/8": border height = how far down the table is (was 1 7/16", 36.5125, until the
+                         // user found the wall about 1/16" shorter on 2026-11-20)
 
 // --- 3. PHONE (TCL A502DL, same estimates as phone_tray_insert.scad) ---
 phone_len  = 148.1;      // ESTIMATE: length (lies along the border, landscape)
@@ -101,7 +104,8 @@ window_margin = 14.0;    // Solid plate left around the windows
 lip_notch_w = 125.0;      // Finger notch cut in the middle of the front lip (0 = none)
 
 // --- 8. RIBS ---
-gusset_t    = 2.4;       // Thickness of the rib at each end of the cradle (they sit under the end posts)
+gusset_t    = 2.4;       // Thickness of each side rib. It stands just outside the window (touching its outer edge,
+                         // not over it), so it does not cover the window
 
 // ====================================================================
 // DERIVED
@@ -121,6 +125,9 @@ len_in = phone_len + 2 * phone_clear;       // inside length between the end pos
 cav_t  = phone_t + phone_clear;             // inside depth of the cradle, plate to front lip
 L      = len_in + 2 * end_t;                // overall length of the cradle
 plate_h = phone_w;                          // back plate height (the phone's width)
+win_out = len_in / 2 - window_margin;       // x of each back window's outer edge (the windows run from mid_rib_w/2 to this)
+rib_x   = back_window ? win_out + gusset_t / 2   // side rib centre: against the window's outer edge
+                      : L / 2 - gusset_t / 2;    // no windows: at the cradle's end
 
 phi = 90 - tilt;                            // rotation of the cradle about X
 sp  = sin(phi);
@@ -182,8 +189,8 @@ module cradle_local() {
         if (back_window)
             // two windows, one each side of the middle rib
             for (s = [-1, 1])
-                translate([s > 0 ? mid_rib_w / 2 : -(len_in / 2 - window_margin), -plate_t - 1, window_margin])
-                    cube([len_in / 2 - window_margin - mid_rib_w / 2, plate_t + 2, plate_h - 2 * window_margin]);
+                translate([s > 0 ? mid_rib_w / 2 : -win_out, -plate_t - 1, window_margin])
+                    cube([win_out - mid_rib_w / 2, plate_t + 2, plate_h - 2 * window_margin]);
     }
     // shelf, from the plate's back to the front lip
     translate([-L / 2, -plate_t, -shelf_t])
@@ -237,10 +244,10 @@ module rib_at(x, w) {
                 polygon(rib_pts());
 }
 
-// One rib at each end of the cradle, plus the fill over the tab
+// One rib on each side, against the outer edge of the back window, plus the fill over the tab
 module gussets() {
     for (s = [-1, 1])
-        rib_at(s * (L / 2 - gusset_t / 2), gusset_t);
+        rib_at(s * rib_x, gusset_t);
     rib_at(0, hook_w);
 }
 

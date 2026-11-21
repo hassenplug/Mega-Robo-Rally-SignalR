@@ -10,8 +10,9 @@ dimensions as named variables, render + interference check before printing.
 
 **CAD: [cad/phone_tray_insert.scad](../cad/phone_tray_insert.scad)** (written 2026-11-16, renders in OpenSCAD
 2021.01 as one solid). It runs on the **estimates** in this document. Values marked ESTIMATE in the file must
-be replaced with caliper readings before anything is printed. Defaults: 6 phones fit with 17.8 mm to spare across
-and 25.3 mm along. The file's asserts refuse to render a design that does not fit the tray, the 0.5" fin limit,
+be replaced with caliper readings before anything is printed. The **phone size and fit** are now the same as in the
+border holder (`phone_clear` 0.5 there = `clear` 0.5 / `len_clear` 1.0 here), which the user reports fits a real
+phone well (2026-11-20). Defaults: 6 phones fit with 17.2 mm to spare across and 24.9 mm along. The file's asserts refuse to render a design that does not fit the tray, the 0.5" fin limit,
 or the P2S bed.
 
 ## 1. Requirements (from the user)
@@ -36,15 +37,17 @@ or the P2S bed.
   tray is lifted out to charge them (Q3), so the insert needs no cable access.
 - **Phone:** the About screen reads **model A502DL**, Android 8.1.0, Tracfone. One retailer spec page lists the
   A502DL (sold as the Alcatel TCL LX, 2018) at **148.1 × 69.6 × 9.4 mm**
-  ([itechguides](https://www.itechguides.com/?p=164659)). That is a single unconfirmed source: caliper a
-  real phone. The phones in the photos have no case.
+  ([itechguides](https://www.itechguides.com/?p=164659)). That is a single source and has not been calipered.
+  The phones in the photos have no case. **Update 2026-11-20:** the user reports that a real phone fits well in the
+  border holder's cradle, which is cut for exactly these figures plus 0.5 mm (9.9 mm deep, 149.1 mm long). That
+  shows a real phone fits a 9.9 × 149.1 mm space; it does not show how much smaller than that it is.
 
 ## 3. Questions and answers
 
 | # | Question | Answer (2026-11-16) |
 |---|---|---|
 | Q1 | Layout of the flanges | **Confirmed:** one comb at each end of the phones, top and bottom, each reaching <½" along the phone. |
-| Q2 | Phone model | **TCL A502DL** (boot screen and About screen in the photos). Size from a retailer page, not yet measured: 148.1 × 69.6 × 9.4 mm. Still need: camera-bump position and height, and the real thickness. |
+| Q2 | Phone model | **TCL A502DL** (boot screen and About screen in the photos). Size from a retailer page, not yet measured: 148.1 × 69.6 × 9.4 mm; a real phone fits the border holder's cradle cut for those figures + 0.5 mm (2026-11-20). Still need: camera-bump position and height, and the real thickness. |
 | Q3 | Charging in the tray | **No.** The tray is removed to charge the phones, so the insert has no cable, port or plug constraints. The 8-phone tray is a separate print and will not charge in place either. |
 | Q4 | Foam pad | **Stays; ½" (12.7 mm) thick.** It is on the floor to cushion the phones, so the phones rest on the foam. Still need its footprint, and whether it is firm enough that the comb bars can sit on it or must sit on the tray floor beside it. |
 | Q5 | Printer | **Bambu Lab P2S**, build volume 256 × 256 × 256 mm ([3DJake](https://www.3djake.com/bambu-lab/p2s), [B&H](https://www.bhphotovideo.com/c/product/1946344-REG/bambu_lab_pf004_u_us_p2s_3_d_printer.html)). The tray is ~7½" (190 mm) long, so a one-piece ladder frame fits the bed. Material not chosen: PETG suggested. |
@@ -87,8 +90,12 @@ by-eye 3–3½" rib span. 8 phones need 7f + 8c ≤ 28.6 − 2 × 9.4 = **9.8 mm
 | 1.2 mm | 0.4 mm | 11.6 | **−1.8 mm (does not fit)** |
 | 1.0 mm | 0.4 mm | 10.2 | −0.4 mm (does not fit) |
 | 1.0 mm | 0.3 mm | 9.4 | +0.4 mm (barely) |
+| 0.8 mm | 0.5 mm | 9.6 | +0.2 mm (the border holder's fit) |
 | 0.8 mm | 0.4 mm | 8.8 | +1.0 mm |
 | 0.8 mm | 0.3 mm | 8.0 | +1.8 mm |
+
+(This table counts only the fins between phones. The CAD also adds an outer fin and a rail on each side, which
+take 2 × 0.8 mm more; see the 8-phone check in section 5.)
 
 So **8 phones is plausible but tight**: it needs ~0.8 mm fins (two perimeters at a 0.4 mm nozzle, so thin and
 flexible; the P2S can also print them, but test the strength) and phones that really are ≤ 9.4 mm. Each
@@ -133,22 +140,36 @@ design.
 **As built in the CAD (ladder option, `use_rails = true`):** each comb is a full-width **end wall** just beyond the
 phone's end, with the fins reaching inward from it. The end walls drop `bar_drop` (= foam thickness 12.7 mm)
 to the tray floor, because the phone (148 mm) is longer than the foam appears to be (roughly 5"), so the walls
-stand on the floor past the foam's ends. Two thin **rails** (1.2 mm wide, 4 mm above the foam) join the walls.
-This assumes the foam is narrower than the row plus rails; if it is not, set `bar_drop = 0` (everything on the
-foam). Rails take 2 × `rail_t` out of the width budget, so for 8 phones use 0.8 mm rails or `use_rails = false`.
+stand on the floor past the foam's ends. Two **rails** (as thick as a fin, 1.2 mm, and **1 inch tall** above the foam
+since 2026-11-20) join the walls. Each rail sits at a fin position, the first one in from each side: between the first
+and second phone, and between the last two, running the whole length in place of that fin. (Until 2026-11-20 the
+rails were 4 mm tall and outside the row, at the outer fins; they took 2 × `rail_t` out of the width budget.)
+The rails now run between phones, over the foam, so if the foam comes back (`foam_t` > 0) they would have to pass
+through it: set `bar_drop = 0` (everything on the foam) or cut a slot for each rail. The rails clear the wall ribs,
+which only reach the rib tips at the edges of the row, so the rail height no longer has to stay below the ribs'
+lower edges. Each rail has **three cut-outs** (`rail_cuts`) to save material: 15 mm of solid rail at each end
+(`rail_margin`, at least `fin_reach`), 10 mm posts between them (`rail_post`), and 5 mm strips along the top and
+bottom (`rail_bar`); each is about 33 × 15.4 mm, with the top corners cut at 45° by 7 mm (`rail_chamfer`) so the top
+of a cut-out is a 19 mm bridge instead of 33 mm.
 
 **8-phone check with the CAD** (`-D n_phones=8 -D fin_t=0.8 -D clear=0.3 -D rail_t=0.8`): renders, with
 **0.2 mm to spare** across the estimated 85.0 mm rib span. That is within the error of every number it rests
 on, so treat it as "not ruled out", not "fits".
+
+**8 phones at the border holder's fit (`clear` 0.5), checked 2026-11-20:** with the outer fins
+(`-D n_phones=8 -D fin_t=0.8`) the width assert fails, **short by 1.4 mm**. With `outer_fins=false` it renders,
+rails included, with **0.2 mm to spare**, again inside the error of the estimated rib span. So at that fit the
+8-phone tray gives up the outer fins, or goes back to `clear` 0.3. (The rails no longer cost width, so they stay.)
 
 ## 6. Parameters (OpenSCAD, all in mm)
 
 *(Implemented in [cad/phone_tray_insert.scad](../cad/phone_tray_insert.scad); the list below is the original
 plan and the file's names differ slightly: `phone_t`, `phone_len`, `phone_w`, `rib_tip_span`, `floor_len`,
 `foam_t`, `clear`, `len_clear`, `side_clear`, `fin_t`, `fin_reach`, `fin_h`, `lead_h`, `end_t`, `end_h`,
-`use_rails`, `rail_t`, `rail_top`, `bar_drop`.)*
+`use_rails`, `rail_t` (= `fin_t`), `rail_top` (25.4, i.e. 1"), `rail_cuts` (3), `rail_margin`, `rail_post`,
+`rail_bar`, `rail_chamfer`, `bar_drop`.)*
 
-`n_phones`, `phone_t`, `phone_len`, `phone_w`, `fin_t` (1.2), `clear` (0.4), `fin_reach` (≤ 12.7, i.e. <½"),
+`n_phones`, `phone_t`, `phone_len`, `phone_w`, `fin_t` (1.2), `clear` (0.5 since 2026-11-20, was 0.4; `len_clear` 1.0, was 0.6), `fin_reach` (≤ 12.7, i.e. <½"),
 `fin_h`, `bar_len`, `bar_t`, `rib_tip_span` (W), `floor_len`, `floor_w`, `foam_t`, `bump_extra` (camera bump,
 if it sits in a fin zone).
 
@@ -211,6 +232,18 @@ height of the tab's bottom, the cradle's lowest edge raised with it, and the ski
 so the holder hung from the border instead of standing on the table. Back to the previous state: skirt, link and
 cradle on the table (`cradle_z = -border_h`), phone top 68 mm above the table, about 155 × 39 × 69 mm printed,
 ~57 cm³. Collision checks empty; never printed.
+**Then (2026-11-20) — side ribs moved in:** the two triangular ribs (`gusset_t` 2.4 mm), which stood at the ends of the
+cradle, now stand against the outer edge of each back window (`rib_x = win_out + gusset_t/2`, so x = 60.55–62.95 mm
+from the centre at the current settings), touching the window but not over it. The windows' outer edge is now a named
+value, `win_out`. Checked by sampling the exported STL at one height above the border: no material at x = 19.5–60.4
+(the window is clear), the rib and plate at x = 60.7–62.8, plate only beyond 63.2. Volume unchanged at 51.0 cm³;
+one solid; the collision check is empty. With `back_window = false` the ribs stay at the cradle's ends.
+**Border height corrected (2026-11-20):** the user found the wall about 1/16" shorter than first measured, so
+`border_h` is now 1 3/8" (34.925 mm), was 1 7/16" (36.5125 mm). The cradle still stands on the table, so it sits
+1.6 mm higher relative to the border's top face; its distance out from the border (41.9 mm to the shelf front), the
+phone's height above the table (62.9 mm) and the print height (49.6 mm) are unchanged. The skirt and link are 1.6 mm
+shorter and the ribs and fill block 1.6 mm taller, so the part is 51.9 cm³ (was 51.0). Still one solid; the collision
+check is empty. Earlier figures in this section use 1 7/16" and are left as written.
 (The text below describes the earlier revisions, with its numbers at 60°.) Revised the same day, several times. The user's photos showed the slot is in
 the **top** of the border (not the side wall): a tab drops down into the slot (2" × ¼" × ¾", the user's figures),
 a base rests on the top face, and a skirt runs down the border's outer face to the table. Then the user's
@@ -241,3 +274,19 @@ behind the tab) are all empty; never printed. Assumptions to confirm are listed 
   given (the comments there still say 1/2" foam and 3/4" fins, and the text above still quotes 12.7 mm / 19 mm).
 - 2026-11-16 — User corrected Q3: phones do **not** charge in the tray (it is lifted out to charge), and
   the 8-phone tray is a separate print. Removed the charging/plug risks and success criterion.
+- 2026-11-20 — User reported the border holder fits a real phone well and asked for the tray insert to fit the
+  same phone. The phone size was already identical in both files (148.1 × 69.6 × 9.4 mm), so only the fit changed:
+  `clear` 0.4 → 0.5 and `len_clear` 0.6 → 1.0, the border holder's clearances. 6 phones render as one solid with
+  17.2 mm spare across (was 17.8) and 24.9 mm along; the ESTIMATE tags on the phone values were removed (the
+  figures are still the retailer's, not calipered). 8 phones at that fit fail the width assert by 1.4 mm with outer
+  fins and rails, and have 0.2 mm spare as two loose combs without outer fins.
+- 2026-11-20 — **Rails moved in and made 1" tall.** The two rails that join the end walls now sit at the first
+  inner fin position on each side (between phones 1–2 and between the last two) and are `rail_top` = 25.4 mm
+  tall (was 4 mm, outside the row). `rail_t` now defaults to `fin_t`; `side_w` is just the outer fins' width, so the
+  rails cost no width (6 phones still 17.2 mm spare). New asserts: the rails need `n_phones` ≥ 3, and `rail_t` ≤
+  `fin_t`. Rendered one solid; rail tops measured at x = 9.9–11.1 and 54.3–55.5 mm for 6 phones. The 8-phone
+  set with `outer_fins=false` now keeps its rails (0.2 mm spare). Not printed.
+- 2026-11-20 — **Three cut-outs in each rail** (`rail_cuts`, `rail_margin`, `rail_post`, `rail_bar`,
+  `rail_chamfer`): about 33 × 15.4 mm each, top corners cut at 45°. The 6-phone frame goes from 35.9 to 32.6 cm³ (saves
+  3.3 cm³, 9%). Still one solid with the same bounding box. New assert checks that the cut-outs fit and start beyond the
+  fins' reach; `rail_cuts = 0` gives solid rails. Not printed, not sliced.
