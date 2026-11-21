@@ -128,6 +128,7 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
     <!-- The header opens the GM menu (5 taps in 10s still logs out). -->
     <div id="robotHeader" onclick="handleRobotHeaderTap();">&#9776;
         <div id="gmMenu" class="w3-card-4">
+            <button class="button" onclick="event.stopPropagation(); document.getElementById('gmMenu').style.display = 'none'; window.open('board-viewer.html', '_blank');">Board</button>
             <button class="button" onclick="event.stopPropagation(); document.getElementById('qrCodes').style.display='block';">QR Codes</button>
             <button class="button" id="timingBtn" onclick="event.stopPropagation(); toggleTiming();">Timing: Off</button>
             <div style="position:relative;">

@@ -5,6 +5,27 @@
     <title>Board Viewer</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
+        /* --cell is one square's size, set by fitBoardToWidth() so the board fills the
+           window's width. */
+        :root { --cell: 80px; }
+        /* Always keep the vertical scrollbar's space, so its appearing (once a tall board is
+           drawn) doesn't narrow the page after the squares were sized -- that made the board
+           wider than the window and added a horizontal scrollbar. */
+        html { overflow-y: scroll; overflow-x: hidden; }
+        #closeBtn {
+            position: fixed;
+            top: 8px;
+            right: 8px;
+            z-index: 20;
+            padding: 10px 18px;
+            font-size: 18px;
+            font-weight: bold;
+            color: #fff;
+            background: #cc0000;
+            border: 2px solid #fff;
+            border-radius: 6px;
+            cursor: pointer;
+        }
         body {
             background: #222;
             color: #fff;
@@ -23,8 +44,8 @@
             position: relative;
         }
         .cell {
-            width: 80px;
-            height: 80px;
+            width: var(--cell);
+            height: var(--cell);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -35,8 +56,8 @@
             padding: 0;
         }
         .cell img {
-            width: 80px;
-            height: 80px;
+            width: var(--cell);
+            height: var(--cell);
             transition: transform 0.2s;
             display: block;
         }
@@ -44,7 +65,7 @@
             position: absolute;
             top: 30%;
             right: 25%;
-            font-size: 14px;
+            font-size: calc(var(--cell) * 0.175);
             font-weight: bold;
             color: #fff;
             pointer-events: none;
@@ -57,7 +78,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 18px;
+            font-size: calc(var(--cell) * 0.225);
             font-weight: bold;
             color: #000;
             pointer-events: none;
@@ -65,14 +86,14 @@
         }
         .robot-marker {
             position: absolute;
-            width: 40px;
-            height: 40px;
+            width: calc(var(--cell) * 0.5);
+            height: calc(var(--cell) * 0.5);
             border-radius: 50% 50% 50% 0; 
             border: 2px solid #fff;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 10px;
+            font-size: calc(var(--cell) * 0.125);
             font-weight: bold;
             color: #fff;
             z-index: 10;
@@ -82,6 +103,9 @@
     </style>
 </head>
 <body>
+    <!-- Close: only shown when this tab was opened by another page (the GM menu's "Board"),
+         the only case where a page may close its own tab. The GM kiosk has no tab bar. -->
+    <button id="closeBtn" style="display:none;" onclick="window.close();">Close</button>
     <div id="boardContainer" style="width:fit-content;margin:auto;"></div>
     <script src="js/signalr.min.js"></script>
     <script src="js/datahub-connection.js" type="text/javascript" charset="utf-8"></script>
@@ -113,6 +137,15 @@
     let boardDiv = null;
     let boardWidth = 0;
     let boardHeight = 0;
+
+    // Squares sized so the board's columns fill the window's width (whole pixels, so the
+    // grid never overflows into a horizontal scrollbar). Rerun whenever the window resizes.
+    function fitBoardToWidth() {
+        if (!boardWidth) return;
+        const cell = Math.max(1, Math.floor(document.documentElement.clientWidth / boardWidth));
+        document.documentElement.style.setProperty('--cell', cell + 'px');
+    }
+    window.addEventListener('resize', fitBoardToWidth);
 
     function getQueryParam(name) {
         const params = new URLSearchParams(window.location.search);
@@ -151,8 +184,9 @@
 
         boardDiv = document.createElement('div');
         boardDiv.className = 'board';
-        boardDiv.style.gridTemplateColumns = `repeat(${width}, 80px)`;
-        boardDiv.style.gridTemplateRows = `repeat(${height}, 80px)`;
+        boardDiv.style.gridTemplateColumns = `repeat(${width}, var(--cell))`;
+        boardDiv.style.gridTemplateRows = `repeat(${height}, var(--cell))`;
+        fitBoardToWidth();
 
         // Create a 2D array for fast lookup
         const grid = Array.from({ length: height }, () => Array(width).fill(null));
@@ -247,6 +281,8 @@
             }
         });
     }
+
+    if (window.opener) document.getElementById('closeBtn').style.display = '';
 
     loadBoard();
     </script>
