@@ -39,8 +39,8 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
 #mainTable { width:100%; border-collapse:collapse; table-layout:fixed; }
 #mainTable td { height:66px; padding:2px 3px; border-bottom:1px solid #e0e0e0; overflow:hidden; }
 #mainTable td.cConnect { width:52px; }
-#mainTable td.cFlags   { width:110px; text-align:center; background:#e0e0e0; font-weight:bold; }
-#mainTable td.cStatus  { text-align:center; line-height:1.15; }
+#mainTable td.cFlags   { width:110px; text-align:center; background:#e0e0e0; font-weight:bold; font-size:22px; }
+#mainTable td.cStatus  { text-align:center; line-height:1.15; font-size:22px; }
 
 /* The global .button is width:100%/height:30px; the GM page wants finger-sized buttons. */
 #app .button { height:auto; min-height:48px; font-size:18px; padding:4px 10px; box-sizing:border-box; }
@@ -634,7 +634,7 @@ function seatDirectionFor(r) {
 // The tap goes on the cell, not the arrow image, because the image is rebuilt on every broadcast.
 function renderSeatArrow(cell, r) {
     var dir = seatDirectionFor(r);
-    cell.style.backgroundColor = '#e0e0e0';
+    cell.style.background = '#e0e0e0';  // clears the F/E/C flag % bar
     if (SEAT_ARROW_DEGREES[dir] === undefined) {
         cell.innerText = '--';
         cell.onclick = null;
@@ -770,14 +770,14 @@ function showall() {
             } else {
                 flagsCell.innerText = '--';
             }
-            flagsCell.style.backgroundColor = '#e0e0e0';
+            flagsCell.style.background = '#e0e0e0';  // clears the F/E/C flag % bar
             statusbox.innerText = battery > 0 ? battery + '%' : '--';
             statusbox.style.backgroundColor = battery <= 0 ? '#e0e0e0'
                 : battery >= 50 ? '#80ff80' : battery >= 20 ? '#ffff80' : '#ff8080';
             statusbox.onclick = null;
         } else {
             flagsCell.innerText = r.FlagEnergyCards;
-            flagsCell.style.backgroundColor = '#e0e0e0';
+            flagsCell.style.background = flagProgressBackground(r);  // flag % bar, as on index.html
             statusbox.innerText = r.StatusToShow;
             statusbox.style.backgroundColor = "#" + r.StatusColor;
             // Same as index.html: tapping a status swaps the dealt hand for the extras panel

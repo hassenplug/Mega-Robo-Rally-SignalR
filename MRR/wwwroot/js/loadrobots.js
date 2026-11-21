@@ -707,13 +707,7 @@ function showall()
         btn.textContent = robots[i].RobotName;
         var flagsCell = document.getElementById("flags" + rid);
         flagsCell.innerText = robots[i].FlagEnergyCards;
-        // Progress bar: shade the cell left to right by flags touched out of the board's total.
-        var flagPct = datapacket.totalflags > 0
-            ? Math.max(0, Math.min(100, Math.round(100 * robots[i].CurrentFlag / datapacket.totalflags)))
-            : 0;
-        flagsCell.style.background = flagPct > 0
-            ? "linear-gradient(to right, #8fd18f " + flagPct + "%, #e0e0e0 " + flagPct + "%)"
-            : "#e0e0e0";
+        flagsCell.style.background = flagProgressBackground(robots[i]);
 
         var statusbox = document.getElementById("playerstatus" + rid);
         if (showGmControls) {
@@ -907,3 +901,14 @@ document.addEventListener('datapacket', function (ev) {
     showplayerprogram(CurrentLine);
 });
 
+
+// Progress bar for the F/E/C cell (index.html and gmindex.html): shade it left to right by
+// flags touched out of the board's total.
+function flagProgressBackground(robot) {
+    var flagPct = datapacket && datapacket.totalflags > 0
+        ? Math.max(0, Math.min(100, Math.round(100 * robot.CurrentFlag / datapacket.totalflags)))
+        : 0;
+    return flagPct > 0
+        ? "linear-gradient(to right, #8fd18f " + flagPct + "%, #e0e0e0 " + flagPct + "%)"
+        : "#e0e0e0";
+}
