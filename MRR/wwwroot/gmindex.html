@@ -899,7 +899,8 @@ function refreshRobotInfo() {
 
 // ── Swap a robot's base ──────────────────────────────────────────────────────
 // Only for a robot that isn't connected (or connecting). The chosen base's hostname is used for
-// this robot for the rest of the current game; connect it afterwards to dial the new hostname.
+// this robot for the rest of the current game, and the robot is then connected to it straight
+// away (a fresh connection re-reads the hostname -- GameController.ConnectToRobot).
 var CONNECT_STATUS_CONNECTING = 21; // tPlayerStatus.Connecting (MRR.Contracts/PlayerState.cs)
 
 function makeBasePickerHandler(r) {
@@ -937,7 +938,7 @@ function openBasePicker(r) {
 function chooseBase(robotId, robotBaseId) {
     fetch('/api/robot/setbase/' + robotId + '/' + robotBaseId)
         .then(function (resp) {
-            if (resp.ok) { closeBasePicker(); return; }
+            if (resp.ok) { closeBasePicker(); toggleRobotConnect(robotId, false); return; }
             return resp.json().then(function (e) { alert(e.error || 'Could not change the base'); });
         })
         .catch(function (err) { console.error(err.toString()); });
