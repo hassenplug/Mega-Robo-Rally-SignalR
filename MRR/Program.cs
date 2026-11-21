@@ -284,6 +284,10 @@ app.MapGet("/api/player/{command:int}/{playerId:int?}/{data1:int?}/{data2:int?}"
             if (dataService.ToggleShutDown(pid))
                 gameController.RefreshPlayerScreenUI(pid); // turning it on may have filled the program
             break;
+        case 7: // GM: toggle Sit Out (shut down every turn until cleared) -- gmindex.html's F/E/C column
+            if (dataService.ToggleSitOut(pid))
+                gameController.RefreshPlayerScreenUI(pid);
+            break;
     }
 
     gameController.NextState();

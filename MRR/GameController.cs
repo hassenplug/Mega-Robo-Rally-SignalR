@@ -380,6 +380,7 @@ namespace MRR.Controller
                         case 2: // Next Turn
                             _dataService.ResetPlayers();
                             _dataService.MoveCardsShuffleAndDeal();
+                            _dataService.ApplySitOut(); // GM's Sit Out: lock those robots in (after the deal resets Status)
                             //_dataService.ExecuteSQL("call procUpdateRobotCards();");
                             _dataService.ExecuteSQL("update CurrentGameData set iValue=iValue+1 where iKey=2;"); // next turn
                             // Raw SQL above bypasses the Turn property, so _dataService.Turn is

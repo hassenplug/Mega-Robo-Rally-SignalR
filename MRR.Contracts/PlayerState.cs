@@ -62,6 +62,9 @@ namespace MRR
         [Description("Currently")]Currently,
         [Description("Without Reset")]WithoutReset,
         [Description("ClearDamage")]ClearDamage,
+        // Set by the GM (gmindex.html's Sit Out toggle): shut down every turn until cleared --
+        // ResetPlayers leaves it alone, and the robot locks in by itself each programming phase.
+        [Description("Sit Out")]SitOut = 5,
     }
 
     #endregion

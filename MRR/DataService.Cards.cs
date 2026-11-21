@@ -428,7 +428,7 @@ namespace MRR.Services
 
         /// <summary>
         /// Lock-in for robots that chose to shut down (documents/Archive/SHUTDOWN_DESIGN.md). For each
-        /// robot with ShutDown = Currently:
+        /// robot with ShutDown = Currently or SitOut:
         ///   - every damage card (Spam and Haywire) in its registers, hand and discard pile goes
         ///     to the damage discard pile (CardLocation 5, the same pile spent Spam goes to; the
         ///     next deal deletes it);
@@ -440,7 +440,7 @@ namespace MRR.Services
         public void ApplyShutDownAtLockIn()
         {
             var robotIDs = GetIntList(
-                $"SELECT RobotID FROM Robots WHERE ShutDown = {(int)tShutDown.Currently}");
+                $"SELECT RobotID FROM Robots WHERE ShutDown IN ({(int)tShutDown.Currently}, {(int)tShutDown.SitOut})");
             if (!robotIDs.Any()) return;
 
             using var connection = new MySqlConnection(_connectionString);

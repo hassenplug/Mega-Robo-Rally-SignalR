@@ -15,6 +15,8 @@
 <h3>Log Out</h3>
 <p id="status">Checking...</p>
 <button class="button" id="btnLogout" style="background-color:#cc0000; color:#ffffff; width:auto; padding:8px 20px;" onclick="doLogout();">Log Out</button>
+<button class="button" id="btnReload" style="width:auto; padding:8px 20px; margin-left:8px;" onclick="hardReload();">Hard Reload</button>
+<p id="reloadStatus"></p>
 <p><a href="index.html">Back to game</a></p>
 
 <script>
@@ -49,6 +51,24 @@ function doLogout() {
     deleteCookie(LOGIN_COOKIE);
     document.getElementById('status').textContent = "Logged out.";
     window.location.href = 'index.html';
+}
+
+// Hard Reload: pages can't force the browser's own Ctrl+Shift+R, so instead re-download the
+// game's pages, scripts and styles past the cache (fetch with cache:'reload' overwrites the
+// cached copies), then open index.html. Keeps the login cookie.
+var RELOAD_FILES = [
+    'index.html', 'gmindex.html', 'logout.html',
+    'js/loadrobots.js', 'js/datahub-connection.js', 'js/signalr.min.js', 'js/jquery.min.js',
+    'style/button.css', 'style/checkbox.css', 'style/w3.css'
+];
+
+function hardReload() {
+    document.getElementById('reloadStatus').textContent = "Reloading...";
+    Promise.all(RELOAD_FILES.map(function (f) {
+        return fetch(f, { cache: 'reload' }).catch(function () {});
+    })).then(function () {
+        window.location.replace('index.html?reload=' + Date.now());
+    });
 }
 </script>
 

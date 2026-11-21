@@ -84,7 +84,7 @@ namespace MRR.Devices
             // Pick up where the game is for this robot: already shut down (set straight on the
             // field so ConnectAsync's first draw is the dark one), and any message it is waiting
             // on a press for.
-            _shutDown = _dbShutDown == tShutDown.Currently;
+            _shutDown = _dbShutDown == tShutDown.Currently || _dbShutDown == tShutDown.SitOut;
 
             await ConnectAsync();
 

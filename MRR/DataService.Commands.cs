@@ -285,8 +285,9 @@ namespace MRR.Services
                     break;
 
                 case SquareAction.SetShutDownMode: // Set ShutDown
+                    // A GM's Sit Out outlasts anything the board does to ShutDown.
                     ExecuteSQL($"UPDATE Robots SET ShutDown = {cParameter} " +
-                        $" WHERE RobotID = {cRobotID}");
+                        $" WHERE RobotID = {cRobotID} AND ShutDown <> {(int)tShutDown.SitOut}");
                     break;
 
                 case SquareAction.SetCurrentGameData: // Set CurrentGameData iValue by iKey

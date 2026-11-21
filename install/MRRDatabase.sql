@@ -911,7 +911,8 @@ INSERT INTO `RobotShutDown` VALUES
 (1,'Next Turn',4,1),
 (2,'Currently',0,9),
 (3,'Reset',2,1),
-(4,'Clear & Currently',2,1);
+(4,'Clear & Currently',2,1),
+(5,'Sit Out',5,9);
 
 -- RobotStatus
 INSERT INTO `RobotStatus` VALUES

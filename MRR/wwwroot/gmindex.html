@@ -648,6 +648,31 @@ function renderSeatArrow(cell, r) {
     cell.onclick = function () { rotateSeatDirection(r, dir); };
 }
 
+// Shut Down view: the F/E/C column is a "Sit Out" toggle per robot (yellow = on). Sit Out shuts
+// the robot down every turn until the GM (or the player) turns it off (DataService.ToggleSitOut,
+// command 7). Like the seat arrow, the tap goes on the cell, which outlives each broadcast.
+var SIT_OUT_TAP_HOLD_MS = 3000;
+var sitOutTaps = {};  // RobotID -> {on, time}: the tapped value, shown until the server catches up
+
+function renderSitOutToggle(cell, r) {
+    var tap = sitOutTaps[r.RobotID];
+    var serverOn = r.ShutDown === SHUT_DOWN_SIT_OUT;
+    if (tap && (tap.on === serverOn || Date.now() - tap.time >= SIT_OUT_TAP_HOLD_MS)) {
+        delete sitOutTaps[r.RobotID];
+        tap = null;
+    }
+    var on = tap ? tap.on : serverOn;
+    cell.innerText = 'Sit Out';
+    cell.style.background = on ? '#ffff00' : '#ffffff';
+    cell.style.color = on ? '#000000' : '#606060';
+    cell.style.cursor = 'pointer';
+    cell.onclick = function () {
+        sitOutTaps[r.RobotID] = { on: !on, time: Date.now() };
+        showall();
+        SendUpdate(7, r.RobotID);
+    };
+}
+
 function rotateSeatDirection(r, dir) {
     var next = SEAT_CLOCKWISE_NEXT[dir]; // 1->4->3->2->1
     var running = datapacket.gamestate !== 25;
@@ -771,6 +796,8 @@ function showall() {
                 flagsCell.innerText = '--';
             }
             flagsCell.style.background = '#e0e0e0';  // clears the F/E/C flag % bar
+            flagsCell.style.color = '';
+            flagsCell.style.cursor = '';
             statusbox.innerText = battery > 0 ? battery + '%' : '--';
             statusbox.style.backgroundColor = battery <= 0 ? '#e0e0e0'
                 : battery >= 50 ? '#80ff80' : battery >= 20 ? '#ffff80' : '#ff8080';
@@ -778,6 +805,8 @@ function showall() {
         } else {
             flagsCell.innerText = r.FlagEnergyCards;
             flagsCell.style.background = flagProgressBackground(r);  // flag % bar, as on index.html
+            flagsCell.style.color = '';   // reset after the Sit Out toggle
+            flagsCell.style.cursor = '';
             statusbox.innerText = r.StatusToShow;
             statusbox.style.backgroundColor = "#" + r.StatusColor;
             // Same as index.html: tapping a status swaps the dealt hand for the extras panel
@@ -787,6 +816,7 @@ function showall() {
         }
         // Game Control: the F/E/C column shows which way this robot's player faces instead.
         if (gameControl) renderSeatArrow(flagsCell, r);
+        else if (!batteryMode && rightPanelView === 'shutdown') renderSitOutToggle(flagsCell, r);
         else flagsCell.onclick = null;
 
         if (r.PlayerMsg && r.PlayerMsg !== 'undefined') msgRobots.push(r);

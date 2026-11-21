@@ -513,6 +513,7 @@ function showplayerprogram(pl) // show program for this line
 // Shown only while programming (GameState 4) and not once the program is locked. The server
 // (DataService.ToggleShutDown) enforces the same rule; ShutDown 2 = shut down this turn.
 var SHUT_DOWN_CURRENTLY = 2; // tShutDown.Currently (MRR.Contracts/PlayerState.cs)
+var SHUT_DOWN_SIT_OUT = 5;    // tShutDown.SitOut: set by the GM, shut down every turn until cleared
 
 // The browser only has OK/Cancel (no yes/no popup), so confirm() it is. Asked only when turning
 // shut down on; cancelling an already-set shut down just goes through.
@@ -522,7 +523,7 @@ var SHUT_DOWN_PROMPT =
 
 function toggleShutDown() {
     var rbt = datapacket && datapacket.robots.find(function (r) { return r.RobotID === CurrentPlayer; });
-    var turningOn = !rbt || rbt.ShutDown !== SHUT_DOWN_CURRENTLY;
+    var turningOn = !rbt || (rbt.ShutDown !== SHUT_DOWN_CURRENTLY && rbt.ShutDown !== SHUT_DOWN_SIT_OUT);
     if (turningOn && !confirm(SHUT_DOWN_PROMPT)) return;
     SendUpdate(6, CurrentPlayer);
 }
@@ -659,16 +660,21 @@ function renderDeckView(body, cards, history, robotId) {
 // The Shut Down button (extras panel) always toggles, as before; the server only accepts it
 // while programming (GameState 4). The bottom bar -- "Shutting Down - Cancel" -- shows under
 // whichever of the two views is up for as long as shut down is selected.
+// Sit Out (set by the GM) shows the same way; cancelling it clears it for good -- only the GM
+// can turn it back on (DataService.ToggleShutDown).
 function updateShutDownButton(rbt) {
-    var on = rbt.ShutDown === SHUT_DOWN_CURRENTLY;
+    var sitOut = rbt.ShutDown === SHUT_DOWN_SIT_OUT;
+    var on = rbt.ShutDown === SHUT_DOWN_CURRENTLY || sitOut;
 
     var btn = document.getElementById('shutDownBtn');
-    btn.textContent = on ? 'Cancel Shut Down' : 'Shut Down';
+    btn.textContent = sitOut ? 'Cancel Sit Out' : on ? 'Cancel Shut Down' : 'Shut Down';
     btn.style.backgroundColor = on ? '#ffff00' : '';
     btn.style.color = on ? '#000000' : '';
 
     var showBar = datapacket && datapacket.gamestate === 4 && on;
     document.getElementById('shutDownRow').style.display = showBar ? '' : 'none';
+    document.getElementById('shutDownCancelBtn').textContent =
+        (sitOut ? 'Sitting Out' : 'Shutting Down') + ' \u2014 Cancel';
 }
 
 function showall()

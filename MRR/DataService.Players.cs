@@ -798,12 +798,15 @@ namespace MRR.Services
             // not overwritten with something different.
             ExecuteSQL($"UPDATE Robots SET Status = {(int)tPlayerStatus.ReadyToProgram}");
 
-            // Shutdown lasts only the turn it was chosen in (documents/Archive/SHUTDOWN_DESIGN.md).
-            ExecuteSQL($"UPDATE Robots SET ShutDown = {(int)tShutDown.None}");
+            // Shutdown lasts only the turn it was chosen in (documents/Archive/SHUTDOWN_DESIGN.md)
+            // -- except the GM's Sit Out, which stays until the GM or the player clears it
+            // (ApplySitOut locks those robots in once the new hand is dealt).
+            ExecuteSQL($"UPDATE Robots SET ShutDown = {(int)tShutDown.None} WHERE ShutDown <> {(int)tShutDown.SitOut}");
             // ...and the robots' screens/LEDs go back to normal (a no-op for any that weren't).
+            var sittingOut = GetIntList($"SELECT RobotID FROM Robots WHERE ShutDown = {(int)tShutDown.SitOut}");
             foreach (var robotConnection in _robotConnections.ToList())
             {
-                robotConnection.ShutDown = false;
+                robotConnection.ShutDown = sittingOut.Contains(robotConnection.RobotID);
             }
 
             // Reset RobotOptions.PhasePlayed
@@ -834,6 +837,15 @@ namespace MRR.Services
                 $"AND Status <> {(int)tPlayerStatus.Dead} ");
             if (eligible == 0) return false;
 
+            // Sitting out: the player's button ("Sitting Out - Cancel") only clears it. Only the
+            // GM can turn Sit Out on, so once the player clears it they can't get it back.
+            if (GetIntFromDB($"SELECT ShutDown FROM Robots WHERE RobotID = {robotID}") == (int)tShutDown.SitOut)
+            {
+                ExecuteSQL($"UPDATE Robots SET ShutDown = {(int)tShutDown.None} WHERE RobotID = {robotID}");
+                ResumeFromSitOut(robotID);
+                return true;
+            }
+
             ExecuteSQL(
                 $"UPDATE Robots SET ShutDown = IF(ShutDown = {(int)tShutDown.Currently}, " +
                 $"{(int)tShutDown.None}, {(int)tShutDown.Currently}) WHERE RobotID = {robotID}");
@@ -841,6 +853,71 @@ namespace MRR.Services
             if (GetIntFromDB($"SELECT ShutDown FROM Robots WHERE RobotID = {robotID}") == (int)tShutDown.Currently)
                 FillEmptyRegisters(robotID);
             return true;
+        }
+
+        // =====================================================================
+        // Sit Out (tShutDown.SitOut): the GM screen's toggle in the F/E/C column (Shut Down
+        // view). On, the robot is shut down every turn -- ResetPlayers keeps the value, and
+        // ApplySitOut locks it in at the start of each programming phase so the turn doesn't
+        // wait on it; ApplyShutDownAtLockIn treats it as Currently. Off clears it to None.
+        // Allowed any time a game is running: turned on during programming it applies to this
+        // turn, during execution from the next one. Returns false if rejected.
+        // =====================================================================
+        public bool ToggleSitOut(int robotID)
+        {
+            if (GameState < 2 || GameState == 25) return false;
+
+            var current = GetQueryResults($"SELECT ShutDown FROM Robots WHERE RobotID = {robotID}");
+            if (current.Rows.Count == 0) return false;
+            bool turningOn = Convert.ToInt32(current.Rows[0]["ShutDown"]) != (int)tShutDown.SitOut;
+
+            ExecuteSQL(
+                $"UPDATE Robots SET ShutDown = {(int)(turningOn ? tShutDown.SitOut : tShutDown.None)} " +
+                $"WHERE RobotID = {robotID}");
+
+            if (turningOn) { if (GameState == 3 || GameState == 4) ApplySitOut(robotID); }
+            else ResumeFromSitOut(robotID);
+            return true;
+        }
+
+        // Locks in every robot sitting out (or just robotID): Status ShutDown (9), which the
+        // programming gate (GameController.NextState, state 4) doesn't wait on, and its facing
+        // accepted as is (PositionValid 0 -> 1, e.g. after a respawn). Its cards stay where they
+        // are until lock-in discards them (ApplyShutDownAtLockIn). Called once the new hand is
+        // dealt (GameController.NextState, state 2) and when the GM turns Sit Out on mid-turn.
+        public void ApplySitOut(int? robotID = null)
+        {
+            string filter = robotID.HasValue ? $" AND RobotID = {robotID.Value}" : "";
+            var ids = GetIntList(
+                $"SELECT RobotID FROM Robots WHERE ShutDown = {(int)tShutDown.SitOut} " +
+                $"AND Status <> {(int)tPlayerStatus.Dead}{filter}");
+            if (!ids.Any()) return;
+
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+            foreach (int id in ids)
+            {
+                ExecuteSQL($"UPDATE Robots SET PositionValid = 1 WHERE RobotID = {id} AND PositionValid = 0");
+                RebuildRobotCardsSummary(connection, id, (int)tPlayerStatus.ShutDown);
+                var robotConnection = _robotConnections.Get(id);
+                if (robotConnection != null) robotConnection.ShutDown = true;
+            }
+        }
+
+        // Sit Out was just cleared (by the GM or the player). While programming, give the robot
+        // back a programming status -- Ready if its registers are already full, else Programming
+        // -- and its screen. Later in the turn it stays shut down; ResetPlayers clears that.
+        private void ResumeFromSitOut(int robotID)
+        {
+            if (GameState != 3 && GameState != 4) return;
+            if (GetIntFromDB($"SELECT Status FROM Robots WHERE RobotID = {robotID}") != (int)tPlayerStatus.ShutDown) return;
+
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+            RebuildRobotCardsSummary(connection, robotID, (int)tPlayerStatus.Programming);
+            UpdateProgrammingStatus(connection, robotID, cardsChanged: true);
+            var robotConnection = _robotConnections.Get(robotID);
+            if (robotConnection != null) robotConnection.ShutDown = false;
         }
 
         // A shut-down robot's program is discarded at lock-in anyway, so fill it in for the
