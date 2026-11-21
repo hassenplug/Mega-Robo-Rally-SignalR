@@ -1576,6 +1576,11 @@ namespace MRR
                                 {
                                     //ListOfCommands.AddCommand(thisplayer, SquareAction.GameWinner);
                                     ShowMessageToPlayer("Game Winner:" + thisplayer.Name,thisplayer, "Winner"); // , SquareAction.GameWinner);
+
+                                    // reset the winner's flag count so they start over at flag 1
+                                    ListOfCommands.AddCommand(thisplayer, SquareAction.Flag, 0);
+                                    thisplayer.LastFlag = 0;
+                                    SetNextFlagForPlayer(thisplayer);
                                 }
                                 else
                                 {
