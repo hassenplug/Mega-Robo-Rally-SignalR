@@ -28,7 +28,7 @@ state-4 gate waits only for Expert (design §5.7).
 | | Status |
 |---|---|
 | Plan | Written and agreed in a back-and-forth with the user: [COMPUTER_PLAYER_DESIGN.md](COMPUTER_PLAYER_DESIGN.md). Committed (`aa82572`). |
-| **M0 — measure** | **Done on the development machine; the Raspberry Pi run is still to do.** Committed (`03d2f75`). Results: design §6.1. |
+| **M0 — measure** | **Closed 2026-11-22.** Dev machine committed in `03d2f75`; Pi 4 run done the same afternoon. Results: design §6.1. |
 | M1 and later | **Not started. No product code exists** — only test code. |
 
 Decisions already made by the user (design §1): fill empty seats; one GM button; GM sees prompts;
@@ -45,21 +45,18 @@ Expert's 5 s soft / 10 s hard extra time.
 
 Headline numbers (dev machine, Release): one solo 5-phase plan **0.71 ms**; first search pass for five
 computers **58 ms**; widest planned pass (width 60) **0.53 s** per computer; exhaustive search ≈ 9 s per
-computer (so not the default); Expert re-rank ≈ 0.3 s. **No Pi numbers yet.**
+computer (so not the default); Expert re-rank ≈ 0.3 s.
+
+**Pi numbers (2026-11-22).** The game server is a **Raspberry Pi 4 Model B (1.8 GHz)**, not a Pi 5. It is
+about **11–12× slower** than the dev machine: solo 5-phase plan 8.4 ms; **stage 1 for five computers
+0.64 s (target ≤ 1 s met)**; width-60 stage 5.9 s per computer; exhaustive ≈ 93 s (out); Expert re-rank
+≈ 3.5 s **per Expert computer** — so five Expert seats would overrun the 10 s ceiling at N = 12, K = 8
+(an M4 problem; options listed in design §6.1). Measured with the game server running a live game.
 
 ## Next steps, in order
 
-1. **Run the benchmark on the Pi** (stop the game host first so its CPU doesn't inflate the numbers):
-
-   ```bash
-   cd ~/Mega-Robo-Rally-SignalR
-   MRR_BENCH=1 ~/.dotnet/dotnet test MRR.Tests/MRR.Tests.csproj -c Release \
-     --filter "Category=Benchmark" --logger "console;verbosity=detailed"
-   ```
-
-   The report is saved as `MRR.Tests/bin/Release/net9.0/bot-m0-results.txt`. Paste it into design §6.1,
-   add a Pi column, re-check the break-even factors, and mark M0 closed. (Windows PowerShell:
-   `$env:MRR_BENCH = "1"` then the same `dotnet test` line.)
+1. ~~Run the benchmark on the Pi~~ — done 2026-11-22, see above. (Re-run command is in design §6.1 if
+   the server moves to a Pi 5.)
 2. **Answer the open questions** (below), or tell the next session to proceed on the recommendations.
 3. **M1 — plumbing with the Level 1 (random) brain and the timing guarantee.** Scope and "done when" are
    in design §6. In short: gaps 1, 2, 5, 7, 8, 9, 10, 11, 12 (design §3); the `MRR.Bot` project;

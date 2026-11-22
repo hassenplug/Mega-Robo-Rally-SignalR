@@ -306,19 +306,26 @@ Sizes are my estimate, not a commitment.
 
 | # | Milestone | Size | Done when |
 |---|---|---|---|
-| **M0** | **Measure; no behaviour change. Done on the development machine 2026-11-22; the Raspberry Pi run is still to do (§6.1).** A benchmark test (`Category=Benchmark`, run by hand with `dotnet test --filter`, not a pass/fail gate) timing `CreateTurn` on a 12×12 board with 6 robots, for 1- to 5-phase plans, and the **time to finish stage 1 for 5 computers**. Also tests: planner output is identical on repeat; the board is unchanged after a plan; a cardless robot is an inert obstacle that still shoots. | S | Timings **from the dev machine and from the Pi** are recorded in this doc, and the stage widths in §5.0 are set so stage 1 for all computers is fast (target ≤ 1 s on the Pi, *starting guess*). **Dev machine: recorded in §6.1, target met by a wide margin, stage widths unchanged. Pi: outstanding — M0 is not fully closed until it is run.** |
+| **M0** | **Measure; no behaviour change. Done 2026-11-22 on the development machine and on the Raspberry Pi 4 (§6.1). Closed.** A benchmark test (`Category=Benchmark`, run by hand with `dotnet test --filter`, not a pass/fail gate) timing `CreateTurn` on a 12×12 board with 6 robots, for 1- to 5-phase plans, and the **time to finish stage 1 for 5 computers**. Also tests: planner output is identical on repeat; the board is unchanged after a plan; a cardless robot is an inert obstacle that still shoots. | S | Timings **from the dev machine and from the Pi** are recorded in this doc, and the stage widths in §5.0 are set so stage 1 for all computers is fast (target ≤ 1 s on the Pi, *starting guess*). **Dev machine: target met by a wide margin. Pi 4: stage 1 for five computers 0.64 s — target met (~1.5× margin); stage widths unchanged; Expert re-rank budget flagged for M4 (§6.1).** |
 | **M1** | **Plumbing, Level 1, and the timing guarantee.** Gaps 1, 2, 5, 7, 8, 9, 10, 11, 12; `MRR.Bot` project with `Decision`, `BotProfile`, the random brain and the scheduler skeleton; `ClaimUnselectedAsComputers`, `fillcomputers`, the GM selector and button, `Computer` in the payload, the "CPU" label; `SetRobotProgram`; the human-clock poll; placeholder-at-t0. | M–L | The button turns every open seat into a computer at the chosen level and the game moves to state 2; a table with ≥1 computer runs **10 consecutive turns** with no stall other than prompts the GM confirms; **every computer is Ready within ~100 ms of state 4** (log timestamps); a phone tapping during a snapshot causes no exception; a `SetRobotProgram` refused after lock-in leaves the program untouched; *End Selection* still works. |
 | **M2** | **Brain core, Levels 2–4.** Planner-based staged search, score, BFS distance, noise, breadth-first scheduling, refine-and-apply, stop handling, fallback; **the gate condition `MayLockIn()` and the title note** (gaps 13–14), needed here for the no-human-clock case. | M–L | Fixture and scheduler tests pass (§7); inputs unchanged after a search; **with 5 computers still searching, lock-in follows the last human's tap by no more than ~250 ms on the Pi** (*starting guess*, from log timestamps); an all-computer table is held for at most `SoloBudgetMs` and then locks in; the **regret test** orders Levels 1 > 2 > 3 > 4. |
 | **M3** | Reboot facing, Spam sampling, shut-down rule (Levels 3+). | S–M | A fixture per feature; a manual run through death → reboot → programming. |
 | **M4** | **Expert, and the arena that validates the ladder.** Opponent sampler and round-based re-rank; **Expert's extra time** (soft/hard deadlines, early release, §5.7); an *approximate* in-memory applier (final positions, flag count, Spam per `DealSpamCard`) so several brains can play many turns with no database. | M | In the arena, over a fixed turn count and fixed boards, **each level beats the one below** — margin agreed beforehand, not chosen afterwards. On the Pi, with Expert computers searching, **lock-in follows the last human's tap by no more than `GraceHardMs` + ~250 ms, and usually sooner** (log timestamps). See §8 for why the applier is approximate. |
 
-### 6.1 M0 results (2026-11-22, development machine only)
+### 6.1 M0 results (2026-11-22, development machine and Raspberry Pi)
 
 **Setup.** Intel i7-1360P (16 logical threads), Windows 11, .NET 9 **Release**; a synthetic 12×12 board
 (belts, fast belts, gears, pits, walls, lasers, 5 flags — the real board library is in the database, not
 the repo), 6 robots, and a nine-card hand with 8 distinct types. Code: `MRR.Tests/BotFixtures.cs`,
 `BotM0AssumptionTests.cs` (14 tests, run with the normal suite — 122/122 pass) and `BotM0Benchmark.cs`
-(opt-in). **The Raspberry Pi has not been measured; nothing below is a Pi number.**
+(opt-in).
+
+**Pi setup (run 2026-11-22 14:50).** The game server is a **Raspberry Pi 4 Model B Rev 1.5** (4 × Cortex-A72,
+1.8 GHz, 8 GB) — *not* the Pi 5 that `CLAUDE.md` describes. Debian 13 (trixie), .NET 9.0.21 Arm64, Release.
+Not throttled (`get_throttled=0x0`, 58 °C). **The game server was left running** — a game was live in
+state 4 (turn 57) — as were the VS Code server and Copilot; the CPU was ~88 % idle at the start. So the Pi
+numbers are slightly pessimistic for a quiet Pi, but realistic for a Pi that is also hosting a game.
+The normal suite (including the 14 M0 assumption tests) also passes on the Pi: 122/122, Debug.
 
 **Assumptions the plan relies on — all held:**
 
@@ -332,22 +339,51 @@ the repo), 6 robots, and a nine-card hand with 8 distinct types. Code: `MRR.Test
 | King of the Hill's end-of-game commands do not touch the bot's robot (matters for 1-phase prefix plans) | ✔ |
 | Gaps 5–6: the planner overwrites card `Priority` and consumes `DrawPiles` | ✔ pinned by two characterization tests — the bot must copy cards and draw piles |
 
-**Timings (mean, this machine).**
+**Timings (mean unless noted).**
 
-| Measure | Result |
-|---|---|
-| One plan, only robot 1 holds cards, 1 / 2 / 3 / 4 / 5 phases | 0.07 / 0.19 / 0.33 / 0.51 / **0.71 ms** |
-| Memory allocated per solo plan | 0.13 MB (1 phase) to **1.3 MB** (5 phases) |
-| One 5-phase plan with all six robots holding cards (an Expert opponent world) | **3.2 ms**, 5.3 MB |
-| Search stage for one computer, width 1 / 3 / 10 / 30 / 60 (plans · time) | 32 · 12 ms / 79 · 32 ms / 230 · 98 ms / 549 · 290 ms / 1016 · **533 ms** |
-| **Stage 1 for five computers, one after another** (the M0 target) | **58 ms** (target ≤ 1 s) |
-| Exhaustive search for this hand | 8,820 distinct sequences × 1.0 ms ≈ **8.9 s** per computer |
-| Expert re-rank at the planned size (12 candidates × 8 worlds = 96 six-robot plans) | ≈ **0.31 s** |
-| Throughput of 5-phase plans on 1 / 2 / 4 / 8 threads | 974 / 1575 / 2263 / 2505 plans/s (×1.0 / 1.6 / 2.3 / 2.6) |
-| The planner's own console line (gap 9) | no measurable cost (×1.0) |
-| One `BoardElementCollection.GetSquare` lookup | 0.13 µs |
+| Measure | Dev machine | Pi 4 | Pi ÷ dev |
+|---|---|---|---|
+| One plan, only robot 1 holds cards, 1 / 2 / 3 / 4 / 5 phases | 0.07 / 0.19 / 0.33 / 0.51 / **0.71 ms** | 0.79 / 1.89 / 3.36 / 5.48 / **8.42 ms** | ×11.9 (5 ph.) |
+| Memory allocated per solo plan | 0.13 MB (1 phase) to **1.3 MB** (5 phases) | same | — |
+| One 5-phase plan with all six robots holding cards (an Expert opponent world) | **3.2 ms**, 5.3 MB | **36.7 ms** | ×11.5 |
+| Search stage for one computer, width 1 / 3 / 10 / 30 / 60 (plans · time; median of 3) | 32 · 12 ms / 79 · 32 ms / 230 · 98 ms / 549 · 290 ms / 1016 · **533 ms** | 148 ms / 369 ms / 1.08 s / 2.96 s / **5.86 s** | ×11.0 (w 60) |
+| All five stages for one computer (sum of the row above) | ≈ 1.0 s | **≈ 10.4 s** | |
+| **Stage 1 for five computers, one after another** (the M0 target; median of 5) | **58 ms** | **642 ms** (target ≤ 1 s — **met**) | ×11.1 |
+| Exhaustive search for this hand | 8,820 sequences × 1.0 ms ≈ **8.9 s** per computer | 8,820 × 10.6 ms ≈ **93 s** | |
+| Expert re-rank at the planned size (12 candidates × 8 worlds = 96 six-robot plans), **per Expert computer** | ≈ **0.31 s** | ≈ **3.5 s** | ×11.4 |
+| Throughput of 5-phase plans on 1 / 2 / 4 threads | 974 / 1575 / 2263 plans/s (×1.0 / 1.6 / 2.3) | 95 / 157 / 192 plans/s (×1.0 / 1.7 / 2.0) | |
+| The planner's own console line (gap 9) | no measurable cost (×1.0) | ×1.0 | |
+| One `BoardElementCollection.GetSquare` lookup | 0.13 µs | 1.14 µs | ×8.8 |
 
-**What this means for the plan** (on this machine; the Pi factor is the open question):
+**The Pi 4 is about 11–12× slower than the dev machine**, consistently across measures. That is under
+every break-even factor below, so the plan holds — but with far less headroom than on the dev machine.
+
+**What this means for the plan, on the Pi 4** (added after the Pi run):
+
+- **M0's target is met: stage 1 for five computers in 0.64 s** (≤ 1 s). Margin is only ~1.5×, so keep
+  stage 1 at width 1 and do not add work to it.
+- **Hard rarely reaches its widest stage when the table is full of computers.** Breadth-first over five
+  computers, stages 1–3 (widths 1, 3, 10) take ≈ 8 s; width 30 for all five adds ≈ 15 s; width 60 adds
+  ≈ 29 s. One Hard computer gets all five stages in ≈ 10.4 s. Since Hard keeps whatever stage it
+  finished when the humans tap, this is acceptable by design (§5.0, §8), but stage widths 1, 3, 10, 30, 60
+  are effectively "1, 3, 10 and sometimes 30" with five computers. **Not changed yet** — M2's regret test
+  should say whether width 10 is already close enough to best, which would make the wider stages a bonus
+  rather than a need.
+- **Exhaustive search is out** (≈ 93 s per computer). Exhaustive references for M2's regret test should
+  be computed on the dev machine, not the Pi.
+- **Expert's re-rank budget is per computer, and that matters.** 3.5 s for one Expert fits the 5 s soft
+  allowance; **five Expert computers at N = 12, K = 8 would need ≈ 17.6 s sequentially**, past the 10 s
+  hard ceiling. (The dev-machine notes below did not account for several Expert seats.) The round-based
+  re-rank still behaves correctly — it applies only full rounds and stops at the ceiling — but each
+  Expert would get only 2–3 of its 8 worlds. Options for M4, not decided: start the re-rank during the
+  humans' time as soon as Hard's stage 3 is done; lower *N*/*K* per computer as the number of Expert
+  seats grows; or allow `MaxParallel = 2` for the re-rank only (×1.7 measured).
+- **Parallelism: ×2.0 on 4 threads, ×1.7 on 2.** Keep `MaxParallel = 1` as planned; the Pi also runs
+  MariaDB, the server and Chromium, and this run did not measure the effect on phone latency.
+- **If the server moves to a Pi 5**, expect these times to drop roughly 2–3× (an estimate from published
+  CPU comparisons, not measured here). Re-run the benchmark on the target hardware before tuning numbers.
+
+**What this meant for the plan on the dev machine** (written before the Pi run; kept for the record):
 
 - **Stage widths stay 1, 3, 10, 30, 60.** Nothing here argues for changing them. Running all five stages
   for one computer costs about 1 s; for five computers, about 5 s.
@@ -364,10 +400,10 @@ the repo), 6 robots, and a nine-card hand with 8 distinct types. Code: `MRR.Test
   17× for "stage 1 for five computers ≤ 1 s" (58 ms → 1 s); 19× for the widest stage to fit inside a
   10 s window (my stand-in for how long players take to program — I have no data on that); 16× for
   the Expert re-rank to fit inside the 5 s soft allowance. I have not
-  measured the real factor and am not going to guess it.
+  measured the real factor and am not going to guess it. *(Measured afterwards: ×11–12 on the Pi 4 —
+  see above.)*
 
-**Still to do to close M0 — run it on the Pi.** Stop the game host first (its CPU use would inflate the
-numbers), then:
+**Re-running the benchmark** (e.g. on a Pi 5, or with the game host stopped for a quiet-machine number):
 
 ```bash
 cd ~/Mega-Robo-Rally-SignalR
@@ -376,9 +412,8 @@ MRR_BENCH=1 ~/.dotnet/dotnet test MRR.Tests/MRR.Tests.csproj -c Release \
 ```
 
 The report is printed and also saved as `bot-m0-results.txt` beside the test assembly
-(`MRR.Tests/bin/Release/net9.0/`). Paste it here, add a Pi column to the table above, and re-check the
-break-even factors. The first build on a Pi takes a few minutes. On Windows, set `$env:MRR_BENCH = "1"`
-in PowerShell instead.
+(`MRR.Tests/bin/Release/net9.0/`). On the Pi 4 the run takes about 1.5 minutes after the build. On
+Windows, set `$env:MRR_BENCH = "1"` in PowerShell instead.
 
 ## 7. Testing
 
