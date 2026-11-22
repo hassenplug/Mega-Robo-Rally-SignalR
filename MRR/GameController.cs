@@ -395,8 +395,9 @@ namespace MRR.Controller
                             break;
                         case 3: // Verify Position
                             ScreenUiLoadHand(3);
-                            SetAllRobotLights(true);
+                            SetAllRobotLights(true, skipComputers: true);
                             SetGameState(4);
+                            ProgramComputerPlayers(); // before case 4's gate, so it never waits on a computer
                             break;
                         case 4: // still programming
                             int playersProgramming = _dataService.GetIntFromDB("Select Count(*) from  Robots where (Status <> 4 and Status < 9)");
@@ -448,8 +449,9 @@ namespace MRR.Controller
                             SetGameState(0);
                             break;
                         case 15: // Create program
-                            SetAllRobotLights(true);
+                            SetAllRobotLights(true, skipComputers: true);
                             SetGameState(4);
+                            ProgramComputerPlayers();
                             break;
                         case 16: // Reload Position
                             // restore saved positions from previous turn
@@ -536,7 +538,7 @@ namespace MRR.Controller
                 bool connected = player?.isConnected == true;
                 SetRobotConnectStatus(id, connected ? tPlayerStatus.RobotConnected : tPlayerStatus.NotConnected);
 
-                if (UseRobotScreen && connected)
+                if (UseRobotScreen && connected && player!.Computer == 0)
                 {
                     InitScreenUI(player!);
                 }
@@ -594,12 +596,15 @@ namespace MRR.Controller
         /// phases visually: on when programming starts (states 3/15 entering state 4) and again
         /// at execute-turn (state 6 entry), off once execute-turn finishes (state 7 exit). Note
         /// individual robots may also flip their own LED off earlier, once that player finishes
-        /// programming -- see DataService.Cards.cs.
+        /// programming -- see DataService.Cards.cs. skipComputers leaves computer players' robots
+        /// alone: they are Ready as soon as programming starts, so their lights stay off then
+        /// (GameController.ComputerPlayers.cs).
         /// </summary>
-        private void SetAllRobotLights(bool on)
+        private void SetAllRobotLights(bool on, bool skipComputers = false)
         {
             foreach (var player in AllPlayers)
             {
+                if (skipComputers && player.Computer > 0) continue;
                 _ = Task.Run(async () =>
                 {
                     try { await player.SetLightsAsync(on); }
@@ -619,6 +624,8 @@ namespace MRR.Controller
             if (!UseRobotScreen) return;
             foreach (var player in AllPlayers)
             {
+                if (player.Computer > 0) continue; // nobody programs a computer's robot by its screen
+
                 if (player.ScreenUI != null)
                 {
                     _ = Task.Run(async () =>

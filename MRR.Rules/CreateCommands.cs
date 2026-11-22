@@ -745,7 +745,8 @@ namespace MRR
             // Only CommandList was written to database above
 
             //SendGameMessage(8,"Added " + ListOfCommands.Count + " commands"); // set to state 8, ready to start running commands
-            Console.WriteLine("Planned " + ListOfCommands.Count + " commands");
+            // No console line here: GameController.CreateTurn logs plan.Summary, and the
+            // computer player calls the planner thousands of times per turn (COMPUTER_PLAYER_DESIGN.md gap 9).
 
             // The caller stores the commands and applies the state change. Previously this
             // method wrote CommandList itself and then ran

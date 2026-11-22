@@ -157,7 +157,8 @@ app.MapGet("/api/history/turn/{turn:int?}", (int? turn, DataService dataService)
 app.MapGet("/api/cards/{robotId:int}", (int robotId, DataService dataService) =>
     Results.Ok(dataService.GetRobotCards(robotId)));
 
-app.MapGet("/api/state/{newstate?}/{parameter1?}", async (string? newstate, string? parameter1, DataService dataService, IHubContext<DataHub> hubContext, GameController gameController) =>
+app.MapGet("/api/state/{newstate?}/{parameter1?}", async (string? newstate, string? parameter1, DataService dataService, IHubContext<DataHub> hubContext, GameController gameController,
+           MRR.Devices.RobotConnections robotConnections) =>
 {
 
     if (newstate == null) newstate = "";
@@ -196,6 +197,30 @@ app.MapGet("/api/state/{newstate?}/{parameter1?}", async (string? newstate, stri
                 {
                     dataService.GetAllPlayers(true); // also closes the deleted robots' connections
                     gameController.NextState();
+                }
+            }
+            break;
+        case "fillcomputers":
+            // GM "Fill with Computers" (gmindex.html, GameState==1 only): every robot no player
+            // has picked becomes a computer player at level parameter1 (1-5, clamped), then
+            // NextState() sees every seat claimed and moves on to GameState 2.
+            // documents/COMPUTER_PLAYER_DESIGN.md §4.
+            if (gameController.GameState == 1)
+            {
+                var openIds = dataService.GetIntList("SELECT RobotID FROM Robots WHERE Status <> 1");
+                int claimed = dataService.ClaimUnselectedAsComputers(MRR.Bot.BotProfile.ClampLevel(paramInt));
+                Console.WriteLine($"Fill with Computers: {claimed} seat(s) claimed at level {MRR.Bot.BotProfile.ClampLevel(paramInt)}.");
+                if (claimed > 0)
+                {
+                    dataService.GetAllPlayers(true); // pick up Computer on each Player
+                    gameController.NextState();
+
+                    // Push each new robot's name/colour to its screen and LEDs, as /api/setup/select does.
+                    foreach (int robotId in openIds)
+                    {
+                        var connection = robotConnections.Get(robotId);
+                        if (connection != null) _ = Task.Run(() => connection.RefreshIdentityDisplayAsync());
+                    }
                 }
             }
             break;

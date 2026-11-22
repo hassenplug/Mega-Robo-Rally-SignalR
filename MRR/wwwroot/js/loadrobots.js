@@ -522,6 +522,7 @@ var SHUT_DOWN_PROMPT =
     'cards will be discarded.  Your first five cards will be put in your program for you.';
 
 function toggleShutDown() {
+    if (isComputerSeat()) return;
     var rbt = datapacket && datapacket.robots.find(function (r) { return r.RobotID === CurrentPlayer; });
     var turningOn = !rbt || (rbt.ShutDown !== SHUT_DOWN_CURRENTLY && rbt.ShutDown !== SHUT_DOWN_SIT_OUT);
     if (turningOn && !confirm(SHUT_DOWN_PROMPT)) return;
@@ -710,7 +711,7 @@ function showall()
         var rid = i + 1;
         var btn = document.getElementById("button" + rid);
         btn.style = "background-color:#" + robots[i].RobotColor + "; color:#" + robots[i].RobotColorFG;
-        btn.textContent = robots[i].RobotName;
+        btn.textContent = robots[i].RobotName + (robots[i].Computer > 0 ? ' (CPU)' : '');
         var flagsCell = document.getElementById("flags" + rid);
         flagsCell.innerText = robots[i].FlagEnergyCards;
         flagsCell.style.background = flagProgressBackground(robots[i]);
@@ -742,7 +743,15 @@ function showall()
 function canProgram()
 {
     var gs = datapacket && datapacket.gamestate;
-    return gs >= 2 && gs <= 4;
+    return gs >= 2 && gs <= 4 && !isComputerSeat();
+}
+
+// A computer player programs its own robot (COMPUTER_PLAYER_DESIGN.md), so a player's phone
+// gets no controls for it -- only the GM can still change it. The server does not enforce this.
+function isComputerSeat() {
+    if (IsGM) return false;
+    var rbt = datapacket && datapacket.robots.find(function (r) { return r.RobotID === CurrentPlayer; });
+    return !!(rbt && rbt.Computer > 0);
 }
 
 // A dealt card tapped on this device leaves the hand on screen straight away, before the server

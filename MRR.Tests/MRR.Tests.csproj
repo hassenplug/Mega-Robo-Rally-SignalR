@@ -23,6 +23,7 @@
     <ProjectReference Include="..\MRR.Rules\MRR.Rules.csproj" />
     <ProjectReference Include="..\MRR.Config\MRR.Config.csproj" />
     <ProjectReference Include="..\MRR\MRR.csproj" />
+    <ProjectReference Include="..\MRR.Bot\MRR.Bot.csproj" />
   </ItemGroup>
 
 </Project>

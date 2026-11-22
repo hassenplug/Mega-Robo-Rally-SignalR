@@ -217,6 +217,17 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
                 <button class="button" style="width:auto; padding:6px 20px; background-color:#b00000; color:#ffffff;" onclick="endSelection();">End Selection</button>
                 <div style="color:#606060;">Deletes every robot no player has picked and starts the game with the rest.</div>
             </div>
+            <div style="margin-bottom:12px;">
+                <select id="computerLevel" style="font-size:16px; padding:4px;">
+                    <option value="1">Beginner</option>
+                    <option value="2">Easy</option>
+                    <option value="3" selected>Normal</option>
+                    <option value="4">Hard</option>
+                    <option value="5">Expert</option>
+                </select>
+                <button class="button" style="width:auto; padding:6px 20px; background-color:#004080; color:#ffffff;" onclick="fillComputers();">Fill with Computers</button>
+                <div style="color:#606060;">Makes every robot no player has picked a computer player at this level, and starts the game.</div>
+            </div>
             <div id="robotSelectActive" style="font-weight:bold; font-size:20px; margin-bottom:6px;"></div>
             <div id="robotSelectBodies"></div>
             <div id="robotSelectHint" style="color:#606060; margin-top:6px;"></div>
@@ -596,6 +607,19 @@ function endSelection() {
     if (total - unpicked <= 0) { alert('No robot has been picked yet.'); return; }
     if (!confirm('End robot selection? ' + unpicked + ' unpicked robot(s) will be removed from this game.')) return;
     fetch('/api/state/endselection').catch(function (err) { console.error(err.toString()); });
+}
+
+// ── Game Control: Fill with Computers (gamestate 1) ──────────────────────────
+// Every robot no player has picked becomes a computer player at the chosen level, and the game
+// moves on (Program.cs "fillcomputers"). Press it after the last human has picked.
+function fillComputers() {
+    var config = datapacket && datapacket.GameConfig;
+    var unpicked = config ? config.AvailableStartPositions.length : 0;
+    if (unpicked <= 0) { alert('Every robot has already been picked.'); return; }
+    var select = document.getElementById('computerLevel');
+    var levelName = select.options[select.selectedIndex].text;
+    if (!confirm('Make ' + unpicked + ' unpicked robot(s) computer players at ' + levelName + ' and start the game?')) return;
+    fetch('/api/state/fillcomputers/' + select.value).catch(function (err) { console.error(err.toString()); });
 }
 
 // ── Game Control: which way each player faces ────────────────────────────────

@@ -1,7 +1,7 @@
 # Computer Player — Design
 
-**Plan only; nothing is built except M0's measurements and tests (written 2026-11-21; decisions
-recorded 2026-11-22; M0 run on the development machine 2026-11-22).** Draft guidance from a read of the
+**M0 closed; M1 built and first played 2026-11-22 (all-computer table, 4 turns, no errors) — a few
+M1 checks remain, see §6.2 (written 2026-11-21; decisions recorded 2026-11-22).** Draft guidance from a read of the
 code. Items marked *starting guess* are placeholders to tune, not measurements — except where §6.1 now
 gives a measured number — and §9 lists what was **not** checked. Verify against the code before
 building from it.
@@ -414,6 +414,63 @@ MRR_BENCH=1 ~/.dotnet/dotnet test MRR.Tests/MRR.Tests.csproj -c Release \
 The report is printed and also saved as `bot-m0-results.txt` beside the test assembly
 (`MRR.Tests/bin/Release/net9.0/`). On the Pi 4 the run takes about 1.5 minutes after the build. On
 Windows, set `$env:MRR_BENCH = "1"` in PowerShell instead.
+
+### 6.2 M1 as built (2026-11-22) — and where it differs from the plan above
+
+Built on the recommended answers to §9's questions (Ready from the start; five level names; one level
+per press; level in the seat name). **Builds; 132/132 unit tests pass on the Pi.**
+
+**First game, 2026-11-22 (deployed to the Pi by the user, who reports it worked; server log checked):**
+*Fill with Computers* claimed 5 seats at level 3; four turns were programmed (15:16–15:21), every
+computer's program applied in the same second as state 4, none refused, no errors. One computer was
+rebooted and confirmed its facing on the next turn. Turns 2–4 succeeding confirms the `PositionValid`
+finding below.
+
+| Piece | Where |
+|---|---|
+| `MRR.Bot` project: `BotProfile` (levels 1–5 and names), `Decision`, `RandomBrain` (Level 1) | `MRR.Bot/` |
+| `ClaimUnselectedAsComputers`, `GetComputersToProgram`, `SetRobotProgram` (atomic, one transaction including the status write) | `MRR/DataService.ComputerPlayers.cs` |
+| `ProgramComputerPlayers()` — placeholder for every computer on entering state 4 | `MRR/GameController.ComputerPlayers.cs`, called from `NextState()` cases 3 and 15 |
+| `fillcomputers` action | `MRR/Program.cs` |
+| `Computer` in `RobotData` and on `Player` | `MRR.Contracts/AllDataPayload.cs`, `MRR/Players.cs`, `GetRobotsFromTable`, `GetAllPlayers` |
+| GM level selector + *Fill with Computers* | `MRR/wwwroot/gmindex.html` |
+| Phone: "(CPU)" after the robot name; no card play or shut-down for a computer seat (GM excepted) | `MRR/wwwroot/js/loadrobots.js` |
+| Robot-screen UI and the programming lights-on skip computer seats (gap 8) | `GameController.cs` |
+| Planner's console line removed (gap 9) | `MRR.Rules/CreateCommands.cs` |
+| Tests: legality over 2,000 random hands, Spam/Again avoidance, facing, determinism, level clamp | `MRR.Tests/BotRandomBrainTests.cs` |
+
+**Differences from the plan, and why:**
+
+- **The placeholder is applied synchronously inside `NextState()`**, right after `SetGameState(4)` and
+  before the same loop reaches case 4's gate — not fire-and-forget as gap 1 suggested. It is a few
+  DB writes per computer, the gate sees every computer Ready on its first check, and no `NextState()`
+  retry is needed (gap 10 does not arise in M1).
+- **`SetRobotProgram` does not check `PositionValid < 2`** (§5.8 step 1). That check was wrong:
+  `LockAllRobotDirections` sets every robot to 2 at lock-in and nothing resets it to 1, so at the start
+  of every turn after the first, robots sit at `PositionValid = 2` (confirmed in the live DB). The
+  guard is `GameState == 4` and `RobotStatus.Programming = 1` under the row lock; lock-in's
+  `Status = 13` has `Programming = 0`, so that is enough.
+- **The status write is inside the transaction** (§5.8 had it after commit), so a later refinement
+  (M2) cannot overwrite lock-in's `Status = 13` with 4. `RebuildRobotCardsSummary` gained an optional
+  transaction parameter for this.
+- **No LED command from `SetRobotProgram`.** Computer robots are skipped by the programming
+  lights-on, and `ProgramComputerPlayers` turns their lights off (fire-and-forget) once — which avoids
+  both a robot round trip inside the transaction and a race with the lights-on task.
+- **Moved to M2, where they are first used:** the human-clock poll, the scheduler skeleton, the
+  `NextState()` retry (gap 10) and the `ComputerPlayer` config section. In M1 nothing would read them.
+- **The random brain avoids Spam** unless the hand has too few other cards, **and Again in register 1**
+  (the planner treats it as Spam there). Still random, still legal.
+- **The decision's hand is hand + registers** (`CardLocation IN (1, 2)`), since `SetRobotProgram`
+  returns register cards to the hand first.
+
+**Known limits:** a robot-screen UI created for a seat *before* it became a computer keeps its polling
+task running (a pre-existing behaviour of `GetAllPlayers(true)`, which drops `Player.ScreenUI`
+without cancelling the task); only matters with *Use Robot Screen* on.
+
+**To close M1** — from the §6 "done when" list. **Done:** fill at state 1 → state 2; every computer
+Ready right after state 4 (log). **Still open:** 10 consecutive turns (4 so far, all-computer); a
+table mixing humans and computers; a phone tap during programming causes no error; *End Selection*
+still works; GM *Create Program* / *Reload Position* with computers (§7 manual test 9).
 
 ## 7. Testing
 

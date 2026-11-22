@@ -29,7 +29,8 @@ state-4 gate waits only for Expert (design §5.7).
 |---|---|
 | Plan | Written and agreed in a back-and-forth with the user: [COMPUTER_PLAYER_DESIGN.md](COMPUTER_PLAYER_DESIGN.md). Committed (`aa82572`). |
 | **M0 — measure** | **Closed 2026-11-22.** Dev machine committed in `03d2f75`; Pi 4 run done the same afternoon. Results: design §6.1. |
-| M1 and later | **Not started. No product code exists** — only test code. |
+| **M1 — plumbing + Level 1** | **Built and first played 2026-11-22**: all-computer table, 4 turns, no errors. A few checks remain (mixed table, 10 turns, phone tap, End Selection, states 15/16) — design §6.2. |
+| M2 and later | Not started. |
 
 Decisions already made by the user (design §1): fill empty seats; one GM button; GM sees prompts;
 selectable level up to Expert; `MRR.Bot` project; unplayed Spam staying in hand is intended;
@@ -57,12 +58,8 @@ about **11–12× slower** than the dev machine: solo 5-phase plan 8.4 ms; **sta
 
 1. ~~Run the benchmark on the Pi~~ — done 2026-11-22, see above. (Re-run command is in design §6.1 if
    the server moves to a Pi 5.)
-2. **Answer the open questions** (below), or tell the next session to proceed on the recommendations.
-3. **M1 — plumbing with the Level 1 (random) brain and the timing guarantee.** Scope and "done when" are
-   in design §6. In short: gaps 1, 2, 5, 7, 8, 9, 10, 11, 12 (design §3); the `MRR.Bot` project;
-   `ClaimUnselectedAsComputers` + a `fillcomputers` case in `/api/state/{newstate}/{parameter1}`; the GM
-   level selector and *Fill with Computers* button beside *End Selection*; `Computer` added to
-   `RobotData`; the atomic `SetRobotProgram`; the human-clock poll; the placeholder at the start of state 4.
+2. ~~Answer the open questions~~ — the user said (2026-11-22) to proceed on the recommendations.
+3. **M1 — finish verifying.** First game worked (design §6.2). Still open: the "To close M1" list there.
 4. M2 (Levels 2–4 brain, the `MayLockIn()` gate hold), M3 (reboot facing, Spam sampling, shut-down
    rule), M4 (Expert and the arena) — design §6.
 
@@ -96,5 +93,5 @@ about **11–12× slower** than the dev machine: solo 5-phase plan 8.4 ms; **sta
 
 ## Repository state at handoff
 
-Working tree clean; the plan and M0 are committed on `main`. Test suite: 122 passing (Debug). No product
-code has been written.
+*Updated 2026-11-22 (M1 session):* M0 Pi results committed (`519c05f`). M1 code written; test suite
+132 passing on the Pi (Debug). M1 committed after the first game.

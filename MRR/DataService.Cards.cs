@@ -38,7 +38,8 @@ namespace MRR.Services
         /// MoveCardsShuffleAndDeal, where the default -- 2, Ready to Program -- is right for a
         /// robot that was just dealt a fresh hand and hasn't played into a register yet).
         /// </summary>
-        private void RebuildRobotCardsSummary(MySqlConnection connection, int? playerId = null, int newStatus = 2)
+        private void RebuildRobotCardsSummary(MySqlConnection connection, int? playerId = null, int newStatus = 2,
+                                              MySqlTransaction? transaction = null)
         {
             string dealtFilter  = playerId.HasValue ? "AND mc.Owner = @player" : "";
             string playedFilter = playerId.HasValue ? "WHERE r2.RobotID = @player" : "";
@@ -70,7 +71,9 @@ namespace MRR.Services
                 "    rb.StatusColor  = rs.StatusColor " +
                 $"{whereClause}";
 
-            using var cmd = new MySqlCommand(sql, connection);
+            // transaction: SetRobotProgram writes the status inside its own transaction, and
+            // MySqlConnector refuses a command that is not enlisted in the connection's open one.
+            using var cmd = new MySqlCommand(sql, connection, transaction);
             cmd.Parameters.AddWithValue("@newStatus", newStatus);
             if (playerId.HasValue)
                 cmd.Parameters.AddWithValue("@player", playerId.Value);

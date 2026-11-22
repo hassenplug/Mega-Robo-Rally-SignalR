@@ -92,7 +92,7 @@ namespace MRR.Services
                 // Setup".
                 string strSQL = @"SELECT r.RobotID, r.RobotName, r.RobotColor, r.RobotColorFG,
                        r.OperatorName, r.Password, r.PlayerSeat, r.Hostname,
-                       r.DirectionAdjustment
+                       r.DirectionAdjustment, IFNULL(r.Computer, 0) AS Computer
                 FROM Robots r
                 ORDER BY r.RobotID";
 
@@ -121,6 +121,7 @@ namespace MRR.Services
                         Password            = row["Password"]?.ToString() ?? "",
                         Hostname            = row["Hostname"].ToString(),
                         DirectionAdjustment = Convert.ToInt32(row["DirectionAdjustment"]),
+                        Computer            = Convert.ToInt32(row["Computer"]),
                         AllGameCards        = GameCards,
                         Connection          = _robotConnections.Get(robotId),
                     });
@@ -305,6 +306,7 @@ namespace MRR.Services
                     ConnectStatusDesc   = row["ConnectStatusDesc"].ToString() ?? "",
                     Hostname            = row["Hostname"].ToString() ?? "",
                     RespawnLetter       = PlayerState.ToRespawnLetter(row["RespawnID"] is int respawnID ? respawnID : 0, (int)row["RobotID"]),
+                    Computer            = row["Computer"] is int computer ? computer : 0,
                 });
             }
 

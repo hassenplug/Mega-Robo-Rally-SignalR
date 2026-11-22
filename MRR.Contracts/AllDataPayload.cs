@@ -76,6 +76,9 @@ namespace MRR
         public string ConnectStatusDesc { get; set; } = "";
         public string Hostname { get; set; } = "";
         public string RespawnLetter { get; set; } = "";  // PlayerState.RespawnLetter: respawn square letter, else the robot ID
+        // Robots.Computer: 0 = human seat, 1-5 = computer player at that level
+        // (COMPUTER_PLAYER_DESIGN.md). Additive field; the ESP32 station ignores it.
+        public int Computer { get; set; }
 
         public override string ToString() =>
             $"[{RobotID}] {RobotName} ({PlayerStatus}) X={X} Y={Y} Cards={CardsDealt} Played={CardsPlayed} Status={StatusToShow}";

@@ -91,6 +91,14 @@ namespace MRR
         [XmlIgnore]
         public RobotScreenUI? ScreenUI { get; set; }
 
+        /// <summary>
+        /// Robots.Computer: 0 = a human seat, 1-5 = a computer player at that level
+        /// (documents/COMPUTER_PLAYER_DESIGN.md). Computer seats get no robot-screen UI.
+        /// </summary>
+        [NotMapped]
+        [XmlIgnore]
+        public int Computer { get; set; }
+
         public bool SendColorStatus(int Status = 1)
         {
             if (!isConnected || Connection == null) return false;

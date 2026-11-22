@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The computer player's brain (documents/COMPUTER_PLAYER_DESIGN.md).
+
+       References MRR.Contracts and MRR.Rules ONLY, so it cannot reach a database or a socket:
+       the host (MRR) reads the game state, asks the brain for a Decision, and applies it.
+       Do not add a reference to MRR or a PackageReference here. -->
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>MRR.Bot</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MRR.Contracts\MRR.Contracts.csproj" />
+    <ProjectReference Include="..\MRR.Rules\MRR.Rules.csproj" />
+  </ItemGroup>
+
+</Project>
