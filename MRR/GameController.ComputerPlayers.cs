@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using MRR.Bot;
 
 namespace MRR.Controller
@@ -5,29 +6,63 @@ namespace MRR.Controller
     /// <summary>
     /// Computer players (documents/COMPUTER_PLAYER_DESIGN.md §5.7, §5.8).
     ///
-    /// M1: on entering programming (state 4) every computer seat gets a legal Level 1 program
-    /// at once, inside NextState() and before its state-4 gate runs, so the gate never waits
-    /// on a computer. Every level plays this program until the search arrives in M2.
+    /// On entering programming (state 4) every computer seat gets a legal Level 1 program at
+    /// once, inside NextState() and before its state-4 gate runs, so the gate never waits on a
+    /// computer. Then a background run improves the programs of Level 2+ computers while the
+    /// humans program, and stops the moment the last human is done. Only when no human is
+    /// programming at all (an all-computer table) does the gate hold, for at most SoloBudgetMs.
+    ///
+    /// Config (appsettings.json, section ComputerPlayer; all optional):
+    ///   SearchEnabled (true)  -- false: every computer keeps its Level 1 program
+    ///   SoloBudgetMs  (5000)  -- the search time allowed when no human is programming
+    ///   StopPollMs    (100)   -- how often the run checks whether the humans are done
     /// </summary>
     public partial class GameController
     {
         private static readonly Random s_botRandom = new();
+        private readonly object _computerRunLock = new();
+        private ComputerRun? _computerRun;
+
+        private bool BotSearchEnabled => _configuration?.GetValue("ComputerPlayer:SearchEnabled", true) ?? true;
+        private int BotSoloBudgetMs => _configuration?.GetValue("ComputerPlayer:SoloBudgetMs", 5000) ?? 5000;
+        private int BotStopPollMs => Math.Max(20, _configuration?.GetValue("ComputerPlayer:StopPollMs", 100) ?? 100);
+
+        /// <summary>One programming phase's search. Fields are touched by the worker, the poll and the gate.</summary>
+        private sealed class ComputerRun
+        {
+            public readonly CancellationTokenSource Cancel = new();
+            public readonly Stopwatch Clock = Stopwatch.StartNew();
+            public bool HumanClock;          // a human was still programming when the run began
+            public long SoloBudgetMs;
+            public volatile bool HumansDone;
+            public long HumansDoneAtMs = -1;
+            public volatile bool Finished;
+            public volatile bool Holding;    // the state-4 gate is waiting for this run
+            public Timer? Poll;
+            public int Polling;              // guards against overlapping poll callbacks
+            public bool PastBudget => !HumanClock && Clock.ElapsedMilliseconds >= SoloBudgetMs;
+        }
 
         /// <summary>
-        /// Programs every computer seat that still needs it (DataService.GetComputersToProgram).
-        /// Called from NextState() right after SetGameState(4), from states 3 and 15.
+        /// Programs every computer seat that still needs it (DataService.GetComputersToProgram)
+        /// with a Level 1 placeholder, then starts the search for Level 2+ seats. Called from
+        /// NextState() right after SetGameState(4), from states 3 and 15. A new state-4 entry
+        /// cancels any run still going.
         ///
         /// A computer player must never stall the game: any failure is logged and the robot is
         /// left as it was -- the GM can then use Sit Out for that seat.
         /// </summary>
         private void ProgramComputerPlayers()
         {
+            CancelComputerRun();
             try
             {
                 var seats = _dataService.GetComputersToProgram();
                 if (seats.Count == 0) return;
 
                 int phaseCount = _dataService.PhaseCount;
+                var toSearch = new List<BotSeat>();
+                var placeholders = new Dictionary<int, IReadOnlyList<int>>();
                 foreach (var seat in seats)
                 {
                     try
@@ -47,6 +82,12 @@ namespace MRR.Controller
                             $"[{string.Join(",", decision.CardTypes)}]" +
                             (decision.Facing.HasValue ? $" facing {decision.Facing}" : "") +
                             (applied ? "" : " REFUSED"));
+
+                        if (applied && BotProfile.ForLevel(seat.Level).Stages.Length > 0)
+                        {
+                            toSearch.Add(new BotSeat(seat.RobotID, seat.Level, seat.Hand));
+                            placeholders[seat.RobotID] = decision.CardTypes;
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -64,10 +105,198 @@ namespace MRR.Controller
                         catch (Exception ex) { Console.WriteLine($"[{player.ID}] SetLightsAsync error: {ex.Message}"); }
                     });
                 }
+
+                if (toSearch.Count > 0 && BotSearchEnabled) StartComputerRun(toSearch, placeholders);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Computer players: programming failed: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// The state-4 gate's extra condition (design gap 13), checked only once every robot is
+        /// Ready. True at once whenever a human was programming -- it also tells the search to
+        /// stop -- so with humans at the table the gate never waits on a computer. With no human
+        /// programming, false until the search finishes or SoloBudgetMs has passed; the poll then
+        /// advances the state itself. The deadline is checked here against the run's own clock,
+        /// so a dead worker cannot hold the game past it.
+        /// </summary>
+        private bool MayLockIn()
+        {
+            ComputerRun? run;
+            lock (_computerRunLock) run = _computerRun;
+            if (run == null || run.Finished || run.Cancel.IsCancellationRequested || run.PastBudget)
+            {
+                _dataService.TitleNote = null;
+                return true;
+            }
+
+            if (run.HumanClock)
+            {
+                StampHumansDone(run);
+                return true;
+            }
+
+            if (!run.Holding)
+            {
+                run.Holding = true;
+                _dataService.TitleNote = "- waiting for computer players";
+                Console.WriteLine("Computer players: lock-in held while the computers finish thinking.");
+            }
+            return false;
+        }
+
+        private void CancelComputerRun()
+        {
+            ComputerRun? old;
+            lock (_computerRunLock)
+            {
+                old = _computerRun;
+                _computerRun = null;
+            }
+            if (old == null) return;
+            old.Cancel.Cancel();
+            old.Poll?.Dispose();
+            if (old.Holding) _dataService.TitleNote = null;
+        }
+
+        private void StartComputerRun(List<BotSeat> seats, Dictionary<int, IReadOnlyList<int>> placeholders)
+        {
+            var run = new ComputerRun
+            {
+                HumanClock = _dataService.HumansStillProgramming() > 0,
+                SoloBudgetMs = BotSoloBudgetMs,
+            };
+            lock (_computerRunLock) _computerRun = run;
+
+            var worker = new Thread(() => ComputerRunWorker(run, seats, placeholders))
+            {
+                IsBackground = true,
+                Priority = ThreadPriority.BelowNormal, // a phone tap must not feel slower (§5.9)
+                Name = "ComputerPlayers",
+            };
+            worker.Start();
+
+            int pollMs = BotStopPollMs;
+            run.Poll = new Timer(_ => PollComputerRun(run), null, pollMs, pollMs);
+        }
+
+        private bool ShouldStop(ComputerRun run) =>
+            run.Cancel.IsCancellationRequested
+            || _dataService.GameState != 4
+            || (run.HumanClock ? run.HumansDone : run.PastBudget);
+
+        private void ComputerRunWorker(ComputerRun run, List<BotSeat> seats, Dictionary<int, IReadOnlyList<int>> current)
+        {
+            long plans = 0;
+            bool complete = false;
+            try
+            {
+                var snapshot = _dataService.BuildBotSnapshot();
+                var evaluator = new ProgramEvaluator(snapshot, new FlagDistances(snapshot.Board, snapshot.TotalFlags));
+                Random rng;
+                lock (s_botRandom) rng = new Random(s_botRandom.Next());
+
+                complete = BotScheduler.Run(snapshot, seats, current, evaluator, rng,
+                    shouldStop: () => ShouldStop(run),
+                    onImproved: (seat, program, stage) =>
+                    {
+                        try
+                        {
+                            if (run.Cancel.IsCancellationRequested) return false;
+                            bool applied = _dataService.SetRobotProgram(seat.RobotID, program.Program, null);
+                            Console.WriteLine($"[CPU {seat.RobotID}] {seat.Profile.Name} stage {stage} program " +
+                                $"[{string.Join(",", program.Program)}] score {program.Score:0}" +
+                                $" at {run.Clock.ElapsedMilliseconds} ms" + (applied ? "" : " REFUSED"));
+                            if (applied) UpdateGameState();
+                            return applied;
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"[CPU {seat.RobotID}] applying a program failed: {ex.Message}");
+                            return false;
+                        }
+                    });
+                plans = evaluator.PlansRun;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Computer players: search failed, placeholders stand: {ex.Message}");
+            }
+            finally
+            {
+                run.Finished = true;
+                Console.WriteLine($"Computer players: {(complete ? "search complete" : "search stopped")} after " +
+                    $"{run.Clock.ElapsedMilliseconds} ms, {plans} plans" +
+                    (run.HumanClock
+                        ? (run.HumansDoneAtMs >= 0 ? $"; humans done at {run.HumansDoneAtMs} ms" : "; humans still programming")
+                        : "; no human programming"));
+            }
+        }
+
+        private void StampHumansDone(ComputerRun run)
+        {
+            if (run.HumansDone) return;
+            run.HumansDoneAtMs = run.Clock.ElapsedMilliseconds;
+            run.HumansDone = true;
+        }
+
+        /// <summary>
+        /// Every StopPollMs: notices the humans finishing (design §5.7 step 3) and, when the gate
+        /// is holding, releases it once the search is finished or out of time.
+        /// </summary>
+        private void PollComputerRun(ComputerRun run)
+        {
+            if (Interlocked.Exchange(ref run.Polling, 1) == 1) return;
+            try
+            {
+                if (run.Cancel.IsCancellationRequested) { run.Poll?.Dispose(); return; }
+
+                if (_dataService.GameState != 4)
+                {
+                    run.Cancel.Cancel();
+                    run.Poll?.Dispose();
+                    if (run.Holding) _dataService.TitleNote = null;
+                    return;
+                }
+
+                if (run.HumanClock && !run.HumansDone && _dataService.HumansStillProgramming() == 0)
+                    StampHumansDone(run);
+
+                if (run.Holding && (run.Finished || run.PastBudget))
+                {
+                    run.Holding = false;
+                    _dataService.TitleNote = null;
+                    Console.WriteLine($"Computer players: releasing lock-in at {run.Clock.ElapsedMilliseconds} ms.");
+                    run.Poll?.Dispose();
+                    AdvanceFromProgramming();
+                    return;
+                }
+
+                if (run.Finished && !run.Holding) run.Poll?.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Computer players: poll failed: {ex.Message}");
+            }
+            finally
+            {
+                Interlocked.Exchange(ref run.Polling, 0);
+            }
+        }
+
+        /// <summary>
+        /// NextState() ignores a call while another is running (design gap 10), so retry briefly
+        /// until the state has moved off 4. The GM's Next State button works as a fallback.
+        /// </summary>
+        private void AdvanceFromProgramming()
+        {
+            for (int attempt = 0; attempt < 20 && _dataService.GameState == 4; attempt++)
+            {
+                NextState();
+                if (_dataService.GameState != 4) return;
+                Thread.Sleep(100);
             }
         }
     }

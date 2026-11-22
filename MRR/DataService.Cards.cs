@@ -640,18 +640,7 @@ namespace MRR.Services
 
                 // 5. If any player has fewer than 9 cards in their deck (CardLocation=0),
                 //    move their discards (CardLocation=3) back into their deck.
-                using (var cmd = new MySqlCommand(
-                    "UPDATE MoveCards m0 " +
-                    "INNER JOIN (" +
-                    "  SELECT Owner FROM MoveCards WHERE CardLocation = 0 " +
-                    "  GROUP BY Owner HAVING COUNT(CardID) < 9" +
-                    ") lt9 ON m0.Owner = lt9.Owner " +
-                    "SET CardLocation = 0 " +
-                    "WHERE CardLocation = 3",
-                    connection))
-                {
-                    cmd.ExecuteNonQuery();
-                }
+                RefillShortDecksFromDiscard(connection);
 
                 // 6. Deal 9 cards per player: promote the 9 lowest-ordered cards to hand.
                 using (var cmd = new MySqlCommand(
@@ -672,6 +661,29 @@ namespace MRR.Services
 
                 UpdatePlayerPriority(connection);
             }
+        }
+
+        /// <summary>
+        /// Step 5 of MoveCardsShuffleAndDeal: every robot with fewer than 9 cards in its deck
+        /// (CardLocation 0) gets its whole discard pile (3) moved back into the deck. Runs after
+        /// the shuffle has ranked the cards, so the cards still in the deck are dealt first.
+        ///
+        /// Counts over all of a robot's cards, not just its deck rows: a robot with an empty
+        /// deck has no CardLocation 0 rows, so the old WHERE CardLocation = 0 ... COUNT() &lt; 9
+        /// never found it, and its discard pile never came back (MoveCardsRefillTests).
+        /// </summary>
+        public static int RefillShortDecksFromDiscard(MySqlConnection connection)
+        {
+            using var cmd = new MySqlCommand(
+                "UPDATE MoveCards m0 " +
+                "INNER JOIN (" +
+                "  SELECT Owner FROM MoveCards " +
+                "  GROUP BY Owner HAVING SUM(CardLocation = 0) < 9" +
+                ") lt9 ON m0.Owner = lt9.Owner " +
+                "SET CardLocation = 0 " +
+                "WHERE CardLocation = 3",
+                connection);
+            return cmd.ExecuteNonQuery();
         }
 
         /// <summary>

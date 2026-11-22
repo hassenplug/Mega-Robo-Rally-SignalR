@@ -102,6 +102,43 @@ namespace MRR.Services
         }
 
         /// <summary>
+        /// The game as the computer players' brain sees it (design gap 5). Read-only: it reads
+        /// the database into fresh objects and never touches the shared GameCards, which
+        /// BuildTurnRequest() reloads (and a phone tap edits) -- so it is safe while players
+        /// program. The robots carry no cards.
+        /// </summary>
+        public BotSnapshot BuildBotSnapshot()
+        {
+            var players = GetPlayerStatesFromDB();
+            foreach (var p in players) p.AllGameCards = null; // not the shared GameCards
+
+            return new BotSnapshot
+            {
+                Board         = BoardLoadFromDB(BoardID),
+                Players       = players,
+                PhaseCount    = PhaseCount,
+                TotalFlags    = TotalFlags,
+                LaserDamage   = LaserDamage,
+                FieldEnclosed = FieldEnclosed,
+                GameType      = GameType,
+            };
+        }
+
+        /// <summary>
+        /// Human robots the state-4 gate is still waiting on: the gate's own test
+        /// (Status &lt;&gt; 4 AND Status &lt; 9) restricted to Computer = 0, so shut-down and
+        /// sat-out humans do not count (design §5.7 step 3).
+        /// </summary>
+        public int HumansStillProgramming() =>
+            GetIntFromDB("SELECT COUNT(*) FROM Robots WHERE IFNULL(Computer, 0) = 0 AND `Status` <> 4 AND `Status` < 9");
+
+        /// <summary>
+        /// Appended to the title every client shows (titlemsg) while the state-4 gate waits for
+        /// computer players (design gap 14). Null when there is nothing to say.
+        /// </summary>
+        public string? TitleNote { get; set; }
+
+        /// <summary>
         /// Applies a whole program to one robot in a single transaction (design §5.8, gap 11):
         /// every register and, if given, the facing -- or nothing at all.
         ///

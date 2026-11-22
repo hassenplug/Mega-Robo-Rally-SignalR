@@ -127,6 +127,7 @@ namespace MRR.Services
             string titlemessage = "Turn " + Turn;
             if (Turn == 0) titlemessage = "Game Setup";
             if (Phase > 0) titlemessage += " Phase " + Phase;
+            if (!string.IsNullOrEmpty(TitleNote)) titlemessage += " " + TitleNote;
 
             return new AllDataPayload
             {

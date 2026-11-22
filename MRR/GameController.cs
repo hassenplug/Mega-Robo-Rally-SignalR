@@ -32,10 +32,13 @@ namespace MRR.Controller
         // CancellationTokenSources for the per-robot touch polling tasks
         private readonly Dictionary<int, CancellationTokenSource> _screenUiCts = new();
 
-        public GameController(DataService dataService, IHubContext<DataHub> hubContext)
+        private readonly IConfiguration? _configuration;
+
+        public GameController(DataService dataService, IHubContext<DataHub> hubContext, IConfiguration? configuration = null)
         {
             _dataService = dataService;
             _hubContext = hubContext;
+            _configuration = configuration;
             LoadCurrentGame();
         }
 
@@ -401,7 +404,9 @@ namespace MRR.Controller
                             break;
                         case 4: // still programming
                             int playersProgramming = _dataService.GetIntFromDB("Select Count(*) from  Robots where (Status <> 4 and Status < 9)");
-                            if (playersProgramming == 0 && _dataService.AllRobotDirectionsChosen())
+                            // MayLockIn: computer players (GameController.ComputerPlayers.cs) --
+                            // true at once whenever a human was programming.
+                            if (playersProgramming == 0 && _dataService.AllRobotDirectionsChosen() && MayLockIn())
                             {
                                 _dataService.LockAllRobotDirections();
                                 SetGameState(5);

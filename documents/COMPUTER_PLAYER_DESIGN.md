@@ -1,7 +1,7 @@
 # Computer Player — Design
 
-**M0 closed; M1 built and first played 2026-11-22 (all-computer table, 4 turns, no errors) — a few
-M1 checks remain, see §6.2 (written 2026-11-21; decisions recorded 2026-11-22).** Draft guidance from a read of the
+**M0 closed; M1 built and played 2026-11-22; M2 (search for Levels 2–4) written 2026-11-22, unit-tested,
+not yet played — see §6.2–6.3 (written 2026-11-21; decisions recorded 2026-11-22).** Draft guidance from a read of the
 code. Items marked *starting guess* are placeholders to tune, not measurements — except where §6.1 now
 gives a measured number — and §9 lists what was **not** checked. Verify against the code before
 building from it.
@@ -421,7 +421,7 @@ Built on the recommended answers to §9's questions (Ready from the start; five 
 per press; level in the seat name). **Builds; 132/132 unit tests pass on the Pi.**
 
 **First game, 2026-11-22 (deployed to the Pi by the user, who reports it worked; server log checked):**
-*Fill with Computers* claimed 5 seats at level 3; four turns were programmed (15:16–15:21), every
+*Fill with Computers* claimed 5 seats at level 3 beside the human player(s); four turns were programmed (15:16–15:21), every
 computer's program applied in the same second as state 4, none refused, no errors. One computer was
 rebooted and confirmed its facing on the next turn. Turns 2–4 succeeding confirms the `PositionValid`
 finding below.
@@ -468,9 +468,57 @@ task running (a pre-existing behaviour of `GetAllPlayers(true)`, which drops `Pl
 without cancelling the task); only matters with *Use Robot Screen* on.
 
 **To close M1** — from the §6 "done when" list. **Done:** fill at state 1 → state 2; every computer
-Ready right after state 4 (log). **Still open:** 10 consecutive turns (4 so far, all-computer); a
-table mixing humans and computers; a phone tap during programming causes no error; *End Selection*
-still works; GM *Create Program* / *Reload Position* with computers (§7 manual test 9).
+Ready right after state 4 (log). Humans and computers at one table. **Still open:** 10 consecutive turns
+(4 so far); a phone tap during programming causes no error; *End Selection* still works; GM *Create
+Program* / *Reload Position* with computers (§7 manual test 9).
+
+### 6.3 M2 as built (2026-11-22) — not yet played
+
+**Builds; 144/144 unit tests pass on the Pi. Not yet deployed or played.**
+
+| Piece | Where |
+|---|---|
+| `BotProfile` with stages and choice per level (Easy 1,3 / random top 5; Normal 1,3,10,20 / within 30 points; Hard 1,3,10,30,60 / best; **Expert = Hard until M4**) | `MRR.Bot/BotProfile.cs` |
+| `BotSnapshot`, `BotSeat` | `MRR.Bot/BotSnapshot.cs` |
+| `FlagDistances` — BFS per flag with the planner's wall rule; pits, trap doors, Block impassable | `MRR.Bot/FlagDistances.cs` |
+| `ProgramEvaluator` — one real planner call per candidate, own cards and empty draw piles each time; §5.3 score | `MRR.Bot/ProgramEvaluator.cs` |
+| `BeamSearch` (one stage) and `BotScheduler` (breadth-first over computers, stop handling) | `MRR.Bot/` |
+| `BuildBotSnapshot` (read-only), `HumansStillProgramming`, `TitleNote` | `MRR/DataService.ComputerPlayers.cs`, `DataService.cs` |
+| The run: worker thread (below normal priority), human-clock poll, `MayLockIn()`, hold release with `NextState()` retry | `MRR/GameController.ComputerPlayers.cs`; gate condition in `GameController.cs` case 4 |
+| Tests: BFS walls/pits; flag ahead touched (Normal, Hard); pit avoided; turns-only and short hands legal; snapshot unchanged; same seed same program; stop mid-stage keeps the last finished stage with no extra plan; breadth-first order; a refused apply drops only that robot; **regret ladder** | `MRR.Tests/BotSearchTests.cs` |
+
+**Regret test** (busy fixture board, 6 robots × 2 seeds, 3 phases, exhaustive reference): mean regret
+**Level 1 449, Level 2 107, Level 3 14, Level 4 0.** Hard matched the exhaustive best in every case
+here. It takes about 1 minute on the Pi (the rest of the suite about 45 s).
+
+**How a turn goes:** placeholders at state-4 entry (M1, unchanged); then, if any Level 2+ computer was
+programmed, a background run takes one snapshot and widens the search breadth-first, applying each
+improvement through `SetRobotProgram` and broadcasting. It stops as soon as the last human is done
+(noticed by the gate or by the poll every `StopPollMs`). With humans programming, `MayLockIn()` is
+always true, so lock-in never waits on a computer. With **no** human programming, the gate holds,
+the title says "- waiting for computer players", and the poll releases it when the search finishes or
+`SoloBudgetMs` passes.
+
+**Config** (section `ComputerPlayer` in `appsettings.json`, all optional, defaults in code):
+`SearchEnabled` (true), `SoloBudgetMs` (5000), `StopPollMs` (100). `MaxParallel` is not implemented;
+the search is one thread.
+
+**Differences from the plan:**
+- **A finished stage is applied even if the stop came in while it was finishing.** It is complete, and
+  `SetRobotProgram` refuses safely once the turn is locked. A stage cut off part-way is still discarded.
+- **Best-choice stages only replace a program with a higher-scoring one** — a wider beam is not
+  guaranteed to beat a narrower one. A level's deliberate noise (Easy, Normal) applies on its last
+  stage only.
+- **A refused apply drops that robot from the run, not the whole run** (e.g. the GM sat it out).
+- **Spam plays as "no move"** (empty draw piles), so the search treats it as a wasted register; real
+  replacement sampling is M3. Facing after a reboot is still the placeholder's (M3).
+- **Expert has no extra time yet** and searches exactly like Hard (M4).
+
+**To close M2** (§6 "done when"): play it. With humans at the table, lock-in should follow the last
+human's tap at once (≤ ~250 ms on the Pi); the `[CPU n] … stage s` lines show the search improving
+programs while humans program, and `search stopped … humans done at … ms` ends each run. With an
+all-computer table the title shows the note and lock-in follows within `SoloBudgetMs`. Watch that
+phone taps do not feel slower while the computers think (allocation is ~1.3 MB per plan, §6.1).
 
 ## 7. Testing
 

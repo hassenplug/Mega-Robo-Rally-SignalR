@@ -29,8 +29,9 @@ state-4 gate waits only for Expert (design §5.7).
 |---|---|
 | Plan | Written and agreed in a back-and-forth with the user: [COMPUTER_PLAYER_DESIGN.md](COMPUTER_PLAYER_DESIGN.md). Committed (`aa82572`). |
 | **M0 — measure** | **Closed 2026-11-22.** Dev machine committed in `03d2f75`; Pi 4 run done the same afternoon. Results: design §6.1. |
-| **M1 — plumbing + Level 1** | **Built and first played 2026-11-22**: all-computer table, 4 turns, no errors. A few checks remain (mixed table, 10 turns, phone tap, End Selection, states 15/16) — design §6.2. |
-| M2 and later | Not started. |
+| **M1 — plumbing + Level 1** | **Built and played 2026-11-22**: 5 computers + human(s), 4 turns, no errors. A few checks remain (10 turns, phone tap, End Selection, states 15/16) — design §6.2. |
+| **M2 — search, Levels 2–4** | **Written 2026-11-22; 144/144 tests; regret ladder 449 / 107 / 14 / 0. Not yet played.** Design §6.3. |
+| M3, M4 | Not started. |
 
 Decisions already made by the user (design §1): fill empty seats; one GM button; GM sees prompts;
 selectable level up to Expert; `MRR.Bot` project; unplayed Spam staying in hand is intended;
@@ -59,7 +60,8 @@ about **11–12× slower** than the dev machine: solo 5-phase plan 8.4 ms; **sta
 1. ~~Run the benchmark on the Pi~~ — done 2026-11-22, see above. (Re-run command is in design §6.1 if
    the server moves to a Pi 5.)
 2. ~~Answer the open questions~~ — the user said (2026-11-22) to proceed on the recommendations.
-3. **M1 — finish verifying.** First game worked (design §6.2). Still open: the "To close M1" list there.
+3. **M1/M2 — play them.** M1's remaining checks are in design §6.2; M2's in §6.3 ("To close M2").
+   Deploy and play a few turns with a human and Normal/Hard computers, then one all-computer turn.
 4. M2 (Levels 2–4 brain, the `MayLockIn()` gate hold), M3 (reboot facing, Spam sampling, shut-down
    rule), M4 (Expert and the arena) — design §6.
 
