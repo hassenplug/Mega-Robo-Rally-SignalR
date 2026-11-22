@@ -1,9 +1,10 @@
 # Computer Player — Design
 
-**Plan only, not implemented (written 2026-11-21; decisions recorded 2026-11-22).** Draft guidance
-written from a read of the code, not from building anything. Nothing here has been run. Items marked
-*starting guess* are placeholders to tune, not measurements, and §9 lists what was **not** checked.
-Verify against the code before building from it.
+**Plan only; nothing is built except M0's measurements and tests (written 2026-11-21; decisions
+recorded 2026-11-22; M0 run on the development machine 2026-11-22).** Draft guidance from a read of the
+code. Items marked *starting guess* are placeholders to tune, not measurements — except where §6.1 now
+gives a measured number — and §9 lists what was **not** checked. Verify against the code before
+building from it.
 
 ## 1. Decisions made, and assumptions
 
@@ -56,7 +57,7 @@ Assumptions that remain:
 | 6 | **The planner mutates its inputs.** | Overwrites `Priority` on the shared `GameCards` ([CreateCommands.cs:594-597](../MRR.Rules/CreateCommands.cs)); consumes `DrawPiles`; option cards `Use()`; board-changing options. `BuildDrawPile` returns the **shared** `MoveCard` instances ([Cards.cs:410](../MRR/DataService.Cards.cs)). | Every simulation gets its own copies; v1 passes an empty `OptionCardList`. A test asserts inputs are unchanged after a search. |
 | 7 | **`Computer` is not broadcast.** | `RobotData` ([AllDataPayload.cs:35](../MRR.Contracts/AllDataPayload.cs)) omits it. | Add it to `RobotData` and `GetRobotsFromTable`. **No `PlayerState` change**: with gaps 3–4 decided, the planner does not need to know. The ESP32 firmware filters the JSON ([.ino:167](../esp32-player-station/esp32-player-station.ino)), so an extra field is ignored. |
 | 8 | **Robot-screen UI is created for every connected robot.** | `ScreenUiLoadHand`, `InitScreenUI` ([GameController.cs:617-647](../MRR/GameController.cs)) | Skip computer seats. |
-| 9 | **The planner logs a line per call.** | `Console.WriteLine("Planned …")` ([CreateCommands.cs:748](../MRR.Rules/CreateCommands.cs)); `GameController` already logs the same summary. | Delete the planner's copy — the plan's only `MRR.Rules` edit. A search would otherwise print thousands of lines. |
+| 9 | **The planner logs a line per call.** | `Console.WriteLine("Planned …")` ([CreateCommands.cs:748](../MRR.Rules/CreateCommands.cs)); `GameController` already logs the same summary. | Delete the planner's copy — the plan's only `MRR.Rules` edit. A search would otherwise print thousands of lines. (M0 measured the line's cost in speed as nothing, §6.1, so this is about log noise only and is low priority.) |
 | 10 | **`NextState()` is single-flight.** A call made while another runs is ignored. | [GameController.cs:335-339](../MRR/GameController.cs) | After applying a decision, call `NextState()`, then re-check the state and retry briefly. Phones have the same latent race; the AI just makes it likelier. |
 | 11 | **A program can only be changed one card at a time, with the gate able to fire in between.** | `UpdateCardPlayed` moves one card per call and re-derives Ready/Programming each time ([Cards.cs:210-363](../MRR/DataService.Cards.cs)). Replacing a 5-card program that way passes through half-old, half-new states, and it needs a card that may currently sit in another register. | New **atomic** `SetRobotProgram` (§5.8): all five registers (and the facing) in one transaction, refused once the turn is locked. This replaces my earlier "reuse `UpdateCardPlayed` ×5". |
 | 12 | **No cheap "the humans are done" signal for the AI.** | The gate's test is inline SQL in `NextState()` ([GameController.cs:402](../MRR/GameController.cs)); programming happens through three paths (phone, robot screen, GM Sit Out). | A small poll of the same test restricted to `Computer = 0` (§5.7). Polling sees every path without hooking any of them. |
@@ -305,11 +306,79 @@ Sizes are my estimate, not a commitment.
 
 | # | Milestone | Size | Done when |
 |---|---|---|---|
-| **M0** | **Measure; no behaviour change.** A benchmark test (`Category=Benchmark`, run by hand with `dotnet test --filter`, not a pass/fail gate) timing `CreateTurn` on a 12×12 board with 6 robots, for 1- to 5-phase plans, and the **time to finish stage 1 for 5 computers**. Also tests: planner output is identical on repeat; the board is unchanged after a plan; a cardless robot is an inert obstacle that still shoots. | S | Timings **from the dev machine and from the Pi** are recorded in this doc, and the stage widths in §5.0 are set so stage 1 for all computers is fast (target ≤ 1 s on the Pi, *starting guess*). |
+| **M0** | **Measure; no behaviour change. Done on the development machine 2026-11-22; the Raspberry Pi run is still to do (§6.1).** A benchmark test (`Category=Benchmark`, run by hand with `dotnet test --filter`, not a pass/fail gate) timing `CreateTurn` on a 12×12 board with 6 robots, for 1- to 5-phase plans, and the **time to finish stage 1 for 5 computers**. Also tests: planner output is identical on repeat; the board is unchanged after a plan; a cardless robot is an inert obstacle that still shoots. | S | Timings **from the dev machine and from the Pi** are recorded in this doc, and the stage widths in §5.0 are set so stage 1 for all computers is fast (target ≤ 1 s on the Pi, *starting guess*). **Dev machine: recorded in §6.1, target met by a wide margin, stage widths unchanged. Pi: outstanding — M0 is not fully closed until it is run.** |
 | **M1** | **Plumbing, Level 1, and the timing guarantee.** Gaps 1, 2, 5, 7, 8, 9, 10, 11, 12; `MRR.Bot` project with `Decision`, `BotProfile`, the random brain and the scheduler skeleton; `ClaimUnselectedAsComputers`, `fillcomputers`, the GM selector and button, `Computer` in the payload, the "CPU" label; `SetRobotProgram`; the human-clock poll; placeholder-at-t0. | M–L | The button turns every open seat into a computer at the chosen level and the game moves to state 2; a table with ≥1 computer runs **10 consecutive turns** with no stall other than prompts the GM confirms; **every computer is Ready within ~100 ms of state 4** (log timestamps); a phone tapping during a snapshot causes no exception; a `SetRobotProgram` refused after lock-in leaves the program untouched; *End Selection* still works. |
 | **M2** | **Brain core, Levels 2–4.** Planner-based staged search, score, BFS distance, noise, breadth-first scheduling, refine-and-apply, stop handling, fallback; **the gate condition `MayLockIn()` and the title note** (gaps 13–14), needed here for the no-human-clock case. | M–L | Fixture and scheduler tests pass (§7); inputs unchanged after a search; **with 5 computers still searching, lock-in follows the last human's tap by no more than ~250 ms on the Pi** (*starting guess*, from log timestamps); an all-computer table is held for at most `SoloBudgetMs` and then locks in; the **regret test** orders Levels 1 > 2 > 3 > 4. |
 | **M3** | Reboot facing, Spam sampling, shut-down rule (Levels 3+). | S–M | A fixture per feature; a manual run through death → reboot → programming. |
 | **M4** | **Expert, and the arena that validates the ladder.** Opponent sampler and round-based re-rank; **Expert's extra time** (soft/hard deadlines, early release, §5.7); an *approximate* in-memory applier (final positions, flag count, Spam per `DealSpamCard`) so several brains can play many turns with no database. | M | In the arena, over a fixed turn count and fixed boards, **each level beats the one below** — margin agreed beforehand, not chosen afterwards. On the Pi, with Expert computers searching, **lock-in follows the last human's tap by no more than `GraceHardMs` + ~250 ms, and usually sooner** (log timestamps). See §8 for why the applier is approximate. |
+
+### 6.1 M0 results (2026-11-22, development machine only)
+
+**Setup.** Intel i7-1360P (16 logical threads), Windows 11, .NET 9 **Release**; a synthetic 12×12 board
+(belts, fast belts, gears, pits, walls, lasers, 5 flags — the real board library is in the database, not
+the repo), 6 robots, and a nine-card hand with 8 distinct types. Code: `MRR.Tests/BotFixtures.cs`,
+`BotM0AssumptionTests.cs` (14 tests, run with the normal suite — 122/122 pass) and `BotM0Benchmark.cs`
+(opt-in). **The Raspberry Pi has not been measured; nothing below is a Pi number.**
+
+**Assumptions the plan relies on — all held:**
+
+| Assumption | Result |
+|---|---|
+| The same input gives the same plan | ✔ 25 programs solo and 15 with all six robots programmed; a negative control confirms the comparison can tell plans apart |
+| The planner does not change the board or the robots when no option cards are in play | ✔ 15 six-robot plans |
+| A cardless robot never moves, and its laser hits me exactly when I end in its line | ✔ so "stationary opponents" (Levels 2–4) is a meaningful model |
+| A plan with `PhaseCount = k` is exactly the first *k* phases of the full plan | ✔ k = 1–4, 30 programs, solo and all six; guarded against a vacuous pass. **The beam search in §5.2 is therefore exact, not an approximation.** |
+| Several threads sharing one board and one player list give the same plans as one thread | ✔ 60 plans on 8 threads. **One board can be cached per game; `MaxParallel > 1` is allowed.** |
+| King of the Hill's end-of-game commands do not touch the bot's robot (matters for 1-phase prefix plans) | ✔ |
+| Gaps 5–6: the planner overwrites card `Priority` and consumes `DrawPiles` | ✔ pinned by two characterization tests — the bot must copy cards and draw piles |
+
+**Timings (mean, this machine).**
+
+| Measure | Result |
+|---|---|
+| One plan, only robot 1 holds cards, 1 / 2 / 3 / 4 / 5 phases | 0.07 / 0.19 / 0.33 / 0.51 / **0.71 ms** |
+| Memory allocated per solo plan | 0.13 MB (1 phase) to **1.3 MB** (5 phases) |
+| One 5-phase plan with all six robots holding cards (an Expert opponent world) | **3.2 ms**, 5.3 MB |
+| Search stage for one computer, width 1 / 3 / 10 / 30 / 60 (plans · time) | 32 · 12 ms / 79 · 32 ms / 230 · 98 ms / 549 · 290 ms / 1016 · **533 ms** |
+| **Stage 1 for five computers, one after another** (the M0 target) | **58 ms** (target ≤ 1 s) |
+| Exhaustive search for this hand | 8,820 distinct sequences × 1.0 ms ≈ **8.9 s** per computer |
+| Expert re-rank at the planned size (12 candidates × 8 worlds = 96 six-robot plans) | ≈ **0.31 s** |
+| Throughput of 5-phase plans on 1 / 2 / 4 / 8 threads | 974 / 1575 / 2263 / 2505 plans/s (×1.0 / 1.6 / 2.3 / 2.6) |
+| The planner's own console line (gap 9) | no measurable cost (×1.0) |
+| One `BoardElementCollection.GetSquare` lookup | 0.13 µs |
+
+**What this means for the plan** (on this machine; the Pi factor is the open question):
+
+- **Stage widths stay 1, 3, 10, 30, 60.** Nothing here argues for changing them. Running all five stages
+  for one computer costs about 1 s; for five computers, about 5 s.
+- **Exhaustive search is not the default.** About 9 s per computer even here, against 0.5 s for the
+  widest beam. Whether a beam of 60 finds near-best programs is M2's regret test, and an exhaustive
+  reference for each fixture is affordable (≈ 9 s each).
+- **Expert's re-rank is cheap next to its 5 s soft allowance** (0.31 s here), so there is room to raise
+  the candidates (*N*) and worlds (*K*) once the Pi's speed is known.
+- **Parallelism pays, sublinearly.** 2.3× on 4 threads. Allocation (1.3 MB a plan) is the likely limit —
+  an inference I did not measure. A server that allocates about 1 GB/s while a brain runs may also delay
+  GM and phone traffic on the Pi, so **keep `MaxParallel = 1` until the Pi shows otherwise**.
+- **The planner's console line is a log-noise problem, not a speed problem** (gap 9, now low priority).
+- **Break-even for the Pi.** These hold unless the Pi is slower than this machine by at least:
+  17× for "stage 1 for five computers ≤ 1 s" (58 ms → 1 s); 19× for the widest stage to fit inside a
+  10 s window (my stand-in for how long players take to program — I have no data on that); 16× for
+  the Expert re-rank to fit inside the 5 s soft allowance. I have not
+  measured the real factor and am not going to guess it.
+
+**Still to do to close M0 — run it on the Pi.** Stop the game host first (its CPU use would inflate the
+numbers), then:
+
+```bash
+cd ~/Mega-Robo-Rally-SignalR
+MRR_BENCH=1 ~/.dotnet/dotnet test MRR.Tests/MRR.Tests.csproj -c Release \
+  --filter "Category=Benchmark" --logger "console;verbosity=detailed"
+```
+
+The report is printed and also saved as `bot-m0-results.txt` beside the test assembly
+(`MRR.Tests/bin/Release/net9.0/`). Paste it here, add a Pi column to the table above, and re-check the
+break-even factors. The first build on a Pi takes a few minutes. On Windows, set `$env:MRR_BENCH = "1"`
+in PowerShell instead.
 
 ## 7. Testing
 
@@ -406,22 +475,17 @@ clock, so results are deterministic:
 
 ## 9. Not yet checked, and remaining questions
 
-**Not yet checked** — the plan leans on these, so confirm them (most are covered by M0):
+**Not yet checked** — the plan leans on these, so confirm them. (M0 settled the planner-behaviour
+assumptions on 2026-11-22 — cardless robots, board and robot immutability, plans with several programmed
+robots, King of the Hill prefix plans — see §6.1.)
 
-- Planner **speed**, on either machine. It sets the stage widths and whether stage 1 for several
-  computers really finishes in about a second.
+- Planner **speed on the Raspberry Pi**. Measured on the development machine only (§6.1); the Pi's
+  slowdown factor decides whether the break-even points there hold.
 - That row locking in `SetRobotProgram` serializes against the lock-in write as §5.8 assumes: I did not
   read how `SqlGateway`/`ExecuteSQL` open connections and transactions, so the real isolation behaviour
   needs a test against MariaDB.
-- That a robot with **no cards** is truly inert in the planner (I read that cards are selected per phase,
-  but did not run it), and that it still fires its laser.
-- That the planner **does not mutate the board** when no option cards are present.
-- That the planner behaves with several robots holding cards in the **Expert** re-rank (priority order
-  between robots was read, not run).
 - Whether `BoardElement.HasWall` plus `Block`/pit squares is all the BFS needs (I read
   `CalcMoveDistance`, not the rest of the board model).
-- That prefix plans with `PhaseCount < 2` take a KotH-only branch
-  ([CreateCommands.cs:722](../MRR.Rules/CreateCommands.cs)) that does not affect scoring.
 - Whether every way a human can finish programming (phone, robot screen, GM Sit Out) reaches
   `NextState()`. The `/api/player` endpoint does ([Program.cs:293](../MRR/Program.cs)); I did not read
   the robot-screen path. If one does not, the gate cannot stamp "humans done" for it and the ~100 ms poll
@@ -437,7 +501,8 @@ clock, so results are deterministic:
 - `SelectSeat`'s uniqueness checks are commented out, so the fill relies on picking free bodies and
   seats itself.
 
-**Questions** (a recommendation is given for each; none blocks M0):
+**Questions** (a recommendation is given for each; none blocks M1, which can proceed on the
+recommended answers unless you say otherwise):
 
 1. **Is it acceptable that computer seats show Ready from the start of programming** (and their
    registers can change while the humans program)? It is what makes "never later than the humans" a
