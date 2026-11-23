@@ -9,12 +9,16 @@ namespace MRR.Controller
     /// On entering programming (state 4) every computer seat gets a legal Level 1 program at
     /// once, inside NextState() and before its state-4 gate runs, so the gate never waits on a
     /// computer. Then a background run improves the programs of Level 2+ computers while the
-    /// humans program, and stops the moment the last human is done. Only when no human is
-    /// programming at all (an all-computer table) does the gate hold, for at most SoloBudgetMs.
+    /// humans program; Levels 2-4 stop the moment the last human is done. Expert may hold the
+    /// gate for up to GraceSoftMs / GraceHardMs after that (BotTiming), and with no human
+    /// programming at all (an all-computer table) the gate holds for at most SoloBudgetMs (Expert:
+    /// the larger of that and its grace).
     ///
     /// Config (appsettings.json, section ComputerPlayer; all optional):
     ///   SearchEnabled (true)  -- false: every computer keeps its Level 1 program
     ///   SoloBudgetMs  (5000)  -- the search time allowed when no human is programming
+    ///   GraceSoftMs   (5000)  -- Expert: may start new re-rank rounds until this long after the humans
+    ///   GraceHardMs   (10000) -- Expert: stops, and the gate releases, this long after the humans
     ///   StopPollMs    (100)   -- how often the run checks whether the humans are done
     /// </summary>
     public partial class GameController
@@ -25,6 +29,8 @@ namespace MRR.Controller
 
         private bool BotSearchEnabled => _configuration?.GetValue("ComputerPlayer:SearchEnabled", true) ?? true;
         private int BotSoloBudgetMs => _configuration?.GetValue("ComputerPlayer:SoloBudgetMs", 5000) ?? 5000;
+        private int BotGraceSoftMs => _configuration?.GetValue("ComputerPlayer:GraceSoftMs", 5000) ?? 5000;
+        private int BotGraceHardMs => _configuration?.GetValue("ComputerPlayer:GraceHardMs", 10000) ?? 10000;
         private int BotStopPollMs => Math.Max(20, _configuration?.GetValue("ComputerPlayer:StopPollMs", 100) ?? 100);
 
         /// <summary>One programming phase's search. Fields are touched by the worker, the poll and the gate.</summary>
@@ -32,15 +38,11 @@ namespace MRR.Controller
         {
             public readonly CancellationTokenSource Cancel = new();
             public readonly Stopwatch Clock = Stopwatch.StartNew();
-            public bool HumanClock;          // a human was still programming when the run began
-            public long SoloBudgetMs;
-            public volatile bool HumansDone;
-            public long HumansDoneAtMs = -1;
+            public BotTiming Timing = null!; // deadlines (MRR.Bot), on this run's Clock
             public volatile bool Finished;
             public volatile bool Holding;    // the state-4 gate is waiting for this run
             public Timer? Poll;
             public int Polling;              // guards against overlapping poll callbacks
-            public bool PastBudget => !HumanClock && Clock.ElapsedMilliseconds >= SoloBudgetMs;
         }
 
         /// <summary>
@@ -90,7 +92,8 @@ namespace MRR.Controller
 
                         if (applied && BotProfile.ForLevel(seat.Level).Stages.Length > 0)
                         {
-                            toSearch.Add(new BotSeat(seat.RobotID, seat.Level, seat.Hand, seat.DamageInDiscard));
+                            toSearch.Add(new BotSeat(seat.RobotID, seat.Level, seat.Hand, seat.DamageInDiscard,
+                                DrawPool: seat.DrawPool, ChooseFacing: seat.PositionValid == 0));
                             placeholders[seat.RobotID] = decision.CardTypes;
                         }
                     }
@@ -122,25 +125,19 @@ namespace MRR.Controller
 
         /// <summary>
         /// The state-4 gate's extra condition (design gap 13), checked only once every robot is
-        /// Ready. True at once whenever a human was programming -- it also tells the search to
-        /// stop -- so with humans at the table the gate never waits on a computer. With no human
-        /// programming, false until the search finishes or SoloBudgetMs has passed; the poll then
-        /// advances the state itself. The deadline is checked here against the run's own clock,
-        /// so a dead worker cannot hold the game past it.
+        /// Ready (BotTiming.MayLockIn). With humans at the table it is true at once -- and tells
+        /// Levels 2-4 to stop -- unless an Expert is still inside its grace. With no human
+        /// programming, false until every computer's time is up. Either way the poll releases the
+        /// gate as soon as the search finishes. The deadlines are checked here against the run's own
+        /// clock, so a dead worker cannot hold the game past them.
         /// </summary>
         private bool MayLockIn()
         {
             ComputerRun? run;
             lock (_computerRunLock) run = _computerRun;
-            if (run == null || run.Finished || run.Cancel.IsCancellationRequested || run.PastBudget)
+            if (run == null || run.Finished || run.Cancel.IsCancellationRequested || run.Timing.MayLockIn())
             {
                 _dataService.TitleNote = null;
-                return true;
-            }
-
-            if (run.HumanClock)
-            {
-                StampHumansDone(run);
                 return true;
             }
 
@@ -195,11 +192,12 @@ namespace MRR.Controller
 
         private void StartComputerRun(List<BotSeat> seats, Dictionary<int, IReadOnlyList<int>> placeholders)
         {
-            var run = new ComputerRun
-            {
-                HumanClock = _dataService.HumansStillProgramming() > 0,
-                SoloBudgetMs = BotSoloBudgetMs,
-            };
+            var run = new ComputerRun();
+            run.Timing = new BotTiming(
+                humanClock: _dataService.HumansStillProgramming() > 0,
+                hasExpert: seats.Any(s => s.Profile.ReRank),
+                BotSoloBudgetMs, BotGraceSoftMs, BotGraceHardMs,
+                () => run.Clock.ElapsedMilliseconds);
             lock (_computerRunLock) _computerRun = run;
 
             var worker = new Thread(() => ComputerRunWorker(run, seats, placeholders))
@@ -214,10 +212,10 @@ namespace MRR.Controller
             run.Poll = new Timer(_ => PollComputerRun(run), null, pollMs, pollMs);
         }
 
-        private bool ShouldStop(ComputerRun run) =>
+        private bool ShouldStop(ComputerRun run, BotSeat seat) =>
             run.Cancel.IsCancellationRequested
             || _dataService.GameState != 4
-            || (run.HumanClock ? run.HumansDone : run.PastBudget);
+            || run.Timing.StopFor(seat.Level);
 
         private void ComputerRunWorker(ComputerRun run, List<BotSeat> seats, Dictionary<int, IReadOnlyList<int>> current)
         {
@@ -231,7 +229,7 @@ namespace MRR.Controller
                 lock (s_botRandom) rng = new Random(s_botRandom.Next());
 
                 complete = BotScheduler.Run(snapshot, seats, current, evaluator, rng,
-                    shouldStop: () => ShouldStop(run),
+                    shouldStop: seat => ShouldStop(run, seat),
                     onImproved: (seat, program, stage) =>
                     {
                         try
@@ -239,9 +237,10 @@ namespace MRR.Controller
                             if (run.Cancel.IsCancellationRequested) return false;
                             // The GM may have handed this robot back to its player mid-search.
                             if (!_dataService.IsComputer(seat.RobotID)) return false;
-                            bool applied = _dataService.SetRobotProgram(seat.RobotID, program.Program, null);
+                            bool applied = _dataService.SetRobotProgram(seat.RobotID, program.Program, (int?)program.Facing);
                             Console.WriteLine($"[CPU {seat.RobotID}] {seat.Profile.Name} stage {stage} program " +
                                 $"[{string.Join(",", program.Program)}] score {program.Score:0}" +
+                                (program.Facing.HasValue ? $" facing {(int)program.Facing.Value}" : "") +
                                 $" at {run.Clock.ElapsedMilliseconds} ms" + (applied ? "" : " REFUSED"));
                             if (applied) UpdateGameState();
                             return applied;
@@ -269,7 +268,8 @@ namespace MRR.Controller
                             Console.WriteLine($"[CPU {seat.RobotID}] shut-down change failed: {ex.Message}");
                             return false;
                         }
-                    });
+                    },
+                    mayStartRound: () => run.Timing.MayStartRound);
                 plans = evaluator.PlansRun;
             }
             catch (Exception ex)
@@ -281,17 +281,10 @@ namespace MRR.Controller
                 run.Finished = true;
                 Console.WriteLine($"Computer players: {(complete ? "search complete" : "search stopped")} after " +
                     $"{run.Clock.ElapsedMilliseconds} ms, {plans} plans" +
-                    (run.HumanClock
-                        ? (run.HumansDoneAtMs >= 0 ? $"; humans done at {run.HumansDoneAtMs} ms" : "; humans still programming")
+                    (run.Timing.HumanClock
+                        ? (run.Timing.HumansDone ? $"; humans done at {run.Timing.HumansDoneAtMs} ms" : "; humans still programming")
                         : "; no human programming"));
             }
-        }
-
-        private void StampHumansDone(ComputerRun run)
-        {
-            if (run.HumansDone) return;
-            run.HumansDoneAtMs = run.Clock.ElapsedMilliseconds;
-            run.HumansDone = true;
         }
 
         /// <summary>
@@ -313,10 +306,10 @@ namespace MRR.Controller
                     return;
                 }
 
-                if (run.HumanClock && !run.HumansDone && _dataService.HumansStillProgramming() == 0)
-                    StampHumansDone(run);
+                if (run.Timing.HumanClock && !run.Timing.HumansDone && _dataService.HumansStillProgramming() == 0)
+                    run.Timing.StampHumansDone();
 
-                if (run.Holding && (run.Finished || run.PastBudget))
+                if (run.Holding && (run.Finished || run.Timing.PastAllDeadlines))
                 {
                     run.Holding = false;
                     _dataService.TitleNote = null;

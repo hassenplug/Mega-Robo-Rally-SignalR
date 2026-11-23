@@ -9,7 +9,8 @@ namespace MRR.Services
     /// Hand holds one card type per card the program may use -- the hand plus whatever is
     /// already in its registers, since SetRobotProgram returns those to the hand first.
     /// </summary>
-    public sealed record ComputerSeat(int RobotID, int Level, int PositionValid, int Facing, List<int> Hand, int DamageInDiscard);
+    public sealed record ComputerSeat(int RobotID, int Level, int PositionValid, int Facing, List<int> Hand, int DamageInDiscard,
+                                      List<int> DrawPool);
 
     /// <summary>
     /// DataService — computer players (documents/COMPUTER_PLAYER_DESIGN.md §4, §5.8).
@@ -98,7 +99,10 @@ namespace MRR.Services
                     Convert.ToInt32(row["CurrentPosDir"]),
                     hand.ToList(),
                     // Spam/Haywire in the discard pile: shutting down clears these too.
-                    GetIntFromDB($"SELECT COUNT(*) FROM MoveCards WHERE Owner = {robotId} AND CardLocation = 3 AND CardTypeID IN (10, 11)")));
+                    GetIntFromDB($"SELECT COUNT(*) FROM MoveCards WHERE Owner = {robotId} AND CardLocation = 3 AND CardTypeID IN (10, 11)"),
+                    // Deck and discard contents -- what a Spam's replacement comes from. Sorted by
+                    // type so the brain cannot see the real draw order (design §5.4).
+                    GetIntList($"SELECT CardTypeID FROM MoveCards WHERE Owner = {robotId} AND CardLocation IN (0, 3) ORDER BY CardTypeID").ToList()));
             }
             return seats;
         }
@@ -140,6 +144,8 @@ namespace MRR.Services
                 LaserDamage   = LaserDamage,
                 FieldEnclosed = FieldEnclosed,
                 GameType      = GameType,
+                // The deck every robot is dealt (GameNewAddCards uses set 4): Expert's opponent sampler.
+                DeckMix       = GetIntList("SELECT CardTypeID FROM MoveCardsCompleteList WHERE SetID = 4 ORDER BY CardTypeID"),
             };
         }
 

@@ -1,7 +1,8 @@
 # Computer Player — Design
 
-**M0 closed; M1 built and played 2026-11-22; M2 (search for Levels 2–4) written 2026-11-22; M3's
-shut-down rule (§5.6) written 2026-11-22 — unit-tested, not yet played — see §5.6, §6.2–6.3 (written 2026-11-21; decisions recorded 2026-11-22).** Draft guidance from a read of the
+**M0 closed; M1 built and played 2026-11-22; M2 (search for Levels 2–4) written 2026-11-22; M3
+(Spam sampling §5.4, reboot facing §5.5, shut-down §5.6) and M4 (Expert, arena, §6.4) written
+2026-11-22 — unit-tested, not yet played — see §5.4–5.6, §6.2–6.4 (written 2026-11-21; decisions recorded 2026-11-22).** Draft guidance from a read of the
 code. Items marked *starting guess* are placeholders to tune, not measurements — except where §6.1 now
 gives a measured number — and §9 lists what was **not** checked. Verify against the code before
 building from it.
@@ -203,12 +204,28 @@ Spam by averaging *m* plans with the replacement pile re-sampled from the robot'
 3 at Normal, more above; starting guess). **Never use the true pile order** (`BuildDrawPile`): that
 would be peeking. Sequences without Spam are planned once.
 
+**Built 2026-11-22** (`ProgramEvaluator.Evaluate`): Normal averages **3** samples, Hard and Expert **5**;
+Beginner and Easy plan Spam as "moves nothing" (empty pile). The pool is the card types in the robot's
+deck and discard pile, read sorted by type so the real order never reaches the brain. Samples are seeded
+from robot, facing and program, so a program scores the same each time and candidates are compared on
+the same draws. An Again in register 1 draws like a Spam and is sampled too. Because one evaluation can
+now be several plans, a stop can overrun by up to one evaluation (≤ 5 plans, ≈ 50 ms on the Pi), not one
+plan. **Not scored:** the cleanup value of playing a Spam (a played Spam leaves the game; an unplayed one
+stays in hand). The shut-down rule (§5.6) covers a badly clogged hand; a bonus per Spam played is the
+obvious next knob if computers hoard Spam.
+
 ### 5.5 Facing after a reboot
 Only when `PositionValid == 0`. Level 1: keep the current facing (the placeholder confirms it). Level 2:
 face the first step of the BFS path to the next flag. Level 3+: the stage search runs once per facing
 (4×, work split) and the best wins. The facing travels **with the program** through `SetRobotProgram`,
 so a program is never applied with a facing it was not evaluated for. Use the raw board `Direction`;
 `DirectionAdjustment` is display-only.
+
+**Built 2026-11-22** (`BotScheduler.RunSeatStage`): a computer whose `PositionValid` was 0 when
+programming began gets `ChooseFacing`. Easy faces along the path (`ProgramEvaluator.FacingTowardsFlag`);
+Normal and up run each stage once per facing — 4× the work, only on a reboot turn — and rank all results
+together. The facing is planned by turning the robot in a cached copy of the player list (the planner
+places a respawning robot with its own facing), and is applied with its program by `SetRobotProgram`.
 
 ### 5.6 Shut-down
 
@@ -538,6 +555,59 @@ human's tap at once (≤ ~250 ms on the Pi); the `[CPU n] … stage s` lines sho
 programs while humans program, and `search stopped … humans done at … ms` ends each run. With an
 all-computer table the title shows the note and lock-in follows within `SoloBudgetMs`. Watch that
 phone taps do not feel slower while the computers think (allocation is ~1.3 MB per plan, §6.1).
+
+### 6.4 M4 as built (2026-11-22) — not yet played
+
+**Builds; 181/181 tests pass on the Pi; arena passed. Not yet deployed or played.** Built on options 1 and 2
+for the Expert time problem found in §6.1 (user, 2026-11-22).
+
+| Piece | Where |
+|---|---|
+| `BotTiming` — every deadline rule in §5.7 (human clock, Levels 2–4 stop, Expert soft/hard grace, no-human-clock budget, `MayLockIn`) on an injected clock | `MRR.Bot/BotTiming.cs` |
+| Expert profile: Hard's stages **1, 3, 10**, then up to **8 re-rank rounds** | `MRR.Bot/BotProfile.cs` |
+| `ReRankSettings` — candidates per Expert = 24 ÷ Expert seats, clamped 4–12 (1–2 Experts 12, 3 → 8, 4 → 6, 5 → 4) | `MRR.Bot/BotProfile.cs` |
+| `OpponentSampler` — one world: every acting robot dealt 9 random cards from the deck mix, programmed **greedily** toward its own next flag; public information only | `MRR.Bot/OpponentSampler.cs` |
+| `ProgramEvaluator.EvaluateInWorld` — a candidate planned with every robot moving | `MRR.Bot/ProgramEvaluator.cs` |
+| Re-rank rounds inside `BotScheduler`'s breadth-first loop; per-seat stop; `mayStartRound` | `MRR.Bot/BotScheduler.cs` |
+| Host: `BotTiming` replaces the run's own fields; `GraceSoftMs` / `GraceHardMs` config; deck mix read from `MoveCardsCompleteList` set 4 | `MRR/GameController.ComputerPlayers.cs`, `MRR/DataService.ComputerPlayers.cs` |
+| Tests: deadlines on a fake clock (Levels 1–4 never hold; Expert soft → hard; the gate opens at the deadline with no worker; no-human-clock budgets); candidate scaling; sampler repeatable, legal, skips dead/shut-down robots; world evaluation leaves the snapshot alone; rounds run when allowed, none after the soft deadline, the first starts while Hard is still searching, Expert continues after the others stop, a round cut part-way is discarded | `MRR.Tests/BotExpertTests.cs` |
+| **Arena** (opt-in, `MRR_ARENA=1`) | `MRR.Tests/BotArena.cs` |
+
+**How Expert's turn goes.** Option 1: its re-rank rounds are extra breadth-first "stages", so round 1
+starts while Hard computers are on their width-30 stage — most of the re-rank happens in the humans'
+time. Each round samples one opponent world, **shared by every Expert** (each ignores its own entry),
+scores each candidate in it, and after a *full* round applies the candidate with the best running
+average. Option 2: candidates per Expert shrink as Expert seats grow. After the humans finish, Expert
+may start rounds until `GraceSoftMs` (5 s), only finish the round in hand until `GraceHardMs` (10 s),
+then stops; the gate holds meanwhile with the title note and is released by the poll when the search
+ends or the hard deadline passes.
+
+**Differences from the plan:**
+- **Opponents are programmed greedily, not by Level 2.** Level 2 costs ≈ 0.5 s per robot on the Pi, so
+  a world would take ≈ 3 s; greedy is ≈ 150 ms per robot, ≈ 0.9 s per six-robot world.
+- **Expert drops Hard's width-30 and width-60 stages** in favour of re-rank rounds (option 1).
+- **The deck mix was decoded** (§9): set 4, 20 cards — U-Turn 1, Right 4, Left 4, Back 1, Move 1 ×4,
+  Move 2 ×3, Move 3 ×1, Again 1, Power Up 1.
+- **Shut-down is not re-asked after a re-rank round** — its scores are on a different scale (one robot
+  moving vs. all moving). The stage results decide it.
+- **The arena's applier is approximate** (as §8 said it would be): final positions, flags, one Spam per
+  hit into a damage pile, respawn on the start square, hands dealt from the deck mix plus that pile.
+
+**Arena** (pass/fail margin set before running: each level's total score ≥ the level below's;
+score = 1000 per flag − 30 per square from the next flag at the end; 5 games × 6 turns, start squares
+rotated), Pi 4, 872 s — **passed**:
+
+| Level | Score | Flags | Deaths | Spam taken | Shut-downs |
+|---|---|---|---|---|---|
+| Beginner | −1380 | 0 | 2 | 14 | 0 |
+| Easy | 5040 | 6 | 2 | 28 | 0 |
+| Normal | 7830 | 9 | 1 | 26 | 2 |
+| Hard | 9190 | 10 | 0 | 33 | 1 |
+| Expert | 9710 | 11 | 0 | 35 | 1 |
+
+Caveats: one robot per level, 30 turns in total, on one synthetic board with an approximate applier.
+Expert's lead over Hard (520 points, about one flag) is within what a different seed could undo; the
+Beginner → Easy → Normal → Hard steps are clear. More games, or other boards, would firm it up.
 
 ## 7. Testing
 

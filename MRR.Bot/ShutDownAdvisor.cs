@@ -42,7 +42,7 @@ namespace MRR.Bot
             if (inHand < rules.MinDamageInHand && inHand + inDiscard < rules.MinDamageTotal)
                 return new(false, $"only {inHand} damage in hand, {inDiscard} in discard");
 
-            var start = evaluator.Start(seat.RobotID);
+            var start = evaluator.Start(seat.RobotID, best.Facing);
             if (start == null) return new(false, "robot not in snapshot");
 
             if (start.LastFlag + 1 == totalFlags)
@@ -51,7 +51,7 @@ namespace MRR.Bot
                 if (toLast <= rules.LastFlagNear) return new(false, $"last flag {toLast} squares away");
             }
 
-            var bestOutcome = evaluator.Outcome(evaluator.Plan(seat.RobotID, best.Program), start);
+            var bestOutcome = evaluator.Outcome(evaluator.Plan(seat.RobotID, best.Program, best.Facing), start);
             if (!bestOutcome.Dead)
             {
                 if (bestOutcome.Flags > 0) return new(false, "best program touches a flag");

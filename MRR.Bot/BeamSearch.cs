@@ -1,7 +1,7 @@
 namespace MRR.Bot
 {
-    /// <summary>A complete program and its score.</summary>
-    public sealed record ScoredProgram(IReadOnlyList<int> Program, double Score);
+    /// <summary>A complete program, its score, and the reboot facing it was scored with (null = unchanged).</summary>
+    public sealed record ScoredProgram(IReadOnlyList<int> Program, double Score, Direction? Facing = null);
 
     /// <summary>
     /// One search stage: a beam search of width B over card-type sequences
@@ -17,7 +17,20 @@ namespace MRR.Bot
     {
         /// <returns>The final layer, best first, or null when stopped.</returns>
         public static List<ScoredProgram>? RunStage(ProgramEvaluator evaluator, int robotId,
-            IReadOnlyList<int> hand, int phaseCount, int width, Func<bool> shouldStop)
+            IReadOnlyList<int> hand, int phaseCount, int width, Func<bool> shouldStop) =>
+            RunStage(p => evaluator.Evaluate(robotId, p), hand, phaseCount, width, shouldStop, null);
+
+        /// <summary>
+        /// A stage for a seat: scored with its level's Spam sampling (§5.4) and, if given, as if it
+        /// faced <paramref name="facing"/> (§5.5). Results carry that facing.
+        /// </summary>
+        public static List<ScoredProgram>? RunStage(ProgramEvaluator evaluator, BotSeat seat, int phaseCount,
+            int width, Func<bool> shouldStop, Direction? facing = null) =>
+            RunStage(p => evaluator.Evaluate(seat.RobotID, p, facing, seat.DrawPool, seat.Profile.SpamSamples),
+                     seat.Hand, phaseCount, width, shouldStop, facing);
+
+        private static List<ScoredProgram>? RunStage(Func<IReadOnlyList<int>, double> evaluate,
+            IReadOnlyList<int> hand, int phaseCount, int width, Func<bool> shouldStop, Direction? facing)
         {
             int length = Math.Min(phaseCount, hand.Count);
             if (length <= 0 || width <= 0) return new List<ScoredProgram>();
@@ -25,7 +38,7 @@ namespace MRR.Bot
             var available = hand.GroupBy(t => t).ToDictionary(g => g.Key, g => g.Count());
             var types = available.Keys.OrderBy(t => t).ToList(); // fixed order: deterministic ties
 
-            var beam = new List<ScoredProgram> { new(Array.Empty<int>(), 0) };
+            var beam = new List<ScoredProgram> { new(Array.Empty<int>(), 0, facing) };
             for (int k = 1; k <= length; k++)
             {
                 var layer = new List<ScoredProgram>();
@@ -37,7 +50,7 @@ namespace MRR.Bot
                         if (shouldStop()) return null;
 
                         var program = prefix.Program.Append(type).ToArray();
-                        layer.Add(new ScoredProgram(program, evaluator.Evaluate(robotId, program)));
+                        layer.Add(new ScoredProgram(program, evaluate(program), facing));
                     }
                 }
                 // Stable sort: equal scores keep the fixed type order.

@@ -31,8 +31,8 @@ state-4 gate waits only for Expert (design §5.7).
 | **M0 — measure** | **Closed 2026-11-22.** Dev machine committed in `03d2f75`; Pi 4 run done the same afternoon. Results: design §6.1. |
 | **M1 — plumbing + Level 1** | **Built and played 2026-11-22**: 5 computers + human(s), 4 turns, no errors. A few checks remain (10 turns, phone tap, End Selection, states 15/16) — design §6.2. |
 | **M2 — search, Levels 2–4** | **Written 2026-11-22; 144/144 tests; regret ladder 449 / 107 / 14 / 0. Not yet played.** Design §6.3. |
-| **M3 — shut-down** | **Shut-down rule written 2026-11-22**, 156/156 tests, not yet played — design §5.6. Reboot facing and Spam sampling not started. |
-| M4 | Not started. |
+| **M3 — Spam, reboot facing, shut-down** | **Written 2026-11-22**, not yet played — design §5.4–5.6. |
+| **M4 — Expert + arena** | **Written 2026-11-22**, 181/181 tests; arena passed (Beginner −1380, Easy 5040, Normal 7830, Hard 9190, Expert 9710). Not yet played — design §6.4. |
 
 Decisions already made by the user (design §1): fill empty seats; one GM button; GM sees prompts;
 selectable level up to Expert; `MRR.Bot` project; unplayed Spam staying in hand is intended;
