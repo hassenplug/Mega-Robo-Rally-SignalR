@@ -51,13 +51,18 @@ namespace MRR.Controller
         ///
         /// A computer player must never stall the game: any failure is logged and the robot is
         /// left as it was -- the GM can then use Sit Out for that seat.
+        ///
+        /// onlyRobotId: just that seat, mid-programming (the GM made it a computer, SetComputerLevel).
+        /// The run already going for the other computers is left alone; this seat is searched
+        /// too only if no run is going, otherwise it keeps its Level 1 program this turn.
         /// </summary>
-        private void ProgramComputerPlayers()
+        private void ProgramComputerPlayers(int? onlyRobotId = null)
         {
-            CancelComputerRun();
+            if (onlyRobotId == null) CancelComputerRun();
             try
             {
                 var seats = _dataService.GetComputersToProgram();
+                if (onlyRobotId != null) seats = seats.Where(s => s.RobotID == onlyRobotId).ToList();
                 if (seats.Count == 0) return;
 
                 int phaseCount = _dataService.PhaseCount;
@@ -106,7 +111,8 @@ namespace MRR.Controller
                     });
                 }
 
-                if (toSearch.Count > 0 && BotSearchEnabled) StartComputerRun(toSearch, placeholders);
+                if (toSearch.Count > 0 && BotSearchEnabled && (onlyRobotId == null || !ComputerRunActive()))
+                    StartComputerRun(toSearch, placeholders);
             }
             catch (Exception ex)
             {
@@ -145,6 +151,32 @@ namespace MRR.Controller
                 Console.WriteLine("Computer players: lock-in held while the computers finish thinking.");
             }
             return false;
+        }
+
+        private bool ComputerRunActive()
+        {
+            lock (_computerRunLock)
+                return _computerRun != null && !_computerRun.Finished && !_computerRun.Cancel.IsCancellationRequested;
+        }
+
+        /// <summary>
+        /// GM screen (Shut Down view): makes a robot a computer player at a level (1-5), or hands
+        /// it back to its player (0). Allowed any time a game is running. During programming a new
+        /// computer is programmed at once (ProgramComputerPlayers(robotId)), so the turn doesn't
+        /// wait on it; a robot handed back keeps whatever is in its registers for the player to
+        /// keep or change. Returns an error message, or null.
+        /// </summary>
+        public string? SetComputerLevel(int robotId, int level)
+        {
+            if (level < 0 || level > BotProfile.MaxLevel) return $"Level must be 0-{BotProfile.MaxLevel}";
+            int gameState = _dataService.GameState;
+            if (gameState < 2 || gameState == 25) return "No game is running";
+            if (!_dataService.SetRobotComputer(robotId, level)) return $"Robot {robotId} not found";
+
+            _dataService.GetAllPlayers(true); // Player.Computer: lights, ScreenUI
+            if (gameState == 4 && level > 0) ProgramComputerPlayers(robotId);
+            UpdateGameState();
+            return null;
         }
 
         private void CancelComputerRun()
@@ -205,6 +237,8 @@ namespace MRR.Controller
                         try
                         {
                             if (run.Cancel.IsCancellationRequested) return false;
+                            // The GM may have handed this robot back to its player mid-search.
+                            if (!_dataService.IsComputer(seat.RobotID)) return false;
                             bool applied = _dataService.SetRobotProgram(seat.RobotID, program.Program, null);
                             Console.WriteLine($"[CPU {seat.RobotID}] {seat.Profile.Name} stage {stage} program " +
                                 $"[{string.Join(",", program.Program)}] score {program.Score:0}" +

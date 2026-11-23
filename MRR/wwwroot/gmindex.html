@@ -26,7 +26,7 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
 #robotHeader { position:relative; width:64px; flex:none; display:flex; align-items:center; justify-content:center; font-size:30px; cursor:pointer; user-select:none; }
 /* The game message doubles as the Turn History button. */
 #title { flex:1; min-width:0; display:flex; align-items:center; margin:4px 6px; padding:0 10px; font-weight:bold; font-size:20px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; background:#ececec; border:1px solid #909090; border-radius:4px; cursor:pointer; user-select:none; }
-#flagsHeader { width:110px; flex:none; display:flex; align-items:center; justify-content:center; font-weight:bold; cursor:pointer; user-select:none; border-left:1px solid #a0a0a0; }
+#flagsHeader { width:110px; flex:none; display:flex; align-items:center; justify-content:center; font-weight:bold; user-select:none; border-left:1px solid #a0a0a0; }
 /* Robots / Display drop-downs, right of F/E/C. */
 .topMenuWrap { position:relative; width:110px; flex:none; display:flex; align-items:center; justify-content:center; font-weight:bold; cursor:pointer; user-select:none; border-left:1px solid #a0a0a0; }
 .topMenu { display:none; position:absolute; top:100%; right:0; z-index:5; background:#ffffff; padding:6px; width:180px; font-weight:normal; cursor:default; }
@@ -82,10 +82,9 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
 
 <!-- GM-only status page, the Pi's own kiosk screen (~/.local/bin/mrr-kiosk.sh). Same
      js/loadrobots.js as index.html, always logged in as GM and always in GM view: each robot
-     row is [connect toggle][robot][F/E/C][status]. In the F/E/C view, tapping a robot shows its
-     program on the right (index.html's card area); in the battery view, tapping a disconnected
-     robot swaps its base and the right side collects every player's pending PlayerMsg and
-     direction buttons. buildPlayerRows/showall are replaced by the script at the bottom of this
+     row is [connect toggle][robot][column 1][column 2]; the Display menu picks what the two
+     columns and the right side show (showall, VIEW_COLUMNS below). Every robot view keeps the
+     players' pending PlayerMsg and direction buttons at the top of the right side. buildPlayerRows/showall are replaced by the script at the bottom of this
      page; everything else (login, showplayerprogram, GM menu actions, connect/disconnect, start
      game) is loadrobots.js's own code. -->
 
@@ -143,7 +142,8 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
     </div>
     <!-- Game message (titlemsg), filled in by showall(); tapping it opens Turn History. -->
     <div id="title" title="Turn History" onclick="window.open('turnhistory.html', '_blank');">---</div>
-    <div id="flagsHeader" onclick="toggleFlagsHeader();">F/E/C</div>
+    <!-- Names whatever the first column shows in the current Display view (showall). -->
+    <div id="flagsHeader">F/E/C</div>
     <div class="topMenuWrap" onclick="toggleTopMenu('robotsMenu');">Robots &#9662;
         <div id="robotsMenu" class="topMenu w3-card-4" onclick="event.stopPropagation();">
             <button class="button" onclick="gmAlignSelected();">Align</button>
@@ -156,9 +156,9 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
     <div class="topMenuWrap" onclick="toggleTopMenu('displayMenu');">Display &#9662;
         <div id="displayMenu" class="topMenu w3-card-4" onclick="event.stopPropagation();">
             <button class="button" id="viewMenu-off" onclick="gmSetRightPanel('off');">Off</button>
-            <button class="button" id="viewMenu-program" onclick="gmSetRightPanel('program');">Program Cards</button>
-            <button class="button" id="viewMenu-shutdown" onclick="gmSetRightPanel('shutdown');">Shut Down</button>
             <button class="button" id="viewMenu-spam" onclick="gmSetRightPanel('spam');">Show My Deck</button>
+            <button class="button" id="viewMenu-shutdown" onclick="gmSetRightPanel('shutdown');">Shut Down</button>
+            <button class="button" id="viewMenu-robots" onclick="gmSetRightPanel('robots');">Robots</button>
             <button class="button" id="viewMenu-gamecontrol" onclick="gmSetRightPanel('gamecontrol');">Game Control</button>
             <button class="button" id="viewMenu-flags" onclick="gmSetRightPanel('flags');">Flag Positions</button>
             <button class="button" id="viewMenu-robotselect" style="display:none;" onclick="gmSetRightPanel('robotselect');">Robot Selection</button>
@@ -283,7 +283,7 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
                     <td align=center bgcolor=ffffff><img id='Dealt8' src='images/type0.png' onclick='PlayCard(this);'></td>
                     <td align=center bgcolor=ffffff><img id='Dealt9' src='images/type0.png' onclick='PlayCard(this);'></td>
                 </tr>
-                <!-- Right Panel "Shut Down", or tapping the robot's status (toggleExtrasPanel). -->
+                <!-- Display > Shut Down. -->
                 <tr id="extrasRow" style="display: none;">
                     <td colspan="5" align="center">
                         <button id="shutDownBtn" class="button" style="width:auto; margin:6px 0;" onclick="toggleShutDown();">Shut Down</button>
@@ -303,6 +303,18 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
                     </td>
                 </tr>
             </table>
+        </div>
+        <!-- Shut Down view: who plays the selected robot (Robots.Computer; setComputerLevel). -->
+        <div id="computerRow" style="display:none; margin-top:10px;">
+            <span id="computerRobotName" style="font-weight:bold;"></span> Computer Player:
+            <select id="computerSelect" style="font-size:18px; padding:4px;" onchange="setComputerLevel(this.value);">
+                <option value="0">None</option>
+                <option value="1">Beginner</option>
+                <option value="2">Easy</option>
+                <option value="3">Normal</option>
+                <option value="4">Hard</option>
+                <option value="5">Expert</option>
+            </select>
         </div>
     </div>
 </div>
@@ -331,10 +343,17 @@ function buildPlayerRows(robots) {
     document.getElementById('playerRows').innerHTML = html;
 }
 
-// "Display" menu: Off on every page load, so no cards show until the GM picks a view.
-// 'gamecontrol' (this page only) replaces the whole right panel with the start-game picker.
+// "Display" menu: Off on every page load. Each view sets both robot columns and the right side:
+//   off         F/E/C | status      -- player buttons
+//   spam        F/E/C | status      -- player buttons + Show My Deck
+//   shutdown    Sit Out | status    -- player buttons + Shut Down panel + Computer Player
+//   robots      location | battery  -- player buttons; tapping a robot picks its AIM base
+//   gamecontrol facing | Align      -- the start-game / game control panel
+//   flags, robotselect: F/E/C | status with their own panels.
+// (index.html's 'program' view isn't offered here.)
 rightPanelView = 'off';
-VIEW_MENU_ITEMS.push('gamecontrol', 'flags', 'robotselect');
+VIEW_MENU_ITEMS.push('robots', 'gamecontrol', 'flags', 'robotselect');
+var VIEW_COLUMNS = { shutdown: 'Sit Out', robots: 'Location', gamecontrol: 'Facing' };
 
 // ── Timing panel ─────────────────────────────────────────────────────────────
 // Polls /api/timing every 2s while it is on. Ack/Poll are network + robot round trips
@@ -463,7 +482,7 @@ var viewBeforeGameControl = 'off';
 // Robot Selection opens by itself when players start picking (gamestate 1) and closes when
 // they finish; Flag Positions is only offered while no game is running, and the robot views
 // in GAME_ONLY_VIEWS only while one is.
-var GAME_ONLY_VIEWS = ['program', 'shutdown', 'spam'];
+var GAME_ONLY_VIEWS = ['shutdown', 'spam'];
 
 function followGameRunning(gamestate) {
     var stopped = gamestate === 25;
@@ -726,7 +745,45 @@ function gmAlignSelected() {
         .catch(function (err) { console.error(err.toString()); });
 }
 
-// F/E/C view: tapping a robot's button shows its program on the right.
+// Game Control: column 2 is an Align button for that row's robot -- no prompt (Robots > Align
+// asks first). The tap goes on the cell, which outlives each broadcast.
+function renderAlignCell(cell, r) {
+    cell.innerText = 'Align';
+    cell.style.backgroundColor = '#0050a0';
+    cell.style.color = '#ffffff';
+    cell.style.cursor = 'pointer';
+    cell.onclick = function () {
+        fetch('/api/robot/alignthis/' + r.RobotID)
+            .then(function (resp) { if (!resp.ok) alert('Could not align ' + r.RobotName); })
+            .catch(function (err) { console.error(err.toString()); });
+    };
+}
+
+// Shut Down view: Computer Player for the selected robot. 0 = None, 1-5 = Beginner..Expert
+// (/api/robot/computer, GameController.SetComputerLevel). During programming a new computer
+// programs this turn at once.
+function updateComputerRow(show) {
+    var row = document.getElementById('computerRow');
+    var rbt = show && datapacket.robots.find(function (x) { return x.RobotID === CurrentPlayer; });
+    row.style.display = rbt ? '' : 'none';
+    if (!rbt) return;
+    document.getElementById('computerRobotName').textContent = rbt.RobotName;
+    var select = document.getElementById('computerSelect');
+    // Don't reset the list under the GM's finger while it is open.
+    if (document.activeElement !== select) select.value = String(rbt.Computer || 0);
+}
+
+function setComputerLevel(level) {
+    var robotId = CurrentPlayer;
+    document.getElementById('computerSelect').blur();
+    fetch('/api/robot/computer/' + robotId + '/' + level)
+        .then(function (resp) {
+            if (!resp.ok) return resp.json().then(function (e) { alert(e.error || 'Could not change the computer player'); });
+        })
+        .catch(function (err) { console.error(err.toString()); });
+}
+
+// Tapping a robot's button picks it for Show My Deck / Shut Down on the right.
 function selectRobot(priority) {
     showplayerprogram(priority);
     showall(); // move the selected-robot outline
@@ -758,12 +815,16 @@ function showall() {
     document.getElementById('robotSelectPanel').style.display = robotSelect ? '' : 'none';
     if (robotSelect) renderRobotSelect();
 
+    var batteryMode = rightPanelView === 'robots';  // location + battery columns
+    followRobotInfo(batteryMode);
+    var cardView = rightPanelView === 'spam' || rightPanelView === 'shutdown';
     document.getElementById('batteryButtons').style.display = (gameControl || flagView || robotSelect) ? 'none' : '';
-    document.getElementById('flagsHeader').innerText = gameControl ? 'Facing' : batteryMode ? 'Battery' : 'F/E/C';
+    document.getElementById('flagsHeader').innerText = VIEW_COLUMNS[rightPanelView] || 'F/E/C';
     // Re-read SeatOrientation each time Game Control is opened while no game is running.
     if (!gameControl) seatDirections = null;
     else if (showGmStart && seatDirections === null) loadSeatDirections();
-    document.getElementById('programPanel').style.display = (batteryMode || gameControl || flagView || robotSelect) ? 'none' : '';
+    document.getElementById('programPanel').style.display = cardView ? '' : 'none';
+    updateComputerRow(rightPanelView === 'shutdown');
 
     // showplayerprogram() looks robots up by Priority (CurrentLine), which changes every turn:
     // follow the picked robot's new Priority so the panel stays on the same robot. Nothing
@@ -788,7 +849,7 @@ function showall() {
         var btn = document.getElementById('button' + rid);
         btn.style = "background-color:#" + r.RobotColor + "; color:#" + r.RobotColorFG;
         btn.textContent = r.RobotName;
-        btn.classList.toggle('selectedRobot', !batteryMode && !robotSelect && r.RobotID === CurrentPlayer);
+        btn.classList.toggle('selectedRobot', cardView && r.RobotID === CurrentPlayer);
         btn.onclick = batteryMode ? makeBasePickerHandler(r) : makeSelectRobotHandler(r.Priority);
         if (robotSelect) {
             // Robot Selection: the still-open rows are the start positions to pick from;
@@ -826,7 +887,6 @@ function showall() {
             statusbox.innerText = battery > 0 ? battery + '%' : '--';
             statusbox.style.backgroundColor = battery <= 0 ? '#e0e0e0'
                 : battery >= 50 ? '#80ff80' : battery >= 20 ? '#ffff80' : '#ff8080';
-            statusbox.onclick = null;
         } else {
             flagsCell.innerText = r.FlagEnergyCards;
             flagsCell.style.background = flagProgressBackground(r);  // flag % bar, as on index.html
@@ -834,14 +894,13 @@ function showall() {
             flagsCell.style.cursor = '';
             statusbox.innerText = r.StatusToShow;
             statusbox.style.backgroundColor = "#" + r.StatusColor;
-            // Same as index.html: tapping a status swaps the dealt hand for the extras panel
-            // (Shut Down) -- for the robot whose program is showing. Only while a game is
-            // running (GAME_ONLY_VIEWS).
-            statusbox.onclick = datapacket.gamestate === 25 ? null : toggleExtrasPanel;
         }
-        // Game Control: the F/E/C column shows which way this robot's player faces instead.
-        if (gameControl) renderSeatArrow(flagsCell, r);
-        else if (!batteryMode && rightPanelView === 'shutdown') renderSitOutToggle(flagsCell, r);
+        statusbox.style.color = '';
+        statusbox.style.cursor = '';
+        statusbox.onclick = null;
+        // Game Control: column 1 shows which way this robot's player faces, column 2 Align.
+        if (gameControl) { renderSeatArrow(flagsCell, r); renderAlignCell(statusbox, r); }
+        else if (rightPanelView === 'shutdown') renderSitOutToggle(flagsCell, r);
         else flagsCell.onclick = null;
 
         if (r.PlayerMsg && r.PlayerMsg !== 'undefined') msgRobots.push(r);
@@ -885,30 +944,26 @@ function showall() {
     });
 
     document.getElementById('noPlayerButtons').style.display =
-        (!batteryMode || buttons.children.length || dirButtons.children.length) ? 'none' : '';
+        (cardView || buttons.children.length || dirButtons.children.length) ? 'none' : '';
 }
 
-// ── Battery view ─────────────────────────────────────────────────────────────
-// Tapping the F/E/C header flips between flags/energy/cards + status and each robot's battery +
-// board position. The battery/position come from their own call, /api/robot/info, not from the
-// AllDataUpdate broadcast; it is re-fetched every couple of seconds while the view is showing.
-// The battery is the robot's own percentage (ws_status robot.battery), recorded when a move
-// completes, so it can be a move or two out of date.
-var batteryMode = false;
+// ── Display > Robots: location + battery ────────────────────────────────────
+// Each robot's board position and battery come from their own call, /api/robot/info, not from
+// the AllDataUpdate broadcast; it is re-fetched every couple of seconds while the view is
+// showing. The battery is the robot's own percentage (ws_status robot.battery), recorded when a
+// move completes, so it can be a move or two out of date.
 var robotInfo = {};          // RobotID -> {battery, row, col, dir}
 var robotInfoTimer = null;
 
-function toggleFlagsHeader() {
-    batteryMode = !batteryMode;
-    document.getElementById('flagsHeader').innerText = batteryMode ? 'Battery' : 'F/E/C';
-    if (batteryMode) {
-        refreshRobotInfo();
+// Called from showall(): poll while the Robots view is up, stop when it isn't.
+function followRobotInfo(on) {
+    if (on && !robotInfoTimer) {
         robotInfoTimer = setInterval(refreshRobotInfo, 2000);
-    } else {
+        refreshRobotInfo();
+    } else if (!on && robotInfoTimer) {
         clearInterval(robotInfoTimer);
         robotInfoTimer = null;
     }
-    if (datapacket) showall(); // swap the right pane and the robot buttons' action now
 }
 
 function refreshRobotInfo() {
@@ -922,15 +977,19 @@ function refreshRobotInfo() {
         .catch(function (err) { console.error(err.toString()); });
 }
 
-// ── Swap a robot's base ──────────────────────────────────────────────────────
-// Only for a robot that isn't connected (or connecting). The chosen base's hostname is used for
-// this robot for the rest of the current game, and the robot is then connected to it straight
-// away (a fresh connection re-reads the hostname -- GameController.ConnectToRobot).
+// ── Swap a robot's base (Display > Robots) ───────────────────────────────────
+// Tapping a robot lists the AIM bases, connected or not. Picking a different base disconnects
+// the robot (if it is connected), sets the base -- its hostname is used for this robot for the
+// rest of the current game -- and connects to it (a fresh connection re-reads the hostname,
+// GameController.ConnectToRobot). Picking the current base just connects a robot that isn't.
 var CONNECT_STATUS_CONNECTING = 21; // tPlayerStatus.Connecting (MRR.Contracts/PlayerState.cs)
 
+function isRobotConnected(r) {
+    return r.ConnectStatusID === CONNECT_STATUS_CONNECTED || r.ConnectStatusID === CONNECT_STATUS_CONNECTING;
+}
+
 function makeBasePickerHandler(r) {
-    var connected = r.ConnectStatusID === CONNECT_STATUS_CONNECTED || r.ConnectStatusID === CONNECT_STATUS_CONNECTING;
-    return connected ? null : function () { openBasePicker(r); };
+    return function () { openBasePicker(r); };
 }
 
 function makeSelectRobotHandler(priority) {
@@ -952,7 +1011,7 @@ function openBasePicker(r) {
                     (b.isCurrent ? ' border:2px solid #000000;' : '');
                 btn.textContent = b.aimName + (b.isCurrent ? ' (current)' : '');
                 btn.title = b.hostname;
-                btn.onclick = function () { chooseBase(r.RobotID, b.robotBaseID); };
+                btn.onclick = function () { chooseBase(r, b); };
                 list.appendChild(btn);
             });
             document.getElementById('basePicker').style.display = 'block';
@@ -960,10 +1019,18 @@ function openBasePicker(r) {
         .catch(function (err) { console.error(err.toString()); });
 }
 
-function chooseBase(robotId, robotBaseId) {
-    fetch('/api/robot/setbase/' + robotId + '/' + robotBaseId)
+function chooseBase(r, base) {
+    closeBasePicker();
+    var connected = isRobotConnected(r);
+    if (base.isCurrent) {
+        if (!connected) toggleRobotConnect(r.RobotID, false);
+        return;
+    }
+    // Disconnect waits for the sockets to close before it answers, so the base can be set next.
+    (connected ? fetch('/api/robot/disconnect/' + r.RobotID) : Promise.resolve())
+        .then(function () { return fetch('/api/robot/setbase/' + r.RobotID + '/' + base.robotBaseID); })
         .then(function (resp) {
-            if (resp.ok) { closeBasePicker(); toggleRobotConnect(robotId, false); return; }
+            if (resp.ok) { toggleRobotConnect(r.RobotID, false); return; }
             return resp.json().then(function (e) { alert(e.error || 'Could not change the base'); });
         })
         .catch(function (err) { console.error(err.toString()); });

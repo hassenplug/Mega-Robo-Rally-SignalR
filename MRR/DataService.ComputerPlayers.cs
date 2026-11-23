@@ -124,6 +124,17 @@ namespace MRR.Services
             };
         }
 
+        /// <summary>Sets Robots.Computer (0 = a human plays it). False if there is no such robot.</summary>
+        public bool SetRobotComputer(int robotId, int level)
+        {
+            if (GetIntFromDB($"SELECT COUNT(*) FROM Robots WHERE RobotID = {robotId}") == 0) return false;
+            ExecuteSQL($"UPDATE Robots SET Computer = {level} WHERE RobotID = {robotId}");
+            return true;
+        }
+
+        public bool IsComputer(int robotId) =>
+            GetIntFromDB($"SELECT IFNULL(Computer, 0) FROM Robots WHERE RobotID = {robotId}") > 0;
+
         /// <summary>
         /// Human robots the state-4 gate is still waiting on: the gate's own test
         /// (Status &lt;&gt; 4 AND Status &lt; 9) restricted to Computer = 0, so shut-down and

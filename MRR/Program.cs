@@ -482,6 +482,14 @@ app.MapGet("/api/robot/setbase/{robotId:int}/{robotBaseId:int}", (int robotId, i
     return Results.Ok(new { robotId, robotBaseId });
 });
 
+// GM screen's Shut Down view: Computer Player for one robot -- 0 = None (a human plays it),
+// 1-5 = Beginner..Expert. See GameController.SetComputerLevel.
+app.MapGet("/api/robot/computer/{robotId:int}/{level:int}", (int robotId, int level, GameController gameController) =>
+{
+    string? error = gameController.SetComputerLevel(robotId, level);
+    return error != null ? Results.BadRequest(new { error }) : Results.Ok(new { robotId, level });
+});
+
 // GM screen's Game Control view: which way each player faces. No game running -> the
 // SeatOrientation table (used by the next game); during a game -> that robot's
 // Robots.DirectionAdjustment. See DataService.SetSeatOrientation/SetRobotDirectionAdjustment.
