@@ -1,5 +1,12 @@
 namespace MRR.Bot
 {
+    /// <summary>
+    /// What one plan did to one robot: flags touched, death, damage taken, the flag it is now
+    /// heading for, and its walking distance to that flag before and after (Unreachable if none).
+    /// </summary>
+    public sealed record PlanOutcome(int Flags, bool Dead, int Damage, int NextFlag,
+                                     int StartDistance, int EndDistance, bool FacesPath);
+
     /// <summary>Score weights (COMPUTER_PLAYER_DESIGN.md §5.3). Starting guesses to tune.</summary>
     public sealed record ScoreWeights(
         double Flag = 1000,
@@ -87,7 +94,24 @@ namespace MRR.Bot
         }
 
         /// <summary>The §5.3 score of a plan for the robot that started as <paramref name="start"/>.</summary>
-        public double Score(TurnPlan plan, PlayerState start)
+        public double Score(TurnPlan plan, PlayerState start) => Score(Outcome(plan, start));
+
+        public double Score(PlanOutcome o)
+        {
+            double score = o.Flags * _weights.Flag + o.Damage * _weights.Damage;
+            if (o.Dead) return score + _weights.Died;
+            if (o.NextFlag > _snapshot.TotalFlags) return score; // every flag taken
+
+            int distance = o.EndDistance == FlagDistances.Unreachable
+                ? _snapshot.Board.BoardCols + _snapshot.Board.BoardRows // worse than anywhere reachable
+                : o.EndDistance;
+            score += distance * _weights.PerSquare;
+            if (o.FacesPath) score += _weights.FacingPath;
+            return score;
+        }
+
+        /// <summary>What a plan did to the robot that started as <paramref name="start"/>.</summary>
+        public PlanOutcome Outcome(TurnPlan plan, PlayerState start)
         {
             int me = start.ID;
             int flags = 0, damage = 0;
@@ -102,19 +126,55 @@ namespace MRR.Bot
                 if (Array.IndexOf(PositionCommands, c.CommandType) >= 0) last = c;
             }
 
-            double score = flags * _weights.Flag + damage * _weights.Damage;
-            if (dead) return score + _weights.Died;
-
             int nextFlag = start.LastFlag + flags + 1;
-            if (nextFlag > _snapshot.TotalFlags) return score; // every flag taken
-
             var end = last == null ? start.CurrentPos : last.EndPos;
-            int distance = _distances.Distance(nextFlag, end.X, end.Y);
-            if (distance == FlagDistances.Unreachable)
-                distance = _snapshot.Board.BoardCols + _snapshot.Board.BoardRows; // worse than anywhere reachable
-            score += distance * _weights.PerSquare;
-            if (_distances.FacesTowards(nextFlag, end.X, end.Y, end.Direction)) score += _weights.FacingPath;
-            return score;
+            return new PlanOutcome(
+                flags, dead, damage, nextFlag,
+                StartDistance: _distances.Distance(start.LastFlag + 1, start.CurrentPos.X, start.CurrentPos.Y),
+                EndDistance: _distances.Distance(nextFlag, end.X, end.Y),
+                FacesPath: _distances.FacesTowards(nextFlag, end.X, end.Y, end.Direction));
+        }
+
+        /// <summary>The robot's starting state in the snapshot, or null.</summary>
+        public PlayerState? Start(int robotId) => _snapshot.Players.GetPlayer(robotId);
+
+        /// <summary>
+        /// The turn if this robot shuts down: it plays no cards and fires no laser, but is still
+        /// pushed, carried by belts and shot (the planner decides who fires from the request's
+        /// players, so only this robot's status changes, on a copy of the list).
+        /// </summary>
+        public TurnPlan PlanShutDown(int robotId)
+        {
+            Interlocked.Increment(ref _plans);
+            var players = new PlayerStates();
+            foreach (var p in _snapshot.Players)
+            {
+                // The copy constructor does not copy PlayerStatus; keep everyone's.
+                var copy = new PlayerState(p) { PlayerStatus = p.PlayerStatus, PositionValid = p.PositionValid };
+                if (p.ID == robotId)
+                {
+                    copy.PlayerStatus = tPlayerStatus.ShutDown;
+                    copy.ShutDown = tShutDown.Currently;
+                }
+                players.Add(copy);
+            }
+
+            var request = new TurnRequest
+            {
+                Turn = 1,
+                PhaseCount = _snapshot.PhaseCount,
+                GameState = 6,
+                TotalFlags = _snapshot.TotalFlags,
+                FieldEnclosed = _snapshot.FieldEnclosed,
+                LaserDamage = _snapshot.LaserDamage,
+                GameType = _snapshot.GameType,
+                Board = _snapshot.Board,
+                Players = players,
+                GameCards = [],
+                OptionCards = [],
+                DrawPiles = new Dictionary<int, List<MoveCard>>(),
+            };
+            return new CreateCommands(request).CreateTurn();
         }
     }
 }

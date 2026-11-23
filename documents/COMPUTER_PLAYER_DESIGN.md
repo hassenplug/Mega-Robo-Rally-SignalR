@@ -1,7 +1,7 @@
 # Computer Player — Design
 
-**M0 closed; M1 built and played 2026-11-22; M2 (search for Levels 2–4) written 2026-11-22, unit-tested,
-not yet played — see §6.2–6.3 (written 2026-11-21; decisions recorded 2026-11-22).** Draft guidance from a read of the
+**M0 closed; M1 built and played 2026-11-22; M2 (search for Levels 2–4) written 2026-11-22; M3's
+shut-down rule (§5.6) written 2026-11-22 — unit-tested, not yet played — see §5.6, §6.2–6.3 (written 2026-11-21; decisions recorded 2026-11-22).** Draft guidance from a read of the
 code. Items marked *starting guess* are placeholders to tune, not measurements — except where §6.1 now
 gives a measured number — and §9 lists what was **not** checked. Verify against the code before
 building from it.
@@ -211,13 +211,32 @@ so a program is never applied with a facing it was not evaluated for. Use the ra
 `DirectionAdjustment` is display-only.
 
 ### 5.6 Shut-down
-Level 3+ only, rule-based and tunable: shut down when the robot's Spam count is at or above a threshold
-*and* the current program's score is below a floor. Shut-down discards the hand and every damage card
-([Cards.cs:440-478](../MRR/DataService.Cards.cs)) but the robot is still shot and pushed, so refuse it
-when the robot stands in an obvious laser line (Hard and above). Only this brain writes a computer's
-shut-down flag, so it reads the flag and calls `ToggleShutDown` only when the answer differs. If chosen,
-`ToggleShutDown` fills any empty registers itself ([Players.cs:853-854](../MRR/DataService.Players.cs)).
-The rule is re-evaluated each time the program improves, so it can be switched off again.
+
+**Built 2026-11-22** (`MRR.Bot/ShutDownAdvisor.cs`; rule and numbers agreed with the user that day,
+all starting guesses). Normal, Hard and Expert only; Beginner and Easy never shut down.
+
+What shutting down does in this code (`ApplyShutDownAtLockIn`, [Cards.cs](../MRR/DataService.Cards.cs)):
+every damage card (Spam, Haywire) in registers, hand **and discard pile** goes to the damage discard;
+programming cards go to the discard; the robot moves and fires no laser that turn but is still shot,
+pushed and carried by belts. Damage cards already shuffled into the **draw deck are not cleared** —
+not checked whether that is intended.
+
+A computer shuts down only when **all** of these hold:
+
+1. **A real clog:** ≥ 3 damage cards in hand and registers, or ≥ 4 counting the discard pile.
+2. **This turn does not matter much:** the best program found touches no flag and gets fewer than
+   2 squares closer to the next one — or it dies.
+3. **Safe to stand still:** the turn planned with this robot shut down (the real planner, no cards)
+   does not kill it and costs no more damage than shutting down clears.
+4. **Not near the end:** never when only the last flag is left and it is ≤ 3 squares away.
+5. **It scores better:** shut-down score = the stand-still plan's §5.3 score + 120 per damage card in
+   hand/registers + 60 per damage card in the discard pile; it must beat the best program's score by 50.
+
+The stand-still plan is computed once per robot per run (one planner call); the rule is re-asked each
+time the robot's applied program changes, so a later, better program can switch shut-down off again.
+Only the brain writes a computer's shut-down flag: `SetComputerShutDown` toggles between None and
+Currently through the phone's `ToggleShutDown` (which fills any empty registers), leaves a GM Sit Out
+alone, and is refused outside state 4. Tests: `MRR.Tests/BotShutDownTests.cs`.
 
 ### 5.7 Timing: never later than the humans (Expert excepted)
 

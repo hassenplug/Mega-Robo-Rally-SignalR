@@ -9,7 +9,7 @@ namespace MRR.Services
     /// Hand holds one card type per card the program may use -- the hand plus whatever is
     /// already in its registers, since SetRobotProgram returns those to the hand first.
     /// </summary>
-    public sealed record ComputerSeat(int RobotID, int Level, int PositionValid, int Facing, List<int> Hand);
+    public sealed record ComputerSeat(int RobotID, int Level, int PositionValid, int Facing, List<int> Hand, int DamageInDiscard);
 
     /// <summary>
     /// DataService — computer players (documents/COMPUTER_PLAYER_DESIGN.md §4, §5.8).
@@ -96,9 +96,28 @@ namespace MRR.Services
                     Convert.ToInt32(row["Computer"]),
                     Convert.ToInt32(row["PositionValid"]),
                     Convert.ToInt32(row["CurrentPosDir"]),
-                    hand.ToList()));
+                    hand.ToList(),
+                    // Spam/Haywire in the discard pile: shutting down clears these too.
+                    GetIntFromDB($"SELECT COUNT(*) FROM MoveCards WHERE Owner = {robotId} AND CardLocation = 3 AND CardTypeID IN (10, 11)")));
             }
             return seats;
+        }
+
+        /// <summary>
+        /// Sets a computer's "shut down this turn" choice (design §5.6) through the phone's own
+        /// ToggleShutDown, so turning it on also fills any empty registers. Only toggles between
+        /// None and Currently: a robot the GM is sitting out is left alone (returns false), as is
+        /// one already in the requested state (returns true). ToggleShutDown itself refuses
+        /// outside programming (GameState 4) and for a dead robot.
+        /// </summary>
+        public bool SetComputerShutDown(int robotId, bool on)
+        {
+            var row = GetQueryResults($"SELECT ShutDown FROM Robots WHERE RobotID = {robotId}");
+            if (row.Rows.Count == 0) return false;
+            int current = Convert.ToInt32(row.Rows[0]["ShutDown"]);
+            if (current == (int)tShutDown.SitOut) return false;
+            if ((current == (int)tShutDown.Currently) == on) return true;
+            return ToggleShutDown(robotId);
         }
 
         /// <summary>

@@ -18,10 +18,11 @@ namespace MRR.Bot
     /// starting guess to tune.
     ///
     /// Stages are beam widths, run in order (§5.2); none means Level 1's random program is final.
-    /// Expert plays as Hard until its opponent re-rank arrives (M4).
+    /// Expert plays as Hard until its opponent re-rank arrives (M4). MayShutDown: the level
+    /// considers shutting down (ShutDownAdvisor); Beginner and Easy never do.
     /// </summary>
     public sealed record BotProfile(int Level, string Name, int[] Stages, BotChoice Choice,
-                                    int ChoiceCount = 1, double ChoiceMargin = 0)
+                                    int ChoiceCount = 1, double ChoiceMargin = 0, bool MayShutDown = false)
     {
         public const int MinLevel = 1;
         public const int MaxLevel = 5;
@@ -30,9 +31,9 @@ namespace MRR.Bot
         {
             new BotProfile(1, "Beginner", [], BotChoice.Best),
             new BotProfile(2, "Easy",     [1, 3], BotChoice.RandomTopN, ChoiceCount: 5),
-            new BotProfile(3, "Normal",   [1, 3, 10, 20], BotChoice.WithinMargin, ChoiceMargin: 30),
-            new BotProfile(4, "Hard",     [1, 3, 10, 30, 60], BotChoice.Best),
-            new BotProfile(5, "Expert",   [1, 3, 10, 30, 60], BotChoice.Best),
+            new BotProfile(3, "Normal",   [1, 3, 10, 20], BotChoice.WithinMargin, ChoiceMargin: 30, MayShutDown: true),
+            new BotProfile(4, "Hard",     [1, 3, 10, 30, 60], BotChoice.Best, MayShutDown: true),
+            new BotProfile(5, "Expert",   [1, 3, 10, 30, 60], BotChoice.Best, MayShutDown: true),
         };
 
         /// <summary>The level clamped to 1-5.</summary>

@@ -90,7 +90,7 @@ namespace MRR.Controller
 
                         if (applied && BotProfile.ForLevel(seat.Level).Stages.Length > 0)
                         {
-                            toSearch.Add(new BotSeat(seat.RobotID, seat.Level, seat.Hand));
+                            toSearch.Add(new BotSeat(seat.RobotID, seat.Level, seat.Hand, seat.DamageInDiscard));
                             placeholders[seat.RobotID] = decision.CardTypes;
                         }
                     }
@@ -249,6 +249,24 @@ namespace MRR.Controller
                         catch (Exception ex)
                         {
                             Console.WriteLine($"[CPU {seat.RobotID}] applying a program failed: {ex.Message}");
+                            return false;
+                        }
+                    },
+                    onShutDown: (seat, verdict) =>
+                    {
+                        try
+                        {
+                            if (run.Cancel.IsCancellationRequested || _dataService.GameState != 4) return false;
+                            if (!_dataService.IsComputer(seat.RobotID)) return false;
+                            bool applied = _dataService.SetComputerShutDown(seat.RobotID, verdict.ShutDown);
+                            Console.WriteLine($"[CPU {seat.RobotID}] {(verdict.ShutDown ? "shutting down" : "not shutting down")}: " +
+                                $"{verdict.Reason} at {run.Clock.ElapsedMilliseconds} ms" + (applied ? "" : " REFUSED"));
+                            if (applied) UpdateGameState();
+                            return applied;
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"[CPU {seat.RobotID}] shut-down change failed: {ex.Message}");
                             return false;
                         }
                     });

@@ -8,20 +8,30 @@ namespace MRR.Bot
     /// Driven by callbacks so it needs no database and no clock: <c>shouldStop</c> is checked
     /// between planner calls, and <c>onImproved</c> receives each finished stage's choice when it
     /// differs from the program currently applied. A stage cut off part-way is discarded.
+    ///
+    /// Shut-down (§5.6): for levels that may shut down, each time the robot's program changes the
+    /// ShutDownAdvisor is asked again, and <c>onShutDown</c> is called whenever its answer differs
+    /// from the robot's current state -- so a later, better program can switch it off again.
+    /// Computers start each turn not shut down (ResetPlayers clears it).
     /// </summary>
     public static class BotScheduler
     {
         /// <param name="seats">The computers to improve. Level 1 seats (no stages) are skipped.</param>
         /// <param name="current">Each robot's applied program (the placeholder), by RobotID; updated as programs improve.</param>
         /// <param name="onImproved">Apply a better program. Return false if it was refused (e.g. the GM sat that robot out); that robot is then dropped from the run.</param>
+        /// <param name="onShutDown">Set the robot's shut-down state to the verdict's. Return false if refused. Null: never shut down.</param>
         /// <returns>True when every stage of every seat finished; false when stopped early.</returns>
         public static bool Run(BotSnapshot snapshot, IReadOnlyList<BotSeat> seats,
             IDictionary<int, IReadOnlyList<int>> current, ProgramEvaluator evaluator, Random rng,
-            Func<bool> shouldStop, Func<BotSeat, ScoredProgram, int, bool> onImproved)
+            Func<bool> shouldStop, Func<BotSeat, ScoredProgram, int, bool> onImproved,
+            Func<BotSeat, ShutDownVerdict, bool>? onShutDown = null, ShutDownRules? shutDownRules = null)
         {
             int stages = seats.Count == 0 ? 0 : seats.Max(s => s.Profile.Stages.Length);
             var dropped = new HashSet<int>();
-            var appliedScore = new Dictionary<int, double>(); // the placeholder's is unknown: anything beats it
+            var best = new Dictionary<int, ScoredProgram>();   // the applied program, once its score is known
+            var shutDown = new Dictionary<int, bool>();
+            var standStill = new Dictionary<int, PlanOutcome>();
+
             for (int stage = 0; stage < stages; stage++)
             {
                 foreach (var seat in seats)
@@ -35,25 +45,38 @@ namespace MRR.Bot
                     // Only the last stage applies the level's deliberate imperfection; earlier
                     // stages hand over their best. A wider beam is not guaranteed to beat a
                     // narrower one, so a best-choice result replaces the program only if it
-                    // scores higher.
+                    // scores higher. (The placeholder's score is unknown: anything beats it.)
                     bool noisy = stage == widths.Length - 1 && seat.Profile.Choice != BotChoice.Best;
                     var chosen = BeamSearch.Choose(ranked, noisy ? seat.Profile : seat.Profile with { Choice = BotChoice.Best }, rng);
                     if (chosen == null) continue;
-                    if (!noisy && appliedScore.TryGetValue(seat.RobotID, out var best) && chosen.Score <= best) continue;
+                    if (!noisy && best.TryGetValue(seat.RobotID, out var held) && chosen.Score <= held.Score) continue;
 
                     if (current.TryGetValue(seat.RobotID, out var applied) && applied.SequenceEqual(chosen.Program))
                     {
-                        appliedScore[seat.RobotID] = chosen.Score;
-                        continue;
+                        best[seat.RobotID] = chosen;
                     }
                     // A finished stage is applied even if a stop came in meanwhile: it is complete,
                     // and the host's apply is refused safely once the turn is locked.
-                    if (onImproved(seat, chosen, stage + 1))
+                    else if (onImproved(seat, chosen, stage + 1))
                     {
                         current[seat.RobotID] = chosen.Program;
-                        appliedScore[seat.RobotID] = chosen.Score;
+                        best[seat.RobotID] = chosen;
                     }
-                    else dropped.Add(seat.RobotID);
+                    else
+                    {
+                        dropped.Add(seat.RobotID);
+                        continue;
+                    }
+
+                    if (onShutDown == null || !seat.Profile.MayShutDown) continue;
+                    var start = evaluator.Start(seat.RobotID);
+                    if (start == null) continue;
+                    if (!standStill.TryGetValue(seat.RobotID, out var still))
+                        standStill[seat.RobotID] = still = evaluator.Outcome(evaluator.PlanShutDown(seat.RobotID), start);
+
+                    var verdict = ShutDownAdvisor.Decide(evaluator, seat, chosen, still, snapshot.TotalFlags, shutDownRules);
+                    if (verdict.ShutDown != shutDown.GetValueOrDefault(seat.RobotID) && onShutDown(seat, verdict))
+                        shutDown[seat.RobotID] = verdict.ShutDown;
                 }
             }
             return true;

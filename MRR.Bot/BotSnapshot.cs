@@ -19,9 +19,16 @@ namespace MRR.Bot
         public GameTypes GameType { get; init; }
     }
 
-    /// <summary>One computer robot to program: its level and the card types it may use.</summary>
-    public sealed record BotSeat(int RobotID, int Level, IReadOnlyList<int> Hand)
+    /// <summary>
+    /// One computer robot to program: its level, the card types it may use (hand plus
+    /// registers), and how many damage cards (Spam, Haywire) sit in its discard pile -- which
+    /// shutting down would also clear.
+    /// </summary>
+    public sealed record BotSeat(int RobotID, int Level, IReadOnlyList<int> Hand, int DamageInDiscard = 0)
     {
         public BotProfile Profile => BotProfile.ForLevel(Level);
+
+        /// <summary>Damage cards (Spam, Haywire) in the hand and registers.</summary>
+        public int DamageInHand => Hand.Count(t => t == (int)MoveCard.tCardType.Spam || t == (int)MoveCard.tCardType.Haywire);
     }
 }
