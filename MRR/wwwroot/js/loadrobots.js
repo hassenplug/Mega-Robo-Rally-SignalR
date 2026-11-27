@@ -897,6 +897,107 @@ function hideSetupScreen() {
     setupSelectedBody = null; // reset for next time GameState==1 comes around (a new game)
 }
 
+// ── Game results (after End Game) ───────────────────────────────────────────
+// Shared by gmindex.html (full Results view) and index.html (ranking below).
+// documents/GAME_RESULTS_DESIGN.md.
+
+// callback(data, null) on success, callback(null, message) on failure.
+function fetchGameResults(callback) {
+    fetch('/api/results')
+        .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(function (data) { callback(data, null); })
+        .catch(function (err) { callback(null, err.message); });
+}
+
+function resultsEscape(text) {
+    return String(text).replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+}
+
+// 75.4 -> "1:15"
+function formatSeconds(seconds) {
+    var s = Math.round(seconds);
+    var m = Math.floor(s / 60);
+    s = s % 60;
+    return m + ':' + (s < 10 ? '0' : '') + s;
+}
+
+// Phones (index.html only -- it has #resultsScreen). Fetched once each time the game stops;
+// null while a game runs.
+var phoneResults = null;
+
+// True when the ranking is showing (it replaces the player table, like the setup screen).
+function showPhoneResults() {
+    var screen = document.getElementById('resultsScreen');
+    if (!screen) return false;
+    if (phoneResults === null) {
+        phoneResults = { loading: true };
+        fetchGameResults(function (data) {
+            phoneResults = data || { played: false };
+            // Still stopped and not the GM: show it now rather than at the next broadcast.
+            if (phoneResults.played && datapacket && datapacket.gamestate === 25 && !isGmCookie()) showPhoneResults();
+        });
+    }
+    if (!phoneResults.played) return false;
+
+    screen.style.display = '';
+    document.getElementById('mainTable').style.display = 'none';
+
+    var seatCookie = getCookie(LOGIN_COOKIE);
+    var mySeat = seatCookie !== null ? parseInt(seatCookie, 10) : null;
+    var me = phoneResults.robots.find(function (r) { return r.seat === mySeat; });
+
+    // Stat columns, dropped from the right (fitPhoneResults) if the table would be wider than the
+    // screen; the cells never wrap.
+    var cols = [
+        { head: 'Flags',  value: function (r) { return '<b>' + r.flags + '</b>'; } },
+        { head: 'Deaths', value: function (r) { return r.deaths; } },
+        { head: 'Spam',   value: function (r) { return r.spam; } },
+        { head: 'Hits',   value: function (r) { return r.damageDealt; } },
+        { head: 'Push',   value: function (r) { return r.pushesGiven + '/' + r.pushedBy; } },
+    ];
+    var cell = 'padding:6px 3px; white-space:nowrap; text-align:center;';
+
+    var html = '<h3 style="margin-top:0;">Game over</h3>' +
+        '<table id="phoneResultsTable" style="border-collapse:collapse; font-size:18px; background-color:#ffffff;">' +
+        '<tr style="color:#606060; font-size:14px;"><td style="' + cell + '">#</td><td style="padding:6px 4px;">Robot</td>' +
+        cols.map(function (c, i) { return '<td class="rCol' + i + '" style="' + cell + '">' + c.head + '</td>'; }).join('') + '</tr>';
+    phoneResults.robots.forEach(function (r) {
+        var mine = me && r.robotID === me.robotID;
+        html += '<tr style="border-bottom:1px solid #e0e0e0;' + (mine ? ' outline:3px solid #000000;' : '') + '">' +
+            '<td style="' + cell + '"><b>' + r.place + '</b></td>' +
+            '<td style="padding:6px 3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:9em;' +
+            ' background-color:#' + r.color + '; color:#' + r.colorFG + '; font-weight:bold;">' +
+            resultsEscape(r.name) + (mine ? ' (you)' : '') + '</td>' +
+            cols.map(function (c, i) { return '<td class="rCol' + i + '" style="' + cell + '">' + c.value(r) + '</td>'; }).join('') +
+            '</tr>';
+    });
+    html += '</table>';
+    if (me && me.computer === 0 && me.avgSecondsBehindFirst !== null) {
+        html += '<p style="color:#404040;">You programmed on average ' + formatSeconds(me.avgSecondsBehindFirst) +
+            ' after the first player.</p>';
+    }
+    html += '<p style="color:#606060; font-size:14px;">' + phoneResults.turnsPlayed + ' turns played.</p>';
+    document.getElementById('resultsContent').innerHTML = html;
+    fitPhoneResults(cols.length);
+    return true;
+}
+
+// Hides stat columns from the right until the ranking fits the screen without scrolling.
+function fitPhoneResults(columnCount) {
+    var table = document.getElementById('phoneResultsTable');
+    var box = document.getElementById('resultsContent');
+    for (var i = columnCount - 1; i >= 0 && table.offsetWidth > box.clientWidth; i--) {
+        table.querySelectorAll('.rCol' + i).forEach(function (td) { td.style.display = 'none'; });
+    }
+}
+
+function hidePhoneResults() {
+    var screen = document.getElementById('resultsScreen');
+    if (screen) screen.style.display = 'none';
+}
+
 // connection/reconnect handling lives in js/datahub-connection.js; this listens for
 // the payload it dispatches.
 document.addEventListener('datapacket', function (ev) {
@@ -910,6 +1011,12 @@ document.addEventListener('datapacket', function (ev) {
         return;
     }
     hideSetupScreen();
+
+    // After End Game players see the ranking; the GM keeps the normal screen (its menu starts
+    // the next game). gmindex.html has no #resultsScreen, so this is a no-op there.
+    if (datapacket.gamestate !== 25) phoneResults = null;
+    else if (!isGmCookie() && showPhoneResults()) return;
+    hidePhoneResults();
 
     applyLogin();
     showall();

@@ -1,6 +1,7 @@
 # Game Results & Player Instructions — Design
 
-**Status: plan only, not implemented (2026-11-27).**
+**Status: step 1 built 2026-11-27, not yet tried in a game** (`/api/results`, GM Results view, phone
+ranking; see §6). Instructions and the rest of the timing are not built.
 
 Two screens around a game:
 
@@ -132,15 +133,20 @@ mid-turn) are left out. Each row has `Turn`, `Phase`, `CommandSequence`, `RobotI
 | Finish order | those rows ordered by `Turn, Phase, CommandSequence` |
 | Deaths | `Dead` (20) |
 | Spam received | `DealSpamCard` (73) |
-| Laser hits | `SetPlayerStatus` (63) with `Parameter = 14` (`LaserFired`, written for the shooter in `AddDamage`) |
+| Hits on other robots | `SetPlayerStatus` (63) with `Parameter = 14` (`LaserFired`), written for the robot causing damage in `AddDamage`: lasers, ramming gear and exploding options, not only lasers |
 | Pushes received / given | `RobotPush` (21); `RobotID` is the pushed robot, `Parameter` the pusher |
 | Cards played | `Card` (42) |
 | Shut-down turns, energy, options | `SetShutDownMode` (82), `SetEnergy` (69), `Option` (17) / `DealOptionCard` (65) |
 
-Points to check while building (not yet traced end to end):
-- Every `Flag` with a value > 0 is a real touch, including King of the Hill (`TouchKotHFlag`) and
-  Last Man (`TouchLastManFlag`) boards.
-- `SetPlayerStatus 14` is only ever sent for a laser hit.
+Checked while building (2026-11-27):
+- `Flag` commands with a value > 0 come only from `AddFlag` (normal flags, King of the Hill and
+  Last Man); the resets write `Flag 0`. On King of the Hill boards the value is a running total,
+  so "laps" there means reaching `TotalFlags` points, not a lap.
+- `SetPlayerStatus 14` is sent for any damage one robot causes another (see the table).
+- **Aborted turns can over-count.** `POST /api/execution/abort` (`CommandProcess.AbandonTurn`) sets
+  `StatusID = 6` on commands that never ran. There is no button for it, and re-running the turn
+  replaces those rows, so this is rare. `ExecutedAt` (§4.2), set only when a command really runs,
+  would make it exact.
 - Cause of death (pit vs. damage) is not on the `Dead` command. Not needed for version 1.
 
 ### 4.2 Timing: the only new recording
@@ -182,15 +188,13 @@ with `StatusID = 6` (§4.1).
 |---|---|
 | Place | §5.3 |
 | Robot / player | `Robots` |
-| Laps (finishes) | executed `Flag` with `Parameter >= TotalFlags` |
-| Current flag | `Robots.CurrentFlag` |
 | Flags touched (total) | executed `Flag` with `Parameter > 0` |
 | First finish (turn / time) | first such finish row; time from `ExecutedAt` |
 | Avg / slowest programming time | `HistoryRobotTurns.SavedAt − DealtAt` |
 | Times last to lock in | per turn, the robot with the latest `SavedAt` |
 | Deaths | executed `Dead` |
 | Spam received | executed `DealSpamCard` |
-| Laser hits | executed `SetPlayerStatus 14` |
+| Hits | executed `SetPlayerStatus 14` |
 | Pushes given / received | executed `RobotPush` (`Parameter` / `RobotID`) |
 | Turns shut down | executed `SetShutDownMode` (check the value used to switch it on) |
 
@@ -202,19 +206,18 @@ highlights such as "most deaths" or "fastest programmer".
 
 ### 5.2 Player ranking (`index.html`)
 
-One short list for everyone: place, robot colour + name, laps, current flag. The player's own row
+One short list for everyone: place and robot colour + name. The player's own row
 is highlighted (from the `mrr_seat` cookie). Optionally one personal line underneath: "You:
 2 deaths, 5 Spam, avg 34 s to program."
 
 ### 5.3 Ranking rule
 
-1. Most laps (finishes).
-2. Then the highest current flag.
-3. Then whoever reached that position first: their last executed `Flag` row, ordered by `Turn,
+1. Most flags touched in all. On a normal board this is the same as laps then current flag,
+   because a finish resets the robot to flag 0 and it carries on counting.
+2. Then whoever touched their last flag first: their last executed `Flag` row, ordered by `Turn,
    Phase, CommandSequence`. This needs no timestamp.
 
-This works whether the group stops after the first finish, waits for everyone to finish, or
-stops mid-race. **Needs confirmation (§8).**
+Decided 2026-11-27. Laps and current flag are no longer shown on either screen.
 
 ### 5.4 Endpoint
 
@@ -228,9 +231,11 @@ there is nothing to show. It is a new endpoint, so no existing API contract chan
 
 ## 6. Suggested build order
 
-1. `/api/results` from `CommandList` alone: turns, laps, flags, place, deaths, Spam, hits,
-   pushes. GM `results` view and phone ranking. **No schema change.** This is the smallest
-   useful version.
+1. **Built 2026-11-27.** `/api/results` from `CommandList` alone: turns, laps, flags, place, deaths,
+   Spam, hits, pushes, plus submit timing from `HistoryRobotTurns.SavedAt` (average turn time, each
+   human's average time behind the first to submit, times last). GM `results` view and phone
+   ranking. No schema change. Code: `MRR/DataService.Results.cs`, `Program.cs` (`/api/results`),
+   `gmindex.html` (Results view), `js/loadrobots.js` + `index.html` (phone ranking).
 2. Phone instructions panel in GameState 1 (§3), independent of 1.
 3. Rest of the timing (§4.2): `CommandList.ExecutedAt`, game start/end keys, `DealtAt` in
    `HistoryRobotTurns` (submit time in `SavedAt` and the clearing are already done). Then the time columns.
@@ -253,8 +258,7 @@ starting a new game clears them.
 
 ## 8. Open questions
 
-1. **Ranking rule (§5.3).** Laps, then current flag, then who got there first: is that right? Or
-   should the first to finish always rank first, even if someone else later finishes more laps?
+1. ~~Ranking rule~~ decided 2026-11-27: total flags touched (§5.3).
 2. **ESP32 player stations:** show the ranking (it is small) or nothing?
 3. **Instructions:** are the cards in §3.2 the right list and order? Should they be shown again
    during the game (a "Rules" button)?

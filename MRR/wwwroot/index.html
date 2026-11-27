@@ -55,6 +55,12 @@ a:visited {
     <div id="setupContent"></div>
 </div>
 
+<!-- After End Game (GameState 25) when a game was played: the ranking, instead of the player
+     table. See showPhoneResults() in js/loadrobots.js; data from /api/results. -->
+<div id="resultsScreen" style="display:none; padding:10px;">
+    <div id="resultsContent"></div>
+</div>
+
 <table id="mainTable" bgcolor="ffffff" border=0 width=100%>
 <tr bgcolor="#d0d0d0">
 <td id="robotHeader" style="cursor:pointer; position:relative; font-size:24px;" onclick="handleRobotHeaderTap();">&#9776;

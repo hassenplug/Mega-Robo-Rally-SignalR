@@ -51,7 +51,13 @@ app.Services.GetRequiredService<GameController>();
 // UseDefaultFiles must come first, or "/" is never rewritten to index.html and returns
 // 404 -- which is why phones had to be pointed at the explicit filename.
 app.UseDefaultFiles();
-app.UseStaticFiles();
+// no-cache: browsers keep their copy but check it (ETag) on every load. Without it, a phone's
+// normal reload re-checks only the page and can keep running an old js/loadrobots.js after a
+// deploy -- the reason logout.html has a Hard Reload button.
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = ctx => ctx.Context.Response.Headers.CacheControl = "no-cache"
+});
 
 app.MapHub<DataHub>("/datahub");
 
@@ -152,6 +158,11 @@ app.MapPost("/api/timing/reset", () =>
 // (turnhistory.html). No turn = the previous one.
 app.MapGet("/api/history/turn/{turn:int?}", (int? turn, DataService dataService) =>
     Results.Ok(dataService.GetTurnHistory(turn)));
+
+// Results for the current or most recent game (gmindex.html's Results view, index.html's
+// ranking after End Game). documents/GAME_RESULTS_DESIGN.md.
+app.MapGet("/api/results", (DataService dataService) =>
+    Results.Ok(dataService.GetGameResults()));
 
 // Every card one robot owns, by location (index.html's "Spam Cards" view).
 app.MapGet("/api/cards/{robotId:int}", (int robotId, DataService dataService) =>

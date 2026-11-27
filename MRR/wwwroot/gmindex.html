@@ -75,6 +75,16 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
 #flagPanel th { font-weight:normal; color:#606060; }
 #flagPanel .fOld { color:#808080; font-weight:normal; }
 #flagPanel .fError { color:#cc0000; margin-top:4px; }
+/* Results panel (Display > Results): full width, the robot list is hidden. */
+#resultsPanel .rHead { display:flex; align-items:center; gap:8px; margin-bottom:4px; }
+#resultsPanel .rTitle { flex:1; min-width:0; font-size:15px; color:#404040; }
+#resultsPanel .rHead .button { width:auto; padding:4px 14px; background-color:#0050a0; color:#ffffff; }
+#resultsPanel table { width:100%; border-collapse:collapse; background:#ffffff; font-size:16px; }
+#resultsPanel th, #resultsPanel td { padding:3px 4px; text-align:center; white-space:nowrap; border-bottom:1px solid #e0e0e0; }
+#resultsPanel th { font-weight:normal; font-size:13px; color:#606060; }
+#resultsPanel td.rName { text-align:left; font-weight:bold; overflow:hidden; text-overflow:ellipsis; max-width:150px; }
+#resultsPanel .rCpu { font-weight:normal; font-size:12px; opacity:0.8; }
+#resultsPanel .rNote { font-size:13px; color:#606060; margin-top:4px; }
 </style>
 
 </head>
@@ -161,6 +171,7 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
             <button class="button" id="viewMenu-robots" onclick="gmSetRightPanel('robots');">Robots</button>
             <button class="button" id="viewMenu-gamecontrol" onclick="gmSetRightPanel('gamecontrol');">Game Control</button>
             <button class="button" id="viewMenu-flags" onclick="gmSetRightPanel('flags');">Flag Positions</button>
+            <button class="button" id="viewMenu-results" style="display:none;" onclick="gmSetRightPanel('results');">Results</button>
             <button class="button" id="viewMenu-robotselect" style="display:none;" onclick="gmSetRightPanel('robotselect');">Robot Selection</button>
         </div>
     </div>
@@ -237,6 +248,12 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
              (Config host, randomizeFlags below). -->
         <div id="flagPanel" style="display:none;">
             <div id="flagBoard" style="color:#606060;">Loading board...</div>
+        </div>
+        <!-- Display > Results (no game running only): stats for the game just ended, from
+             /api/results. Opens by itself when the game stops and uses the full width (the robot
+             list is hidden); falls back to Game Control when no game has been played. -->
+        <div id="resultsPanel" style="display:none;">
+            <div id="resultsBody" style="color:#606060;">Loading results...</div>
         </div>
         <!-- Player message and direction buttons: shown in both views, above the program panel. -->
         <div id="batteryButtons">
@@ -470,6 +487,7 @@ document.addEventListener('click', function (ev) {
 
 function gmSetRightPanel(view) {
     closeTopMenus();
+    resultsOpenedAutomatically = false;
     setRightPanelView(view);
     if (datapacket) showall(); // show/hide the Game Control panel now
 }
@@ -489,15 +507,20 @@ function followGameRunning(gamestate) {
     var selecting = gamestate === 1;
     if (!selecting && rightPanelView === 'robotselect') setRightPanelView(viewBeforeGameControl);
     if (!stopped && rightPanelView === 'flags') setRightPanelView('off');
+    if (!stopped) gameResults = null; // fetch afresh next time the game stops
     document.getElementById('viewMenu-robotselect').style.display = selecting ? '' : 'none';
     document.getElementById('viewMenu-flags').style.display = stopped ? '' : 'none';
+    document.getElementById('viewMenu-results').style.display = stopped ? '' : 'none';
     GAME_ONLY_VIEWS.forEach(function (view) {
         document.getElementById('viewMenu-' + view).style.display = stopped ? 'none' : '';
     });
+    // The game just stopped (End Game), or the page opened with none running: show the results.
+    // renderResults() moves on to Game Control when there are none.
     if (stopped && lastGameState !== 25) {
-        if (rightPanelView !== 'gamecontrol') viewBeforeGameControl = rightPanelView;
-        setRightPanelView('gamecontrol');
-    } else if (!stopped && lastGameState === 25 && rightPanelView === 'gamecontrol') {
+        if (rightPanelView !== 'gamecontrol' && rightPanelView !== 'results') viewBeforeGameControl = rightPanelView;
+        resultsOpenedAutomatically = true;
+        setRightPanelView('results');
+    } else if (!stopped && lastGameState === 25 && (rightPanelView === 'gamecontrol' || rightPanelView === 'results')) {
         setRightPanelView(viewBeforeGameControl);
     }
     // Never leave a robot view showing with no game running, however it was picked.
@@ -572,6 +595,74 @@ function escapeHtml(text) {
     return String(text).replace(/[&<>"']/g, function (c) {
         return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
+}
+
+// ── Results ──────────────────────────────────────────────────────────────────
+// /api/results, fetched once each time the game stops (gameResults is reset while one runs).
+var gameResults = null;   // {loading} | {error} | the /api/results payload
+var resultsOpenedAutomatically = false; // true when followGameRunning opened it, false from the menu
+
+function loadResults() {
+    gameResults = { loading: true };
+    fetchGameResults(function (data, error) {
+        gameResults = error ? { error: error } : data;
+        renderResults();
+    });
+    renderResults();
+}
+
+function renderResults() {
+    var box = document.getElementById('resultsBody');
+    var res = gameResults;
+    if (!res || res.loading) { box.style.color = '#606060'; box.innerText = 'Loading results...'; return; }
+    if (res.error) { box.style.color = '#cc0000'; box.innerText = 'Could not load the results: ' + res.error; return; }
+    // Nothing to show (no game played since the last start): when the panel opened by itself, go
+    // straight on to Game Control; when the GM picked it from the menu, say so.
+    if (!res.played) {
+        if (rightPanelView === 'results' && resultsOpenedAutomatically) {
+            setRightPanelView('gamecontrol');
+            if (datapacket) showall();
+            return;
+        }
+        box.style.color = '#606060';
+        box.innerHTML = "<div class='rHead'><span class='rTitle'>No game has been played yet.</span>" +
+            "<button class='button' onclick='gmSetRightPanel(\"gamecontrol\");'>Game Control</button></div>";
+        return;
+    }
+    box.style.color = '';
+
+    var names = {};
+    res.robots.forEach(function (r) { names[r.robotID] = r.name; });
+    var summary = res.turnsPlayed + ' turns';
+    if (res.avgTurnSeconds !== null) summary += ' \u00b7 avg turn ' + formatSeconds(res.avgTurnSeconds);
+    if (res.firstSubmit && res.lastSubmit) summary += ' \u00b7 ' + res.firstSubmit.substr(11, 5) + '\u2013' + res.lastSubmit.substr(11, 5);
+
+    var html = "<div class='rHead'><span class='rTitle'><b>Results</b> \u00b7 " + summary + "</span>" +
+        "<button class='button' onclick='gmSetRightPanel(\"gamecontrol\");'>Game Control</button></div>";
+
+    html += "<table><tr>" +
+        "<th>#</th><th style='text-align:left;'>Robot</th><th title='Flags touched in all'>Flags</th>" +
+        "<th>Deaths</th><th title='Spam cards received'>Spam</th><th title='Times this robot damaged another (lasers, ramming, explosions)'>Hits</th>" +
+        "<th title='Pushes given / received'>Push</th><th title='Average time after the first player to submit a program'>Behind</th>" +
+        "<th title='Turns this player submitted last'>Last</th></tr>";
+    res.robots.forEach(function (r) {
+        var cpu = r.computer > 0 ? " <span class='rCpu'>CPU</span>" : "";
+        html += "<tr><td><b>" + r.place + "</b></td>" +
+            "<td class='rName' style='background-color:#" + r.color + "; color:#" + r.colorFG + ";'>" + resultsEscape(r.name) + cpu + "</td>" +
+            "<td><b>" + r.flags + "</b></td>" +
+            "<td>" + r.deaths + "</td><td>" + r.spam + "</td><td>" + r.damageDealt + "</td>" +
+            "<td>" + r.pushesGiven + "/" + r.pushedBy + "</td>" +
+            "<td>" + (r.computer > 0 || r.avgSecondsBehindFirst === null ? '\u2013' : formatSeconds(r.avgSecondsBehindFirst)) + "</td>" +
+            "<td>" + (r.computer > 0 ? '\u2013' : r.lastToSubmit) + "</td></tr>";
+    });
+    html += "</table>";
+
+    html += "<div class='rNote'>" + (res.finishes.length
+        ? 'Finished: ' + res.finishes.map(function (f) {
+              return resultsEscape(names[f.robotID] || ('Robot ' + f.robotID)) + ' (turn ' + f.turn + (f.lap > 1 ? ', lap ' + f.lap : '') + ')';
+          }).join(', ')
+        : 'Nobody reached flag ' + res.totalFlags + '.') + "</div>";
+    box.innerHTML = html;
 }
 
 function renderFlagBoard() {
@@ -802,6 +893,10 @@ function showall() {
     // Reload whenever the panel is opened: the current board changes when a game is started.
     if (!flagView) flagBoard = null;
     else if (flagBoard === null) loadFlagBoard();
+    var resultsView = rightPanelView === 'results';
+    document.getElementById('resultsPanel').style.display = resultsView ? '' : 'none';
+    document.getElementById('robotPane').style.display = resultsView ? 'none' : '';
+    if (resultsView && gameResults === null) loadResults();
     var showGmStart = datapacket.gamestate === 25;
     document.getElementById('gameControlPanel').style.display = gameControl ? '' : 'none';
     document.getElementById('gmtable').style.display = showGmStart ? '' : 'none';
@@ -818,7 +913,7 @@ function showall() {
     var batteryMode = rightPanelView === 'robots';  // location + battery columns
     followRobotInfo(batteryMode);
     var cardView = rightPanelView === 'spam' || rightPanelView === 'shutdown';
-    document.getElementById('batteryButtons').style.display = (gameControl || flagView || robotSelect) ? 'none' : '';
+    document.getElementById('batteryButtons').style.display = (gameControl || flagView || robotSelect || resultsView) ? 'none' : '';
     document.getElementById('flagsHeader').innerText = VIEW_COLUMNS[rightPanelView] || 'F/E/C';
     // Re-read SeatOrientation each time Game Control is opened while no game is running.
     if (!gameControl) seatDirections = null;
