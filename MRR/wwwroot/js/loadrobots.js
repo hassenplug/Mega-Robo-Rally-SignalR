@@ -885,7 +885,25 @@ function renderInstructionCard() {
 
 function stepInstructionCard(step) {
     instructionCard = Math.max(0, Math.min(INSTRUCTION_CARDS.length - 1, instructionCard + step));
-    showSetupScreen();
+    if (instructionsModalOpen()) document.getElementById('instructionsContent').innerHTML = renderInstructionCard();
+    else showSetupScreen();
+}
+
+// index.html's ☰ menu > How to Play: the same cards in a pop-up, any time during the game.
+function instructionsModalOpen() {
+    var modal = document.getElementById('instructionsModal');
+    return !!modal && modal.style.display === 'block';
+}
+
+function openInstructions() {
+    var menu = document.getElementById('viewMenu');
+    if (menu) menu.style.display = 'none';
+    document.getElementById('instructionsContent').innerHTML = renderInstructionCard();
+    document.getElementById('instructionsModal').style.display = 'block';
+}
+
+function closeInstructions() {
+    document.getElementById('instructionsModal').style.display = 'none';
 }
 
 function toggleInstructionsOnTurn() {
