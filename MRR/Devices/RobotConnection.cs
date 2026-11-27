@@ -537,7 +537,7 @@ namespace MRR.Devices
         // distance is in squares, angle is direction
         public async Task MoveAndWaitAsync(int distance, int angle)
         {
-            const int mmPerSquare = 77;
+            const int mmPerSquare = 76;
             const int mmShortMove = mmPerSquare - 1;
 
             // set this to the target pose (not 0, 0)
