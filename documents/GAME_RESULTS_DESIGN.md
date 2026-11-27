@@ -1,7 +1,7 @@
 # Game Results & Player Instructions — Design
 
 **Status: step 1 built 2026-11-27, not yet tried in a game** (`/api/results`, GM Results view, phone
-ranking; see §6). Instructions and the rest of the timing are not built.
+ranking; see §6). Phone instruction cards built too (§3); the GM briefing and the rest of the timing are not.
 
 Two screens around a game:
 
@@ -60,6 +60,10 @@ touch `Robots`, so the final positions and flags are still there to read.
 ---
 
 ## 3. Start-of-game instructions
+
+**Phone cards built 2026-11-27** (`INSTRUCTION_CARDS` in `js/loadrobots.js`; 7 cards, wording below
+adjusted to the rules as implemented: reboot gives 2 Spam, shut down discards all Spam). Text only, no
+pictures yet. The GM briefing (§3.3) is not built.
 
 ### 3.1 Where they go
 

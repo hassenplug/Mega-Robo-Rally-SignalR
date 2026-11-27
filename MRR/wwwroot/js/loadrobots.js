@@ -831,10 +831,73 @@ function selectSetupPosition(startPosition) {
         .catch(function (err) { console.error(err.toString()); });
 }
 
+// ── How-to-play cards (GameState==1) ─────────────────────────────────────────
+// Shown while players pick robots: open below "Waiting for Seat N", folded behind a "How to
+// play" button on the player's own turn so the pick buttons stay in view.
+// documents/GAME_RESULTS_DESIGN.md §3. Wording follows the rules as implemented (Spam on reboot:
+// CreateCommands.KillRobot; shut down: documents/Archive/SHUTDOWN_DESIGN.md).
+var INSTRUCTION_CARDS = [
+    { title: 'The goal', text: function (flags) {
+        return 'Program your robot to touch the flags in order: ' +
+            (flags > 0 ? '1, 2, 3 ... up to ' + flags : '1, 2, 3 and so on') +
+            '. After the last flag, start again at flag 1 and keep going. ' +
+            'The game ends when the Game Master calls it. Most flags touched wins.'; } },
+    { title: 'Each turn', text: function () {
+        return 'You get a hand of cards. Tap 5 of them in the order you want them to run. ' +
+            'When every robot is programmed, the robots move one card at a time, in the order shown on the screen. ' +
+            'The order rotates, so everyone gets to go first.'; } },
+    { title: 'Your phone', text: function () {
+        return 'Hold your phone lined up with the board. Arrows are from your robot\'s point of view. ' +
+            'If the screen goes to sleep, pull down to refresh.'; } },
+    { title: 'The board', text: function () {
+        return 'Conveyor belts carry robots along: single belts 1 square, double belts 2. ' +
+            'Gears turn robots. Pits, and driving off the edge of the board, take your robot out.'; } },
+    { title: 'Lasers & Spam', text: function () {
+        return 'Robots fire their lasers forward after each card. Every hit gives you a Spam card. ' +
+            'When a Spam card comes up in your program, a random card from your deck runs instead.'; } },
+    { title: 'Reboot', text: function () {
+        return 'If your robot falls in a pit or off the board, it comes back on the reboot square ' +
+            'and you get 2 Spam cards.'; } },
+    { title: 'Shut down', text: function () {
+        return 'Too much Spam? Tap Shut Down while programming. Your robot sits out that turn and all its ' +
+            'Spam is thrown away. It can still be shot and pushed, but it does not fire.'; } },
+];
+var instructionCard = 0;          // card showing; kept across re-renders
+var instructionsOpenOnTurn = false; // "How to play" opened during the player's own pick
+
+function renderInstructionCard() {
+    var card = INSTRUCTION_CARDS[instructionCard];
+    var flags = datapacket && datapacket.totalflags ? datapacket.totalflags : 0;
+    var last = INSTRUCTION_CARDS.length - 1;
+    var nav = 'width:auto; min-width:80px; display:inline-block; margin:0;';
+    return '<div style="background-color:#ffffff; border:1px solid #a0a0a0; border-radius:6px; padding:10px; margin-top:10px; max-width:420px;">' +
+        '<div style="display:flex; justify-content:space-between; color:#606060; font-size:14px;">' +
+        '<span>How to play</span><span>' + (instructionCard + 1) + ' / ' + INSTRUCTION_CARDS.length + '</span></div>' +
+        '<h3 style="margin:6px 0;">' + card.title + '</h3>' +
+        '<p style="font-size:18px; line-height:1.35; margin:0 0 10px 0;">' + card.text(flags) + '</p>' +
+        '<div style="display:flex; justify-content:space-between;">' +
+        '<button class="button" style="' + nav + (instructionCard === 0 ? ' visibility:hidden;' : '') +
+            '" onclick="stepInstructionCard(-1);">Back</button>' +
+        '<button class="button" style="' + nav + (instructionCard === last ? ' visibility:hidden;' : '') +
+            '" onclick="stepInstructionCard(1);">Next</button>' +
+        '</div></div>';
+}
+
+function stepInstructionCard(step) {
+    instructionCard = Math.max(0, Math.min(INSTRUCTION_CARDS.length - 1, instructionCard + step));
+    showSetupScreen();
+}
+
+function toggleInstructionsOnTurn() {
+    instructionsOpenOnTurn = !instructionsOpenOnTurn;
+    showSetupScreen();
+}
+
 function renderSetupStatus(seat, config) {
     var htmlseat = '<p>You are Seat ' + seat + '.</p>';
     if (config.PlayerToSelect !== seat) {
-        html = htmlseat + '<p>Waiting for Seat ' + config.PlayerToSelect + ' to finish choosing...</p>';
+        html = htmlseat + '<p>Waiting for Seat ' + config.PlayerToSelect + ' to finish choosing...</p>' +
+            renderInstructionCard();
         document.getElementById('setupContent').innerHTML = html;
         return;
     }
@@ -861,6 +924,9 @@ function renderSetupStatus(seat, config) {
     html += '</td></tr>';
 
     html += '</table>';
+    html += '<button class="button" style="width:auto; margin-top:10px; padding:4px 14px;" onclick="toggleInstructionsOnTurn();">' +
+        (instructionsOpenOnTurn ? 'Hide how to play' : 'How to play') + '</button>';
+    if (instructionsOpenOnTurn) html += renderInstructionCard();
     document.getElementById('setupContent').innerHTML = html;
 }
 
