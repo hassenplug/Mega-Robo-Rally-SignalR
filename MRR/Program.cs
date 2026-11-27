@@ -168,7 +168,7 @@ app.MapGet("/api/results", (DataService dataService) =>
 app.MapGet("/api/cards/{robotId:int}", (int robotId, DataService dataService) =>
     Results.Ok(dataService.GetRobotCards(robotId)));
 
-app.MapGet("/api/state/{newstate?}/{parameter1?}", async (string? newstate, string? parameter1, DataService dataService, IHubContext<DataHub> hubContext, GameController gameController,
+app.MapGet("/api/state/{newstate?}/{parameter1?}", async (string? newstate, string? parameter1, int? count, DataService dataService, IHubContext<DataHub> hubContext, GameController gameController,
            MRR.Devices.RobotConnections robotConnections) =>
 {
 
@@ -212,22 +212,29 @@ app.MapGet("/api/state/{newstate?}/{parameter1?}", async (string? newstate, stri
             }
             break;
         case "fillcomputers":
-            // GM "Fill with Computers" (gmindex.html, GameState==1 only): every robot no player
-            // has picked becomes a computer player at level parameter1 (1-5, clamped), then
-            // NextState() sees every seat claimed and moves on to GameState 2.
+            // GM "Fill with Computers" (gmindex.html, GameState==1 only): the first ?count= of the
+            // robots no player has picked (lowest RobotID first; all of them if count is left out)
+            // become computer players at level parameter1 (1-5, clamped), the rest of the unpicked
+            // robots are removed as End Selection does, and NextState() moves on to GameState 2.
             // documents/COMPUTER_PLAYER_DESIGN.md §4.
             if (gameController.GameState == 1)
             {
-                var openIds = dataService.GetIntList("SELECT RobotID FROM Robots WHERE Status <> 1");
-                int claimed = dataService.ClaimUnselectedAsComputers(MRR.Bot.BotProfile.ClampLevel(paramInt));
-                Console.WriteLine($"Fill with Computers: {claimed} seat(s) claimed at level {MRR.Bot.BotProfile.ClampLevel(paramInt)}.");
-                if (claimed > 0)
+                int level = MRR.Bot.BotProfile.ClampLevel(paramInt);
+                var openIds = dataService.GetIntList("SELECT RobotID FROM Robots WHERE Status <> 1 ORDER BY RobotID");
+                int wanted = Math.Clamp(count ?? openIds.Length, 0, openIds.Length);
+                int claimed = wanted > 0 ? dataService.ClaimUnselectedAsComputers(level, wanted) : 0;
+                // Remove the robots left unpicked. -1: nobody is in the game at all, so nothing is removed.
+                int deleted = claimed < openIds.Length ? dataService.DeleteUnclaimedRobots() : 0;
+                Console.WriteLine($"Fill with Computers: {claimed} of {wanted} computer(s) at level {level}; " +
+                    (deleted < 0 ? "no robot picked, nothing removed." : $"{deleted} unpicked robot(s) removed."));
+
+                if (claimed > 0 || deleted > 0)
                 {
-                    dataService.GetAllPlayers(true); // pick up Computer on each Player
+                    dataService.GetAllPlayers(true); // pick up Computer on each Player; drops removed robots' connections
                     gameController.NextState();
 
-                    // Push each new robot's name/colour to its screen and LEDs, as /api/setup/select does.
-                    foreach (int robotId in openIds)
+                    // Push each new computer's name/colour to its screen and LEDs, as /api/setup/select does.
+                    foreach (int robotId in openIds.Take(claimed))
                     {
                         var connection = robotConnections.Get(robotId);
                         if (connection != null) _ = Task.Run(() => connection.RefreshIdentityDisplayAsync());

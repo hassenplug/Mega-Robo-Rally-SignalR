@@ -499,6 +499,13 @@ finding below.
 - **The decision's hand is hand + registers** (`CardLocation IN (1, 2)`), since `SetRobotProgram`
   returns register cards to the hand first.
 
+**Changed 2026-11-27 — choose how many computers.** The GM panel has a *Computers* drop-down
+(0 to the number of unpicked robots, default all) beside the level, and the button (*Start*) makes that many of the unpicked robots computers — lowest RobotID first — **removes the
+rest of the unpicked robots** as *End Selection* does, and starts the game. The count travels as
+`/api/state/fillcomputers/{level}?count=N`; without `count` every open seat is filled, as before.
+Choosing 0 is the same as *End Selection*, whose GM button was then removed (2026-11-27); its
+`endselection` server action is still there. Not yet tried on the Pi.
+
 **Known limits:** a robot-screen UI created for a seat *before* it became a computer keeps its polling
 task running (a pre-existing behaviour of `GetAllPlayers(true)`, which drops `Player.ScreenUI`
 without cancelling the task); only matters with *Use Robot Screen* on.

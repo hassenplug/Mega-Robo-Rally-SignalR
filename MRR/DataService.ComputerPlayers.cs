@@ -29,13 +29,15 @@ namespace MRR.Services
         /// Like End Selection, press it after the last human has picked: a human claiming at the
         /// same instant could collide, because SelectSeat's own uniqueness checks are disabled.
         /// </summary>
-        public int ClaimUnselectedAsComputers(int level)
+        public int ClaimUnselectedAsComputers(int level, int? maxCount = null)
         {
             var profile = BotProfile.ForLevel(level);
             var open = GetIntList("SELECT RobotID FROM Robots WHERE Status <> 1 ORDER BY RobotID");
             int claimed = 0;
 
-            foreach (int robotId in open)
+            // maxCount: claim only the first that many open seats (lowest RobotID first); the
+            // caller removes the rest (GM "Fill with Computers" with a count).
+            foreach (int robotId in open.Take(Math.Max(0, maxCount ?? open.Length)))
             {
                 var usedSeats = GetIntList("SELECT PlayerSeat FROM Robots WHERE Status = 1").ToHashSet();
                 int seat = 1;
