@@ -389,6 +389,7 @@ CREATE TABLE `Robots` (
   `StatusToShow` varchar(20) DEFAULT NULL,
   `PlayerMsg` varchar(50) DEFAULT NULL,
   `Hostname` varchar(25) DEFAULT NULL,
+  `SubmittedAt` datetime(3) DEFAULT NULL,  -- when the program was last completed (Status 4); existing DB: install/add_submitted_at.sql
 
   PRIMARY KEY (`RobotID`),
   KEY `fk_Players_RobotBases_idx` (`RobotBaseID`),
@@ -533,9 +534,8 @@ CREATE TABLE `HistoryRobotOptions` (
 -- GameController.CreateTurn() right after BuildTurnRequest() and before the planner
 -- simulates the turn and moves anyone, so CurrentPosRow/Col/Dir at that instant are each
 -- robot's starting position for the turn. Unlike its sibling History* tables above, this one
--- has no GameID column: SaveToHistory's INSERT doesn't supply one, so rows from different
--- games sharing the same (RobotID, Turn) aren't distinguished. Add GameID to both if that
--- turns out to matter.
+-- has no GameID column: GameController.StartGame() clears it instead, so it only ever holds
+-- the current (or most recent) game.
 DROP TABLE IF EXISTS `HistoryRobotTurns`;
 CREATE TABLE `HistoryRobotTurns` (
   `Turn` int(11) NOT NULL DEFAULT 0,
@@ -547,7 +547,7 @@ CREATE TABLE `HistoryRobotTurns` (
   `MoveCards` varchar(30) DEFAULT NULL,
   `ExecutedCards` varchar(30) DEFAULT NULL,     -- MoveCards with each Spam register replaced by the card that ran instead (NULL on older rows)
   `FlagEnergyCards` varchar(20) DEFAULT NULL,  -- Robots.FlagEnergyCards (flag/energy/cards) at the start of the turn
-  `SavedAt` datetime DEFAULT NULL,              -- when SaveToHistory wrote the row (server local time)
+  `SavedAt` datetime DEFAULT NULL,              -- when the player submitted this turn's program (Robots.SubmittedAt, server local time); NULL if they never submitted (e.g. shut down). Before 2026-11-27: when SaveToHistory wrote the row
   PRIMARY KEY (`RobotID`,`Turn`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 

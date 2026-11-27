@@ -174,8 +174,10 @@ Not being worked on now (user 2026-10-08).
 - [ ] **Game Report** — a new web page, opened from the GM page (`gmindex.html` ☰ menu, next to
   Turn History). Shows:
   - Start time, end time (= now), and average move time, all from `HistoryRobotTurns.SavedAt`
-    (start = the first turn's SavedAt; average = mean gap between consecutive turns' SavedAt).
-    SavedAt only exists from 2026-10-21 on, so older turns have no times.
+    (start = the first turn's earliest SavedAt; average = mean gap between consecutive turns' latest
+    SavedAt). Since 2026-11-27 SavedAt is each player's submit time (NULL if they never submitted),
+    not the time the row was written; it only exists from 2026-10-21 on, so older turns have no times.
+    See also documents/GAME_RESULTS_DESIGN.md, which covers this report.
   - One row per robot, sorted by most flags touched, then shortest Manhattan distance
     (|row − flag row| + |col − flag col|) from the robot's current square to its next flag.
   - Per-robot stats include Spam cards received = max(MoveCards.CardID) − 20 for that robot

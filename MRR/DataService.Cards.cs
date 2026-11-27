@@ -63,7 +63,15 @@ namespace MRR.Services
                 $"  {playedFilter} " +
                 "  GROUP BY r2.RobotID" +
                 ") played ON rb.RobotID = played.Owner " +
-                "SET rb.CardsDealt   = dealt.gctl, " +
+                // SubmittedAt: when the program was last completed (Ready, 4) -- every status
+                // write for a robot comes through here (phone, robot screen, computer player).
+                // Cleared when the robot goes back to programming; left alone otherwise (lock-in
+                // 13, shut down 9). Refers only to itself, not rb.Status, because a multi-table
+                // UPDATE does not guarantee the order of the SET assignments.
+                "SET rb.SubmittedAt  = CASE WHEN @newStatus = 4 THEN NOW(3) " +
+                "                           WHEN @newStatus IN (2, 3) THEN NULL " +
+                "                           ELSE rb.SubmittedAt END, " +
+                "    rb.CardsDealt   = dealt.gctl, " +
                 "    rb.CardsPlayed  = played.gctp, " +
                 "    rb.StatusToShow = IF(played.ShowCardsPlayed IS NULL, rs.ShortDescription, played.ShowCardsPlayed), " +
                 "    rb.Status       = @newStatus, " +

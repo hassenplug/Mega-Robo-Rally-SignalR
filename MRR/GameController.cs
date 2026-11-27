@@ -275,6 +275,9 @@ namespace MRR.Controller
             _dataService.ExecuteSQL("Delete from RobotOptions;");
             _dataService.ExecuteSQL("Delete from StatusLEDs;");
             _dataService.ExecuteSQL("Delete from Robots;");
+            // No GameID column, and SaveToHistory only replaces one turn at a time, so without
+            // this a longer earlier game's later turns would survive into this one.
+            _dataService.ExecuteSQL("Delete from HistoryRobotTurns;");
 
             // Bypasses OperatorData entirely (install/todo.md "Operator Data Setup", decided
             // 2026-09-17): one placeholder row per physical robot base, RobotID==RobotBaseID --

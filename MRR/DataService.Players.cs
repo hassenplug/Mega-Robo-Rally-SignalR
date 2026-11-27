@@ -1172,8 +1172,10 @@ namespace MRR.Services
             // this is already the value this turn executes with.
             // ExecutedCards starts as the programmed cards; SaveSpamReplacementsToHistory fixes
             // up the Spam and Again registers once the turn is planned.
+            // SavedAt: when the player submitted this turn's program (Robots.SubmittedAt, set by
+            // RebuildRobotCardsSummary); NULL for a robot that never submitted (e.g. shut down).
             ExecuteSQL($@"INSERT INTO HistoryRobotTurns (Turn, RobotID, Priority, StartRow, StartCol, StartDir, MoveCards, ExecutedCards, FlagEnergyCards, SavedAt)
-                    Select {Turn}, RobotID, Priority, CurrentPosRow, CurrentPosCol, CurrentPosDir, CardsPlayed, CardsPlayed, FlagEnergyCards, NOW() FROM Robots ");
+                    Select {Turn}, RobotID, Priority, CurrentPosRow, CurrentPosCol, CurrentPosDir, CardsPlayed, CardsPlayed, FlagEnergyCards, SubmittedAt FROM Robots ");
 
         }
 
