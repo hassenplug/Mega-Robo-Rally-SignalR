@@ -79,11 +79,14 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
 #resultsPanel .rHead { display:flex; align-items:center; gap:8px; margin-bottom:4px; }
 #resultsPanel .rTitle { flex:1; min-width:0; font-size:15px; color:#404040; }
 #resultsPanel .rHead .button { width:auto; padding:4px 14px; background-color:#0050a0; color:#ffffff; }
-#resultsPanel table { width:100%; border-collapse:collapse; background:#ffffff; font-size:16px; }
-#resultsPanel th, #resultsPanel td { padding:3px 4px; text-align:center; white-space:nowrap; border-bottom:1px solid #e0e0e0; }
-#resultsPanel th { font-weight:normal; font-size:13px; color:#606060; }
-#resultsPanel td.rName { text-align:left; font-weight:bold; overflow:hidden; text-overflow:ellipsis; max-width:150px; }
-#resultsPanel .rCpu { font-weight:normal; font-size:12px; opacity:0.8; }
+/* Rows match the robot list (#mainTable): same height, fonts, place where Connect is, robot button. */
+#resultsPanel table { width:100%; border-collapse:collapse; table-layout:fixed; background:#ffffff; }
+#resultsPanel th { padding:2px 3px; font-weight:normal; font-size:15px; color:#606060; white-space:nowrap; border-bottom:1px solid #e0e0e0; }
+#resultsPanel td { height:66px; padding:2px 3px; text-align:center; font-size:22px; white-space:nowrap; overflow:hidden; border-bottom:1px solid #e0e0e0; }
+#resultsPanel .rPlace { width:52px; font-weight:bold; }
+#resultsPanel .rName { width:190px; }
+#resultsPanel td.rFlags { background:#e0e0e0; font-weight:bold; }
+#resultsPanel td .button { width:100%; height:56px; font-size:20px; padding:2px 4px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; cursor:default; }
 #resultsPanel .rNote { font-size:13px; color:#606060; margin-top:4px; }
 </style>
 
@@ -610,6 +613,34 @@ function loadResults() {
     renderResults();
 }
 
+// The game summary for the message box while the Results view is showing; null otherwise.
+function resultsSummary() {
+    var res = gameResults;
+    if (rightPanelView !== 'results' || !res || !res.played) return null;
+    var summary = res.turnsPlayed + ' turns';
+    if (res.avgTurnSeconds !== null) summary += ' \u00b7 avg turn ' + formatSeconds(res.avgTurnSeconds);
+    if (res.firstSubmit && res.lastSubmit) summary += ' \u00b7 ' + timeRange12(res.firstSubmit, res.lastSubmit);
+    return summary;
+}
+
+// "2026-11-27 19:02:10" -> {time: "7:02", ampm: "PM"}.
+function clock12(stamp) {
+    var h = parseInt(stamp.substr(11, 2), 10);
+    return { time: ((h + 11) % 12 + 1) + ':' + stamp.substr(14, 2), ampm: h < 12 ? 'AM' : 'PM' };
+}
+
+// "7:02\u20137:48 PM", or "11:50 AM\u201312:30 PM" when the two halves differ.
+function timeRange12(start, end) {
+    var a = clock12(start), b = clock12(end);
+    return a.time + (a.ampm === b.ampm ? '' : ' ' + a.ampm) + '\u2013' + b.time + ' ' + b.ampm;
+}
+
+// Message box: the results summary in the Results view, the server's titlemsg otherwise.
+function showTitle() {
+    var summary = resultsSummary();
+    document.getElementById('title').innerText = summary !== null ? summary : (datapacket ? datapacket.titlemsg : '');
+}
+
 function renderResults() {
     var box = document.getElementById('resultsBody');
     var res = gameResults;
@@ -632,23 +663,18 @@ function renderResults() {
 
     var names = {};
     res.robots.forEach(function (r) { names[r.robotID] = r.name; });
-    var summary = res.turnsPlayed + ' turns';
-    if (res.avgTurnSeconds !== null) summary += ' \u00b7 avg turn ' + formatSeconds(res.avgTurnSeconds);
-    if (res.firstSubmit && res.lastSubmit) summary += ' \u00b7 ' + res.firstSubmit.substr(11, 5) + '\u2013' + res.lastSubmit.substr(11, 5);
+    showTitle();
 
-    var html = "<div class='rHead'><span class='rTitle'><b>Results</b> \u00b7 " + summary + "</span>" +
-        "<button class='button' onclick='gmSetRightPanel(\"gamecontrol\");'>Game Control</button></div>";
-
-    html += "<table><tr>" +
-        "<th>#</th><th style='text-align:left;'>Robot</th><th title='Flags touched in all'>Flags</th>" +
+    var html = "<table><tr>" +
+        "<th class='rPlace'>#</th><th class='rName'>Robot</th><th title='Flags touched in all'>Flags</th>" +
         "<th>Deaths</th><th title='Spam cards received'>Spam</th><th title='Times this robot damaged another (lasers, ramming, explosions)'>Hits</th>" +
-        "<th title='Pushes given / received'>Push</th><th title='Average time after the first player to submit a program'>Behind</th>" +
+        "<th title='Pushes given / received'>Push/ed</th><th title='Average time after the first player to submit a program'>Behind</th>" +
         "<th title='Turns this player submitted last'>Last</th></tr>";
     res.robots.forEach(function (r) {
-        var cpu = r.computer > 0 ? " <span class='rCpu'>CPU</span>" : "";
-        html += "<tr><td><b>" + r.place + "</b></td>" +
-            "<td class='rName' style='background-color:#" + r.color + "; color:#" + r.colorFG + ";'>" + resultsEscape(r.name) + cpu + "</td>" +
-            "<td><b>" + r.flags + "</b></td>" +
+        html += "<tr><td class='rPlace'>" + r.place + "</td>" +
+            "<td><button class='button' tabindex='-1' style='background-color:#" + r.color + "; color:#" + r.colorFG + ";'>" +
+                resultsEscape(r.name) + (r.computer > 0 ? ' (CPU)' : '') + "</button></td>" +
+            "<td class='rFlags'>" + r.flags + "</td>" +
             "<td>" + r.deaths + "</td><td>" + r.spam + "</td><td>" + r.damageDealt + "</td>" +
             "<td>" + r.pushesGiven + "/" + r.pushedBy + "</td>" +
             "<td>" + (r.computer > 0 || r.avgSecondsBehindFirst === null ? '\u2013' : formatSeconds(r.avgSecondsBehindFirst)) + "</td>" +
@@ -899,8 +925,6 @@ function showall() {
     var robots = datapacket.robots;
     buildPlayerRows(robots);
 
-    document.getElementById('title').innerText = datapacket.titlemsg;
-
     followGameRunning(datapacket.gamestate);
     var gameControl = rightPanelView === 'gamecontrol';
     var flagView = rightPanelView === 'flags';
@@ -912,6 +936,7 @@ function showall() {
     document.getElementById('resultsPanel').style.display = resultsView ? '' : 'none';
     document.getElementById('robotPane').style.display = resultsView ? 'none' : '';
     if (resultsView && gameResults === null) loadResults();
+    showTitle();
     var showGmStart = datapacket.gamestate === 25;
     document.getElementById('gameControlPanel').style.display = gameControl ? '' : 'none';
     document.getElementById('gmtable').style.display = showGmStart ? '' : 'none';

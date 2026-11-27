@@ -1039,7 +1039,7 @@ function showPhoneResults() {
         { head: 'Deaths', value: function (r) { return r.deaths; } },
         { head: 'Spam',   value: function (r) { return r.spam; } },
         { head: 'Hits',   value: function (r) { return r.damageDealt; } },
-        { head: 'Push',   value: function (r) { return r.pushesGiven + '/' + r.pushedBy; } },
+        { head: 'Push/ed', value: function (r) { return r.pushesGiven + '/' + r.pushedBy; } },
     ];
     var cell = 'padding:6px 3px; white-space:nowrap; text-align:center;';
 
