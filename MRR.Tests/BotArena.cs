@@ -20,6 +20,13 @@ namespace MRR.Tests
     /// MRR_ARENA_TURNS (6). Pass/fail margin, set before running (2026-11-22): each level's total
     /// score must be at least the level below's. Score = 1000 per flag − 30 per square from the
     /// next flag at the end.
+    ///
+    /// MRR_ARENA_CAP_MS (default 0 = none) STARVES every search: each decision may think for at most
+    /// that many milliseconds on THIS machine, then keeps the last stage it finished -- what the
+    /// humans' finishing does in a real game (design §8). The Pi 4 is about 11-12x slower than the
+    /// dev machine (§6.1), so a cap of N ms here is roughly N x 11.5 ms of Pi time per computer.
+    /// A capped run only reports; it does not assert the ordering (a starved ladder may flatten,
+    /// which is information, not a failure). Wall-clock based, so capped runs are not reproducible.
     /// </summary>
     public class BotArena(ITestOutputHelper output)
     {
@@ -40,11 +47,13 @@ namespace MRR.Tests
             if (Environment.GetEnvironmentVariable("MRR_ARENA") != "1") return; // opt-in
             int games = int.TryParse(Environment.GetEnvironmentVariable("MRR_ARENA_GAMES"), out var g) ? g : 5;
             int turns = int.TryParse(Environment.GetEnvironmentVariable("MRR_ARENA_TURNS"), out var t) ? t : 6;
+            s_capMs = int.TryParse(Environment.GetEnvironmentVariable("MRR_ARENA_CAP_MS"), out var c) ? Math.Max(0, c) : 0;
 
             var board = BotFixtures.Board();
             var distances = new FlagDistances(board, BotFixtures.TotalFlags);
             var starts = BotFixtures.Players().Take(5).Select(p => (p.CurrentPos.X, p.CurrentPos.Y, p.CurrentPos.Direction)).ToArray();
             var total = new double[6];
+            var perGame = Enumerable.Range(0, 6).Select(_ => new double[games]).ToArray(); // [level][game]
             var flags = new int[6]; var deaths = new int[6]; var damage = new int[6]; var shut = new int[6];
             var clock = System.Diagnostics.Stopwatch.StartNew();
 
@@ -84,20 +93,56 @@ namespace MRR.Tests
                 {
                     int next = r.State.LastFlag + 1;
                     int d = next > BotFixtures.TotalFlags ? 0 : Math.Min(distances.Distance(next, r.State.CurrentPos.X, r.State.CurrentPos.Y), 24);
-                    total[r.Level] += r.Flags * 1000 - d * 30;
+                    double gameScore = r.Flags * 1000 - d * 30;
+                    total[r.Level] += gameScore;
+                    perGame[r.Level][game] = gameScore;
                     flags[r.Level] += r.Flags; deaths[r.Level] += r.Deaths; damage[r.Level] += r.Damage; shut[r.Level] += r.ShutDowns;
                 }
             }
 
-            var report = new StringBuilder($"Arena: {games} games x {turns} turns, {clock.Elapsed.TotalSeconds:0} s\n");
+            var report = new StringBuilder($"Arena: {games} games x {turns} turns, {clock.Elapsed.TotalSeconds:0} s" +
+                (s_capMs > 0 ? $", each decision capped at {s_capMs} ms (starved; about {s_capMs * 11.5 / 1000:0.0} s of Pi time)" : ", no cap") + "\n");
             report.AppendLine("level    score  flags  deaths  spam  shutdowns");
             for (int level = 1; level <= 5; level++)
                 report.AppendLine($"{BotProfile.ForLevel(level).Name,-8} {total[level],6:0} {flags[level],6} {deaths[level],7} {damage[level],5} {shut[level],10}");
-            output.WriteLine(report.ToString());
-            File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "bot-arena-results.txt"), report.ToString());
 
+            // Every level plays the same games (same seeds, start squares rotated), so the fair
+            // comparison is PAIRED: per game, this level minus the level below. z = mean / standard
+            // error; |z| under about 2 means the gap is within what the games' luck can produce.
+            if (games >= 3)
+            {
+                report.AppendLine();
+                report.AppendLine("per game: mean score +/- standard error, and the paired difference from the level below");
+                for (int level = 1; level <= 5; level++)
+                {
+                    var (mean, se) = MeanAndError(perGame[level]);
+                    string vs = "";
+                    if (level > 1)
+                    {
+                        var diff = perGame[level].Zip(perGame[level - 1], (a, b) => a - b).ToArray();
+                        var (dm, dse) = MeanAndError(diff);
+                        vs = $"   vs {BotProfile.ForLevel(level - 1).Name}: {dm.ToString("+0;-0")} +/- {dse:0}  (z = {(dse > 0 ? dm / dse : 0):0.0})";
+                    }
+                    report.AppendLine($"{BotProfile.ForLevel(level).Name,-8} {mean,8:0} +/- {se,5:0}{vs}");
+                }
+            }
+
+            output.WriteLine(report.ToString());
+            File.WriteAllText(Path.Combine(AppContext.BaseDirectory,
+                s_capMs > 0 ? $"bot-arena-results-cap{s_capMs}.txt" : "bot-arena-results.txt"), report.ToString());
+
+            if (s_capMs > 0) return; // starved runs report only
             for (int level = 2; level <= 5; level++)
                 Assert.True(total[level] >= total[level - 1], report.ToString());
+        }
+
+        private static int s_capMs;
+
+        private static (double Mean, double StandardError) MeanAndError(double[] values)
+        {
+            double mean = values.Average();
+            double variance = values.Length > 1 ? values.Sum(v => (v - mean) * (v - mean)) / (values.Length - 1) : 0;
+            return (mean, Math.Sqrt(variance / values.Length));
         }
 
         private static PlayerState Copy(PlayerState p) =>
@@ -126,8 +171,9 @@ namespace MRR.Tests
             var seat = new BotSeat(r.Level, r.Level, r.Hand, r.DamagePile, pool);
             IReadOnlyList<int> program = placeholder;
             bool down = false;
+            var thinking = System.Diagnostics.Stopwatch.StartNew();
             BotScheduler.Run(snapshot, [seat], new Dictionary<int, IReadOnlyList<int>> { [r.Level] = placeholder }, evaluator, new Random(rng.Next()),
-                shouldStop: () => false,
+                shouldStop: () => s_capMs > 0 && thinking.ElapsedMilliseconds >= s_capMs,
                 onImproved: (_, p, _) => { program = p.Program; return true; },
                 onShutDown: (_, v) => { down = v.ShutDown; return true; });
             return (program, down);

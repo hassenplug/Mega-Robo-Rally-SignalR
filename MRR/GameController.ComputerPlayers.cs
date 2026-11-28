@@ -135,9 +135,20 @@ namespace MRR.Controller
         {
             ComputerRun? run;
             lock (_computerRunLock) run = _computerRun;
+
+            // The gate only asks once every robot is Ready, so with a human clock the humans are
+            // done right now. Stamp it here too (BotTiming.MayLockIn does, but the check below
+            // short-circuits once the search has finished), so the log line is always accurate.
+            if (run != null && run.Timing.HumanClock) run.Timing.StampHumansDone();
+
             if (run == null || run.Finished || run.Cancel.IsCancellationRequested || run.Timing.MayLockIn())
             {
                 _dataService.TitleNote = null;
+                // Evidence for the timing checks in design §6.3 / §6.4: lock-in should follow
+                // "humans done" at once (Levels 1-4) or within the Expert grace.
+                if (run != null && !run.Cancel.IsCancellationRequested)
+                    Console.WriteLine($"Computer players: lock-in allowed at {run.Clock.ElapsedMilliseconds} ms" +
+                        (run.Timing.HumanClock ? $" (humans done at {run.Timing.HumansDoneAtMs} ms)" : " (no human clock)"));
                 return true;
             }
 

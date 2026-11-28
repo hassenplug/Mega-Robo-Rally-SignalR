@@ -616,6 +616,40 @@ Caveats: one robot per level, 30 turns in total, on one synthetic board with an 
 Expert's lead over Hard (520 points, about one flag) is within what a different seed could undo; the
 Beginner → Easy → Normal → Hard steps are clear. More games, or other boards, would firm it up.
 
+### 6.5 Review before the first M2–M4 game (2026-11-28)
+
+**Status found:** `main` builds clean and **181/181 tests pass** (dev machine). M1 has been played; M2, M3
+and M4 have not, and neither has the 2026-11-27 computer-count drop-down. Working tree was clean.
+
+**Code review of the unplayed host code** (`GameController.ComputerPlayers.cs`,
+`DataService.ComputerPlayers.cs`, the gate in `NextState()`, `BotTiming`, the `fillcomputers` endpoint and
+the GM-page changes). **No blocking problem found.** What held up on reading: the gate asks
+`MayLockIn()` only once every robot is Ready; the Expert deadline is checked against the run's own clock,
+so a dead worker cannot hold a turn; `SetRobotProgram` locks the robot row first and is refused once
+`Status = 13` (`Programming = 0`), so a late refinement is either used or dropped, never half-applied;
+`count` binds as a nullable query value, the drop-down defaults to all and keeps the GM's choice, and the
+server clamps the count, removes the rest, and does nothing when nobody would be playing. Minor notes:
+
+- `SetRobotProgram` mirrors the move into the shared in-memory `GameCards` **after** the commit. A
+  refinement landing at the exact instant of lock-in's reload could throw "collection was modified". It is
+  caught upstream, the database write stands, and that robot is just not refined further. Harmless.
+- A refinement carrying a facing can commit between the gate's direction lock and `SetGameState(5)`. It is
+  applied with its own program, so the pair stays consistent; it only resets that robot's `PositionValid`
+  from 2 to 1.
+- The timing checks (§6.3, §6.4) need "lock-in follows the last human by ≤ ~250 ms" from the log, and
+  nothing logged when the gate opened. **Added:** `MayLockIn()` now logs
+  `lock-in allowed at A ms (humans done at B ms)` (or `(no human clock)`), and stamps "humans done" itself
+  so the line is accurate even when the search finished first. A − B is the figure to read.
+
+**Resolved from §9 while reading:** the robot-screen programming path never calls `NextState()` (only the
+100 ms poll notices "humans done" for it); `CurrentPosLoad` (*Reload Position*) rebuilds `Robots`,
+`MoveCards`, `CommandList` and `RobotOptions` from history and keeps each robot's `Computer` level.
+
+**Larger arena (Release, dev machine).** *Run on 2026-11-28; the figures are added below when it
+finishes.* The arena test also gained `MRR_ARENA_CAP_MS`, which starves every decision to a fixed
+thinking time (a cap of *N* ms here is about *N* × 11.5 ms of Pi time), to answer §8's question of how much
+Hard and Expert lose when the humans finish early.
+
 ## 7. Testing
 
 **Automated (xUnit in `MRR.Tests`, no database)** — fixtures built like
@@ -650,7 +684,8 @@ clock, so results are deterministic:
 1. Setup: humans claim seats; the GM picks a level and presses *Fill with Computers*; every open seat is
    claimed as `CPU n <Level>` with a distinct body and a sensible seat number; the game moves to state
    2; the robots show their name and colour. Pressing it again does nothing. With no open seats it does
-   nothing. *End Selection* still works.
+   nothing. *(Changed 2026-11-27, §6.2: the GM picks a **count** too, the unpicked rest are removed, and
+   a count of 0 does what the removed *End Selection* button did — try 0, 1, and all.)*
 2. **Timing, Levels 1–4:** start a turn with two Hard computers and one human. The computers are Ready
    almost immediately; the human finishes; lock-in follows at once, with **no wait on a computer**.
    Repeat with the human finishing within a second or two.
@@ -715,21 +750,26 @@ clock, so results are deterministic:
 assumptions on 2026-11-22 — cardless robots, board and robot immutability, plans with several programmed
 robots, King of the Hill prefix plans — see §6.1.)
 
-- Planner **speed on the Raspberry Pi**. Measured on the development machine only (§6.1); the Pi's
-  slowdown factor decides whether the break-even points there hold.
+- *Resolved since:* planner speed on the Pi (measured 2026-11-22, §6.1: about 11–12× slower than the dev
+  machine) and the standard deck's type mix (decoded for M4, §6.4).
 - That row locking in `SetRobotProgram` serializes against the lock-in write as §5.8 assumes: I did not
   read how `SqlGateway`/`ExecuteSQL` open connections and transactions, so the real isolation behaviour
   needs a test against MariaDB.
 - Whether `BoardElement.HasWall` plus `Block`/pit squares is all the BFS needs (I read
   `CalcMoveDistance`, not the rest of the board model).
-- Whether every way a human can finish programming (phone, robot screen, GM Sit Out) reaches
-  `NextState()`. The `/api/player` endpoint does ([Program.cs:293](../MRR/Program.cs)); I did not read
-  the robot-screen path. If one does not, the gate cannot stamp "humans done" for it and the ~100 ms poll
-  covers it instead, so Levels 1–4 would stop searching up to one poll late — not a correctness problem.
-- What *Reload Position* (state 16) does to cards: positions are restored, but I did not check whether
-  registers are, so a computer's program could be stale after it.
-- The standard deck's type mix, for the Expert opponent sampler (the deck templates are seeded in
-  `MoveCardsCompleteList`; I did not decode them).
+- *Checked 2026-11-28:* whether every way a human can finish programming reaches `NextState()`. The
+  `/api/player` endpoint does ([Program.cs:293](../MRR/Program.cs)); **the robot-screen path does not** —
+  `RobotScreenUI` calls `UpdateCardPlayed` directly ([RobotScreenUI.cs:351, 372](../MRR/RobotScreenUI.cs))
+  and never `NextState()`. So for a human finishing on a robot's touchscreen the gate cannot stamp "humans
+  done", and the ~100 ms poll does instead: Levels 2–4 stop up to one poll late — not a correctness
+  problem. How the turn then advances for that path is existing behaviour I did not trace.
+- *Partly checked 2026-11-28:* what *Reload Position* (state 16) does. `CurrentPosLoad` **deletes and
+  rebuilds `Robots`, `MoveCards`, `CommandList` and `RobotOptions`** from the turn's history, so a
+  computer's `Computer` level survives (it is a history column), the deck is rebuilt, and registers are
+  restored from `HistoryMoveCards` (owner, phase, locked) — it does **not** reprogram anyone. `Robots.Status`
+  comes back as it was saved at lock-in (`CurrentPosSave` runs after `Status = 13`), which I did not trace
+  further: a computer is only re-programmed on re-entry if its restored status is a programming status
+  (`GetComputersToProgram`). Not computer-specific; look at it in play (§7 manual test 9).
 - The GM menu structure and the phone page's seat rendering (`gmindex.html` and `loadrobots.js` were read
   only around the seat-claim code); how `RobotScreenUI` behaves for a seat nobody sits at.
 - `UpdatePlayerPriority` assumes priorities `1..N`. A fill claims seats `claimed + 1…N` in order, which
@@ -737,8 +777,9 @@ robots, King of the Hill prefix plans — see §6.1.)
 - `SelectSeat`'s uniqueness checks are commented out, so the fill relies on picking free bodies and
   seats itself.
 
-**Questions** (a recommendation is given for each; none blocks M1, which can proceed on the
-recommended answers unless you say otherwise):
+**Questions** — *answered 2026-11-22: the user said to proceed on the recommendations, so M1–M4 were built
+on all five. Kept for the record; revisit only if play shows a problem.* (Question 3 was refined on
+2026-11-27: the GM now chooses how many computers, §6.2.)
 
 1. **Is it acceptable that computer seats show Ready from the start of programming** (and their
    registers can change while the humans program)? It is what makes "never later than the humans" a
