@@ -34,7 +34,7 @@ only for Expert, or when no human is programming (design §5.7).
 | **M1 — plumbing + Level 1** | **Built and played 2026-11-22** (5 computers + human, 4 turns, no errors). Still to check: 10 consecutive turns, a phone tap during programming, GM Create Program / Reload Position with computers. Design §6.2. |
 | **M2 — search, Levels 2–4** | **Written; unit-tested; never played.** Regret ladder 449 / 107 / 14 / 0. Design §6.3. |
 | **M3 — Spam sampling, reboot facing, shut-down** | **Written; unit-tested; never played.** Documented inline, design §5.4–5.6. |
-| **M4 — Expert + arena** | **Written; unit-tested; never played.** Arena passed on the Pi (design §6.4); a larger arena was run 2026-11-28 (§6.5). |
+| **M4 — Expert + arena** | **Written; unit-tested; never played.** The arena passed at 5 games on the Pi (design §6.4) but **not at 30 games (2026-11-28, §6.5): Expert is indistinguishable from Hard** (−97 ± 148 points/game), and Hard over Normal is not firmly established either. Beginner < Easy < Normal is clear. |
 | Computer-count drop-down (2026-11-27) | **Built; never tried** on the Pi. Design §6.2 ("Changed 2026-11-27"). |
 
 **Tests:** `dotnet test Mega-Robo-Rally-SignalR.sln` — **181 passing**, build clean (no compiler warnings),
@@ -89,7 +89,9 @@ failures, and commit. Then the known follow-ups (none urgent):
 - **Spam cleanup is not scored** — if computers hoard Spam, add a bonus per Spam played (design §5.4).
 - **Hard rarely reaches its widest stages on the Pi** with five computers (design §6.1). The regret test
   said Hard matched the best in every case; check in play whether width 10 is already enough.
-- **Expert's lead over Hard** — see design §6.5 for the larger arena; more boards would firm it further.
+- **Expert vs Hard is a tie in the arena** (design §6.5). Don't tune either on that arena yet. A starved
+  run (≈ 1 s of Pi time) hinted that Hard shuts down too eagerly on a thin search (14 shut-downs vs 6 for
+  Normal) — an untested hypothesis; the cheap test is in §6.5, recommendation 3.
 - **Pi 5?** If the server moves, re-run the benchmark (command in design §6.1) before tuning.
 
 ## Open questions
@@ -102,6 +104,10 @@ All five original questions were answered "proceed on the recommendations" (2026
 2. **What does *Reload Position* do to statuses?** It restores `Robots.Status` as saved at lock-in
    (13, "Program Locked"?). Not computer-specific, but it decides whether computers are re-programmed
    afterwards. Look at it in play (test 9 above).
+3. **Is Expert worth its cost?** Its opponent-sampling re-rank is the most expensive part of the feature
+   and the arena cannot tell Expert from Hard (30 games, design §6.5). Options: keep it and wait for play
+   data (*recommended — nothing here shows harm*); drop the re-rank and make Expert "Hard plus the grace
+   time"; or fund a bigger arena (~120 games, several boards) to settle it.
 
 ## Things worth knowing before you touch code
 
@@ -126,7 +132,10 @@ All five original questions were answered "proceed on the recommendations" (2026
 ## Repository state at handoff
 
 Everything through the computer-count drop-down and the GM-screen clean-ups is committed on `main`
-(last computer-player commit `83dbceb`, 2026-11-27). **Uncommitted, 2026-11-28:** this note, design
-doc edits (§6.5, §7, §9), and one log line in `GameController.ComputerPlayers.cs` — `MayLockIn()` now
-logs `lock-in allowed at A ms (humans done at B ms)` so the timing checks above can be read straight from
-the log.
+(last computer-player commit `83dbceb`, 2026-11-27). **Committed 2026-11-28 (`a5527fa`):** the
+review's code changes — one log line in `GameController.ComputerPlayers.cs` (`MayLockIn()` now logs
+`lock-in allowed at A ms (humans done at B ms)`, so the timing checks above can be read straight from the
+log) and `MRR.Tests/BotArena.cs` (paired per-game statistics and the opt-in `MRR_ARENA_CAP_MS` starvation
+cap) — plus the first version of these docs. **Uncommitted:** the 30-game arena results (design §6.4
+caveat and §6.5), open question 3 above, and the matching `CLAUDE.md` row. No code is uncommitted; the
+suite is 181 passing.

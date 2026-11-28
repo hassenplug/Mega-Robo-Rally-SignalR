@@ -602,7 +602,7 @@ ends or the hard deadline passes.
 
 **Arena** (pass/fail margin set before running: each level's total score ≥ the level below's;
 score = 1000 per flag − 30 per square from the next flag at the end; 5 games × 6 turns, start squares
-rotated), Pi 4, 872 s — **passed**:
+rotated), Pi 4, 872 s, 5 games — **passed**, but **see §6.5: at 30 games it does not** (Expert ≈ Hard):
 
 | Level | Score | Flags | Deaths | Spam taken | Shut-downs |
 |---|---|---|---|---|---|
@@ -613,8 +613,9 @@ rotated), Pi 4, 872 s — **passed**:
 | Expert | 9710 | 11 | 0 | 35 | 1 |
 
 Caveats: one robot per level, 30 turns in total, on one synthetic board with an approximate applier.
-Expert's lead over Hard (520 points, about one flag) is within what a different seed could undo; the
-Beginner → Easy → Normal → Hard steps are clear. More games, or other boards, would firm it up.
+Expert's lead over Hard (520 points, about one flag) is within what a different seed could undo — and the
+30-game rerun in §6.5 confirms it was noise (Expert −97 ± 148 per game against Hard). Beginner → Easy →
+Normal are clear steps; Hard over Normal is not firmly established.
 
 ### 6.5 Review before the first M2–M4 game (2026-11-28)
 
@@ -645,10 +646,60 @@ server clamps the count, removes the rest, and does nothing when nobody would be
 100 ms poll notices "humans done" for it); `CurrentPosLoad` (*Reload Position*) rebuilds `Robots`,
 `MoveCards`, `CommandList` and `RobotOptions` from history and keeps each robot's `Computer` level.
 
-**Larger arena (Release, dev machine).** *Run on 2026-11-28; the figures are added below when it
-finishes.* The arena test also gained `MRR_ARENA_CAP_MS`, which starves every decision to a fixed
-thinking time (a cap of *N* ms here is about *N* × 11.5 ms of Pi time), to answer §8's question of how much
-Hard and Expert lose when the humans finish early.
+**Larger arena — 30 games instead of 5 (Release, dev machine, 2026-11-28).** Same board, seeds 1000–1029
+(the first five are the §6.4 games), 6 turns, one robot per level. The arena report now also gives each
+level's mean score per game with its standard error and the **paired** difference from the level below
+(every level plays the same games, so a paired comparison is the fair one; |z| under about 2 means the gap
+is within what the games' luck can produce). The uncapped run is deterministic: two runs gave identical
+totals.
+
+| Level | Total | Flags | Deaths | Spam | Shut-downs | Per game (± SE) | vs level below, per game (z) |
+|---|---|---|---|---|---|---|---|
+| Beginner | −12,930 | 3 | 12 | 102 | 0 | −431 ± 81 | |
+| Easy | 38,510 | 44 | 4 | 183 | 0 | 1,284 ± 104 | +1,715 ± 116 (**14.8**) |
+| Normal | 50,830 | 58 | 4 | 205 | 5 | 1,694 ± 102 | +411 ± 157 (**2.6**) |
+| Hard | 57,790 | 64 | 3 | 179 | 3 | 1,926 ± 121 | +232 ± 157 (1.5) |
+| Expert | 54,880 | 61 | 0 | 195 | 6 | 1,829 ± 99 | −97 ± 148 (−0.7) |
+
+**M4's pre-set criterion (each level's total ≥ the level below's) is therefore not met: Expert's total is
+2,910 below Hard's.** The honest reading of the statistics is narrower than "Expert is worse": the gap is
+well inside the noise (z = −0.7), so **Expert and Hard cannot be told apart in this arena**, and Hard over
+Normal (z = 1.5) is not firmly established either. What *is* clear: Beginner < Easy < Normal. The 5-game
+result in §6.4 (Expert ahead by 520) was noise, as its caveat said.
+
+**Starved runs** — `MRR_ARENA_CAP_MS` limits every decision to a fixed thinking time, then keeps the last
+stage finished, which is what the humans finishing does in a real game (§8). A cap of *N* ms here is about
+*N* × 11.5 ms of Pi time. Wall-clock based, so **not reproducible**, and report-only (no assertion):
+
+| Cap (≈ Pi time) | Normal | Hard | Expert | Hard vs Normal | Expert vs Hard |
+|---|---|---|---|---|---|
+| none | 1,694 | 1,926 | 1,829 | +232 (z 1.5) | −97 (z −0.7) |
+| 350 ms (≈ 4 s) | 1,758 | 1,807 | 1,861 | +49 (z 0.3) | +54 (z 0.3) |
+| 90 ms (≈ 1 s) | 1,858 | 1,379 | 1,793 | **−479 (z −2.2)** | **+413 (z 2.2)** |
+
+- At about 4 s per computer, Normal, Hard and Expert are **indistinguishable**; the extra stages and the
+  re-rank buy nothing measurable here.
+- At about 1 s, **Hard fell below Normal** — 14 shut-downs, 6 deaths and 235 Spam taken, against 6 / 2 / 168
+  for Normal. Treat this as a warning, not a finding: it is one non-reproducible run, and 12 comparisons were
+  made across the three runs, so a single z of 2.2 is weak evidence. The shut-down count is the thing to
+  look at. *Untested hypothesis:* a thin search leaves a poor best-so-far program, which is exactly the
+  condition the shut-down rule reads as "this turn does not matter much" (§5.6), so a starved Hard shuts
+  down too eagerly. The Pi will often leave Hard this little time with several computers (§6.1).
+
+**What this suggests (recommendations, none done):**
+
+1. **Do not tune Hard or Expert on this arena yet.** Play-test first (handoff, test 2 and 4).
+2. **If Hard-versus-Expert needs settling**, it needs roughly 4× the games (about 120) to halve the standard
+   error, and more than one board; both are affordable on the dev machine (an uncapped game took 20–50 s).
+3. **Try one targeted change** and re-run the 90 ms arena: let the shut-down rule fire only after a search
+   stage of at least width 3 has finished. If Hard's shut-downs fall back to Normal's, the hypothesis holds.
+4. **Whether Expert's re-rank earns its cost** (the most expensive part of the whole feature) is an open
+   question for you — see the handoff's open questions. Nothing here says to remove it; nothing says to
+   keep paying for it, either.
+
+**Caveats:** one synthetic board, an approximate applier (§6.4), 6 turns per game, one robot per level, and
+the dev machine was busy for part of the run (the same 30 uncapped games took 589 s once and 1,605 s once;
+the scores were identical).
 
 ## 7. Testing
 
