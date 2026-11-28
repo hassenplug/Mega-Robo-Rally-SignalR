@@ -516,7 +516,10 @@ namespace MRR.Devices
             IsConnected = false;
         }
 
-        public Task MoveAsync(int distance, int angle, int final_heading = 0, int drive_speed = 200) =>
+        // drive_speed 120, not 200: at 200 robots overshoot a 75 mm drive by 1-3 mm (different per robot)
+        // with ~2 mm scatter; at 120 both robots tested matched within 0.2 mm, ~1 mm scatter, +0.15 s per
+        // square (odometry readings, AIM-04 and AIM-07, 2026-11-28; ROBOT_MOVEMENT_DESIGN.md Phase 0 #7).
+        public Task MoveAsync(int distance, int angle, int final_heading = 0, int drive_speed = 120) =>
             SendCommandAsync(new
             {
                 cmd_id = "drive_for",
@@ -613,12 +616,14 @@ namespace MRR.Devices
                 stacking_type = 0
             });
 
+        // turn_rate 180, not 200: same turn time (the speed appears capped at 180), but 90-degree turns
+        // overshot ~0.4 degrees instead of ~0.75 on both robots tested (ROBOT_MOVEMENT_DESIGN.md Phase 0 #6).
         public Task TurnAsync(int direction) =>
             SendCommandAsync(new
             {
                 cmd_id = "turn_for",
                 angle = direction * 90,
-                turn_rate = 200,
+                turn_rate = 180,
                 stacking_type = 0
             });
 

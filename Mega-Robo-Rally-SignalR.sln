@@ -27,6 +27,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MRR.Tools.RealTiles", "MRR.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MRR.Bot", "MRR.Bot\MRR.Bot.csproj", "{5D9AF392-537C-4C8B-82DC-31AEBC3CB68B}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MRR.Tools.MoveTest", "MRR.Tools.MoveTest\MRR.Tools.MoveTest.csproj", "{FCFA9FFA-AC15-4A97-97C8-A370E2A42FE7}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -181,6 +183,18 @@ Global
 		{5D9AF392-537C-4C8B-82DC-31AEBC3CB68B}.Release|x64.Build.0 = Release|Any CPU
 		{5D9AF392-537C-4C8B-82DC-31AEBC3CB68B}.Release|x86.ActiveCfg = Release|Any CPU
 		{5D9AF392-537C-4C8B-82DC-31AEBC3CB68B}.Release|x86.Build.0 = Release|Any CPU
+		{FCFA9FFA-AC15-4A97-97C8-A370E2A42FE7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FCFA9FFA-AC15-4A97-97C8-A370E2A42FE7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FCFA9FFA-AC15-4A97-97C8-A370E2A42FE7}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{FCFA9FFA-AC15-4A97-97C8-A370E2A42FE7}.Debug|x64.Build.0 = Debug|Any CPU
+		{FCFA9FFA-AC15-4A97-97C8-A370E2A42FE7}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{FCFA9FFA-AC15-4A97-97C8-A370E2A42FE7}.Debug|x86.Build.0 = Debug|Any CPU
+		{FCFA9FFA-AC15-4A97-97C8-A370E2A42FE7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FCFA9FFA-AC15-4A97-97C8-A370E2A42FE7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FCFA9FFA-AC15-4A97-97C8-A370E2A42FE7}.Release|x64.ActiveCfg = Release|Any CPU
+		{FCFA9FFA-AC15-4A97-97C8-A370E2A42FE7}.Release|x64.Build.0 = Release|Any CPU
+		{FCFA9FFA-AC15-4A97-97C8-A370E2A42FE7}.Release|x86.ActiveCfg = Release|Any CPU
+		{FCFA9FFA-AC15-4A97-97C8-A370E2A42FE7}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

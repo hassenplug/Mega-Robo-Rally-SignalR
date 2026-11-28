@@ -87,6 +87,26 @@ Stream `drive_with_vector` (`x`, `t`, `r`) at 10–20 Hz with a small controller
 7. **Does the robot stop by itself** if commands stop arriving mid-drive? Required before Phase 4.
 8. **Housekeeping:** [grid_alignment_agent.md](../tools/ai_agent/grid_alignment_agent.md) and [todo.md](../install/todo.md) say the correction loop "has never moved a robot", but the same doc records measured AIM-04 and AIM-07 correction runs from 2026-11-01. Reconcile before relying on either.
 
+## Phase 0 results
+
+Measured with `MRR.Tools.MoveTest` on the board. Logs in `~/images/movetest/` on the Pi. One robot and one run each
+so far: treat these as first readings, not error rates.
+
+| # | Date, robot | Result |
+|---|---|---|
+| 3 | 2026-11-28, AIM-07 | **`set_pose` does not take a heading.** `heading`, `rotation` and `theta` fields are all acked `complete` and silently ignored (heading stayed 0.0). A per-robot heading zero must be an offset kept by the server. |
+| 2 | 2026-11-28, AIM-07 | **`robot_x/y` are a fixed world frame**, not robot-relative: `+y` = the facing at `set_pose`, `+x` = its right. Forward 75 mm after turning 0/90/180/270 read `y +76`, `x +82`, `y −77`, `x −79`. So `MoveAndWaitAsync`'s target math is only right at heading 0 (unknown 2). Same run: odometry read 74–82 mm per 75 mm command (sideways-facing legs 79–82, forward/back legs 74–77, but #7 shows forward legs at speed 200 also reach 82, so this is probably speed-200 scatter, not a direction effect; not yet checked against tape); turns ended within ~1.5° (90→89.6, 180→181.5, 270→271.2); turns shift the robot's center up to ~5 mm in odometry; ≤1.5 mm sideways and ≤1.4° heading change per drive. After 16 commands (out-and-back pairs plus turns) the heading read −0.6° and the robot was back on its start mark by eye. Times: 0.73–0.82 s per square; 1.1 / 1.6 / 2.2 s for 90 / 180 / 270° turns, with ~300 ms ping to the robot. |
+
+| 6 | 2026-11-28, AIM-07, 5 reps (10 turns per rate) | `turn_for` ±90, overshoot past 90° by IMU heading (mean ± sd, range) and time: rate 100 → **1.6 ± 0.6°** (0.9–2.8), 1.51 s; rate 180 → **0.5 ± 0.35°** (0.0–1.0), 1.17 s; rate 200 (the game's) → **0.8 ± 0.4°** (0.2–1.2), 1.17 s. **Turns overshoot, never undershoot** (one of 30 was 0.0°), and the same in both directions, so right turns in a row add up (4 × 0.8° ≈ 3°). **The turn speed is very likely capped at 180:** 180 and 200 take the same time to within 4 ms on average (but see AIM-04 below: 200 still overshoots more than 180). Slower turns are *less* accurate. Odometry moved ≤1.3 mm per turn. A 1-rep run just before gave the same picture. These are IMU readings; whether the IMU's 90° is a true 90° is not checked. |
+| 6 | 2026-11-28, AIM-04, 5 reps | rate 100 → **0.2 ± 0.4°** (−0.4 to 0.7), 1.36 s; 180 → **0.35 ± 0.5°** (−0.5 to 0.9), 1.11 s; 200 → **0.7 ± 0.3°** (0.4 to 1.2), 1.10 s. Same both directions; odometry moved ≤0.9 mm per turn. **Across both robots:** rate 200 overshoots ~0.75° on both, with no undershoot. 180 overshoots less on both (0.5 and 0.35°) for the same time, so **the 200 is not simply ignored** (a pure cap at 180 would give the same overshoot); switching the game to 180 looks like a free improvement. Rate 100 differs by robot (AIM-07 1.6°, AIM-04 0.2°), so slow turns are not a reliable fix. |
+
+| 7 | 2026-11-28, AIM-07, 10 drives per speed | `drive_for` 75 mm, alternating forward/back, odometry distance (mean ± sd, range) and time: speed 200 (the game's) → **78.3 ± 2.1 mm** (75.5–82.1), 0.79 s; 120 → **75.5 ± 1.2** (73.5–77.2), 0.94 s; 80 → **75.2 ± 0.8** (73.8–76.4), 1.22 s. **At 200 the robot overshoots ~3 mm with the most scatter; at 120 both mostly go away for +0.15 s per square.** No forward/back difference at any speed. Sideways drift ≤1.7 mm and heading change ≤1.3° per drive at every speed, so speed doesn't affect yaw. Odometry only: if the wheels slip, real overshoot is larger than this, so confirm with tape (`odometry --speed 200` vs `--speed 120`) before changing the game. |
+| 7 | 2026-11-28, AIM-04 (battery 100%; AIM-07 was 83%), 10 drives per speed | speed 200 → **76.3 ± 1.9 mm** (73.8–79.7), 0.76 s; 120 → **75.3 ± 1.1** (74.2–76.9), 0.93 s; 80 → **75.2 ± 0.7** (73.8–76.2), 1.21 s. **At 200 the two robots differ** (overshoot 1.3 vs 3.3 mm, scatter about the same); **at 120 and 80 they match** to 0.2 mm. So a slower speed would also make robots behave alike, without per-robot distance constants. AIM-04 drifted less sideways (≤0.6 mm) than AIM-07 (≤1.7 mm); heading change ≤1.0° per drive. |
+
+**Applied 2026-11-28 (owner's decision, before a tape check):** the game's `drive_speed` is now 120 (was 200) and
+`turn_rate` 180 (was 200), in `RobotConnection.MoveAsync` and `TurnAsync`. If the tape check later shows the odometry
+misleads, revisit both.
+
 ## Decisions for the owner (defaults in bold)
 
 - **Time budget per move.** How many extra seconds per register are acceptable for correction? Default: measure in Phase 0, then decide. `CommandProcess` gives up on a command after 10 s.

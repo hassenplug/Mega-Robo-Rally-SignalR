@@ -41,7 +41,8 @@ No git? Copy just the two `documents/ROBOT_MOVEMENT_*.md` files with `scp`; the 
 
 | Phase | What | Status |
 |---|---|---|
-| 0 | **Measure.** No error data exists. Standalone experiments, then in-game per-command logging | **Next — not started** |
+| 0 | **Measure.** No error data exists. Standalone experiments, then in-game per-command logging | **In progress:** `MRR.Tools.MoveTest` built 2026-11-28, not yet run on a robot |
+| 0+ | **Applied 2026-11-28 by owner's decision, before the tape check:** game `drive_speed` 200 → 120 and `turn_rate` 200 → 180 in `RobotConnection.MoveAsync` / `TurnAsync`, from Phase 0 #6 and #7 | built, not deployed or played |
 | 1 | IMU heading hold: target heading per robot, `turn_to` fix after each turn, real `final_heading` | not started |
 | 2 | Absolute-target moves: aim at the destination square's center, not "75 mm further"; small corrective drive | not started |
 | 3 | Bounded camera alignment at the end of a move, with a sanity limit; re-zero odometry when it succeeds | not started |
@@ -97,6 +98,24 @@ controllers at once has not been tested, so don't rely on it.
 
 Put the results in a "Phase 0 results" section of the design doc.
 
+**Built 2026-11-28, never run on a robot.** `MRR.Tools.MoveTest` (in the solution, builds with 0 warnings) has one
+experiment per row below except #8 (read `/api/timing` instead) and #9 (not built, on purpose), plus `moves`
+(Phase 0 step 2) and `loop` (the 16-move loop). Checked so far: it refuses to start while anything listens on port
+5000, and it exits cleanly when the robot can't be reached. The AIM hostnames did not resolve from the Pi on
+2026-11-28 (no robot was on); use an IP if that persists.
+
+```bash
+~/.dotnet/dotnet run --project MRR.Tools.MoveTest -- --help
+~/.dotnet/dotnet run --project MRR.Tools.MoveTest -- --robot 4 status         # no movement; try first
+~/.dotnet/dotnet run --project MRR.Tools.MoveTest -- --robot 4 moves --measure
+```
+
+Logs go to `~/images/movetest/<host>-<experiment>-<time>.jsonl`, one line per command (pose before/after, ack,
+elapsed ms, typed measurements). Moves copy the game's (75 mm per square, speed 200, `final_heading` 0, turn rate
+200), except that the tool resets odometry with `set_pose 0,0` where it wants a clean displacement rather than the
+game's `set_pose(-target)`. It waits 2 s after `imu_calibrate`, which is a guess. Ctrl+C, or a robot still moving
+after 10 s, sends `drive` speed 0.
+
 | # | Question | Experiment | Record |
 |---|---|---|---|
 | 1 | Does `final_heading` hold a heading? Absolute, relative to what? | Calibrate, turn by hand ~20° off, `drive_for` 150 mm with `final_heading` = 0, then 90, then the current heading | Heading before and after each; whether 0 behaves differently |
@@ -136,4 +155,5 @@ per-robot calibration; the accuracy target.
 
 ## Not done
 
-No code, no tests, no `todo.md` entry, nothing committed or pushed, and nothing run on a robot.
+Only `MRR.Tools.MoveTest` exists (uncommitted). No game-code changes, no in-game logging (Phase 0b), no tests, no
+`todo.md` entry, and nothing run on a robot.
