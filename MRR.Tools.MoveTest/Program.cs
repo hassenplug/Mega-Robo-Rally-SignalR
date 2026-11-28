@@ -30,7 +30,7 @@ var aimHosts = new Dictionary<string, string>
 
 string? robotArg = null, experiment = null;
 string logDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "images", "movetest");
-int speed = 200, turnRate = 200, reps = 0, squares = 8;
+int speed = 200, turnRate = 200, turnSpeed = 0, reps = 0, squares = 8;
 bool calibrate = true, measure = false, yes = false, ignoreHost = false;
 
 for (int i = 0; i < args.Length; i++)
@@ -42,6 +42,7 @@ for (int i = 0; i < args.Length; i++)
         case "--log-dir": logDir = Next(); break;
         case "--speed": speed = int.Parse(Next()); break;
         case "--turn-rate": turnRate = int.Parse(Next()); break;
+        case "--turn-speed": turnSpeed = int.Parse(Next()); break;
         case "--reps": reps = int.Parse(Next()); break;
         case "--squares": squares = int.Parse(Next()); break;
         case "--no-calibrate": calibrate = false; break;
@@ -56,7 +57,7 @@ for (int i = 0; i < args.Length; i++)
     }
 }
 
-string[] experiments = ["status", "heading-hold", "odom-frame", "pose-heading", "odometry", "hand-rotate", "turn-rate", "speed", "moves", "loop"];
+string[] experiments = ["status", "heading-hold", "odom-frame", "pose-heading", "odometry", "hand-rotate", "turn-rate", "turn-to", "abs-turn", "speed", "moves", "loop"];
 if (robotArg == null || experiment == null || !experiments.Contains(experiment))
 {
     PrintHelp();
@@ -125,6 +126,8 @@ try
         case "odometry": await OdometryExp(); break;
         case "hand-rotate": await HandRotateExp(); break;
         case "turn-rate": await TurnRateExp(); break;
+        case "turn-to": await TurnToExp(); break;
+        case "abs-turn": await AbsTurnExp(); break;
         case "speed": await SpeedExp(); break;
         case "moves": await MovesExp(); break;
         case "loop": await LoopExp(); break;
@@ -241,6 +244,45 @@ async Task HandRotateExp()
     Log("lift-replace", null, null, turned, lifted, 0);
 }
 
+// Phase 1 candidate: turn_for +/-90, then turn_to the exact target heading. Does turn_to fix a
+// sub-degree error, which way does it go across 0/360, and how long does it take?
+async Task TurnToExp()
+{
+    Pause("Put the robot on its start mark. Enter when ready");
+    int n = reps > 0 ? reps : 2;
+    double target = 0; // calibrated heading at the start
+    for (int r = 0; r < n; r++)
+        foreach (int dir in new[] { 1, 1, 1, 1, -1, -1, -1, -1 })
+        {
+            target = ((target + dir * 90) % 360 + 360) % 360;
+            var after = await Turn(dir * 90, turnRate, $"turn_for {dir * 90:+0;-0}");
+            Console.WriteLine($"  error after turn_for {Wrap(after.Heading - target),5:F1}");
+            var fixedPose = await Motion($"turn_to {target:F0}",
+                new { cmd_id = "turn_to", heading = target, turn_rate = 45, stacking_type = 0 });
+            Console.WriteLine($"  error after turn_to  {Wrap(fixedPose.Heading - target),5:F1}");
+        }
+}
+
+// Phase 1 candidate: each turn_for angle = target heading - current heading (fractional),
+// so every turn absorbs the previous error with no extra command.
+async Task AbsTurnExp()
+{
+    Pause("Put the robot on its start mark. Enter when ready");
+    int n = reps > 0 ? reps : 2;
+    double target = 0;
+    for (int r = 0; r < n; r++)
+        foreach (int dir in new[] { 1, 1, 1, 1, -1, -1, -1, -1 })
+        {
+            target = ((target + dir * 90) % 360 + 360) % 360;
+            var now = await robot.GetPoseAsync();
+            double needed = Math.Round(Wrap(target - now.Heading), 1);
+            if (Math.Abs(needed) < 45) needed += dir * 360; // not expected; keeps the turn direction if it happens
+            var after = await Motion($"turn_for {needed:F1} (to {target:F0})",
+                new { cmd_id = "turn_for", angle = needed, turn_rate = turnRate, stacking_type = 0 });
+            Console.WriteLine($"  error {Wrap(after.Heading - target),5:F1}");
+        }
+}
+
 // #6: is turn_rate clamped above 180? Duration and heading error per rate.
 async Task TurnRateExp()
 {
@@ -340,7 +382,7 @@ Task<Pose> Drive(int mm, int angle, int driveSpeed, int finalHeading, string lab
         distance = mm,
         angle,
         drive_speed = driveSpeed,
-        turn_speed = 0,
+        turn_speed = turnSpeed,
         final_heading = finalHeading,
         stacking_type = 0,
     });
@@ -433,6 +475,9 @@ static void PrintHelp()
           odometry      [4] --squares (8) x 75 mm out and back; type the tape reading at the end
           hand-rotate   [5] calibrate, turn by hand 90, lift and replace; no motor movement
           turn-rate     [6] turn_for +/-90 at turn_rate 100, 180, 200
+          abs-turn      turn_for (target - current heading), fractional, 4 right + 4 left x --reps (2)
+          turn-to       turn_for +/-90 (4 right, 4 left) x --reps (2), each followed by turn_to the exact
+                        target heading at rate 45; in place, no hand steps
           speed         [7] --reps (10) x 75 mm at 200, 120, 80
           moves         Phase 0 step 2: forward 1, forward 3, strafe right 1, turn +90, u-turn,
                         each with its reverse, --reps (5) times
@@ -440,7 +485,8 @@ static void PrintHelp()
 
         Options:
           --speed N           drive_speed for game-style moves (default 200, as the game)
-          --turn-rate N       turn_rate for turns (default 200, as the game)
+          --turn-rate N       turn_rate for turns (default 200, as the game was before 2026-11-28)
+          --turn-speed N      drive_for turn_speed (default 0, as the game sends)
           --reps N            repetitions (default per experiment)
           --squares N         odometry experiment length (default 8)
           --measure           after every move, ask for the hand-measured error

@@ -567,14 +567,64 @@ namespace MRR.Devices
             int correctionAngle = (int)post.Robot.DirToOrigin - preHeading;
         }
 
+        // Heading hold (ROBOT_MOVEMENT_DESIGN.md Phase 1). The IMU heading this robot should have after
+        // its last turn, or null until its first turn on this connection. Each turn aims at an absolute
+        // heading (this + the turn), so a turn's overshoot is taken out of the next one instead of
+        // adding up: measured on the board, heading stayed within ~2 degrees over many turns, against
+        // ~0.75 degrees of overshoot gained per turn before. A new connection starts at null because
+        // ConnectAsync re-calibrates the IMU.
+        private double? _targetHeading;
+
+        // A correction bigger than this means the robot was moved by hand (respawned, re-placed by the
+        // GM) rather than drifted: motors were measured at <= ~2 degrees per turn and <= ~1.4 per drive.
+        // Then the robot's current heading becomes the new reference instead of being "corrected".
+        private const double MaxHeadingCorrection = 10.0;
+
         public async Task TurnAndWaitAsync(int direction)
         {
-            await TurnAsync(direction);
+            double nominal = direction * 90;
+            double angle = nominal;
+
+            var pre = await GetStatusAsync();
+            if (pre.Robot.Battery > 0) // 0 = the empty status GetStatusAsync returns with no socket
+            {
+                var plan = PlanHeadingTurn(_targetHeading, pre.Robot.Heading, nominal);
+                if (plan.Reanchored && _targetHeading != null)
+                    Console.WriteLine($"[{RobotID}] heading {pre.Robot.Heading:F1} is more than {MaxHeadingCorrection} from target {_targetHeading:F1}; re-anchoring (moved by hand?)");
+                angle = plan.Angle;
+                _targetHeading = plan.NewTarget;
+            }
+            else
+            {
+                _targetHeading = null; // no reading: fall back to a plain turn and re-anchor next time
+            }
+
+            await TurnAsync(angle);
 
             // wait for the turn to complete
             var post = await WaitForStopAsync();
             SaveBattery(post.Robot.Battery);
         }
+
+        /// <summary>
+        /// The turn_for angle for a turn of <paramref name="nominal"/> degrees that also takes out the
+        /// gap between the robot's IMU <paramref name="heading"/> and the heading it should have
+        /// (<paramref name="target"/>, null if none yet). Keeps the nominal direction (a U-turn stays a
+        /// U-turn the same way round). A gap over <see cref="MaxHeadingCorrection"/> is not corrected:
+        /// the current heading becomes the reference (Reanchored). NewTarget is in 0..360.
+        /// </summary>
+        public static (double Angle, double NewTarget, bool Reanchored) PlanHeadingTurn(double? target, double heading, double nominal)
+        {
+            double correction = target is double t ? WrapDegrees(t - heading) : 0;
+            bool reanchored = target == null || Math.Abs(correction) > MaxHeadingCorrection;
+            if (reanchored) correction = 0;
+            double angle = Math.Round(nominal + correction, 1);
+            double newTarget = ((heading + angle) % 360 + 360) % 360;
+            return (angle, newTarget, reanchored);
+        }
+
+        /// <summary>Wraps an angle difference into -180..180 degrees.</summary>
+        private static double WrapDegrees(double degrees) => ((degrees % 360) + 540) % 360 - 180;
 
         /// <summary>
         /// Records the robot's battery (ws_status robot.battery) in RobotBases.BatteryStatus --
@@ -618,11 +668,12 @@ namespace MRR.Devices
 
         // turn_rate 180, not 200: same turn time (the speed appears capped at 180), but 90-degree turns
         // overshot ~0.4 degrees instead of ~0.75 on both robots tested (ROBOT_MOVEMENT_DESIGN.md Phase 0 #6).
-        public Task TurnAsync(int direction) =>
+        // angle in degrees, clockwise positive; fractional angles are accepted (Phase 0 abs-turn).
+        public Task TurnAsync(double angle) =>
             SendCommandAsync(new
             {
                 cmd_id = "turn_for",
-                angle = direction * 90,
+                angle,
                 turn_rate = 180,
                 stacking_type = 0
             });

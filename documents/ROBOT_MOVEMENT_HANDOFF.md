@@ -43,7 +43,7 @@ No git? Copy just the two `documents/ROBOT_MOVEMENT_*.md` files with `scp`; the 
 |---|---|---|
 | 0 | **Measure.** No error data exists. Standalone experiments, then in-game per-command logging | **In progress:** `MRR.Tools.MoveTest` built 2026-11-28, not yet run on a robot |
 | 0+ | **Applied 2026-11-28 by owner's decision, before the tape check:** game `drive_speed` 200 → 120 and `turn_rate` 200 → 180 in `RobotConnection.MoveAsync` / `TurnAsync`, from Phase 0 #6 and #7 | built, not deployed or played |
-| 1 | IMU heading hold: target heading per robot, `turn_to` fix after each turn, real `final_heading` | not started |
+| 1 | IMU heading hold: each turn aims at an absolute heading (`PlanHeadingTurn`); `final_heading` and `turn_to` ruled out by Phase 0 | **built 2026-11-28, tests pass, not deployed or played** |
 | 2 | Absolute-target moves: aim at the destination square's center, not "75 mm further"; small corrective drive | not started |
 | 3 | Bounded camera alignment at the end of a move, with a sanity limit; re-zero odometry when it succeeds | not started |
 | 4 | Streaming `drive_with_vector` control during a drive | only if 1–3 leave a gap |
